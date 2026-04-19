@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   showContextMenu: (item) => ipcRenderer.invoke('show-context-menu', item),
+  renameFile: (oldPath, newName) => ipcRenderer.invoke('rename-file', oldPath, newName),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s)
 });
