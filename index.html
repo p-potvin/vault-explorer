@@ -19,6 +19,7 @@
       height: 32px; -webkit-app-region: drag; background: var(--vault-acrylic); backdrop-filter: blur(20px);
       display: flex; align-items: center; padding-left: 10px; font-size: 12px; color: #ccc; border-bottom: 1px solid var(--vault-border); flex-shrink: 0;
     }
+    * { box-sizing: border-box; }
     .glass-container {
       flex: 1; display: flex; flex-direction: column; background: radial-gradient(circle at 50% -20%, #2b2b2b, var(--vault-bg)); overflow: hidden;
     }
@@ -55,12 +56,19 @@
     .thumbnail-container {
       width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 4px; overflow: hidden; position: relative; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events: none;
     }
+    .file-card.fake-folder .thumbnail-container { background: rgba(0, 120, 212, 0.2); box-shadow: none; pointer-events: none; }
     .thumbnail { width: 100%; height: 100%; object-fit: cover; }
-    .trickplay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+    .trickplay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
     
-    .filename-container { position: relative; width: 100%; text-align: center; }
+    .duration-badge {
+       position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.7);
+       color: white; font-size: 11px; padding: 2px 5px; border-radius: 3px; font-weight: bold;
+       display: none; z-index: 5;
+    }
+
+    .filename-container { position: relative; width: 100%; text-align: center; pointer-events: none; }
     .filename { font-size: 13px; width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
-    .rename-input { position: absolute; top: 0; left: 0; width: 100%; font-size: 13px; text-align: center; display: none; background: #222; color: #fff; border: 1px solid var(--vault-accent); padding: 2px; }
+    .rename-input { position: absolute; top: 0; left: 0; width: 100%; font-size: 13px; text-align: center; display: none; background: #222; color: #fff; border: 1px solid var(--vault-accent); padding: 2px; pointer-events: auto; }
 
     .status-bar {
       display: flex; justify-content: space-between; padding: 4px 15px; background: var(--vault-acrylic); font-size: 12px; color: #aaa; border-top: 1px solid var(--vault-border); flex-shrink: 0;
@@ -73,38 +81,100 @@
       display:none; position:fixed; top:32px; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index: 200; align-items:center; justify-content:center;
     }
     #close-modal { position:absolute; top:20px; right:20px; font-size:24px; color:white; cursor:pointer; background:none; border:none; z-index: 201; }
-    #video-player { max-width: 90%; max-height: 90%; outline: none; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .video-wrapper { position:relative; max-width:90%; max-height:90%; border-radius:8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
+    #video-player { max-width:100%; max-height:100%; outline:none; }
+    #custom-controls { position:absolute; bottom:0; left:0; width:100%; padding:20px; padding-top:40px; background:linear-gradient(transparent, rgba(0,0,0,0.8)); opacity:0; transition:opacity 0.3s; display:flex; flex-direction:column; gap:10px; }
+    .video-wrapper:hover #custom-controls { opacity:1; }
+    
+    /* Center loading screen */
+    .loading {
+      display: none; align-items: center; justify-content: center;
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      font-size: 16px; color: rgba(255,255,255,0.5);
+      background: rgba(30,30,30,0.7); backdrop-filter: blur(5px); z-index: 10;
+    }
+
+    #fake-folder-dialog {
+      display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%);
+      background:#2b2b2b; padding:20px; border-radius:8px; border:1px solid var(--vault-border);
+      z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    }
   </style>
 </head>
 <body>
   <div class="titlebar">Vault Explorer</div>
   <div class="glass-container">
     <div class="toolbar">
-      <button id="btn-back">&#8592;</button>
+      <button id="btn-back" title="Back" style="width:32px; padding:0;">&#8592;</button>
       <button id="btn-select">Browse Vault</button>
-      <button id="btn-new-folder">New FAKE</button>
-      <div id="path-display" class="path-display">No folder...</div>
+      <div id="path-display" class="path-display">No folder selected...</div>
       <select id="filter-type">
         <option value="video">Videos</option>
         <option value="image">Images</option>
         <option value="all">All Files</option>
       </select>
-      <input type="text" id="search-box" class="search-box" placeholder="Search...">
+      <input type="text" id="search-box" class="search-box" placeholder="Search files...">
     </div>
+    
+    <div class="sorting-bar" style="padding: 6px 20px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--vault-border); display: flex; gap: 15px; font-size: 13px; align-items: center; justify-content: flex-end;">
+       <button id="btn-new-folder" style="padding:4px 10px; font-size:12px;">New Folder</button>
+       <button id="btn-refresh" style="padding:4px 10px; font-size:12px; margin-right:auto;">Refresh View</button>
+       <span style="color:#aaa;">Sort By:</span>
+       <select id="sort-by" style="padding:3px 8px; font-size:12px;">
+           <option value="mtime" selected>Date Modified</option>
+           <option value="name">Name</option>
+           <option value="size">Size</option>
+           <option value="type">Type</option>
+           <option value="duration">Duration</option>
+       </select>
+       <select id="sort-order" style="padding:3px 8px; font-size:12px;">
+           <option value="asc">Ascending</option>
+           <option value="desc" selected>Descending</option>
+       </select>
+    </div>
+    
     <div class="main-area" id="main-area">
       <div id="selection-box" class="selection-box"></div>
+      <div id="loading" class="loading">Scanning directory... this may take a moment.</div>
       <div id="file-grid" class="file-grid"></div>
     </div>
+    
     <div class="status-bar">
       <span id="status-items">0 items</span>
-      <span id="status-size" style="margin: 0 20px;"></span>
+      <span id="status-size" style="margin-left:auto; margin-right:20px;"></span>
       <span id="status-selected"></span>
     </div>
   </div>
   
+  <div id="fake-folder-dialog">
+    <div style="margin-bottom:10px;">Enter Folder Name:</div>
+    <input type="text" id="fake-folder-name" class="search-box" style="width:100%; margin-bottom:15px;" />
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button id="btn-cancel-folder">Cancel</button>
+      <button id="btn-create-folder" style="background:var(--vault-accent)">Create</button>
+    </div>
+  </div>
+
   <div id="video-modal">
     <button id="close-modal">&times;</button>
-    <video id="video-player" controls autoplay></video>
+    <div class="video-wrapper">
+       <video id="video-player" autoplay></video>
+       <div id="custom-controls">
+          <div id="seek-area" style="position:relative; width:100%; height:20px; cursor:pointer;">
+             <div style="width:100%; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin-top:8px;" id="seek-bg">
+                <div id="seek-fill" style="width:0%; height:100%; background:var(--vault-accent); border-radius:2px; pointer-events:none;"></div>
+             </div>
+             <div id="seek-hover-preview" style="position:absolute; bottom:25px; left:0; width:160px; aspect-ratio:16/9; background:#000; border:1px solid #fff; border-radius:4px; display:none; background-size:cover; pointer-events:none; transform:translateX(-50%);"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; color:#fff; font-size:13px; align-items:center;">
+             <div style="display:flex; gap:15px; align-items:center;">
+                <button id="btn-playpause" style="background:none; border:none; color:white; font-size:16px;">&#10074;&#10074;</button>
+                <span id="time-display">0:00 / 0:00</span>
+             </div>
+             <button id="btn-fullscreen" style="background:none; border:none; color:white; font-size:16px;">&#x26F6;</button>
+          </div>
+       </div>
+    </div>
   </div>
 
   <script>
@@ -114,12 +184,29 @@
     let allItems = [], displayedItems = [];
     let selectedIndices = new Set(), lastSelectedIndex = -1;
     let PAGE_SIZE = 50, currentlyRendered = 0;
-    
-    function sanitizePath(p) { return p ? 'file:///' + p.replace(/#/g, '%23').replace(/\\/g, '/') : ''; }
+    let scrollPositions = {};
+
+    // Fix for all file:// breakages (spaces, special chars)
+    function sanitizePath(p) {
+        if (!p) return '';
+        // E.g. C:\My Folder\File.jpg -> file:///C:/My%20Folder/File.jpg
+        const standardized = p.replace(/\\/g, '/');
+        const encoded = standardized.split('/').map(segment => encodeURIComponent(segment).replace(/'/g, "%27")).join('/');
+        const decodedDrive = encoded.replace(/^([a-zA-Z])%3A\//, '$1:/'); 
+        return 'file:///' + decodedDrive;
+    }
 
     async function init() {
        appSettings = await window.electronAPI.getSettings();
        if (!appSettings.folders) appSettings.folders = [];
+       if (!appSettings.lastPath) appSettings.lastPath = { navPath: 'root', realPath: '' };
+       if (!appSettings.scrollPositions) appSettings.scrollPositions = {};
+       
+       scrollPositions = appSettings.scrollPositions;
+       
+       if (appSettings.lastPath.realPath) {
+           loadDirectory(appSettings.lastPath.navPath, appSettings.lastPath.realPath, false);
+       }
     }
     init();
 
@@ -133,40 +220,93 @@
       el('status-items').innerText = `${displayedItems.length} items`;
       if (selectedIndices.size > 0) {
         let size = 0;
-        selectedIndices.forEach(idx => { if (displayedItems[idx].size) size += displayedItems[idx].size; });
+        let needsResolve = [];
+        selectedIndices.forEach(idx => {
+            const itm = displayedItems[idx];
+            if (itm.type === 'video' || itm.type === 'image') {
+                if (itm.size !== undefined) {
+                    size += itm.size;
+                } else {
+                    needsResolve.push(itm);
+                }
+            }
+        });
+        
+        // Lazy-load sizes for selected items via fast IPC stat resolving
+        if (needsResolve.length > 0) {
+            for (const item of needsResolve) {
+                const s = await window.electronAPI.getFileSize(item.path);
+                item.size = s;
+                size += s;
+            }
+        }
         el('status-selected').innerText = `${selectedIndices.size} selected (${formatBytes(size)})`;
       } else el('status-selected').innerText = '';
       
       if (currentRealPath) {
+         el('status-size').innerText = "Querying Everything Index...";
          const bytes = await window.electronAPI.getEverythingSize(currentRealPath);
          el('status-size').innerText = `Folder Size (Everything): ${formatBytes(bytes)}`;
       } else el('status-size').innerText = '';
     }
 
+    function formatDuration(sec) {
+        if (!sec) return '';
+        const m = Math.floor(sec / 60); const s = Math.floor(sec % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
     function createCardElement(item, index) {
       const card = document.createElement('div');
       card.className = 'file-card';
-      if (item.type === 'fakeFolder') card.classList.add('fake-folder');
+      if (item.type === 'fakeFolder') {
+          card.classList.add('fake-folder');
+          card.addEventListener('dragover', (e) => { e.preventDefault(); card.style.borderColor = "var(--vault-accent)"; });
+          card.addEventListener('dragleave', () => { card.style.borderColor = "transparent"; });
+          card.addEventListener('drop', (e) => {
+              e.preventDefault();
+              card.style.borderColor = "transparent";
+              const pathDropped = e.dataTransfer.getData('text/plain');
+              if (pathDropped) {
+                  const targetFolder = appSettings.folders.find(f => f.name === item.name && f.parent === currentNavPath);
+                  if (targetFolder && !targetFolder.items.includes(pathDropped)) {
+                      targetFolder.items.push(pathDropped);
+                      window.electronAPI.saveSettings(appSettings);
+                      applyFilters();
+                  }
+              }
+          });
+      } else {
+          card.draggable = true;
+          card.addEventListener('dragstart', (e) => {
+              e.dataTransfer.setData('text/plain', item.path);
+              e.dataTransfer.effectAllowed = 'move';
+          });
+      }
+      
       card.dataset.index = index; card.title = item.name;
+      if (item.hoverWebm) card.dataset.hasWebm = "true";
+      if (item.thumbnail) card.dataset.hasThumb = "true";
 
       let thumbHtml = '';
       if (item.type === 'fakeFolder') {
          thumbHtml = '<svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
       } else {
          const thumbSrc = sanitizePath(item.thumbnail) || 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle">NO THUMB</text></svg>';
-         thumbHtml = `<img class="thumbnail" loading="lazy" src="${thumbSrc}"><img class="trickplay">`;
+         thumbHtml = `<img class="thumbnail" loading="lazy" src="${thumbSrc}"><img class="trickplay">
+                      <div class="duration-badge"></div>`;
       }
       
       card.innerHTML = `
         <input type="checkbox" class="file-checkbox">
         <div class="thumbnail-container">${thumbHtml}</div>
-        <div class="filename-container">
+        <div class="filename-container" style="padding-top:4px;">
            <div class="filename">${item.name}</div>
+           ${item.mtimeFormatted ? `<div style="font-size:10px; color:#aaa; margin-top:2px;">${item.mtimeFormatted}</div>` : ''}
            <input type="text" class="rename-input" value="${item.name}">
         </div>
       `;
       
-      // Select Checkbox Event
       const chk = card.querySelector('.file-checkbox');
       chk.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -176,19 +316,45 @@
           lastSelectedIndex = index;
           updateStatusBar();
       });
-
-      // Trickplay Logic
-      if (item.trickplay && item.trickplay.length > 0) {
-         let hoverTimer; let tpIndex = 0;
+      
+      // WebM Hover Play Logic
+      if (item.hoverWebm) {
+         let wT;
+         const mainImg = card.querySelector('.thumbnail');
+         const thumbCont = card.querySelector('.thumbnail-container');
+         card.addEventListener('mouseenter', () => {
+              clearTimeout(wT);
+              wT = setTimeout(() => {
+                 if (thumbCont.querySelector('video.trickplay')) return;
+                 let v = document.createElement('video');
+                 v.src = sanitizePath(item.hoverWebm);
+                 v.autoplay = true; v.loop = true; v.muted = false; v.volume = 0.5; v.className = 'trickplay';
+                 v.style.display = 'block'; v.style.objectFit = 'cover';
+                 thumbCont.appendChild(v);
+                 mainImg.style.display = 'none';
+              }, 300);
+         });
+         card.addEventListener('mouseleave', () => {
+             clearTimeout(wT);
+             const v = thumbCont.querySelector('video.trickplay');
+             if(v) { v.pause(); v.src = ""; v.remove(); }
+             if(mainImg) mainImg.style.display = 'block';
+         });
+      } else if (item.trickplayFolder) {
+         let hoverTimer; let tpIndex = 0; let frames = [];
          const tpImg = card.querySelector('.trickplay');
          const mainImg = card.querySelector('.thumbnail');
-         card.addEventListener('mouseenter', () => {
+         
+         card.addEventListener('mouseenter', async () => {
+           if (frames.length === 0) frames = await window.electronAPI.getTrickplaySprites(item.trickplayFolder);
+           if (frames.length === 0) return; // Still empty
+
            tpImg.style.display = 'block'; mainImg.style.display = 'none'; tpIndex = 0;
-           tpImg.src = sanitizePath(item.trickplay[tpIndex]);
+           tpImg.src = sanitizePath(frames[tpIndex]);
            hoverTimer = setInterval(() => {
-             tpIndex = (tpIndex + 1) % item.trickplay.length;
-             tpImg.src = sanitizePath(item.trickplay[tpIndex]);
-           }, 300);
+             tpIndex = (tpIndex + 1) % frames.length;
+             tpImg.src = sanitizePath(frames[tpIndex]);
+           }, 400); // Sequence iteration speed
          });
          card.addEventListener('mouseleave', () => {
            clearInterval(hoverTimer); tpImg.style.display = 'none'; mainImg.style.display = 'block';
@@ -208,8 +374,27 @@
       };
       input.addEventListener('blur', commitRename);
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') { input.value = item.name; input.blur(); } });
+      
+      // Async Duration Extract
+      if (item.type === 'video') {
+         requestAnimationFrame(() => {
+             let tmp = document.createElement('video');
+             tmp.preload = "metadata";
+             tmp.src = sanitizePath(item.path);
+             tmp.onloadedmetadata = () => {
+                 const d = card.querySelector('.duration-badge');
+                 if (d && tmp.duration) { 
+                     d.innerText = formatDuration(tmp.duration); 
+                     d.style.display = 'block'; 
+                     item.duration = tmp.duration; // Memory injection for "Sort by Duration"
+                 }
+                 tmp.src = ""; tmp.remove();
+             };
+         });
+      }
 
       card.addEventListener('click', (e) => {
+        if (e.target.closest('input')) return; // Ignore input
         if (e.ctrlKey) {
           if (selectedIndices.has(index)) selectedIndices.delete(index); else selectedIndices.add(index);
           lastSelectedIndex = index;
@@ -238,10 +423,24 @@
       card.addEventListener('contextmenu', async () => {
          if (!selectedIndices.has(index)) {
             selectedIndices.clear(); selectedIndices.add(index);
-            document.querySelectorAll('.file-card').forEach(c => c.classList.toggle('selected', selectedIndices.has(parseInt(c.dataset.index))));
+            document.querySelectorAll('.file-card').forEach(c => {
+                 c.classList.toggle('selected', selectedIndices.has(parseInt(c.dataset.index)));
+                 c.querySelector('.file-checkbox').checked = selectedIndices.has(parseInt(c.dataset.index));
+            });
             updateStatusBar();
          }
-         window.electronAPI.showContextMenu({ type: item.type, path: item.path, name: item.name });
+         const action = await window.electronAPI.showContextMenu({ type: item.type, path: item.path, name: item.name });
+         if (action === 'generate-webm') {
+             el('loading').innerText = 'Generating WebM preview...';
+             el('loading').style.display = 'flex';
+             const res = await window.electronAPI.generateWebm(item.path);
+             el('loading').style.display = 'none';
+             if (!res.success) alert("ffmpeg failed: " + res.error);
+             else {
+                 alert("WebM generated successfully! Reloading directory...");
+                 loadDirectory(currentNavPath, currentRealPath, false);
+             }
+         }
       });
 
       return card;
@@ -251,21 +450,71 @@
       const nextBatch = displayedItems.slice(currentlyRendered, currentlyRendered + PAGE_SIZE);
       nextBatch.forEach((item, i) => { el('file-grid').appendChild(createCardElement(item, currentlyRendered + i)); });
       currentlyRendered += nextBatch.length;
+      
+      // Auto-generate preview background queue
+      nextBatch.filter(i => i.type === 'video' && !i.hoverWebm).forEach(i => {
+          window.electronAPI.generateWebm(i.path).then(res => {
+              if (res && res.success) i.hoverWebm = res.path;
+          });
+      });
     }
     
     function applyFilters() {
        const term = el('search-box').value.toLowerCase();
        const filterAttr = el('filter-type').value;
-       const fakeFolders = appSettings.folders.filter(f => f.parent === currentNavPath).map(f => ({type:'fakeFolder', name: f.name}));
-       const pool = [...fakeFolders, ...allItems];
        
-       displayedItems = pool.filter(v => {
+       const fakeFolders = appSettings.folders.filter(f => f.parent === currentNavPath).map(f => ({type:'fakeFolder', name: f.name}));
+       
+       // Calculate hidden Items
+       const allHiddenItems = new Set();
+       appSettings.folders.forEach(f => f.items.forEach(p => allHiddenItems.add(p)));
+       
+       // If we're inside a logical folder, allItems only contains those nodes we loaded, 
+       // but here allItems represents the CURRENT logic pull
+       const displayableFiles = allItems.filter(v => {
+           // Hide if we're at root BUT it's dragged into a fake folder
+           if (currentNavPath === 'root' || !currentNavPath.includes('/')) {
+               if (allHiddenItems.has(v.path)) return false;
+           }
+           return true; 
+       });
+       
+       const pool = [...fakeFolders, ...displayableFiles];
+       
+       let filteredItems = pool.filter(v => {
            if (term && !v.name.toLowerCase().includes(term)) return false;
            if (v.type === 'fakeFolder') return true;
            if (filterAttr === 'video') return v.type === 'video';
            if (filterAttr === 'image') return v.type === 'image';
-           return true; // value == 'all'
+           return true; 
        });
+       
+       // Sort logic
+       const sortBy = el('sort-by').value;
+       const sortOrder = el('sort-order').value;
+       
+       filteredItems.sort((a,b) => {
+           // Always keep fake folders floating at top natively like Windows
+           if (a.type === 'fakeFolder' && b.type !== 'fakeFolder') return -1;
+           if (b.type === 'fakeFolder' && a.type !== 'fakeFolder') return 1;
+           
+           let valA = a[sortBy];
+           let valB = b[sortBy];
+           
+           if (sortBy === 'name') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
+           else if (sortBy === 'size') { valA = valA || 0; valB = valB || 0; }
+           else if (sortBy === 'duration') { valA = valA || 0; valB = valB || 0; }
+           else if (sortBy === 'mtime') { valA = valA || 0; valB = valB || 0; }
+           
+           let compare = 0;
+           if (valA < valB) compare = -1;
+           else if (valA > valB) compare = 1;
+           
+           return sortOrder === 'desc' ? compare * -1 : compare;
+       });
+       
+       displayedItems = filteredItems;
+       
        el('file-grid').innerHTML = '';
        selectedIndices.clear(); lastSelectedIndex = -1; currentlyRendered = 0;
        updateStatusBar();
@@ -273,47 +522,129 @@
     }
 
     el('main-area').addEventListener('scroll', () => {
+       scrollPositions[currentNavPath] = el('main-area').scrollTop;
+       appSettings.scrollPositions = scrollPositions;
+       window.electronAPI.saveSettings(appSettings);
+       
        if (el('main-area').scrollTop + el('main-area').clientHeight >= el('main-area').scrollHeight - 100) {
            if (currentlyRendered < displayedItems.length) renderMore();
        }
     });
 
     el('filter-type').addEventListener('change', applyFilters);
+    el('sort-by').addEventListener('change', applyFilters);
+    el('sort-order').addEventListener('change', applyFilters);
     el('search-box').addEventListener('input', applyFilters);
 
     async function loadDirectory(navPath, realPath, useCache = false) {
       if (!realPath) return;
       currentNavPath = navPath; currentRealPath = realPath;
       el('path-display').innerText = navPath === 'root' ? realPath : navPath;
+      
+      appSettings.lastPath = { navPath, realPath };
+      window.electronAPI.saveSettings(appSettings);
+      
+      el('loading').style.display = 'flex';
       if (!useCache) allItems = await window.electronAPI.scanDirectory(realPath);
+      el('loading').style.display = 'none';
+      
       applyFilters();
+      
+      setTimeout(() => {
+          if (scrollPositions[currentNavPath]) {
+              el('main-area').scrollTop = scrollPositions[currentNavPath];
+          }
+      }, 50);
     }
 
-    function navigateTo(navPath, realPath) {
+    async function navigateTo(navPath, realPath) {
         if (navPath === 'root') loadDirectory('root', realPath, false);
-        else {
+        else { 
             currentNavPath = navPath; el('path-display').innerText = navPath;
+            
+            // Scan only the items physically associated with this folder target!
+            const targetFolder = appSettings.folders.find(f => f.name === navPath.split('/').pop());
+            if (targetFolder && targetFolder.items.length > 0) {
+                 el('loading').style.display = 'flex';
+                 allItems = await window.electronAPI.scanSpecificFiles(targetFolder.items);
+                 el('loading').style.display = 'none';
+            } else {
+                 allItems = [];
+            }
             applyFilters(); 
         }
     }
 
     el('btn-back').addEventListener('click', () => {
         if (currentNavPath && currentNavPath !== 'root') {
-            const parts = currentNavPath.split('/'); parts.pop();
-            navigateTo(parts.join('/'), currentRealPath);
+            const parts = currentNavPath.split('/'); parts.pop(); navigateTo(parts.join('/'), currentRealPath);
         }
+    });
+
+    el('btn-refresh').addEventListener('click', async () => {
+         if (!currentRealPath || currentNavPath !== 'root') return;
+         el('loading').innerText = 'Refreshing Views...'; el('loading').style.display = 'flex';
+         const latest = await window.electronAPI.scanDirectory(currentRealPath);
+         el('loading').style.display = 'none'; el('loading').innerText = 'Scanning directory... this may take a moment.';
+         
+         const existingPaths = new Set(allItems.map(i => i.path));
+         let addedCount = 0;
+         latest.forEach(item => {
+             if (!existingPaths.has(item.path)) { allItems.push(item); addedCount++; }
+             else {
+                 const exist = allItems.find(i => i.path === item.path);
+                 if (exist) {
+                     exist.thumbnail = item.thumbnail;
+                     exist.hoverWebm = item.hoverWebm;
+                     exist.trickplayFolder = item.trickplayFolder;
+                 }
+             }
+         });
+         
+         // Physically update DOM nodes organically instead of clear/rerender
+         displayedItems.forEach((item, displayIdx) => {
+             const card = el('file-grid').children[displayIdx];
+             if (card && card.dataset) {
+                if (item.hoverWebm && !card.dataset.hasWebm) {
+                     const newCard = createCardElement(item, displayIdx);
+                     el('file-grid').replaceChild(newCard, card);
+                } else if (item.thumbnail && !card.dataset.hasThumb) {
+                     const newCard = createCardElement(item, displayIdx);
+                     el('file-grid').replaceChild(newCard, card);
+                }
+             }
+         });
+         
+         if (addedCount > 0) applyFilters(); 
     });
 
     el('btn-select').addEventListener('click', async () => {
       const folderPath = await window.electronAPI.openDirectory();
       if (folderPath) loadDirectory('root', folderPath, false);
     });
+    
+    // FAKE folders handling
+    document.getElementById('btn-new-folder').addEventListener('click', () => {
+        if(!currentNavPath) return alert("Select a Vault first!");
+        document.getElementById('fake-folder-dialog').style.display = 'block';
+        document.getElementById('fake-folder-name').focus();
+    });
+    document.getElementById('btn-cancel-folder').addEventListener('click', () => {
+        document.getElementById('fake-folder-dialog').style.display = 'none'; document.getElementById('fake-folder-name').value = '';
+    });
+    document.getElementById('btn-create-folder').addEventListener('click', () => {
+        const name = document.getElementById('fake-folder-name').value.trim();
+        if(name) {
+            appSettings.folders.push({ name: name, parent: currentNavPath, items: [] });
+            window.electronAPI.saveSettings(appSettings);
+            document.getElementById('fake-folder-dialog').style.display = 'none'; document.getElementById('fake-folder-name').value = '';
+            loadDirectory(currentNavPath, currentRealPath, true);
+        }
+    });
 
-    // Ctrl+A / F2
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key.toLowerCase() === 'a') {
-            e.preventDefault();
-            selectedIndices.clear();
+            e.preventDefault(); selectedIndices.clear();
             displayedItems.forEach((_, i) => selectedIndices.add(i));
             document.querySelectorAll('.file-card').forEach(c => {
                  c.classList.add('selected'); c.querySelector('.file-checkbox').checked = true;
@@ -324,49 +655,36 @@
             const idx = Array.from(selectedIndices)[0];
             const card = document.querySelector(`.file-card[data-index="${idx}"]`);
             if (card) {
-                const inp = card.querySelector('.rename-input');
-                const fn = card.querySelector('.filename');
-                inp.style.display = 'block'; fn.style.display = 'none';
-                inp.focus(); inp.select();
+                const inp = card.querySelector('.rename-input'); const fn = card.querySelector('.filename');
+                inp.style.display = 'block'; fn.style.display = 'none'; inp.focus(); inp.select();
             }
         }
     });
 
-    // Click+Drag selection logic
-    const area = el('main-area');
-    const sbox = el('selection-box');
+    const area = el('main-area'); const sbox = el('selection-box');
     let isDragging = false, startX, startY;
     
     area.addEventListener('mousedown', (e) => {
         if (e.target.closest('.file-card') || e.target.closest('.toolbar') || e.target.closest('button') || e.target.closest('input')) return;
-        isDragging = true;
-        const rect = area.getBoundingClientRect();
-        startX = e.clientX - rect.left + area.scrollLeft;
-        startY = e.clientY - rect.top + area.scrollTop;
-        sbox.style.left = startX + 'px'; sbox.style.top = startY + 'px';
-        sbox.style.width = '0px'; sbox.style.height = '0px';
-        sbox.style.display = 'block';
+        isDragging = true; const rect = area.getBoundingClientRect();
+        startX = e.clientX - rect.left + area.scrollLeft; startY = e.clientY - rect.top + area.scrollTop;
+        sbox.style.left = startX + 'px'; sbox.style.top = startY + 'px'; sbox.style.width = '0px'; sbox.style.height = '0px'; sbox.style.display = 'block';
         if (!e.ctrlKey && !e.shiftKey) {
             selectedIndices.clear();
             document.querySelectorAll('.file-card').forEach(c => { c.classList.remove('selected'); c.querySelector('.file-checkbox').checked = false; });
             updateStatusBar();
         }
     });
-    
     area.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const rect = area.getBoundingClientRect();
-        const curX = e.clientX - rect.left + area.scrollLeft;
-        const curY = e.clientY - rect.top + area.scrollTop;
-        const x = Math.min(startX, curX), y = Math.min(startY, curY);
-        const w = Math.abs(curX - startX), h = Math.abs(curY - startY);
+        const curX = e.clientX - rect.left + area.scrollLeft; const curY = e.clientY - rect.top + area.scrollTop;
+        const x = Math.min(startX, curX), y = Math.min(startY, curY), w = Math.abs(curX - startX), h = Math.abs(curY - startY);
         sbox.style.left = x + 'px'; sbox.style.top = y + 'px'; sbox.style.width = w + 'px'; sbox.style.height = h + 'px';
         
-        // Intersects check
         document.querySelectorAll('.file-card').forEach(card => {
              const cr = card.getBoundingClientRect();
-             const cardX = cr.left - rect.left + area.scrollLeft;
-             const cardY = cr.top - rect.top + area.scrollTop;
+             const cardX = cr.left - rect.left + area.scrollLeft; const cardY = cr.top - rect.top + area.scrollTop;
              const intersects = !(cardX > x + w || cardX + cr.width < x || cardY > y + h || cardY + cr.height < y);
              const idx = parseInt(card.dataset.index);
              if (intersects) {
@@ -375,15 +693,69 @@
         });
         updateStatusBar();
     });
-    
-    window.addEventListener('mouseup', () => {
-        if (isDragging) { isDragging = false; sbox.style.display = 'none'; }
+    window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; sbox.style.display = 'none'; } });
+
+    el('video-modal').addEventListener('click', (e) => {
+        if (e.target === el('video-modal')) el('close-modal').click();
     });
 
     el('close-modal').addEventListener('click', () => {
         el('video-modal').style.display = 'none';
-        el('video-player').pause();
-        el('video-player').src = "";
+        el('video-player').pause(); el('video-player').src = "";
+    });
+
+    // Custom Video Player Logic
+    const vp = el('video-player');
+    const seekArea = el('seek-area');
+    const seekFill = el('seek-fill');
+    const seekPreview = el('seek-hover-preview');
+    const btnPlay = el('btn-playpause');
+    let trickFrames = [];
+
+    vp.addEventListener('timeupdate', () => {
+        if (!vp.duration) return;
+        seekFill.style.width = (vp.currentTime / vp.duration * 100) + '%';
+        el('time-display').innerText = formatDuration(vp.currentTime) + ' / ' + formatDuration(vp.duration);
+    });
+
+    btnPlay.addEventListener('click', () => { if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; } else { vp.pause(); btnPlay.innerHTML = '&#9654;'; } });
+    el('btn-fullscreen').addEventListener('click', () => { if (vp.requestFullscreen) vp.requestFullscreen(); });
+
+    seekArea.addEventListener('click', (e) => {
+        const rect = seekArea.getBoundingClientRect();
+        vp.currentTime = ((e.clientX - rect.left) / rect.width) * vp.duration;
+    });
+
+    seekArea.addEventListener('mousemove', async (e) => {
+        const rect = seekArea.getBoundingClientRect();
+        let percent = (e.clientX - rect.left) / rect.width;
+        if (percent < 0) percent = 0; if (percent > 1) percent = 1;
+
+        const tpFolder = vp.dataset.trickplay;
+        if (tpFolder) {
+            seekPreview.style.display = 'block';
+            seekPreview.style.left = (percent * 100) + '%';
+            if (trickFrames.length === 0) trickFrames = await window.electronAPI.getTrickplaySprites(tpFolder);
+            if (trickFrames.length > 0) {
+                const idx = Math.floor(percent * trickFrames.length);
+                if (trickFrames[idx]) seekPreview.style.backgroundImage = `url('${sanitizePath(trickFrames[idx])}')`;
+            }
+        }
+    });
+
+    seekArea.addEventListener('mouseleave', () => { seekPreview.style.display = 'none'; });
+    
+    // Wire trickplay data cleanly to modal
+    document.addEventListener('dblclick', (e) => {
+       const cd = e.target.closest('.file-card');
+       if (cd && displayedItems[cd.dataset.index]) {
+           let itm = displayedItems[cd.dataset.index];
+           if (itm.type === 'video') {
+               trickFrames = [];
+               vp.dataset.trickplay = itm.trickplayFolder || '';
+               btnPlay.innerHTML = '&#10074;&#10074;';
+           }
+       }
     });
   </script>
 </body>
