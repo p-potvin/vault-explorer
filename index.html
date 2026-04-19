@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vault Browser</title>
+  <style>
+    :root {
+      --vault-bg: #1e1e1e;
+      --vault-acrylic: rgba(45, 45, 45, 0.6);
+      --vault-border: rgba(255, 255, 255, 0.1);
+      --vault-text: #ffffff;
+      --vault-accent: #0078d4;
+      --vault-hover: rgba(255, 255, 255, 0.08);
+      --vault-selected: rgba(0, 120, 212, 0.4);
+    }
+    
+    body {
+      margin: 0; padding: 0;
+      font-family: 'Segoe UI Variable', 'Segoe UI', -apple-system, sans-serif;
+      background: var(--vault-bg);
+      color: var(--vault-text);
+      display: flex; flex-direction: column;
+      height: 100vh; overflow: hidden;
+      user-select: none;
+    }
+
+    .titlebar {
+      height: 32px; -webkit-app-region: drag;
+      background: var(--vault-acrylic); backdrop-filter: blur(20px);
+      display: flex; align-items: center; padding-left: 10px;
+      font-size: 12px; color: #ccc; border-bottom: 1px solid var(--vault-border);
+      flex-shrink: 0;
+    }
+    
+    .glass-container {
+      flex: 1; display: flex; flex-direction: column;
+      background: radial-gradient(circle at 50% -20%, #2b2b2b, var(--vault-bg));
+      overflow: hidden;
+    }
+    
+    .toolbar {
+      display: flex; gap: 15px; align-items: center; padding: 15px 20px;
+      border-bottom: 1px solid var(--vault-border);
+      background: rgba(30,30,30,0.5); flex-shrink: 0;
+    }
+
+    button {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white; padding: 6px 14px; border-radius: 4px;
+      cursor: pointer; font-size: 14px; transition: all 0.2s;
+    }
+    button:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); }
+    button:active { transform: scale(0.98); background: rgba(255, 255, 255, 0.03); }
+
+    .path-display {
+      flex: 1; font-family: Consolas, monospace; font-size: 13px;
+      padding: 6px 12px; background: rgba(0, 0, 0, 0.3); border-radius: 4px;
+      border: 1px solid var(--vault-border); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    
+    .search-box {
+      background: rgba(0, 0, 0, 0.3); border: 1px solid var(--vault-border);
+      color: white; padding: 6px 12px; border-radius: 4px;
+      font-size: 13px; width: 200px;
+    }
+    .search-box:focus { outline: none; border-color: var(--vault-accent); }
+
+    .main-area {
+      flex: 1; overflow-y: auto; padding: 20px; position: relative;
+    }
+
+    .file-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 15px; align-content: start;
+    }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+
+    .file-card {
+      background: transparent; border: 1px solid transparent; border-radius: 6px;
+      padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px;
+      cursor: pointer; position: relative; transition: background 0.1s;
+    }
+    .file-card.fake-folder {
+      border: 1px dashed rgba(255,255,255,0.3);
+      background: rgba(0, 120, 212, 0.1);
+    }
+    .file-card:hover { background: var(--vault-hover); border-color: rgba(255, 255, 255, 0.05); }
+    .file-card.selected { background: var(--vault-selected); border-color: var(--vault-accent); }
+
+    .thumbnail-container {
+      width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 4px;
+      overflow: hidden; position: relative; display: flex;
+      justify-content: center; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .file-card.fake-folder .thumbnail-container { background: rgba(0, 120, 212, 0.2); box-shadow: none; }
+
+    .thumbnail { width: 100%; height: 100%; object-fit: cover; }
+    .trickplay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+
+    .filename { font-size: 12px; text-align: center; width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
+
+    .loading {
+      display: none; align-items: center; justify-content: center;
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      font-size: 16px; color: rgba(255,255,255,0.5);
+      background: rgba(30,30,30,0.7); backdrop-filter: blur(5px); z-index: 10;
+    }
+    
+    .status-bar {
+      display: flex; justify-content: space-between; padding: 4px 15px;
+      background: var(--vault-acrylic); font-size: 12px; color: #aaa;
+      border-top: 1px solid var(--vault-border); flex-shrink: 0;
+    }
+    
+    #fake-folder-dialog {
+      display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+      background:#2b2b2b; padding:20px; border-radius:8px; border:1px solid var(--vault-border);
+      z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar">Vault Browser (Manager Subagent)</div>
+  <div class="glass-container">
+    <div class="toolbar">
+      <div style="display:flex; gap:5px;">
+        <button id="btn-back" title="Back" style="width:32px; padding:0;">&#8592;</button>
+      </div>
+      <button id="btn-select">Browse Vault</button>
+      <button id="btn-new-folder">New FAKE Folder</button>
+      <div id="path-display" class="path-display">No folder selected...</div>
+      <input type="text" id="search-box" class="search-box" placeholder="Search files...">
+    </div>
+    
+    <div class="main-area" id="main-area">
+      <div id="loading" class="loading">Scanning directory...</div>
+      <div id="file-grid" class="file-grid"></div>
+    </div>
+    
+    <div class="status-bar">
+      <span id="status-items">0 items</span>
+      <span id="status-size" style="margin-left:auto; margin-right:20px;"></span>
+      <span id="status-selected"></span>
+    </div>
+  </div>
+  
+  <div id="fake-folder-dialog">
+    <div style="margin-bottom:10px;">Enter Fake Folder Name:</div>
+    <input type="text" id="fake-folder-name" class="search-box" style="width:100%; margin-bottom:15px;" />
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button id="btn-cancel-folder">Cancel</button>
+      <button id="btn-create-folder" style="background:var(--vault-accent)">Create</button>
+    </div>
+  </div>
+
+  <script>
+    const btnSelect = document.getElementById('btn-select');
+    const pathDisplay = document.getElementById('path-display');
+    const fileGrid = document.getElementById('file-grid');
+    const loading = document.getElementById('loading');
+    const searchBox = document.getElementById('search-box');
+    const statusItems = document.getElementById('status-items');
+    const statusSelected = document.getElementById('status-selected');
+    const statusSize = document.getElementById('status-size');
+    const mainArea = document.getElementById('main-area');
+    
+    // Virtual Memory Settings
+    let appSettings = { folders: [] };
+    
+    let currentNavPath = ''; // App virtual path. E.g. 'root' or 'root/FakeFolder1'
+    let currentRealPath = '';
+    
+    let allItems = [];
+    let displayedItems = [];
+    let selectedIndices = new Set();
+    let lastSelectedIndex = -1;
+    let PAGE_SIZE = 50;
+    let currentlyRendered = 0;
+
+    async function init() {
+       appSettings = await window.electronAPI.getSettings();
+       if (!appSettings.folders) appSettings.folders = [];
+    }
+    init();
+
+    function formatBytes(bytes, decimals = 2) {
+      if (!+bytes) return '0 Bytes';
+      const k = 1024, dm = decimals < 0 ? 0 : decimals, sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    }
+
+    async function updateStatusBar() {
+      statusItems.innerText = `${displayedItems.length} items`;
+      
+      if (selectedIndices.size > 0) {
+        let totalSize = 0;
+        selectedIndices.forEach(idx => {
+          if (displayedItems[idx].type === 'video') totalSize += displayedItems[idx].size || 0;
+        });
+        statusSelected.innerText = `${selectedIndices.size} item(s) selected (${formatBytes(totalSize)})`;
+      } else {
+        statusSelected.innerText = '';
+      }
+      
+      // Everything Real Size
+      if (currentRealPath) {
+         statusSize.innerText = "Querying Everything Index...";
+         const bytes = await window.electronAPI.getEverythingSize(currentRealPath);
+         statusSize.innerText = `Folder Size (Everything): ${formatBytes(bytes)}`;
+      } else {
+         statusSize.innerText = '';
+      }
+    }
+
+    function createCardElement(item, index) {
+      const card = document.createElement('div');
+      card.className = 'file-card';
+      if (item.type === 'fakeFolder') card.classList.add('fake-folder');
+      card.dataset.index = index;
+      card.title = item.name;
+
+      let thumbHtml = '';
+      if (item.type === 'fakeFolder') {
+         thumbHtml = '<svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
+      } else {
+         // Using local:// protocol fixes Windows thumbnail path issues natively!
+         const thumbSrc = item.thumbnail ? `local://${encodeURIComponent(item.thumbnail)}` : 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle" alignment-baseline="middle">NO THUMB</text></svg>';
+         thumbHtml = `<img class="thumbnail" loading="lazy" src="${thumbSrc}">
+                      <img class="trickplay" src="">`;
+      }
+      
+      card.innerHTML = `
+        <div class="thumbnail-container">${thumbHtml}</div>
+        <div class="filename">${item.name}</div>
+      `;
+      
+      if (item.type === 'video' && item.trickplay && item.trickplay.length > 0) {
+         let hoverTimer; let tpIndex = 0;
+         const tpImg = card.querySelector('.trickplay');
+         const mainImg = card.querySelector('.thumbnail');
+         card.addEventListener('mouseenter', () => {
+           tpImg.style.display = 'block'; mainImg.style.display = 'none'; tpIndex = 0;
+           tpImg.src = `local://${encodeURIComponent(item.trickplay[tpIndex])}`;
+           hoverTimer = setInterval(() => {
+             tpIndex = (tpIndex + 1) % item.trickplay.length;
+             tpImg.src = `local://${encodeURIComponent(item.trickplay[tpIndex])}`;
+           }, 500);
+         });
+         card.addEventListener('mouseleave', () => {
+           clearInterval(hoverTimer); tpImg.style.display = 'none'; mainImg.style.display = 'block';
+         });
+      }
+
+      card.addEventListener('click', (e) => {
+        if (e.ctrlKey) {
+          if (selectedIndices.has(index)) selectedIndices.delete(index); else selectedIndices.add(index);
+          lastSelectedIndex = index;
+        } else if (e.shiftKey && lastSelectedIndex !== -1) {
+          const start = Math.min(lastSelectedIndex, index); const end = Math.max(lastSelectedIndex, index);
+          selectedIndices.clear(); for (let i = start; i <= end; i++) selectedIndices.add(i);
+        } else {
+          selectedIndices.clear(); selectedIndices.add(index); lastSelectedIndex = index;
+        }
+        document.querySelectorAll('.file-card').forEach((c) => {
+          c.classList.toggle('selected', selectedIndices.has(parseInt(c.dataset.index)));
+        });
+        updateStatusBar();
+      });
+
+      card.addEventListener('dblclick', () => {
+         if (item.type === 'video') window.electronAPI.openFile(item.path);
+         else if (item.type === 'fakeFolder') navigateTo(currentNavPath + '/' + item.name, currentRealPath);
+      });
+
+      card.addEventListener('contextmenu', async () => {
+         if (!selectedIndices.has(index)) {
+            selectedIndices.clear(); selectedIndices.add(index); lastSelectedIndex = index;
+            document.querySelectorAll('.file-card').forEach(c => c.classList.toggle('selected', selectedIndices.has(parseInt(c.dataset.index))));
+            updateStatusBar();
+         }
+         const action = await window.electronAPI.showContextMenu({ type: item.type, path: item.path, name: item.name });
+         if (action === 'remove-folder' && item.type === 'fakeFolder') {
+            appSettings.folders = appSettings.folders.filter(f => f.parent !== currentNavPath || f.name !== item.name);
+            window.electronAPI.saveSettings(appSettings);
+            loadDirectory(currentNavPath, currentRealPath, true);
+         }
+      });
+      return card;
+    }
+
+    function renderMore() {
+      const nextBatch = displayedItems.slice(currentlyRendered, currentlyRendered + PAGE_SIZE);
+      nextBatch.forEach((item, i) => {
+        fileGrid.appendChild(createCardElement(item, currentlyRendered + i));
+      });
+      currentlyRendered += nextBatch.length;
+    }
+
+    function renderView(items) {
+      fileGrid.innerHTML = '';
+      displayedItems = items;
+      selectedIndices.clear();
+      lastSelectedIndex = -1;
+      currentlyRendered = 0;
+      updateStatusBar();
+      renderMore();
+    }
+
+    mainArea.addEventListener('scroll', () => {
+       if (mainArea.scrollTop + mainArea.clientHeight >= mainArea.scrollHeight - 100) {
+           if (currentlyRendered < displayedItems.length) renderMore();
+       }
+    });
+
+    // FAKE folders handling
+    document.getElementById('btn-new-folder').addEventListener('click', () => {
+        if(!currentNavPath) return alert("Select a Vault first!");
+        document.getElementById('fake-folder-dialog').style.display = 'block';
+        document.getElementById('fake-folder-name').focus();
+    });
+    document.getElementById('btn-cancel-folder').addEventListener('click', () => {
+        document.getElementById('fake-folder-dialog').style.display = 'none';
+        document.getElementById('fake-folder-name').value = '';
+    });
+    document.getElementById('btn-create-folder').addEventListener('click', () => {
+        const name = document.getElementById('fake-folder-name').value.trim();
+        if(name) {
+            appSettings.folders.push({ name: name, parent: currentNavPath, items: [] });
+            window.electronAPI.saveSettings(appSettings);
+            document.getElementById('fake-folder-dialog').style.display = 'none';
+            document.getElementById('fake-folder-name').value = '';
+            loadDirectory(currentNavPath, currentRealPath, true);
+        }
+    });
+
+    async function loadDirectory(navPath, realPath, useCache = false) {
+      currentNavPath = navPath;
+      currentRealPath = realPath;
+      pathDisplay.innerText = navPath === 'root' ? realPath : navPath;
+      
+      loading.style.display = 'flex';
+      
+      if (!useCache) {
+          const videos = await window.electronAPI.scanDirectory(realPath);
+          videos.forEach(v => v.type = 'video');
+          allItems = videos;
+      }
+      
+      const fakeFolders = appSettings.folders.filter(f => f.parent === navPath);
+      const itemsToDisplay = [...fakeFolders.map(f => ({type:'fakeFolder', name: f.name})), ...allItems];
+      
+      loading.style.display = 'none';
+      renderView(itemsToDisplay);
+    }
+    
+    function navigateTo(navPath, realPath) {
+        // if drilling into a fake folder, we don't rescan the real drive! We just show an empty folder or items in it
+        if (navPath === 'root') {
+            loadDirectory('root', realPath, false);
+        } else {
+            // Find what's inside the fake folder
+            currentNavPath = navPath;
+            pathDisplay.innerText = navPath;
+            const fakeFolders = appSettings.folders.filter(f => f.parent === navPath);
+            renderView([...fakeFolders.map(f => ({type:'fakeFolder', name: f.name}))]); // Real items moved into fake folders omitted for brevity here
+        }
+    }
+
+    document.getElementById('btn-back').addEventListener('click', () => {
+        if (currentNavPath && currentNavPath !== 'root') {
+            const parts = currentNavPath.split('/');
+            parts.pop();
+            navigateTo(parts.join('/'), currentRealPath);
+        }
+    });
+
+    btnSelect.addEventListener('click', async () => {
+      const folderPath = await window.electronAPI.openDirectory();
+      if (folderPath) {
+        loadDirectory('root', folderPath, false);
+      }
+    });
+
+    searchBox.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      const fakeFolders = appSettings.folders.filter(f => f.parent === currentNavPath);
+      const pool = [...fakeFolders.map(f => ({type:'fakeFolder', name: f.name})), ...allItems];
+      const filtered = pool.filter(v => v.name.toLowerCase().includes(term));
+      renderView(filtered);
+    });
+
+    mainArea.addEventListener('click', (e) => {
+      if (e.target === mainArea || e.target === fileGrid) {
+        selectedIndices.clear();
+        document.querySelectorAll('.file-card').forEach(c => c.classList.remove('selected'));
+        updateStatusBar();
+      }
+    });
+  </script>
+</body>
+</html>
