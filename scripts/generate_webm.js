@@ -39,7 +39,7 @@ async function start() {
     for (const vidPaths of videos) {
         const dir = path.dirname(vidPaths);
         const baseName = path.basename(vidPaths, path.extname(vidPaths));
-        const outPath = path.join(dir, baseName + '-preview.mp4');
+        const outPath = path.join(dir, baseName + '_p.mp4');
         
         if (fs.existsSync(outPath) || fs.existsSync(path.join(dir, baseName + '.webm'))) {
             console.log(`Skipping (already exists): ${baseName}`);

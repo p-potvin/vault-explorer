@@ -97,25 +97,27 @@ function _processFileNodes(filesArray, allFilesSet) {
       if (type !== 'video' && type !== 'image') continue;
 
       const dir = path.dirname(res);
-      const name = path.basename(res);
-      const baseName = path.basename(res, ext);
-      
       // If this is a preview file, skip displaying it as an independent video node
-      if (ext === '.webm' || name.endsWith('-preview.mp4')) {
-          const checkName = name.endsWith('-preview.mp4') ? baseName.replace('-preview', '') : baseName;
+      if (ext === '.webm' || name.endsWith('_p.mp4') || name.endsWith('-preview.mp4')) {
+          let checkName = baseName;
+          if (name.endsWith('_p.mp4')) checkName = baseName.substring(0, baseName.length - 2);
+          else if (name.endsWith('-preview.mp4')) checkName = baseName.replace('-preview', '');
+          
           const hasParent = ['.mp4', '.mkv', '.avi', '.mov', '.ts', '.wmv'].some(e => 
               allFilesSet.has(path.join(dir, checkName + e).toLowerCase())
           );
           if (hasParent) continue; 
       }
       
-      const checkName = name.endsWith('-preview.mp4') ? baseName.replace('-preview', '') : baseName;
+      let checkName = baseName;
+      if (name.endsWith('_p.mp4')) checkName = baseName.substring(0, baseName.length - 2);
+      else if (name.endsWith('-preview.mp4')) checkName = baseName.replace('-preview', '');
       
       const thumbPath = path.join(dir, checkName + '.jpg');
       const posterPath = path.join(dir, checkName + '-poster.jpg');
       const trickplayDir = path.join(dir, checkName + '.trickplay');
       const hoverWebmPath = path.join(dir, checkName + '.webm');
-      const hoverPreviewPath = path.join(dir, checkName + '-preview.mp4');
+      const hoverPreviewPath = path.join(dir, checkName + '_p.mp4');
       
       let thumbnail = null;
       let hasTrickplayDir = false;
@@ -284,7 +286,7 @@ ipcMain.handle('generate-webm', (event, itemPath) => {
     return new Promise((resolve) => {
         const dir = path.dirname(itemPath);
         const baseName = path.basename(itemPath, path.extname(itemPath));
-        const outPath = path.join(dir, baseName + '-preview.mp4');
+        const outPath = path.join(dir, baseName + '_p.mp4');
         const thumbPath = path.join(dir, baseName + '.jpg');
         
         const cmdCuda = `ffmpeg -y -hwaccel cuda -hwaccel_output_format cuda -ss 00:00:15 -i "${itemPath}" -t 10 -vf "scale_cuda=320:-2" -c:v h264_nvenc -preset p4 -b:v 1M -c:a aac -b:a 64k "${outPath}" -loglevel error`;
