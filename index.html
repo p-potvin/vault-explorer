@@ -87,8 +87,10 @@
     .video-wrapper:hover #custom-controls { opacity:1; }
     
     /* Center loading screen */
+    .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--vault-accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .loading {
-      display: none; align-items: center; justify-content: center;
+      display: none; align-items: center; justify-content: center; flex-direction: column;
       position: absolute; top: 0; left: 0; right: 0; bottom: 0;
       font-size: 16px; color: rgba(255,255,255,0.5);
       background: rgba(30,30,30,0.7); backdrop-filter: blur(5px); z-index: 10;
@@ -135,7 +137,10 @@
     
     <div class="main-area" id="main-area">
       <div id="selection-box" class="selection-box"></div>
-      <div id="loading" class="loading">Scanning directory... this may take a moment.</div>
+      <div id="loading" class="loading">
+          <div class="spinner"></div>
+          <span id="loading-text">Scanning directory... this may take a moment.</span>
+      </div>
       <div id="file-grid" class="file-grid"></div>
     </div>
     
@@ -583,39 +588,28 @@
 
     el('btn-refresh').addEventListener('click', async () => {
          if (!currentRealPath || currentNavPath !== 'root') return;
-         el('loading').innerText = 'Refreshing Views...'; el('loading').style.display = 'flex';
+         el('loading-text').innerText = 'Refreshing Views...'; el('loading').style.display = 'flex';
          const latest = await window.electronAPI.scanDirectory(currentRealPath);
-         el('loading').style.display = 'none'; el('loading').innerText = 'Scanning directory... this may take a moment.';
+         el('loading').style.display = 'none'; el('loading-text').innerText = 'Scanning directory... this may take a moment.';
          
          const existingPaths = new Set(allItems.map(i => i.path));
-         let addedCount = 0;
+         let hasUpdates = false;
          latest.forEach(item => {
-             if (!existingPaths.has(item.path)) { allItems.push(item); addedCount++; }
+             if (!existingPaths.has(item.path)) { allItems.push(item); hasUpdates = true; }
              else {
                  const exist = allItems.find(i => i.path === item.path);
                  if (exist) {
-                     exist.thumbnail = item.thumbnail;
-                     exist.hoverWebm = item.hoverWebm;
-                     exist.trickplayFolder = item.trickplayFolder;
+                     if (exist.thumbnail !== item.thumbnail || exist.hoverWebm !== item.hoverWebm || exist.trickplayFolder !== item.trickplayFolder) {
+                          exist.thumbnail = item.thumbnail;
+                          exist.hoverWebm = item.hoverWebm;
+                          exist.trickplayFolder = item.trickplayFolder;
+                          hasUpdates = true;
+                     }
                  }
              }
          });
          
-         // Physically update DOM nodes organically instead of clear/rerender
-         displayedItems.forEach((item, displayIdx) => {
-             const card = el('file-grid').children[displayIdx];
-             if (card && card.dataset) {
-                if (item.hoverWebm && !card.dataset.hasWebm) {
-                     const newCard = createCardElement(item, displayIdx);
-                     el('file-grid').replaceChild(newCard, card);
-                } else if (item.thumbnail && !card.dataset.hasThumb) {
-                     const newCard = createCardElement(item, displayIdx);
-                     el('file-grid').replaceChild(newCard, card);
-                }
-             }
-         });
-         
-         if (addedCount > 0) applyFilters(); 
+         if (hasUpdates) applyFilters(); 
     });
 
     el('btn-select').addEventListener('click', async () => {
