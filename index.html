@@ -81,11 +81,13 @@
       display:none; position:fixed; top:32px; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index: 200; align-items:center; justify-content:center;
     }
     #close-modal { position:absolute; top:20px; right:20px; font-size:24px; color:white; cursor:pointer; background:none; border:none; z-index: 201; }
-    .video-wrapper { position:relative; max-width:90%; max-height:90%; border-radius:8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
-    #video-player { max-width:100%; max-height:100%; outline:none; }
+    .video-wrapper { position:relative; width:100vw; height:calc(100vh - 32px); overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
+    #video-player { width:100%; height:100%; object-fit:contain; outline:none; cursor:pointer; }
     #custom-controls { position:absolute; bottom:0; left:0; width:100%; padding:20px; padding-top:40px; background:linear-gradient(transparent, rgba(0,0,0,0.8)); opacity:0; transition:opacity 0.3s; display:flex; flex-direction:column; gap:10px; }
     .video-wrapper:hover #custom-controls { opacity:1; }
     
+    .volume-container:hover .volume-slider-wrapper { display: flex !important; }
+
     /* Center loading screen */
     .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--vault-accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -100,6 +102,14 @@
       display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%);
       background:#2b2b2b; padding:20px; border-radius:8px; border:1px solid var(--vault-border);
       z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    }
+    .nav-hover-preview {
+        position: absolute; display: none; width: 160px; height: 90px;
+        background: #000; background-size: contain; background-position: center; background-repeat: no-repeat;
+        border: 1px solid #444; border-radius: 4px; pointer-events: none; z-index: 10001;
+        bottom: 60px; transform: translateX(-50%); font-size: 11px; text-shadow: 1px 1px 2px #000;
+        align-items: flex-end; justify-content: center; padding: 4px; text-align: center;
+        background-color: rgba(0,0,0,0.8); word-break: break-all; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;
     }
   </style>
 </head>
@@ -173,10 +183,18 @@
           </div>
           <div style="display:flex; justify-content:space-between; color:#fff; font-size:13px; align-items:center;">
              <div style="display:flex; gap:15px; align-items:center;">
-                <button id="btn-playpause" style="background:none; border:none; color:white; font-size:16px;">&#10074;&#10074;</button>
-                <span id="time-display">0:00 / 0:00</span>
+                <button id="btn-prev" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Previous">&#9198;</button>
+                <button id="btn-playpause" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Play/Pause (Space)">&#10074;&#10074;</button>
+                <button id="btn-next" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Next">&#9199;</button>
+                <div class="volume-container" style="position:relative; display:flex; align-items:center; cursor:pointer; height:30px;">
+                   <span style="font-size:16px;">&#128266;</span>
+                   <div class="volume-slider-wrapper" style="position:absolute; bottom:25px; left:50%; transform:translateX(-50%); display:none; background:rgba(0,0,0,0.8); padding:15px 10px; border-radius:4px; z-index:205;">
+                      <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; width:8px; height:80px; accent-color:var(--vault-accent); cursor:pointer;" title="Volume (Up/Down)">
+                   </div>
+                </div>
+                <span id="time-display" style="margin-left:10px;">0:00 / 0:00</span>
              </div>
-             <button id="btn-fullscreen" style="background:none; border:none; color:white; font-size:16px;">&#x26F6;</button>
+             <button id="btn-fullscreen" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Fullscreen (F)">&#x26F6;</button>
           </div>
        </div>
     </div>
@@ -419,8 +437,7 @@
 
       card.addEventListener('dblclick', () => {
          if (item.type === 'video') {
-             el('video-modal').style.display = 'flex';
-             el('video-player').src = sanitizePath(item.path);
+             if (typeof playItem === 'function') playItem(index);
          } else if (item.type === 'fakeFolder') navigateTo(currentNavPath + '/' + item.name, currentRealPath);
          else window.electronAPI.openFile(item.path);
       });
@@ -444,6 +461,22 @@
              else {
                  alert("WebM generated successfully! Reloading directory...");
                  loadDirectory(currentNavPath, currentRealPath, false);
+             }
+         } else if (action === 'upscale-video') {
+             el('loading').innerText = 'AI Upscaling Video (This will take a while)...';
+             el('loading').style.display = 'flex';
+             const res = await window.electronAPI.upscaleVideo(item.path);
+             el('loading').style.display = 'none';
+             if (!res.success) alert("Upscaler message:\n" + res.error);
+             else {
+                 alert("Video upscaled successfully! You may notice frame stutters if the bitrate was too high for NCNN encoding.");
+                 loadDirectory(currentNavPath, currentRealPath, false);
+             }
+         } else if (action === 'remove-folder') {
+             if (confirm(`Are you sure you want to remove the folder "${item.name}"?`)) {
+                 appSettings.folders = appSettings.folders.filter(f => !(f.name === item.name && f.parent === currentNavPath));
+                 window.electronAPI.saveSettings(appSettings);
+                 loadDirectory(currentNavPath, currentRealPath, true);
              }
          }
       });
@@ -704,7 +737,97 @@
     const seekFill = el('seek-fill');
     const seekPreview = el('seek-hover-preview');
     const btnPlay = el('btn-playpause');
+    const btnPrev = el('btn-prev');
+    const btnNext = el('btn-next');
+    const volSlider = el('volume-slider');
     let trickFrames = [];
+    let currentPlayingIndex = -1;
+
+    function playItem(idx) {
+        if (idx < 0 || idx >= displayedItems.length) return;
+        const itm = displayedItems[idx];
+        if (itm.type !== 'video') return;
+        
+        currentPlayingIndex = idx;
+        trickFrames = [];
+        vp.dataset.trickplay = itm.trickplayFolder || '';
+        vp.src = sanitizePath(itm.path);
+        btnPlay.innerHTML = '&#10074;&#10074;';
+        el('video-modal').style.display = 'flex';
+    }
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && el('video-modal').style.display === 'flex') {
+            vp.pause();
+            vp.src = "";
+            el('video-modal').style.display = 'none';
+        }
+    });
+
+    // Tooltip for next/prev
+    const navHoverPreview = document.createElement('div');
+    navHoverPreview.className = 'nav-hover-preview';
+    document.body.appendChild(navHoverPreview);
+
+    function updateNavHover(idx, btnEl) {
+        if (idx < 0 || idx >= displayedItems.length) {
+            navHoverPreview.style.display = 'none';
+            return;
+        }
+        let itm = displayedItems[idx];
+        const rect = btnEl.getBoundingClientRect();
+        
+        let thumbUrl = '';
+        if (itm.trickplayFolder) {
+            // grab the first frame of trickplay or its thumbnail
+            thumbUrl = sanitizePath(itm.thumbnail || ''); 
+        } else {
+            thumbUrl = sanitizePath(itm.thumbnail || '');
+        }
+
+        if(thumbUrl) {
+            navHoverPreview.style.backgroundImage = `url('${thumbUrl}')`;
+            navHoverPreview.innerText = itm.name;
+            navHoverPreview.style.left = (rect.left + (rect.width/2)) + 'px';
+            navHoverPreview.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+            navHoverPreview.style.display = 'flex';
+        } else {
+            navHoverPreview.style.display = 'none';
+        }
+    }
+
+    btnPrev.addEventListener('mouseenter', () => {
+        let prevIdx = currentPlayingIndex - 1;
+        while (prevIdx >= 0 && displayedItems[prevIdx].type !== 'video') prevIdx--;
+        updateNavHover(prevIdx, btnPrev);
+    });
+    btnPrev.addEventListener('mouseleave', () => navHoverPreview.style.display = 'none');
+
+    btnNext.addEventListener('mouseenter', () => {
+        let nextIdx = currentPlayingIndex + 1;
+        while (nextIdx < displayedItems.length && displayedItems[nextIdx].type !== 'video') nextIdx++;
+        updateNavHover(nextIdx, btnNext);
+    });
+    btnNext.addEventListener('mouseleave', () => navHoverPreview.style.display = 'none');
+
+    btnPrev.addEventListener('click', () => {
+        let prevIdx = currentPlayingIndex - 1;
+        while (prevIdx >= 0 && displayedItems[prevIdx].type !== 'video') prevIdx--;
+        if (prevIdx >= 0) playItem(prevIdx);
+    });
+
+    btnNext.addEventListener('click', () => {
+        let nextIdx = currentPlayingIndex + 1;
+        while (nextIdx < displayedItems.length && displayedItems[nextIdx].type !== 'video') nextIdx++;
+        if (nextIdx < displayedItems.length) playItem(nextIdx);
+    });
+
+    // Initialize volume
+    vp.volume = volSlider.value;
+    volSlider.addEventListener('input', (e) => {
+        vp.volume = parseFloat(e.target.value);
+    });
 
     vp.addEventListener('timeupdate', () => {
         if (!vp.duration) return;
@@ -712,8 +835,53 @@
         el('time-display').innerText = formatDuration(vp.currentTime) + ' / ' + formatDuration(vp.duration);
     });
 
+    vp.addEventListener('click', () => { if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; } else { vp.pause(); btnPlay.innerHTML = '&#9654;'; } });
+
     btnPlay.addEventListener('click', () => { if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; } else { vp.pause(); btnPlay.innerHTML = '&#9654;'; } });
-    el('btn-fullscreen').addEventListener('click', () => { if (vp.requestFullscreen) vp.requestFullscreen(); });
+    el('btn-fullscreen').addEventListener('click', () => { 
+        if (!document.fullscreenElement) {
+            vp.parentElement.requestFullscreen(); 
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    // Video Shortcut Keys
+    document.addEventListener('keydown', (e) => {
+        if (el('video-modal').style.display === 'flex') {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            switch(e.key.toLowerCase()) {
+                case ' ':
+                    e.preventDefault();
+                    if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; } 
+                    else { vp.pause(); btnPlay.innerHTML = '&#9654;'; }
+                    break;
+                case 'arrowleft':
+                    e.preventDefault();
+                    vp.currentTime = Math.max(0, vp.currentTime - 5);
+                    break;
+                case 'arrowright':
+                    e.preventDefault();
+                    vp.currentTime = Math.min(vp.duration, vp.currentTime + 5);
+                    break;
+                case 'arrowup':
+                    e.preventDefault();
+                    vp.volume = Math.min(1, vp.volume + 0.05);
+                    volSlider.value = vp.volume;
+                    break;
+                case 'arrowdown':
+                    e.preventDefault();
+                    vp.volume = Math.max(0, vp.volume - 0.05);
+                    volSlider.value = vp.volume;
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    if (!document.fullscreenElement) vp.parentElement.requestFullscreen();
+                    else document.exitFullscreen();
+                    break;
+            }
+        }
+    });
 
     seekArea.addEventListener('click', (e) => {
         const rect = seekArea.getBoundingClientRect();
@@ -738,19 +906,7 @@
     });
 
     seekArea.addEventListener('mouseleave', () => { seekPreview.style.display = 'none'; });
-    
-    // Wire trickplay data cleanly to modal
-    document.addEventListener('dblclick', (e) => {
-       const cd = e.target.closest('.file-card');
-       if (cd && displayedItems[cd.dataset.index]) {
-           let itm = displayedItems[cd.dataset.index];
-           if (itm.type === 'video') {
-               trickFrames = [];
-               vp.dataset.trickplay = itm.trickplayFolder || '';
-               btnPlay.innerHTML = '&#10074;&#10074;';
-           }
-       }
-    });
+
   </script>
 </body>
 </html>

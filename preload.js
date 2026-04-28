@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   showContextMenu: (item) => ipcRenderer.invoke('show-context-menu', item),
   generateWebm: (p) => ipcRenderer.invoke('generate-webm', p),
+  upscaleVideo: (p) => ipcRenderer.invoke('upscale-video', p),
   renameFile: (oldPath, newName) => ipcRenderer.invoke('rename-file', oldPath, newName),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s)
