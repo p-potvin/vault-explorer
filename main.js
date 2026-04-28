@@ -97,6 +97,8 @@ function _processFileNodes(filesArray, allFilesSet) {
       if (type !== 'video' && type !== 'image') continue;
 
       const dir = path.dirname(res);
+      const name = path.basename(res);
+      const baseName = path.basename(res, ext);
       // If this is a preview file, skip displaying it as an independent video node
       if (ext === '.webm' || name.endsWith('_p.mp4') || name.endsWith('-preview.mp4')) {
           let checkName = baseName;
