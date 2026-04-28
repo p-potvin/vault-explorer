@@ -366,7 +366,7 @@
       <path d="M12 2L3 6v6c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V6L12 2z"/>
     </svg>
     Vault Explorer
-    <button id="theme-trigger" class="theme-trigger">
+    <button id="theme-trigger" class="theme-trigger" aria-label="Toggle Theme">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="13.5" cy="6.5" r="2"/><circle cx="17.5" cy="10.5" r="2"/>
         <circle cx="8.5" cy="7.5" r="2"/><circle cx="6.5" cy="12.5" r="2"/>
@@ -377,7 +377,7 @@
   </div>
   <div class="glass-container">
     <div class="toolbar">
-      <button id="btn-back" title="Back" style="width:32px; padding:0;">&#8592;</button>
+      <button id="btn-back" title="Back" aria-label="Back" style="width:32px; padding:0;">&#8592;</button>
       <button id="btn-select">Browse Vault</button>
       <div id="path-display" class="path-display">No folder selected...</div>
       <select id="filter-type">
@@ -436,7 +436,7 @@
   </div>
 
   <div id="video-modal">
-    <button id="close-modal">&times;</button>
+    <button id="close-modal" aria-label="Close modal">&times;</button>
     <div class="video-wrapper">
        <video id="video-player" autoplay></video>
        <div id="custom-controls">
@@ -448,9 +448,9 @@
           </div>
           <div style="display:flex; justify-content:space-between; color:#fff; font-size:13px; align-items:center;">
              <div style="display:flex; gap:15px; align-items:center;">
-                <button id="btn-prev" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Previous">&#9198;</button>
-                <button id="btn-playpause" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Play/Pause (Space)">&#10074;&#10074;</button>
-                <button id="btn-next" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Next">&#9199;</button>
+                <button id="btn-prev" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Previous" aria-label="Previous">&#9198;</button>
+                <button id="btn-playpause" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Play/Pause (Space)" aria-label="Play or Pause">&#10074;&#10074;</button>
+                <button id="btn-next" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Next" aria-label="Next">&#9199;</button>
                 <div class="volume-container" style="position:relative; display:flex; align-items:center; cursor:pointer; height:30px;">
                    <span style="font-size:16px;">&#128266;</span>
                    <div class="volume-slider-wrapper" style="position:absolute; bottom:25px; left:50%; transform:translateX(-50%); display:none; background:rgba(0,0,0,0.8); padding:15px 10px; border-radius:4px; z-index:205;">
@@ -459,7 +459,7 @@
                 </div>
                 <span id="time-display" style="margin-left:10px;">0:00 / 0:00</span>
              </div>
-             <button id="btn-fullscreen" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Fullscreen (F)">&#x26F6;</button>
+             <button id="btn-fullscreen" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Fullscreen (F)" aria-label="Toggle Fullscreen">&#x26F6;</button>
           </div>
        </div>
     </div>
