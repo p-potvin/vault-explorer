@@ -1,0 +1,3 @@
+## 2024-05-01 - Missing ARIA Labels on Native UI Elements
+**Learning:** Native HTML `<button>` elements utilizing HTML entity icons or inline SVG often lack fallback accessibility attributes, causing them to be completely invisible or unreadable to screen readers. This pattern is prevalent in custom video player controls (`btn-prev`, `btn-playpause`, etc.) and modal triggers.
+**Action:** Always ensure that icon-only interactive elements receive descriptive `aria-label`s, particularly when building custom UI components replacing default browser implementations (e.g. custom HTML5 video controls).
