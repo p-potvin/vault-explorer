@@ -83,6 +83,9 @@
       background: rgba(204, 155, 33, 0.15); border-color: var(--vault-gold-muted); 
       transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
+    button:focus-visible, select:focus-visible, input:focus-visible {
+      outline: 2px solid var(--vault-cyan); outline-offset: 2px;
+    }
     select option { background: var(--vault-ink); color: var(--vault-paper); }
 
     .path-display {
@@ -380,26 +383,26 @@
       <button id="btn-back" title="Back" aria-label="Back" style="width:32px; padding:0;">&#8592;</button>
       <button id="btn-select">Browse Vault</button>
       <div id="path-display" class="path-display">No folder selected...</div>
-      <select id="filter-type">
+      <select id="filter-type" aria-label="Filter files by type">
         <option value="video">Videos</option>
         <option value="image">Images</option>
         <option value="all">All Files</option>
       </select>
-      <input type="text" id="search-box" class="search-box" placeholder="Search files...">
+      <input type="text" id="search-box" class="search-box" placeholder="Search files..." aria-label="Search files">
     </div>
     
     <div class="sorting-bar">
        <button id="btn-new-folder" class="btn-sm">+ Folder</button>
        <button id="btn-refresh" class="btn-sm">↺ Refresh</button>
-       <span class="sort-label">Sort:</span>
-       <select id="sort-by">
+       <span class="sort-label" id="sort-label">Sort:</span>
+       <select id="sort-by" aria-labelledby="sort-label" aria-label="Sort by field">
            <option value="mtime" selected>Date Modified</option>
            <option value="name">Name</option>
            <option value="size">Size</option>
            <option value="type">Type</option>
            <option value="duration">Duration</option>
        </select>
-       <select id="sort-order">
+       <select id="sort-order" aria-labelledby="sort-label" aria-label="Sort order">
            <option value="asc">Ascending ↑</option>
            <option value="desc" selected>Descending ↓</option>
        </select>
@@ -427,7 +430,7 @@
   </div>
 
   <div id="fake-folder-dialog">
-    <div style="margin-bottom:10px;">Enter Folder Name:</div>
+    <label for="fake-folder-name" style="display:block; margin-bottom:10px;">Enter Folder Name:</label>
     <input type="text" id="fake-folder-name" class="search-box" style="width:100%; margin-bottom:15px;" />
     <div style="display:flex; justify-content:flex-end; gap:10px;">
       <button id="btn-cancel-folder">Cancel</button>
@@ -454,7 +457,7 @@
                 <div class="volume-container" style="position:relative; display:flex; align-items:center; cursor:pointer; height:30px;">
                    <span style="font-size:16px;">&#128266;</span>
                    <div class="volume-slider-wrapper" style="position:absolute; bottom:25px; left:50%; transform:translateX(-50%); display:none; background:rgba(0,0,0,0.8); padding:15px 10px; border-radius:4px; z-index:205;">
-                      <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; width:8px; height:80px; accent-color:var(--vault-accent); cursor:pointer;" title="Volume (Up/Down)">
+                      <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; width:8px; height:80px; accent-color:var(--vault-accent); cursor:pointer;" title="Volume (Up/Down)" aria-label="Volume">
                    </div>
                 </div>
                 <span id="time-display" style="margin-left:10px;">0:00 / 0:00</span>
@@ -589,12 +592,12 @@
       }
       
       card.innerHTML = `
-        <input type="checkbox" class="file-checkbox">
+        <input type="checkbox" class="file-checkbox" aria-label="Select ${item.name}">
         <div class="thumbnail-container">${thumbHtml}</div>
         <div class="filename-container" style="padding-top:4px;">
            <div class="filename">${item.name}</div>
            ${item.mtimeFormatted ? `<div style="font-size:10px; color:#aaa; margin-top:2px;">${item.mtimeFormatted}</div>` : ''}
-           <input type="text" class="rename-input" value="${item.name}">
+           <input type="text" class="rename-input" value="${item.name}" aria-label="Rename ${item.name}">
         </div>
       `;
       
