@@ -1,3 +1,3 @@
-## 2024-05-01 - Missing ARIA Labels on Native UI Elements
-**Learning:** Native HTML `<button>` elements utilizing HTML entity icons or inline SVG often lack fallback accessibility attributes, causing them to be completely invisible or unreadable to screen readers. This pattern is prevalent in custom video player controls (`btn-prev`, `btn-playpause`, etc.) and modal triggers.
-**Action:** Always ensure that icon-only interactive elements receive descriptive `aria-label`s, particularly when building custom UI components replacing default browser implementations (e.g. custom HTML5 video controls).
+## 2024-04-30 - Focus Visibility and Dynamic Aria Labels
+**Learning:** Removing default outlines (`outline: none`) without providing a custom `:focus-visible` state completely breaks keyboard navigation for interactive elements like buttons and inputs. Dynamically generated inputs (like file checkboxes or inline rename fields) often miss `aria-label`s, rendering them invisible to screen readers since they have no associated visible label.
+**Action:** Always ensure that any element with `outline: none` implements a custom `:focus-visible` style using brand tokens (e.g., `var(--vault-cyan)`). Remember to interpolate context-specific names into `aria-label`s for dynamically generated, icon-only, or label-less inputs.
