@@ -422,7 +422,7 @@
     
     <div class="main-area" id="main-area">
       <div id="selection-box" class="selection-box"></div>
-      <div id="loading" class="loading">
+      <div id="loading" class="loading" role="status" aria-live="polite">
           <div class="spinner"></div>
           <span id="loading-text">Scanning directory... this may take a moment.</span>
       </div>
@@ -449,7 +449,7 @@
     <div id="theme-grid"></div>
   </div>
 
-  <div id="fake-folder-dialog">
+  <div id="fake-folder-dialog" role="dialog" aria-modal="true" aria-label="Create new folder">
     <label for="fake-folder-name" style="display:block; margin-bottom:10px;">Enter Folder Name:</label>
     <input type="text" id="fake-folder-name" class="search-box" style="width:100%; margin-bottom:15px;" />
     <div style="display:flex; justify-content:flex-end; gap:10px;">
@@ -458,7 +458,7 @@
     </div>
   </div>
 
-  <div id="video-modal">
+  <div id="video-modal" role="dialog" aria-modal="true" aria-label="Video Player Modal">
     <button id="close-modal" aria-label="Close modal">&times;</button>
     <div class="video-wrapper">
        <video id="video-player" autoplay></video>
