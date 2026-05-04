@@ -122,6 +122,9 @@
     }
     .file-card:nth-child(n) { animation-delay: calc(var(--index, 0) * 30ms); }
     
+    .file-card:focus-visible {
+      outline: 2px solid var(--vault-cyan); outline-offset: 2px;
+    }
     .file-card.fake-folder { 
       border: 1px dashed var(--vault-cyan); background: rgba(33, 184, 204, 0.05); 
     }
@@ -570,6 +573,19 @@
     function createCardElement(item, index) {
       const card = document.createElement('div');
       card.className = 'file-card';
+      card.tabIndex = 0;
+      card.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (item.type === 'video') {
+                  if (typeof playItem === 'function') playItem(index);
+              } else if (item.type === 'fakeFolder') {
+                  navigateTo(currentNavPath + '/' + item.name, currentRealPath);
+              } else {
+                  window.electronAPI.openFile(item.path);
+              }
+          }
+      });
       if (item.type === 'fakeFolder') {
           card.classList.add('fake-folder');
           card.addEventListener('dragover', (e) => { e.preventDefault(); card.style.borderColor = "var(--vault-accent)"; });
