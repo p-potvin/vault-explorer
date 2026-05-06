@@ -86,6 +86,9 @@
     button:focus-visible, select:focus-visible, input:focus-visible {
       outline: 2px solid var(--vault-cyan); outline-offset: 2px;
     }
+    button:disabled {
+      opacity: 0.5; cursor: not-allowed;
+    }
     select option { background: var(--vault-ink); color: var(--vault-paper); }
 
     .path-display {
@@ -392,7 +395,7 @@
   </div>
   <div class="glass-container">
     <div class="toolbar">
-      <button id="btn-back" title="Back" aria-label="Back" style="width:32px; padding:0;">&#8592;</button>
+      <button id="btn-back" title="No folder selected" aria-label="Back" style="width:32px; padding:0;" disabled>&#8592;</button>
       <button id="btn-select">Browse Vault</button>
       <div id="path-display" class="path-display">No folder selected...</div>
       <select id="filter-type" aria-label="Filter files by type">
@@ -404,8 +407,8 @@
     </div>
     
     <div class="sorting-bar">
-       <button id="btn-new-folder" class="btn-sm">+ Folder</button>
-       <button id="btn-refresh" class="btn-sm">↺ Refresh</button>
+       <button id="btn-new-folder" class="btn-sm" title="Select a Vault to create folders" disabled>+ Folder</button>
+       <button id="btn-refresh" class="btn-sm" title="No folder selected" disabled>↺ Refresh</button>
        <span class="sort-label" id="sort-label">Sort:</span>
        <select id="sort-by" aria-labelledby="sort-label" aria-label="Sort by field">
            <option value="mtime" selected>Date Modified</option>
@@ -451,7 +454,7 @@
 
   <div id="fake-folder-dialog" role="dialog" aria-modal="true" aria-label="Create new folder">
     <label for="fake-folder-name" style="display:block; margin-bottom:10px;">Enter Folder Name:</label>
-    <input type="text" id="fake-folder-name" class="search-box" style="width:100%; margin-bottom:15px;" />
+    <input type="text" id="fake-folder-name" class="search-box" placeholder="My Virtual Folder" style="width:100%; margin-bottom:15px;" />
     <div style="display:flex; justify-content:flex-end; gap:10px;">
       <button id="btn-cancel-folder">Cancel</button>
       <button id="btn-create-folder" style="background:var(--vault-accent)">Create</button>
@@ -898,6 +901,14 @@
       currentNavPath = navPath; currentRealPath = realPath;
       el('path-display').innerText = navPath === 'root' ? realPath : navPath;
       
+      // Enable new folder / refresh buttons if we have a real path
+      el('btn-new-folder').disabled = false;
+      el('btn-new-folder').title = "Create virtual folder";
+      el('btn-refresh').disabled = false;
+      el('btn-refresh').title = "Refresh directory";
+      el('btn-back').disabled = true;
+      el('btn-back').title = "Already at root vault level";
+
       appSettings.lastPath = { navPath, realPath };
       window.electronAPI.saveSettings(appSettings);
       
@@ -919,6 +930,14 @@
         else { 
             currentNavPath = navPath; el('path-display').innerText = navPath;
             
+            // We are in a virtual folder
+            el('btn-back').disabled = false;
+            el('btn-back').title = "Go back";
+            el('btn-new-folder').disabled = false;
+            el('btn-new-folder').title = "Create virtual folder";
+            el('btn-refresh').disabled = true;
+            el('btn-refresh').title = "Refresh unavailable in virtual folders";
+
             // Scan only the items physically associated with this folder target!
             const targetFolder = appSettings.folders.find(f => f.name === navPath.split('/').pop());
             if (targetFolder && targetFolder.items.length > 0) {
@@ -971,7 +990,6 @@
     
     // FAKE folders handling
     document.getElementById('btn-new-folder').addEventListener('click', () => {
-        if(!currentNavPath) return alert("Select a Vault first!");
         document.getElementById('fake-folder-dialog').style.display = 'block';
         document.getElementById('fake-folder-name').focus();
     });
