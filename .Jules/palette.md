@@ -9,3 +9,7 @@
 ## 2026-05-04 - Modal and Overlay Accessibility
 **Learning:** Dynamic overlay divs and popups often lack semantic roles, making screen readers ignore them.
 **Action:** Always add role="dialog", aria-modal="true", and aria-label to custom modals, and role="status" / aria-live="polite" to loading overlays.
+
+## 2026-05-06 - Proactive Disabled States
+**Learning:** Reactive alerts for impossible actions (e.g., clicking "New Folder" before selecting a vault) disrupt the user experience. Users prefer to know what actions are available *before* they click.
+**Action:** Use proactive disabled states (`button:disabled`) for buttons when their associated action is contextually invalid, paired with a helpful `title` to explain the state.
