@@ -760,20 +760,22 @@
          }
          const action = await window.electronAPI.showContextMenu({ type: item.type, path: item.path, name: item.name });
          if (action === 'generate-webm') {
-             el('loading').innerText = 'Generating WebM preview...';
+             el('loading-text').innerText = 'Generating WebM preview...';
              el('loading').style.display = 'flex';
              const res = await window.electronAPI.generateWebm(item.path);
              el('loading').style.display = 'none';
+             el('loading-text').innerText = 'Scanning directory... this may take a moment.';
              if (!res.success) alert("ffmpeg failed: " + res.error);
              else {
                  alert("WebM generated successfully! Reloading directory...");
                  loadDirectory(currentNavPath, currentRealPath, false);
              }
          } else if (action === 'upscale-video') {
-             el('loading').innerText = 'AI Upscaling Video (This will take a while)...';
+             el('loading-text').innerText = 'AI Upscaling Video (This will take a while)...';
              el('loading').style.display = 'flex';
              const res = await window.electronAPI.upscaleVideo(item.path);
              el('loading').style.display = 'none';
+             el('loading-text').innerText = 'Scanning directory... this may take a moment.';
              if (!res.success) alert("Upscaler message:\n" + res.error);
              else {
                  alert("Video upscaled successfully! You may notice frame stutters if the bitrate was too high for NCNN encoding.");
