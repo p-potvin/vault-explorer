@@ -13,3 +13,7 @@
 ## 2026-05-06 - Proactive Disabled States
 **Learning:** Reactive alerts for impossible actions (e.g., clicking "New Folder" before selecting a vault) disrupt the user experience. Users prefer to know what actions are available *before* they click.
 **Action:** Use proactive disabled states (`button:disabled`) for buttons when their associated action is contextually invalid, paired with a helpful `title` to explain the state.
+
+## 2026-05-15 - Loading State Layout Preservation
+**Learning:** Replacing `innerText` directly on a parent container destroys its child visual elements, such as a loading spinner. This breaks the intended loading state layout and removes the visual indicator of progress.
+**Action:** Always target the specific text node element (e.g., `#loading-text`) when updating loading or status messages dynamically, rather than replacing the text content of the entire parent container.
