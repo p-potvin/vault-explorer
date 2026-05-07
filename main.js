@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu } = require(
 const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 
 let mainWindow;
 
@@ -45,9 +45,9 @@ ipcMain.handle('dialog:openDirectory', async () => {
 
 ipcMain.handle('get-everything-size', async (e, targetPath) => {
   return new Promise((resolve) => {
-    exec(`es.exe -size -exact "${targetPath}"`, { windowsHide: true }, (err, stdout) => {
+    execFile('es.exe', ['-size', '-exact', targetPath], { windowsHide: true }, (err, stdout) => {
       if (err || !stdout.trim()) {
-        exec(`es.exe -size "${targetPath}"`, { windowsHide: true }, (err2, stdout2) => {
+        execFile('es.exe', ['-size', targetPath], { windowsHide: true }, (err2, stdout2) => {
            if (err2 || !stdout2.trim()) return resolve(0);
            const parts = stdout2.trim().split(/\s+/);
            if (parts.length > 0 && !isNaN(parts[0])) resolve(parseInt(parts[0], 10)); else resolve(0);
@@ -254,8 +254,7 @@ function processFfmpegQueue() {
     
     // First ensure we have a thumbnail if needed
     if (task.needsThumb) {
-        const thumbCmd = `ffmpeg -y -ss 00:00:15 -i "${task.itemPath}" -vframes 1 -q:v 2 "${task.thumbPath}"`;
-        exec(thumbCmd, { windowsHide: true }, () => {
+        execFile('ffmpeg', ['-y', '-ss', '00:00:15', '-i', task.itemPath, '-vframes', '1', '-q:v', '2', task.thumbPath], { windowsHide: true }, () => {
              runPreviewFfmpeg(task);
         });
     } else {
@@ -268,9 +267,9 @@ function runPreviewFfmpeg(task) {
         isFfmpegRunning = false; task.resolve({ success: true, path: task.outPath }); processFfmpegQueue(); return;
     }
     
-    exec(task.cmdCuda, { windowsHide: true }, (err) => {
+    execFile('ffmpeg', task.argsCuda, { windowsHide: true }, (err) => {
         if (err) {
-            exec(task.cmdCpu, { windowsHide: true }, (err2) => {
+            execFile('ffmpeg', task.argsCpu, { windowsHide: true }, (err2) => {
                 isFfmpegRunning = false;
                 if (err2) task.resolve({ success: false, error: err2.message });
                 else task.resolve({ success: true, path: task.outPath });
@@ -291,11 +290,11 @@ ipcMain.handle('generate-webm', (event, itemPath) => {
         const outPath = path.join(dir, baseName + '_p.mp4');
         const thumbPath = path.join(dir, baseName + '.jpg');
         
-        const cmdCuda = `ffmpeg -y -hwaccel cuda -hwaccel_output_format cuda -ss 00:00:15 -i "${itemPath}" -t 10 -vf "scale_cuda=320:-2" -c:v h264_nvenc -preset p4 -b:v 1M -c:a aac -b:a 64k "${outPath}" -loglevel error`;
-        const cmdCpu = `ffmpeg -y -ss 00:00:15 -i "${itemPath}" -t 10 -vf "scale=320:-2" -c:v libx264 -preset veryfast -b:v 1M -c:a aac -b:a 64k "${outPath}" -loglevel error`;
+        const argsCuda = ['-y', '-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-ss', '00:00:15', '-i', itemPath, '-t', '10', '-vf', 'scale_cuda=320:-2', '-c:v', 'h264_nvenc', '-preset', 'p4', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
+        const argsCpu = ['-y', '-ss', '00:00:15', '-i', itemPath, '-t', '10', '-vf', 'scale=320:-2', '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
 
         ffmpegQueue.push({
-            itemPath, outPath, thumbPath, cmdCuda, cmdCpu, altWebmPath: path.join(dir, baseName + '.webm'),
+            itemPath, outPath, thumbPath, argsCuda, argsCpu, altWebmPath: path.join(dir, baseName + '.webm'),
             needsThumb: !fs.existsSync(thumbPath), resolve 
         });
         processFfmpegQueue();
