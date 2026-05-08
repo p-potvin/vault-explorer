@@ -229,7 +229,8 @@ ipcMain.handle('show-context-menu', async (event, item) => {
            { type: 'separator' },
            { label: 'Copy Path', click: () => { clipboard.writeText(item.path); resolve('copied'); } },
            { type: 'separator' },
-           { label: 'Generate WebM Preview (ffmpeg)', click: () => { resolve('generate-webm'); } }
+           { label: 'Generate WebM Preview (ffmpeg)', click: () => { resolve('generate-webm'); } },
+           { label: 'Upscale Video (AI)', click: () => { resolve('upscale-video'); } }
          ];
       } else if (item.type === 'fakeFolder') {
          templ = [
@@ -282,6 +283,10 @@ function runPreviewFfmpeg(task) {
         }
     });
 }
+
+ipcMain.handle('upscale-video', async (event, itemPath) => {
+    return { success: false, error: 'Not fully implemented yet.' };
+});
 
 ipcMain.handle('generate-webm', (event, itemPath) => {
     return new Promise((resolve) => {

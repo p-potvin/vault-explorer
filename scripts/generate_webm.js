@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const util = require('util');
-const execPromise = util.promisify(exec);
+const execFilePromise = util.promisify(execFile);
 
 const TARGET_DIR = 'F:\\amd';
 const VIDEO_EXTS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'];
@@ -49,14 +49,14 @@ async function start() {
         console.log(`Processing [${++count}/${videos.length}]: ${path.basename(vidPaths)}`);
         
         // Try hardware mapping natively
-        const cmdCuda = `ffmpeg -y -hwaccel cuda -hwaccel_output_format cuda -ss 00:00:15 -i "${vidPaths}" -t 10 -vf "scale_cuda=320:-2" -c:v h264_nvenc -preset p4 -b:v 1M -c:a aac -b:a 64k "${outPath}" -loglevel error`;
-        const cmdCpu = `ffmpeg -y -ss 00:00:15 -i "${vidPaths}" -t 10 -vf "scale=320:-2" -c:v libx264 -preset veryfast -b:v 1M -c:a aac -b:a 64k "${outPath}" -loglevel error`;
+        const argsCuda = ['-y', '-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-ss', '00:00:15', '-i', vidPaths, '-t', '10', '-vf', 'scale_cuda=320:-2', '-c:v', 'h264_nvenc', '-preset', 'p4', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
+        const argsCpu = ['-y', '-ss', '00:00:15', '-i', vidPaths, '-t', '10', '-vf', 'scale=320:-2', '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
         
         try {
-            await execPromise(cmdCuda);
+            await execFilePromise('ffmpeg', argsCuda);
         } catch (err) {
             try {
-                await execPromise(cmdCpu);
+                await execFilePromise('ffmpeg', argsCpu);
             } catch (err2) {
                 console.error(`ERROR on ${baseName}: `, err2.message);
             }
