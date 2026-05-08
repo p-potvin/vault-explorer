@@ -17,3 +17,7 @@
 ## 2026-05-15 - Loading State Layout Preservation
 **Learning:** Replacing `innerText` directly on a parent container destroys its child visual elements, such as a loading spinner. This breaks the intended loading state layout and removes the visual indicator of progress.
 **Action:** Always target the specific text node element (e.g., `#loading-text`) when updating loading or status messages dynamically, rather than replacing the text content of the entire parent container.
+
+## 2026-05-29 - Context-Aware Empty State CTAs
+**Learning:** Explanatory text in empty states often isn't enough; pairing the explanation with a direct, context-aware call-to-action button (like "Browse Vault" or "Clear Filters") significantly improves usability.
+**Action:** Always provide an actionable button alongside textual guidance in empty states, ensuring the action is relevant to why the state is empty (e.g., clearing search vs. initial setup).
