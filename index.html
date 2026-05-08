@@ -431,11 +431,12 @@
       </div>
       <div id="file-grid" class="file-grid">
         <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
           </svg>
           <h3>Your Vault is Empty</h3>
           <p>Click "Browse Vault" above to select a folder and start exploring.</p>
+          <button style="margin-top:16px;" onclick="document.getElementById('btn-select').click()">Browse Vault</button>
         </div>
       </div>
     </div>
@@ -863,14 +864,20 @@
        displayedItems = filteredItems;
        
        if (displayedItems.length === 0) {
+           const hasActiveFilters = term !== '' || filterAttr !== 'all';
+           const ctaButton = hasActiveFilters
+               ? `<button style="margin-top:16px;" onclick="document.getElementById('search-box').value=''; document.getElementById('filter-type').value='all'; applyFilters();">Clear Filters</button>`
+               : `<button style="margin-top:16px;" onclick="document.getElementById('btn-select').click()">Browse Vault</button>`;
+
            el('file-grid').innerHTML = `
                <div class="empty-state" style="grid-column: 1 / -1;">
-                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                        <circle cx="11" cy="11" r="8"></circle>
                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                    </svg>
                    <h3>No Items Found</h3>
                    <p>Adjust your search, filters, or select a different vault.</p>
+                   ${ctaButton}
                </div>
            `;
            selectedIndices.clear(); lastSelectedIndex = -1; currentlyRendered = 0;
