@@ -144,7 +144,7 @@
       position: absolute; top: 16px; left: 16px; z-index: 5; opacity: 0; 
       width: 16px; height: 16px; cursor: pointer; accent-color: var(--vault-accent); transition: opacity 0.2s;
     }
-    .file-card:hover .file-checkbox, .file-card.selected .file-checkbox { opacity: 1; }
+    .file-card:hover .file-checkbox, .file-card.selected .file-checkbox, .file-checkbox:focus-visible { opacity: 1; }
     
     .thumbnail-container {
       width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 2px; overflow: hidden; 
@@ -210,7 +210,7 @@
     }
     .video-wrapper:hover #custom-controls { opacity:1; }
 
-    .volume-container:hover .volume-slider-wrapper { display: flex !important; }
+    .volume-container:hover .volume-slider-wrapper, .volume-container:focus-within .volume-slider-wrapper { display: flex !important; }
 
     /* Center loading screen */
     .spinner { 
@@ -458,12 +458,12 @@
     <input type="text" id="fake-folder-name" class="search-box" placeholder="My Virtual Folder" style="width:100%; margin-bottom:15px;" />
     <div style="display:flex; justify-content:flex-end; gap:10px;">
       <button id="btn-cancel-folder">Cancel</button>
-      <button id="btn-create-folder" style="background:var(--vault-accent)">Create</button>
+      <button id="btn-create-folder" style="background:var(--vault-accent)" disabled title="Folder name cannot be empty">Create</button>
     </div>
   </div>
 
   <div id="video-modal" role="dialog" aria-modal="true" aria-label="Video Player Modal">
-    <button id="close-modal" aria-label="Close modal">&times;</button>
+    <button id="close-modal" aria-label="Close modal" title="Close">&times;</button>
     <div class="video-wrapper">
        <video id="video-player" autoplay></video>
        <div id="custom-controls">
@@ -1000,7 +1000,18 @@
     // FAKE folders handling
     document.getElementById('btn-new-folder').addEventListener('click', () => {
         document.getElementById('fake-folder-dialog').style.display = 'block';
-        document.getElementById('fake-folder-name').focus();
+        const input = document.getElementById('fake-folder-name');
+        input.value = '';
+        document.getElementById('btn-create-folder').disabled = true;
+        document.getElementById('btn-create-folder').title = "Folder name cannot be empty";
+        input.focus();
+    });
+
+    document.getElementById('fake-folder-name').addEventListener('input', (e) => {
+        const createBtn = document.getElementById('btn-create-folder');
+        const hasValue = e.target.value.trim().length > 0;
+        createBtn.disabled = !hasValue;
+        createBtn.title = hasValue ? "" : "Folder name cannot be empty";
     });
     document.getElementById('btn-cancel-folder').addEventListener('click', () => {
         document.getElementById('fake-folder-dialog').style.display = 'none'; document.getElementById('fake-folder-name').value = '';
@@ -1018,7 +1029,9 @@
     document.getElementById('fake-folder-name').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            document.getElementById('btn-create-folder').click();
+            if (!document.getElementById('btn-create-folder').disabled) {
+                document.getElementById('btn-create-folder').click();
+            }
         } else if (e.key === 'Escape') {
             e.preventDefault();
             document.getElementById('btn-cancel-folder').click();
