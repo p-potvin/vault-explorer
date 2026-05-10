@@ -21,3 +21,11 @@
 ## 2026-05-29 - Context-Aware Empty State CTAs
 **Learning:** Explanatory text in empty states often isn't enough; pairing the explanation with a direct, context-aware call-to-action button (like "Browse Vault" or "Clear Filters") significantly improves usability.
 **Action:** Always provide an actionable button alongside textual guidance in empty states, ensuring the action is relevant to why the state is empty (e.g., clearing search vs. initial setup).
+
+## 2026-05-30 - Focus Outline Visibility & Hover Tooltips
+**Learning:** `opacity: 0` removes the element entirely from rendering, including standard browser focus outlines (e.g., `:focus-visible`). Consequently, interactive but visually hidden elements like overlapping custom checkboxes will trap keyboard focus silently. Furthermore, icon-only buttons with `aria-label`s are readable by screen readers, but sighted users need standard hover `title` tooltips.
+**Action:** When creating visually hidden semantic overlays (like a checkbox over a card), override with `opacity: 1` explicitly on `:focus-visible`. Always add `title` text to icon-only close or back buttons.
+
+## 2026-05-31 - Nested Hover & Keyboard Access
+**Learning:** Containers that show hidden children exclusively on `:hover` block keyboard accessibility for those child elements (like sliders).
+**Action:** Always mirror parent `:hover` trigger rules with `:focus-within` to guarantee nested elements become available when keyboard-tabbed into.
