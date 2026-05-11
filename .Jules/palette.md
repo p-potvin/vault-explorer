@@ -29,3 +29,7 @@
 ## 2026-05-31 - Nested Hover & Keyboard Access
 **Learning:** Containers that show hidden children exclusively on `:hover` block keyboard accessibility for those child elements (like sliders).
 **Action:** Always mirror parent `:hover` trigger rules with `:focus-within` to guarantee nested elements become available when keyboard-tabbed into.
+
+## 2024-05-31 - Missing Focus Management in Custom Dialogs
+**Learning:** When creating custom DOM-based dialogs or dropdowns (like the Theme Picker and Fake Folder dialog) without native `<dialog>` elements, keyboard users frequently lose context when the dialog is dismissed because focus remains on a now-hidden element or falls back to the `<body>`. Additionally, without proper ARIA attributes (`aria-expanded`, `role="dialog"`), screen reader users are not informed of the panel's state or purpose.
+**Action:** Always implement explicit focus restoration logic to return focus to the triggering element when a custom dialog or dropdown closes (via Cancel button or Escape key), and ensure elements toggling these panels use `aria-expanded` and `aria-haspopup`.

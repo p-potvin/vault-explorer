@@ -384,7 +384,7 @@
       <path d="M12 2L3 6v6c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V6L12 2z"/>
     </svg>
     Vault Explorer
-    <button id="theme-trigger" class="theme-trigger" aria-label="Toggle Theme">
+    <button id="theme-trigger" class="theme-trigger" aria-label="Toggle Theme" aria-haspopup="dialog" aria-expanded="false">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="13.5" cy="6.5" r="2"/><circle cx="17.5" cy="10.5" r="2"/>
         <circle cx="8.5" cy="7.5" r="2"/><circle cx="6.5" cy="12.5" r="2"/>
@@ -448,7 +448,7 @@
     </div>
   </div>
   
-  <div id="theme-panel" style="display:none;">
+  <div id="theme-panel" style="display:none;" role="dialog" aria-label="Theme Picker">
     <div class="theme-panel-header">Theme</div>
     <div id="theme-grid"></div>
   </div>
@@ -593,10 +593,10 @@
       if (item.type === 'fakeFolder') {
           card.classList.add('fake-folder');
           card.addEventListener('dragover', (e) => { e.preventDefault(); card.style.borderColor = "var(--vault-accent)"; });
-          card.addEventListener('dragleave', () => { card.style.borderColor = "transparent"; });
+          card.addEventListener('dragleave', () => { card.style.borderColor = ""; });
           card.addEventListener('drop', (e) => {
               e.preventDefault();
-              card.style.borderColor = "transparent";
+              card.style.borderColor = "";
               const pathDropped = e.dataTransfer.getData('text/plain');
               if (pathDropped) {
                   const targetFolder = appSettings.folders.find(f => f.name === item.name && f.parent === currentNavPath);
@@ -1015,6 +1015,7 @@
     });
     document.getElementById('btn-cancel-folder').addEventListener('click', () => {
         document.getElementById('fake-folder-dialog').style.display = 'none'; document.getElementById('fake-folder-name').value = '';
+        el('btn-new-folder').focus();
     });
     document.getElementById('btn-create-folder').addEventListener('click', () => {
         const name = document.getElementById('fake-folder-name').value.trim();
@@ -1023,6 +1024,7 @@
             window.electronAPI.saveSettings(appSettings);
             document.getElementById('fake-folder-dialog').style.display = 'none'; document.getElementById('fake-folder-name').value = '';
             loadDirectory(currentNavPath, currentRealPath, true);
+            el('btn-new-folder').focus();
         }
     });
 
@@ -1313,6 +1315,8 @@
         applyTheme(theme.id);
         if (appSettings) { appSettings.theme = theme.id; window.electronAPI.saveSettings(appSettings); }
         el('theme-panel').style.display = 'none';
+        el('theme-trigger').setAttribute('aria-expanded', 'false');
+        el('theme-trigger').focus();
       });
       themeGridEl.appendChild(btn);
     });
@@ -1320,19 +1324,39 @@
     el('theme-trigger').addEventListener('click', (e) => {
       e.stopPropagation();
       const panel = el('theme-panel');
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-      if (panel.style.display === 'block') {
+      const isOpening = panel.style.display === 'none';
+      panel.style.display = isOpening ? 'block' : 'none';
+      el('theme-trigger').setAttribute('aria-expanded', isOpening ? 'true' : 'false');
+      if (isOpening) {
         const cur = document.documentElement.getAttribute('data-theme') || 'golden-slate';
         document.querySelectorAll('.theme-swatch').forEach(sw => {
-          sw.classList.toggle('active', sw.dataset.theme === cur);
+          const isActive = sw.dataset.theme === cur;
+          sw.classList.toggle('active', isActive);
+          sw.setAttribute('aria-pressed', isActive ? 'true' : 'false');
         });
+        const activeSwatch = document.querySelector('.theme-swatch.active');
+        if (activeSwatch) activeSwatch.focus();
       }
     });
 
     document.addEventListener('click', (e) => {
       if (!e.target.closest('#theme-panel') && !e.target.closest('#theme-trigger')) {
         const panel = el('theme-panel');
-        if (panel) panel.style.display = 'none';
+        if (panel && panel.style.display === 'block') {
+          panel.style.display = 'none';
+          el('theme-trigger').setAttribute('aria-expanded', 'false');
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const themePanel = el('theme-panel');
+        if (themePanel && themePanel.style.display === 'block') {
+          themePanel.style.display = 'none';
+          el('theme-trigger').setAttribute('aria-expanded', 'false');
+          el('theme-trigger').focus();
+        }
       }
     });
     // ────────────────────────────────────────────────────────────────────────
