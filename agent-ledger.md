@@ -23,3 +23,9 @@
 - **Decision:** Added dynamic disabled states with informative tooltips for the "Create Folder" button. Fixed focus visibility for custom checkboxes and keyboard access for the volume slider. Added hover tooltips to modal close buttons.
 - **Context:** These small enhancements target pain points such as users clicking inactive buttons without knowing why they are disabled, keyboard users being unable to see their selection focus due to overlapping 0-opacity elements, and hidden child controls not revealing on focus-within. All of these improve the application's overall accessibility score and UX.
 - **Affected Components:** `index.html` (CSS focus states, tooltip attributes, JS event listeners for the fake folder dialog).
+
+## 2024-05-31
+- **Goal:** Improve dialog keyboard accessibility and focus management.
+- **Decision:** Added appropriate ARIA attributes (`aria-haspopup`, `aria-expanded`, `role="dialog"`) to the Theme Picker panel and button. Implemented focus restoration logic for when the Theme Picker or Fake Folder dialogs are closed via Escape key or Cancel buttons.
+- **Context:** Custom modals or dialogs implemented in DOM without native `<dialog>` tags require manual focus trapping and restoration to ensure screen reader users and keyboard navigators do not lose context when a dialog is dismissed. By restoring focus back to the triggering element (e.g., `#theme-trigger` or `#btn-new-folder`), the user experience remains coherent.
+- **Affected Components:** `index.html` (Theme Picker HTML, Fake Folder dialog logic, global Escape key listener).
