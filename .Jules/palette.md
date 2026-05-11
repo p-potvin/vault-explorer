@@ -33,3 +33,7 @@
 ## 2024-05-31 - Missing Focus Management in Custom Dialogs
 **Learning:** When creating custom DOM-based dialogs or dropdowns (like the Theme Picker and Fake Folder dialog) without native `<dialog>` elements, keyboard users frequently lose context when the dialog is dismissed because focus remains on a now-hidden element or falls back to the `<body>`. Additionally, without proper ARIA attributes (`aria-expanded`, `role="dialog"`), screen reader users are not informed of the panel's state or purpose.
 **Action:** Always implement explicit focus restoration logic to return focus to the triggering element when a custom dialog or dropdown closes (via Cancel button or Escape key), and ensure elements toggling these panels use `aria-expanded` and `aria-haspopup`.
+
+## 2024-05-31 - Explicit Modal Focus & Restoration
+**Learning:** For custom modals that appear over the main content (like the Video Player Modal), keyboard navigation can be completely broken if focus is not explicitly handled. Merely setting `display: flex` leaves keyboard focus on the background elements.
+**Action:** Always add `tabindex="-1"` to custom modal containers and programmatically `.focus()` them upon opening. Correspondingly, when the modal closes, focus should be explicitly restored to the specific item (e.g., the `.file-card`) that originally triggered the modal.

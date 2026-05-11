@@ -462,7 +462,7 @@
     </div>
   </div>
 
-  <div id="video-modal" role="dialog" aria-modal="true" aria-label="Video Player Modal">
+  <div id="video-modal" role="dialog" aria-modal="true" aria-label="Video Player Modal" tabindex="-1">
     <button id="close-modal" aria-label="Close modal" title="Close">&times;</button>
     <div class="video-wrapper">
        <video id="video-player" autoplay></video>
@@ -1100,6 +1100,10 @@
     el('close-modal').addEventListener('click', () => {
         el('video-modal').style.display = 'none';
         el('video-player').pause(); el('video-player').src = "";
+        if (currentPlayingIndex !== -1) {
+            const card = document.querySelector(`.file-card[data-index="${currentPlayingIndex}"]`);
+            if (card) card.focus();
+        }
     });
 
     // Custom Video Player Logic
@@ -1125,6 +1129,7 @@
         vp.src = sanitizePath(itm.path);
         btnPlay.innerHTML = '&#10074;&#10074;';
         el('video-modal').style.display = 'flex';
+        el('video-modal').focus();
     }
 
     // Close on Escape
@@ -1133,6 +1138,10 @@
             vp.pause();
             vp.src = "";
             el('video-modal').style.display = 'none';
+            if (currentPlayingIndex !== -1) {
+                const card = document.querySelector(`.file-card[data-index="${currentPlayingIndex}"]`);
+                if (card) card.focus();
+            }
         }
     });
 
