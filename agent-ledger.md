@@ -29,3 +29,9 @@
 - **Decision:** Added appropriate ARIA attributes (`aria-haspopup`, `aria-expanded`, `role="dialog"`) to the Theme Picker panel and button. Implemented focus restoration logic for when the Theme Picker or Fake Folder dialogs are closed via Escape key or Cancel buttons.
 - **Context:** Custom modals or dialogs implemented in DOM without native `<dialog>` tags require manual focus trapping and restoration to ensure screen reader users and keyboard navigators do not lose context when a dialog is dismissed. By restoring focus back to the triggering element (e.g., `#theme-trigger` or `#btn-new-folder`), the user experience remains coherent.
 - **Affected Components:** `index.html` (Theme Picker HTML, Fake Folder dialog logic, global Escape key listener).
+
+## 2024-05-31 (UX Improvements)
+- **Goal:** Improve explicit focus management for custom modal interactions.
+- **Decision:** Added `tabindex="-1"` to the Video Player Modal, explicit `.focus()` call when opening it, and implemented focus restoration to the triggering `.file-card` when the modal is closed.
+- **Context:** Custom modals that appear over the main content must explicitly shift focus into themselves when opened, otherwise keyboard users will remain focused on the background grid behind the modal overlay. Similarly, when the modal is closed, returning focus to the element that triggered it (the clicked video card) prevents the user's position in the list from being lost.
+- **Affected Components:** `index.html` (Video modal HTML, `playItem` function, modal close handlers).
