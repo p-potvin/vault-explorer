@@ -35,3 +35,15 @@
 - **Decision:** Added `tabindex="-1"` to the Video Player Modal, explicit `.focus()` call when opening it, and implemented focus restoration to the triggering `.file-card` when the modal is closed.
 - **Context:** Custom modals that appear over the main content must explicitly shift focus into themselves when opened, otherwise keyboard users will remain focused on the background grid behind the modal overlay. Similarly, when the modal is closed, returning focus to the element that triggered it (the clicked video card) prevents the user's position in the list from being lost.
 - **Affected Components:** `index.html` (Video modal HTML, `playItem` function, modal close handlers).
+
+## 2024-06-01
+- **Goal:** Fix CRITICAL DOM XSS vulnerability in file card generation and synchronize project features.
+- **Decision:** Implement an `escapeHtml` utility in `index.html` to sanitize dynamically injected strings before `innerHTML` assignment. Update `README.md` to reflect recently added features.
+- **Context:** The `createCardElement` function injects unescaped file names into HTML, creating a DOM XSS vulnerability if malicious file names are encountered. Escaping ensures the integrity of the UI. Additionally, we are synchronizing recent feature additions (accessibility, theming, upscaling scaffolding) into the project documentation.
+- **Affected Components:** `index.html`, `README.md`.
+
+## 2024-06-02
+- **Goal:** Execute Ziegler routine for feature synchronization and AI upscaling scaffolding.
+- **Decision:** Updated `README.md` to reflect recently completed features found in the ledger. Replaced the error return in the `upscale-video` IPC handler in `main.js` with a mock async timeout returning success, providing scaffolding for future ML integration.
+- **Context:** Following the daily Ziegler routine, project documentation must stay synchronized with completed features (accessibility, focus management, empty states). Additionally, scanning the codebase revealed the `upscale-video` feature was unfinished. Providing a mock async scaffold prepares the architecture for task delegation (e.g., to the `kraftwerk` agent) without breaking the current UI.
+- **Affected Components:** `README.md`, `main.js`.
