@@ -6,3 +6,11 @@
 **Vulnerability:** Found another instance of `child_process.exec` in an ad-hoc script (`scripts/generate_webm.js`) passing unsanitized file paths.
 **Learning:** Shell command injection risks are not isolated to Electron IPC handlers; ad-hoc helper scripts or batch processors running locally often handle untrusted paths and are equally vulnerable.
 **Prevention:** Always use `child_process.execFile` in node scripts, including local utility scripts, whenever passing paths or dynamic input.
+## 2024-06-01 - DOM XSS via Unescaped File Names
+**Vulnerability:** Unescaped file names (`item.name`) were directly injected into `innerHTML` within `index.html` when generating file cards.
+**Learning:** Even local file names can be vectors for DOM XSS in Electron applications. Developers often trust local system state, forgetting that users can create maliciously crafted file names (e.g., `<img src=x onerror=alert(1)>`).
+**Prevention:** Always sanitize dynamically injected strings by building and using an `escapeHtml` utility function before assigning them to `innerHTML`.
+## 2024-06-01 - DOM XSS via Unescaped File Names
+**Vulnerability:** Unescaped file names (`item.name`) were directly injected into `innerHTML` within `index.html` when generating file cards.
+**Learning:** Even local file names can be vectors for DOM XSS in Electron applications. Developers often trust local system state, forgetting that users can create maliciously crafted file names (e.g., `<img src=x onerror=alert(1)>`).
+**Prevention:** Always sanitize dynamically injected strings by building and using an `escapeHtml` utility function before assigning them to `innerHTML`.
