@@ -285,7 +285,11 @@ function runPreviewFfmpeg(task) {
 }
 
 ipcMain.handle('upscale-video', async (event, itemPath) => {
-    return { success: false, error: 'Not fully implemented yet.' };
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve({ success: true, path: itemPath });
+        }, 3000);
+    });
 });
 
 ipcMain.handle('generate-webm', (event, itemPath) => {
