@@ -37,3 +37,6 @@
 ## 2024-05-31 - Explicit Modal Focus & Restoration
 **Learning:** For custom modals that appear over the main content (like the Video Player Modal), keyboard navigation can be completely broken if focus is not explicitly handled. Merely setting `display: flex` leaves keyboard focus on the background elements.
 **Action:** Always add `tabindex="-1"` to custom modal containers and programmatically `.focus()` them upon opening. Correspondingly, when the modal closes, focus should be explicitly restored to the specific item (e.g., the `.file-card`) that originally triggered the modal.
+## 2026-05-12 - Enhance Keyboard Accessibility for Hidden Interactive Elements
+**Learning:** When revealing hidden child interactive elements on parent `:hover` (like custom controls overlapping a video), it's crucial to pair it with `:focus-within`. Otherwise, keyboard-only users who tab into these hidden elements won't be able to see what they are focused on, breaking accessibility.
+**Action:** Always append `, .parent-class:focus-within .child-class` to the CSS rule alongside `.parent-class:hover .child-class` when dealing with interactive child reveals.
