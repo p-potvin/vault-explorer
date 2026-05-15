@@ -1,0 +1,11 @@
+fix: mitigate DOM XSS in Vault Explorer UI
+
+Implemented `escapeHtml` utility and applied it to dynamically injected strings inside `innerHTML` template assignments (`item.name`, `item.mtimeFormatted`, `theme.name`, `theme.primary`, `theme.accent`) to prevent arbitrary script execution. Also updated project documentation with new security and accessibility features.
+
+Constraint: Security requirement to sanitize user inputs and prevent arbitrary JS execution in Electron context.
+Rejected: Using `.textContent` or `.innerText` | Requires significant refactoring of existing complex UI template strings.
+Confidence: high
+Scope-risk: moderate
+Directive: Always escape dynamic strings before using `.innerHTML` or default to `.textContent`.
+Tested: Verified via Playwright script that malicious script payloads in mocked filenames are rendered as text and do not execute.
+Not-tested: Verification of `thumbHtml` template string evaluation; relies on existing path sanitization.

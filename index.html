@@ -501,6 +501,17 @@
     let PAGE_SIZE = 50, currentlyRendered = 0;
     let scrollPositions = {};
 
+    // Fix for DOM XSS Vulnerabilities
+    function escapeHtml(unsafe) {
+        if (unsafe == null) return '';
+        return String(unsafe)
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
     // Fix for all file:// breakages (spaces, special chars)
     function sanitizePath(p) {
         if (!p) return '';
@@ -629,12 +640,12 @@
       }
       
       card.innerHTML = `
-        <input type="checkbox" class="file-checkbox" aria-label="Select ${item.name}">
+        <input type="checkbox" class="file-checkbox" aria-label="Select ${escapeHtml(item.name)}">
         <div class="thumbnail-container">${thumbHtml}</div>
         <div class="filename-container" style="padding-top:4px;">
-           <div class="filename">${item.name}</div>
-           ${item.mtimeFormatted ? `<div style="font-size:10px; color:#aaa; margin-top:2px;">${item.mtimeFormatted}</div>` : ''}
-           <input type="text" class="rename-input" value="${item.name}" aria-label="Rename ${item.name}">
+           <div class="filename">${escapeHtml(item.name)}</div>
+           ${item.mtimeFormatted ? `<div style="font-size:10px; color:#aaa; margin-top:2px;">${escapeHtml(item.mtimeFormatted)}</div>` : ''}
+           <input type="text" class="rename-input" value="${escapeHtml(item.name)}" aria-label="Rename ${escapeHtml(item.name)}">
         </div>
       `;
       
@@ -1316,10 +1327,10 @@
       btn.title = theme.name;
       btn.innerHTML = `
         <span class="swatch-colors">
-          <span class="swatch-bg" style="background:${theme.primary};"></span>
-          <span class="swatch-accent-strip" style="background:${theme.accent};"></span>
+          <span class="swatch-bg" style="background:${escapeHtml(theme.primary)};"></span>
+          <span class="swatch-accent-strip" style="background:${escapeHtml(theme.accent)};"></span>
         </span>
-        <span class="swatch-name">${theme.name}</span>`;
+        <span class="swatch-name">${escapeHtml(theme.name)}</span>`;
       btn.addEventListener('click', () => {
         applyTheme(theme.id);
         if (appSettings) { appSettings.theme = theme.id; window.electronAPI.saveSettings(appSettings); }

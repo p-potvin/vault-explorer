@@ -35,3 +35,9 @@
 - **Decision:** Added `tabindex="-1"` to the Video Player Modal, explicit `.focus()` call when opening it, and implemented focus restoration to the triggering `.file-card` when the modal is closed.
 - **Context:** Custom modals that appear over the main content must explicitly shift focus into themselves when opened, otherwise keyboard users will remain focused on the background grid behind the modal overlay. Similarly, when the modal is closed, returning focus to the element that triggered it (the clicked video card) prevents the user's position in the list from being lost.
 - **Affected Components:** `index.html` (Video modal HTML, `playItem` function, modal close handlers).
+
+## 2024-05-14
+- **Goal:** Secure the application against DOM Cross-Site Scripting (XSS) vulnerabilities.
+- **Decision:** Implemented an `escapeHtml` utility function in `index.html` and applied it to dynamically injected string variables before `innerHTML` assignment.
+- **Context:** The application was vulnerable to DOM XSS because user-controllable input (such as file names) was being directly interpolated into HTML strings and injected into the DOM via `.innerHTML`. A malicious user could craft a file name containing `<script>` tags or inline event handlers to execute arbitrary JavaScript within the Electron renderer process context. The `escapeHtml` function sanitizes the input by replacing potentially dangerous characters (`&`, `<`, `>`, `"`, `'`) with their corresponding HTML entities.
+- **Affected Components:** `index.html` (specifically where `item.name`, `item.mtimeFormatted`, `theme.name`, `theme.primary`, and `theme.accent` are used within template literals assigned to `.innerHTML`).
