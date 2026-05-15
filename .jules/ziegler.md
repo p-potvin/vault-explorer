@@ -6,3 +6,7 @@
 **Vulnerability:** Found another instance of `child_process.exec` in an ad-hoc script (`scripts/generate_webm.js`) passing unsanitized file paths.
 **Learning:** Shell command injection risks are not isolated to Electron IPC handlers; ad-hoc helper scripts or batch processors running locally often handle untrusted paths and are equally vulnerable.
 **Prevention:** Always use `child_process.execFile` in node scripts, including local utility scripts, whenever passing paths or dynamic input.
+## 2024-06-01 - Web Security and DOM XSS
+**Vulnerability:** Found `webSecurity: false` enabled on the main BrowserWindow in `main.js`, and an unescaped DOM XSS vulnerability in `index.html` where `item.name` was dynamically interpolated into `card.innerHTML`.
+**Learning:** `webSecurity: false` disables the same-origin policy and allows the execution of insecure code, defeating Electron's security model. The XSS vulnerability allowed maliciously crafted filenames to be executed as HTML/JS.
+**Prevention:** Always set `webSecurity: true`. Always sanitize dynamically injected strings when using `innerHTML`, preferably by creating a secure `escapeHtml` utility function.

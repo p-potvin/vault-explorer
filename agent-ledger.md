@@ -35,3 +35,15 @@
 - **Decision:** Added `tabindex="-1"` to the Video Player Modal, explicit `.focus()` call when opening it, and implemented focus restoration to the triggering `.file-card` when the modal is closed.
 - **Context:** Custom modals that appear over the main content must explicitly shift focus into themselves when opened, otherwise keyboard users will remain focused on the background grid behind the modal overlay. Similarly, when the modal is closed, returning focus to the element that triggered it (the clicked video card) prevents the user's position in the list from being lost.
 - **Affected Components:** `index.html` (Video modal HTML, `playItem` function, modal close handlers).
+
+## 2024-06-01
+- **Goal:** Execute Core Operational Loop, prioritize fixing critical vulnerabilities, and synchronize features.
+- **Decision:** Identified CRITICAL vulnerabilities (`webSecurity: false` in `main.js` and DOM XSS in `index.html`). Prepared to update `README.md` with newly confirmed features, and planned to scaffold the `upscale-video` feature.
+- **Context:** Following the daily execution cycle, adhering to the protocol of addressing critical vulnerabilities first before proceeding with feature development and scaffolding.
+- **Affected Components:** `main.js`, `index.html`, `README.md`, `agent-ledger.md`.
+
+## 2024-06-01
+- **Goal:** Execute Core Operational Loop, prioritize fixing critical vulnerabilities, and synchronize features.
+- **Decision:** Identified CRITICAL vulnerabilities (`webSecurity: false` in `main.js` and DOM XSS in `index.html`). Set `webSecurity: true` and added `escapeHtml` mitigation to `index.html`. Synchronized confirmed features to `README.md`. Implemented `upscale-video` IPC handler feature scaffolding in `main.js` using `execFile`.
+- **Context:** Following the daily execution cycle, adhering to the protocol of addressing critical vulnerabilities first before proceeding with feature synchronization and feature scaffolding.
+- **Affected Components:** `main.js`, `index.html`, `README.md`, `agent-ledger.md`.
