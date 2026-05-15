@@ -17,3 +17,9 @@
 - **Decision:** Replaced `child_process.exec` with `child_process.execFile` in `scripts/generate_webm.js`. Deleted insecure `test-exec.js`. Added `upscale-video` IPC handler scaffolding and context menu item in `main.js`.
 - **Context:** `generate_webm.js` contained a shell injection vulnerability due to string concatenation in `exec` calls involving unescaped file paths. Refactored to use `execFile` with argument arrays. Deleted `test-exec.js` which was an insecure test script. Added a mock `upscale-video` IPC handler and wired it to the context menu to provide a foundation for future development, adhering to the strategy of identifying and preparing unfinished features.
 - **Affected Components:** `scripts/generate_webm.js`, `test-exec.js`, `main.js`.
+
+## 2026-05-08
+- **Goal:** Formulate an implementation plan for the `upscale-video` feature scaffolding (Path 3a).
+- **Decision:** Documented the proposal to fully build out the `upscale-video` feature using the locally provided `realesrgan-ncnn-vulkan.exe` model tools, ensuring the process adheres to strict security constraints using `child_process.execFile` directly to avoid shell command injections. Awaiting human approval.
+- **Context:** `main.js` currently contains unfinished scaffolding for an `upscale-video` handler returning "Not fully implemented yet". The project directory `tools/models/` contains the necessary RealESRGAN AI model executables and parameter definitions.
+- **Affected Components:** `main.js`, AI upscale scaffolding.

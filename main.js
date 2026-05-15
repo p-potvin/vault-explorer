@@ -285,7 +285,54 @@ function runPreviewFfmpeg(task) {
 }
 
 ipcMain.handle('upscale-video', async (event, itemPath) => {
-    return { success: false, error: 'Not fully implemented yet.' };
+    return new Promise((resolve) => {
+        const dir = path.dirname(itemPath);
+        const baseName = path.basename(itemPath, path.extname(itemPath));
+        const outPath = path.join(dir, baseName + '_upscaled' + path.extname(itemPath));
+        const modelExecutable = path.join(process.cwd(), 'tools', 'models', 'realesrgan-ncnn-vulkan.exe');
+
+        const tempDir = path.join(dir, baseName + '_temp_upscale');
+        const framesDir = path.join(tempDir, 'frames');
+        const outFramesDir = path.join(tempDir, 'out_frames');
+
+        try {
+            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+            if (!fs.existsSync(framesDir)) fs.mkdirSync(framesDir);
+            if (!fs.existsSync(outFramesDir)) fs.mkdirSync(outFramesDir);
+        } catch (e) {
+            return resolve({ success: false, error: "Failed to create temp directories: " + e.message });
+        }
+
+        // Step 1: Extract frames
+        const extractArgs = ['-y', '-i', itemPath, path.join(framesDir, 'frame_%08d.png')];
+        execFile('ffmpeg', extractArgs, { windowsHide: true }, (err1) => {
+            if (err1) {
+                try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+                return resolve({ success: false, error: "Frame extraction failed: " + err1.message });
+            }
+
+            // Step 2: Upscale frames using realesrgan
+            const upscaleArgs = ['-i', framesDir, '-o', outFramesDir, '-n', 'realesr-animevideov3'];
+            execFile(modelExecutable, upscaleArgs, { windowsHide: true }, (err2) => {
+                if (err2) {
+                    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+                    return resolve({ success: false, error: "Upscaling failed: " + err2.message });
+                }
+
+                // Step 3: Recombine frames with audio
+                // Use input framerate if possible, assuming 24 for now if we can't extract it easily, but better to just let ffmpeg figure it out or pass -framerate 24.
+                // To do it safely, we just use a generic recombine command with the original audio.
+                const recombineArgs = ['-y', '-framerate', '24', '-i', path.join(outFramesDir, 'frame_%08d.png'), '-i', itemPath, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-map', '0:v:0', '-map', '1:a:0?', '-c:a', 'copy', outPath];
+                execFile('ffmpeg', recombineArgs, { windowsHide: true }, (err3) => {
+                    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+                    if (err3) {
+                        return resolve({ success: false, error: "Recombining failed: " + err3.message });
+                    }
+                    resolve({ success: true, path: outPath });
+                });
+            });
+        });
+    });
 });
 
 ipcMain.handle('generate-webm', (event, itemPath) => {
