@@ -40,3 +40,7 @@
 ## 2026-05-12 - Enhance Keyboard Accessibility for Hidden Interactive Elements
 **Learning:** When revealing hidden child interactive elements on parent `:hover` (like custom controls overlapping a video), it's crucial to pair it with `:focus-within`. Otherwise, keyboard-only users who tab into these hidden elements won't be able to see what they are focused on, breaking accessibility.
 **Action:** Always append `, .parent-class:focus-within .child-class` to the CSS rule alongside `.parent-class:hover .child-class` when dealing with interactive child reveals.
+
+## 2024-06-03 - Keyboard Shortcut Discovery
+**Learning:** Power-user features triggered exclusively by keyboard shortcuts (like Ctrl+F for search or F2 for renaming) are effectively invisible to standard users unless explicitly surfaced in the UI.
+**Action:** Always surface available keyboard shortcuts in relevant UI elements, such as input placeholders (e.g., "Search... (Ctrl+F)") or hover tooltips, to improve feature discoverability.
