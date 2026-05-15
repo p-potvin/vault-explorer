@@ -13,7 +13,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
+      webSecurity: true,
       autoplayPolicy: 'no-user-gesture-required'
     },
     autoHideMenuBar: true,
@@ -206,7 +206,8 @@ ipcMain.handle('rename-file', async (e, oldPath, newName) => {
         } else if (entry === oldBase + '.trickplay') {
             fs.renameSync(path.join(dir, entry), path.join(dir, newBase + '.trickplay'));
         } else if (entry.startsWith(oldBase)) {
-            const replacePattern = new RegExp(`^${oldBase}`);
+            const escapedOldBase = oldBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const replacePattern = new RegExp(`^${escapedOldBase}`);
             const newEntry = entry.replace(replacePattern, newBase);
             fs.renameSync(path.join(dir, entry), path.join(dir, newEntry));
         }

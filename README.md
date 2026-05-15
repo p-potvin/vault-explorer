@@ -17,6 +17,10 @@ Vault Explorer is a highly advanced, natively integrated desktop application des
 * **Security:** Secure the application against shell command injection vulnerabilities.
 * **Empty States:** Improve UX and accessibility for empty states.
 * **Modals:** Improve explicit focus management for custom modal interactions.
+* **AI Upscaling Scaffolding:** Initial scaffolding for AI-based video upscaling to support future ML integrations.
+* **Dialog Focus Management:** Accessibility improvements for managing focus states intelligently across custom dialogs.
+* **Dynamic Empty States:** Context-aware CTA buttons and semantic structural changes for when views are empty.
+* **Keyboard Shortcut Discoverability:** Enhanced UI tooltips and placeholders surfacing global and contextual keyboard shortcuts (like Ctrl/Cmd+F).
 
 ## 📦 Tech Stack
 

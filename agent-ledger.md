@@ -53,3 +53,9 @@
 - **Decision:** Updated search box placeholder to include "(Ctrl/Cmd+F)" and added a `keydown` listener to handle the shortcut for cross-platform discoverability. Appended the learning to `.Jules/palette.md`.
 - **Context:** Power-user features triggered exclusively by keyboard shortcuts are effectively invisible to standard users unless explicitly surfaced in the UI. Exposing shortcuts like Ctrl/Cmd+F improves discoverability and provides a smoother interaction without additional clicks.
 - **Affected Components:** `index.html` (search input placeholder, global keydown listener), `.Jules/palette.md`.
+
+## 2024-06-03
+- **Goal:** Update webSecurity configuration and fix ReDoS/unintended rename vulnerability. Synchronize features to README.
+- **Decision:** Updated `README.md` to reflect recently completed features (AI upscaling scaffolding, dialog focus management, dynamic empty states, keyboard shortcuts). Changed `webSecurity: false` to `true` in `main.js`. Escaped user input `oldBase` before passing it to `new RegExp` in the `rename-file` IPC handler. Recorded learnings in `.jules/ziegler.md`.
+- **Context:** Following the daily Ziegler routine and security focus, project documentation must stay synchronized with completed features. `webSecurity: false` disables the same-origin policy, leading to a critical security vulnerability. Escaping user input in regular expressions prevents Regular Expression Denial of Service (ReDoS) and incorrect file modifications when file names include regex metacharacters.
+- **Affected Components:** `README.md`, `main.js`, `.jules/ziegler.md`.
