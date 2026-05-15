@@ -15,6 +15,11 @@ Vault Explorer is a highly advanced, natively integrated desktop application des
 * **"Everything" Search API Sync:** Instantly hooks `es.exe -size` backend indexes for lighting-fast directory meta-blob size evaluations.
 * **Native Multi-Select Mechanics:** Includes pixel-perfect, relative-DOM intersecting drag-boxes matching Explorer's lasso framework flawlessly.
 
+## 🛡️ Recent Security & UX Improvements (Completed Features)
+* **Secure IPC & Script Handlers:** Eliminated shell command injection vulnerabilities by replacing `child_process.exec` with secure `execFile` arrays across Electron handlers and node utility scripts.
+* **Empty State Enhancements:** Improved accessibility and usability with context-aware Call-to-Action buttons and hidden decorative SVGs for screen readers.
+* **Micro-UX Polish:** Enhanced disabled state logic, added hover tooltips to modals and buttons, and improved keyboard focus visibility across interactive elements.
+
 ## 📦 Tech Stack
 
 * **Electron:** Chromium framework powering the engine seamlessly natively.

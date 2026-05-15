@@ -23,3 +23,9 @@
 - **Decision:** Added dynamic disabled states with informative tooltips for the "Create Folder" button. Fixed focus visibility for custom checkboxes and keyboard access for the volume slider. Added hover tooltips to modal close buttons.
 - **Context:** These small enhancements target pain points such as users clicking inactive buttons without knowing why they are disabled, keyboard users being unable to see their selection focus due to overlapping 0-opacity elements, and hidden child controls not revealing on focus-within. All of these improve the application's overall accessibility score and UX.
 - **Affected Components:** `index.html` (CSS focus states, tooltip attributes, JS event listeners for the fake folder dialog).
+
+## 2026-05-10
+- **Goal:** Synchronize project documentation, prepare feature implementation plan, and assign tasks.
+- **Decision:** Updated `README.md` to include all recently completed features from the ledger. Created `upscale-plan.md` to detail the implementation scaffolding for the `upscale-video` IPC handler.
+- **Context:** Executing the daily operational loop (Steps 1-6). Synchronizing the README ensures the public state matches internal memory. Exploring Path 3a, I selected the `upscale-video` feature (scaffolded previously) and developed a multi-stage task breakdown. The user approved the plan, allowing me to proceed to Step 6 and officially assign the task to the `kraftwerk` agent via the new plan document.
+- **Affected Components:** `README.md`, `upscale-plan.md`.
