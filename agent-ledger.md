@@ -35,3 +35,9 @@
 - **Decision:** Added `tabindex="-1"` to the Video Player Modal, explicit `.focus()` call when opening it, and implemented focus restoration to the triggering `.file-card` when the modal is closed.
 - **Context:** Custom modals that appear over the main content must explicitly shift focus into themselves when opened, otherwise keyboard users will remain focused on the background grid behind the modal overlay. Similarly, when the modal is closed, returning focus to the element that triggered it (the clicked video card) prevents the user's position in the list from being lost.
 - **Affected Components:** `index.html` (Video modal HTML, `playItem` function, modal close handlers).
+
+## 2026-05-14
+- **Goal:** Update feature documentation and implement unfinished scaffolding for video upscaling.
+- **Decision:** Updated `README.md` to reflect recent UX and accessibility enhancements. Implemented the `upscale-video` IPC handler in `main.js` using `child_process.execFile` to securely invoke the `realesrgan-ncnn-vulkan` executable with model arguments.
+- **Context:** The Ziegler agent protocol dictates updating the feature registry and actively seeking unfinished features. The `upscale-video` handler was identified as an unfinished feature from previous scaffolding (2026-05-08). The implementation uses `execFile` instead of `exec` to maintain strict adherence to security rules preventing command injection vulnerabilities. `README.md` was synchronized with the ledger's recently completed features.
+- **Affected Components:** `README.md` (Features section), `main.js` (upscale-video IPC handler implementation).

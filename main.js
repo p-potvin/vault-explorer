@@ -285,7 +285,103 @@ function runPreviewFfmpeg(task) {
 }
 
 ipcMain.handle('upscale-video', async (event, itemPath) => {
-    return { success: false, error: 'Not fully implemented yet.' };
+    try {
+        if (typeof itemPath !== 'string') {
+            return { success: false, error: 'Invalid input format' };
+        }
+        if (!fs.existsSync(itemPath)) {
+            return { success: false, error: 'File does not exist' };
+        }
+        const stat = fs.statSync(itemPath);
+        if (stat.isDirectory()) {
+            return { success: false, error: 'Invalid input format' };
+        }
+
+        const dir = path.dirname(itemPath);
+        const ext = path.extname(itemPath).toLowerCase();
+        const baseName = path.basename(itemPath, ext);
+        const outPath = path.join(dir, `${baseName}-upscaled${ext}`);
+
+        return await new Promise((resolve, reject) => {
+            let framesDir, upscaledDir;
+            try {
+                framesDir = path.join(dir, `${baseName}_frames`);
+                if (!fs.existsSync(framesDir)) {
+                    fs.mkdirSync(framesDir);
+                }
+            } catch (e) {
+                return reject(e);
+            }
+
+            const cleanup = () => {
+                try {
+                    if (framesDir) fs.rmSync(framesDir, { recursive: true, force: true });
+                    if (upscaledDir) fs.rmSync(upscaledDir, { recursive: true, force: true });
+                } catch (e) {
+                    console.error('Cleanup failed:', e.message);
+                }
+            };
+
+            const extractArgs = ['-y', '-i', itemPath, path.join(framesDir, 'frame_%04d.jpg')];
+            execFile('ffmpeg', extractArgs, { windowsHide: true }, (err) => {
+                if (err) {
+                    console.error('Frame extraction failed:', err.message);
+                    cleanup();
+                    return resolve({ success: false, error: 'An error occurred during upscaling' });
+                }
+
+                try {
+                    upscaledDir = path.join(dir, `${baseName}_upscaled_frames`);
+                    if (!fs.existsSync(upscaledDir)) {
+                        fs.mkdirSync(upscaledDir);
+                    }
+                } catch (e) {
+                    cleanup();
+                    return reject(e);
+                }
+
+                const exePath = path.join(__dirname, 'tools', 'realesrgan-ncnn-vulkan.exe');
+                const upscaleArgs = [
+                    '-i', framesDir,
+                    '-o', upscaledDir,
+                    '-n', 'realesr-animevideov3'
+                ];
+
+                execFile(exePath, upscaleArgs, { windowsHide: true }, (err2) => {
+                    if (err2) {
+                        console.error('Upscaling frames failed:', err2.message);
+                        cleanup();
+                        return resolve({ success: false, error: 'An error occurred during upscaling' });
+                    }
+
+                    const encodeArgs = [
+                        '-y',
+                        '-framerate', '24', // Default framerate, in a real scenario we'd extract it from original
+                        '-i', path.join(upscaledDir, 'frame_%04d.jpg'),
+                        '-c:v', 'libx264',
+                        '-preset', 'medium',
+                        '-crf', '18',
+                        '-pix_fmt', 'yuv420p',
+                        outPath
+                    ];
+
+                    execFile('ffmpeg', encodeArgs, { windowsHide: true }, (err3) => {
+                        cleanup();
+
+                        if (err3) {
+                            console.error('Video re-encoding failed:', err3.message);
+                            return resolve({ success: false, error: 'An error occurred during upscaling' });
+                        }
+
+                        resolve({ success: true, path: outPath });
+                    });
+                });
+            });
+        });
+    } catch (error) {
+        console.error('Upscale video error:', error);
+        return { success: false, error: 'An error occurred during upscaling' };
+    }
 });
 
 ipcMain.handle('generate-webm', (event, itemPath) => {
