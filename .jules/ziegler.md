@@ -14,3 +14,12 @@
 **Vulnerability:** Unescaped file names (`item.name`) were directly injected into `innerHTML` within `index.html` when generating file cards.
 **Learning:** Even local file names can be vectors for DOM XSS in Electron applications. Developers often trust local system state, forgetting that users can create maliciously crafted file names (e.g., `<img src=x onerror=alert(1)>`).
 **Prevention:** Always sanitize dynamically injected strings by building and using an `escapeHtml` utility function before assigning them to `innerHTML`.
+## 2024-06-03 - Insecure WebSecurity Setting
+**Vulnerability:** The application was configured with `webSecurity: false` in `BrowserWindow` `webPreferences` in `main.js`.
+**Learning:** Setting `webSecurity: false` disables the same-origin policy, making the Electron application extremely vulnerable to arbitrary code execution if any malicious content or script is loaded or injected.
+**Prevention:** Always ensure `webSecurity: true` (which is the default) is set or left untouched on BrowserWindow webPreferences.
+
+## 2024-06-03 - Regex Injection in File Renaming
+**Vulnerability:** In the `rename-file` IPC handler in `main.js`, a user-provided string (`oldBase`) was passed directly into `new RegExp('^' + oldBase)` without escaping regex metacharacters.
+**Learning:** If a file name contains regex metacharacters like `.`, `*`, `?`, or `(`, it alters the regex structure. This could lead to a Regular Expression Denial of Service (ReDoS) or an unintended mass-rename where files matching the manipulated regex are incorrectly modified.
+**Prevention:** Always escape user-provided strings before using them in dynamic Regular Expressions. A utility function to escape regex metacharacters (e.g., `str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`) should be used.
