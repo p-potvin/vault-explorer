@@ -403,7 +403,7 @@
         <option value="image">Images</option>
         <option value="all">All Files</option>
       </select>
-      <input type="text" id="search-box" class="search-box" placeholder="Search files..." aria-label="Search files">
+      <input type="text" id="search-box" class="search-box" placeholder="Search files... (Ctrl/Cmd+F)" aria-label="Search files">
     </div>
     
     <div class="sorting-bar">
@@ -1052,7 +1052,12 @@
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            const sb = el('search-box');
+            sb.focus();
+            sb.select();
+        } else if (e.ctrlKey && e.key.toLowerCase() === 'a') {
             e.preventDefault(); selectedIndices.clear();
             displayedItems.forEach((_, i) => selectedIndices.add(i));
             document.querySelectorAll('.file-card').forEach(c => {
