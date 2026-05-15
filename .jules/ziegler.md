@@ -6,3 +6,7 @@
 **Vulnerability:** Found another instance of `child_process.exec` in an ad-hoc script (`scripts/generate_webm.js`) passing unsanitized file paths.
 **Learning:** Shell command injection risks are not isolated to Electron IPC handlers; ad-hoc helper scripts or batch processors running locally often handle untrusted paths and are equally vulnerable.
 **Prevention:** Always use `child_process.execFile` in node scripts, including local utility scripts, whenever passing paths or dynamic input.
+## 🛡️-05-31 - Unsanitized DOM Interpolation (XSS) and Error Masking
+**Vulnerability:** XSS via string interpolation in `index.html` where `item.name` and `item.mtimeFormatted` were directly injected into DOM elements (e.g., `<div class="filename">${item.name}</div>`), and stack trace leakage in `main.js` IPC handlers (`err.message`).
+**Learning:** Even in local desktop applications (Electron), file names or metadata can contain malicious payloads. Injecting them directly without HTML escaping creates XSS vectors. Furthermore, exposing internal `err.message` or stack traces to the frontend can reveal system paths and implementation details to malicious actors.
+**Prevention:** Always use an `escapeHTML` helper function before interpolating user-controlled data or file metadata into HTML templates. For error handling, log full stack traces internally on the backend (`console.error`), but return sanitized, generic error messages to the frontend.

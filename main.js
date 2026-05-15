@@ -106,7 +106,7 @@ function _processFileNodes(filesArray, allFilesSet) {
           else if (name.endsWith('-preview.mp4')) checkName = baseName.replace('-preview', '');
           
           const hasParent = ['.mp4', '.mkv', '.avi', '.mov', '.ts', '.wmv'].some(e => 
-              allFilesSet.has(path.join(dir, checkName + e).toLowerCase())
+          allFilesSet && allFilesSet.has(path.join(dir, checkName + e).toLowerCase())
           );
           if (hasParent) continue; 
       }
@@ -212,7 +212,10 @@ ipcMain.handle('rename-file', async (e, oldPath, newName) => {
         }
      }
      return { success: true };
-   } catch (err) { return { success: false, error: err.message }; }
+   } catch (err) {
+       console.error("Error renaming file:", err);
+       return { success: false, error: "An error occurred while renaming the file." };
+   }
 });
 
 ipcMain.handle('open-file', (event, filePath) => { shell.openPath(filePath); });
@@ -272,7 +275,10 @@ function runPreviewFfmpeg(task) {
         if (err) {
             execFile('ffmpeg', task.argsCpu, { windowsHide: true }, (err2) => {
                 isFfmpegRunning = false;
-                if (err2) task.resolve({ success: false, error: err2.message });
+                if (err2) {
+                    console.error("FFmpeg CPU Fallback Error:", err2);
+                    task.resolve({ success: false, error: "An error occurred while generating the WebM preview." });
+                }
                 else task.resolve({ success: true, path: task.outPath });
                 processFfmpegQueue();
             });
