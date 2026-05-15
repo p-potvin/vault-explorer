@@ -35,3 +35,9 @@
 - **Decision:** Added `tabindex="-1"` to the Video Player Modal, explicit `.focus()` call when opening it, and implemented focus restoration to the triggering `.file-card` when the modal is closed.
 - **Context:** Custom modals that appear over the main content must explicitly shift focus into themselves when opened, otherwise keyboard users will remain focused on the background grid behind the modal overlay. Similarly, when the modal is closed, returning focus to the element that triggered it (the clicked video card) prevents the user's position in the list from being lost.
 - **Affected Components:** `index.html` (Video modal HTML, `playItem` function, modal close handlers).
+
+## 2026-06-05
+- **Goal:** Implement feature scaffolding for secure AI video upscaling.
+- **Decision:** Created `scripts/upscale_video.js` using secure `child_process.execFile` calls. Modified the existing `upscale-video` IPC handler in `main.js` to execute this script safely.
+- **Context:** Identified `upscale-video` as a partially implemented, high-value feature. Built the backend scaffolding to handle file paths securely, mocking the `realesrgan-ncnn-vulkan` command generation while successfully parsing parameters and orchestrating process execution without shell injection risks.
+- **Affected Components:** `scripts/upscale_video.js`, `main.js`.

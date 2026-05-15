@@ -285,7 +285,22 @@ function runPreviewFfmpeg(task) {
 }
 
 ipcMain.handle('upscale-video', async (event, itemPath) => {
-    return { success: false, error: 'Not fully implemented yet.' };
+    return new Promise((resolve) => {
+        const scriptPath = path.join(__dirname, 'scripts', 'upscale_video.js');
+        execFile('node', [scriptPath, itemPath], { windowsHide: true }, (err, stdout, stderr) => {
+            try {
+                // The script always outputs JSON on the last line of stdout, even on failure
+                const lines = stdout.trim().split('\n');
+                const lastLine = lines[lines.length - 1];
+                if (!lastLine) throw new Error("Empty output");
+                const result = JSON.parse(lastLine);
+                resolve(result);
+            } catch (e) {
+                // If parsing fails, return a generic error. NEVER leak stderr (which contains stack traces).
+                resolve({ success: false, error: 'An internal error occurred during upscaling.' });
+            }
+        });
+    });
 });
 
 ipcMain.handle('generate-webm', (event, itemPath) => {
