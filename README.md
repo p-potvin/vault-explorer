@@ -14,6 +14,8 @@ Vault Explorer is a highly advanced, natively integrated desktop application des
 * **Memory Scroll Persistence:** Remembers precisely what Virtual directory and Y-offset you were located inside perfectly across browser reboots.
 * **"Everything" Search API Sync:** Instantly hooks `es.exe -size` backend indexes for lighting-fast directory meta-blob size evaluations.
 * **Native Multi-Select Mechanics:** Includes pixel-perfect, relative-DOM intersecting drag-boxes matching Explorer's lasso framework flawlessly.
+* **Security Hardening:** Secured against shell command injection via safe array mapping to binaries entirely mitigating typical payload execution environments.
+* **Accessibility & Micro-UX Enhancements:** Intuitive context-aware UI states with explicit screen-reader adjustments, dynamic tooltip validation, and robust keyboard focus management.
 
 ## 📦 Tech Stack
 

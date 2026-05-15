@@ -23,3 +23,9 @@
 - **Decision:** Added dynamic disabled states with informative tooltips for the "Create Folder" button. Fixed focus visibility for custom checkboxes and keyboard access for the volume slider. Added hover tooltips to modal close buttons.
 - **Context:** These small enhancements target pain points such as users clicking inactive buttons without knowing why they are disabled, keyboard users being unable to see their selection focus due to overlapping 0-opacity elements, and hidden child controls not revealing on focus-within. All of these improve the application's overall accessibility score and UX.
 - **Affected Components:** `index.html` (CSS focus states, tooltip attributes, JS event listeners for the fake folder dialog).
+
+## 2026-05-11
+- **Goal:** Synchronize recently implemented features with documentation and plan the completion of the `upscale-video` feature scaffolding.
+- **Decision:** Updated the `README.md` to reflect recent achievements in Security Hardening and Accessibility/Micro-UX. Proposing to implement the `upscale-video` IPC handler by wrapping a third-party AI upscaler CLI tool (like `realesrgan-ncnn-vulkan`) securely with `child_process.execFile`.
+- **Context:** Following the daily Ziegler core operational loop. The README update brings the project documentation up-to-date with current capabilities. The `upscale-video` feature was selected as it already has an initial mock IPC handler and context menu scaffolding prepared on 2026-05-08, but remains unimplemented ("Not fully implemented yet"). This follows Path 3a for development trajectory planning. The implementation will focus on asynchronous execution without blocking the main process and ensuring no shell command injection vulnerabilities are introduced.
+- **Affected Components:** `README.md`, `main.js` (planned).
