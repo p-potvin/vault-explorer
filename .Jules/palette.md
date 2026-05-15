@@ -1,7 +1,3 @@
-## 2024-04-30 - Focus Visibility and Dynamic Aria Labels
-**Learning:** Removing default outlines (`outline: none`) without providing a custom `:focus-visible` state completely breaks keyboard navigation for interactive elements like buttons and inputs. Dynamically generated inputs (like file checkboxes or inline rename fields) often miss `aria-label`s, rendering them invisible to screen readers since they have no associated visible label.
-**Action:** Always ensure that any element with `outline: none` implements a custom `:focus-visible` style using brand tokens (e.g., `var(--vault-cyan)`). Remember to interpolate context-specific names into `aria-label`s for dynamically generated, icon-only, or label-less inputs.
-
-## 2026-04-30 - Empty States for Filtering and Initial Load
-**Learning:** Leaving the UI completely blank when no folder is selected or when filters yield no results leaves users confused and unsure if the app is broken or just empty.
-**Action:** Always provide contextual "Empty State" graphics and copy to guide users when data arrays are explicitly empty.
+## 2026-05-02 - Keyboard Accessibility & Alt Text
+**Learning:** Keyboard accessibility for dialogs (Enter to submit, Escape to close) and missing alt text on image elements are common missing micro-UX features that are straightforward to add.
+**Action:** Ensure custom dialogs implement keyboard listeners for standard accessibility actions and explicitly include empty alt text for decorative images and descriptive alt text for main images.
