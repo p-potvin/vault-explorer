@@ -47,3 +47,9 @@
 - **Decision:** Updated `README.md` to reflect recently completed features found in the ledger. Replaced the error return in the `upscale-video` IPC handler in `main.js` with a mock async timeout returning success, providing scaffolding for future ML integration.
 - **Context:** Following the daily Ziegler routine, project documentation must stay synchronized with completed features (accessibility, focus management, empty states). Additionally, scanning the codebase revealed the `upscale-video` feature was unfinished. Providing a mock async scaffold prepares the architecture for task delegation (e.g., to the `kraftwerk` agent) without breaking the current UI.
 - **Affected Components:** `README.md`, `main.js`.
+
+## 2024-06-03
+- **Goal:** Improve UX and accessibility by surfacing keyboard shortcut hints.
+- **Decision:** Updated search box placeholder to include "(Ctrl/Cmd+F)" and added a `keydown` listener to handle the shortcut for cross-platform discoverability. Appended the learning to `.Jules/palette.md`.
+- **Context:** Power-user features triggered exclusively by keyboard shortcuts are effectively invisible to standard users unless explicitly surfaced in the UI. Exposing shortcuts like Ctrl/Cmd+F improves discoverability and provides a smoother interaction without additional clicks.
+- **Affected Components:** `index.html` (search input placeholder, global keydown listener), `.Jules/palette.md`.
