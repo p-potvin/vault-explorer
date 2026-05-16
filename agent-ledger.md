@@ -59,3 +59,9 @@
 - **Decision:** Updated `README.md` to reflect recently completed features (AI upscaling scaffolding, dialog focus management, dynamic empty states, keyboard shortcuts). Changed `webSecurity: false` to `true` in `main.js`. Escaped user input `oldBase` before passing it to `new RegExp` in the `rename-file` IPC handler. Recorded learnings in `.jules/ziegler.md`.
 - **Context:** Following the daily Ziegler routine and security focus, project documentation must stay synchronized with completed features. `webSecurity: false` disables the same-origin policy, leading to a critical security vulnerability. Escaping user input in regular expressions prevents Regular Expression Denial of Service (ReDoS) and incorrect file modifications when file names include regex metacharacters.
 - **Affected Components:** `README.md`, `main.js`, `.jules/ziegler.md`.
+
+## 2024-06-05
+- **Goal:** Execute Ziegler routine for security enforcement and trajectory planning.
+- **Decision:** Added input type and file existence validation to `main.js` IPC handlers. Identified `theme-manager` as the unfinished feature to scaffold and added a mock `get-theme` IPC handler.
+- **Context:** User inputs were lacking strict validation, causing vulnerabilities. The routine requires implementing safety features and scaffolding an identified unfinished feature based on `vault-themes` references.
+- **Affected Components:** `main.js` (validation across `get-everything-size`, `scan-directory`, etc., plus new `get-theme` handler).
