@@ -21,6 +21,7 @@ Vault Explorer is a highly advanced, natively integrated desktop application des
 * **Dialog Focus Management:** Accessibility improvements for managing focus states intelligently across custom dialogs.
 * **Dynamic Empty States:** Context-aware CTA buttons and semantic structural changes for when views are empty.
 * **Keyboard Shortcut Discoverability:** Enhanced UI tooltips and placeholders surfacing global and contextual keyboard shortcuts (like Ctrl/Cmd+F).
+* **Dynamic Theme Integration:** Replaced hardcoded themes with the vault-themes submodule integration.
 
 ## 📦 Tech Stack
 

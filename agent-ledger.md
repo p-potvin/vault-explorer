@@ -59,3 +59,9 @@
 - **Decision:** Updated `README.md` to reflect recently completed features (AI upscaling scaffolding, dialog focus management, dynamic empty states, keyboard shortcuts). Changed `webSecurity: false` to `true` in `main.js`. Escaped user input `oldBase` before passing it to `new RegExp` in the `rename-file` IPC handler. Recorded learnings in `.jules/ziegler.md`.
 - **Context:** Following the daily Ziegler routine and security focus, project documentation must stay synchronized with completed features. `webSecurity: false` disables the same-origin policy, leading to a critical security vulnerability. Escaping user input in regular expressions prevents Regular Expression Denial of Service (ReDoS) and incorrect file modifications when file names include regex metacharacters.
 - **Affected Components:** `README.md`, `main.js`, `.jules/ziegler.md`.
+
+## 2026-06-04
+- **Goal:** Implement new theme-manager from vault-themes submodule.
+- **Decision:** Replaced hardcoded CSS and JS theme arrays in `index.html` with dynamically generated tokens matching `vault-themes/theme_manager.py`. Updated documentation.
+- **Context:** Following the TODO item in AGENTS.md, we integrated the shared theme manager tokens to ensure design consistency across applications.
+- **Affected Components:** `index.html`, `AGENTS.md`, `README.md`.

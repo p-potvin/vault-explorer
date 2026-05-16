@@ -312,69 +312,125 @@
     .swatch-name { font-size: 10px; color: var(--vault-paper); letter-spacing: 0.04em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; }
 
     /* ══════════ Vault Theme Definitions ══════════ */
-    html[data-theme="vintage-velvet"] {
-      --vault-bg: #EDE9DC; --vault-ink: #EAE4D4; --vault-ink-dark: #DDD4C0;
-      --vault-acrylic: rgba(234, 228, 212, 0.88); --vault-border: rgba(128, 0, 32, 0.2);
-      --vault-text: #2A1518; --vault-accent: #800020; --vault-gold: #800020;
-      --vault-gold-muted: rgba(128, 0, 32, 0.5); --vault-hover: rgba(128, 0, 32, 0.08);
-      --vault-selected: rgba(128, 0, 32, 0.16); --vault-slate: #8A6068; --vault-paper: #2A1518;
-      --vault-card-bg: rgba(200, 192, 178, 0.4); --vault-card-border: rgba(128, 0, 32, 0.1);
+    html[data-theme="golden-slate"] {
+      --vault-bg: #2E3538; --vault-ink: #363D41; --vault-ink-dark: #3F474C;
+      --vault-acrylic: rgba(54, 61, 65, 0.88); --vault-border: rgba(212,175,55,0.18);
+      --vault-text: #EDE8DE; --vault-accent: #D4AF37; --vault-gold: #D4AF37;
+      --vault-gold-muted: rgba(212, 175, 55, 0.5); --vault-hover: rgba(212, 175, 55, 0.08);
+      --vault-selected: rgba(212, 175, 55, 0.16); --vault-slate: #B8B1A5; --vault-paper: #EDE8DE;
+      --vault-card-bg: rgba(54, 61, 65, 0.4); --vault-card-border: rgba(212, 175, 55, 0.1);
+    }
+    html[data-theme="codex-solarized-light-revisited"] {
+      --vault-bg: #FDF6E3; --vault-ink: #F5EFD6; --vault-ink-dark: #EDE5C8;
+      --vault-acrylic: rgba(245, 239, 214, 0.88); --vault-border: rgba(38,139,210,0.2);
+      --vault-text: #073642; --vault-accent: #268BD2; --vault-gold: #268BD2;
+      --vault-gold-muted: rgba(38, 139, 210, 0.5); --vault-hover: rgba(38, 139, 210, 0.08);
+      --vault-selected: rgba(38, 139, 210, 0.16); --vault-slate: #586E75; --vault-paper: #073642;
+      --vault-card-bg: rgba(245, 239, 214, 0.4); --vault-card-border: rgba(38, 139, 210, 0.1);
     }
     html[data-theme="cyberpunk-cinder"] {
-      --vault-bg: #06282F; --vault-ink: #06282F; --vault-ink-dark: #031820;
-      --vault-acrylic: rgba(7, 50, 62, 0.8); --vault-border: rgba(203, 75, 22, 0.3);
-      --vault-text: #EEE8D5; --vault-accent: #CB4B16; --vault-gold: #CB4B16;
-      --vault-gold-muted: rgba(203, 75, 22, 0.55); --vault-hover: rgba(203, 75, 22, 0.1);
-      --vault-selected: rgba(203, 75, 22, 0.22); --vault-slate: #669090; --vault-paper: #EEE8D5;
-      --vault-card-bg: rgba(7, 50, 62, 0.45); --vault-card-border: rgba(203, 75, 22, 0.1);
+      --vault-bg: #0A1520; --vault-ink: #0F1E2E; --vault-ink-dark: #162537;
+      --vault-acrylic: rgba(15, 30, 46, 0.88); --vault-border: rgba(203,75,22,0.22);
+      --vault-text: #D4CFCF; --vault-accent: #CB4B16; --vault-gold: #CB4B16;
+      --vault-gold-muted: rgba(203, 75, 22, 0.5); --vault-hover: rgba(203, 75, 22, 0.08);
+      --vault-selected: rgba(203, 75, 22, 0.16); --vault-slate: #A0AAB2; --vault-paper: #D4CFCF;
+      --vault-card-bg: rgba(15, 30, 46, 0.4); --vault-card-border: rgba(203, 75, 22, 0.1);
+    }
+    html[data-theme="vintage-velvet"] {
+      --vault-bg: #F5F0E8; --vault-ink: #EDE7D9; --vault-ink-dark: #E2DAC9;
+      --vault-acrylic: rgba(237, 231, 217, 0.88); --vault-border: rgba(128,0,32,0.2);
+      --vault-text: #2C1810; --vault-accent: #800020; --vault-gold: #800020;
+      --vault-gold-muted: rgba(128, 0, 32, 0.5); --vault-hover: rgba(128, 0, 32, 0.08);
+      --vault-selected: rgba(128, 0, 32, 0.16); --vault-slate: #5A4A42; --vault-paper: #2C1810;
+      --vault-card-bg: rgba(237, 231, 217, 0.4); --vault-card-border: rgba(128, 0, 32, 0.1);
     }
     html[data-theme="modern-monolith"] {
-      --vault-bg: #F0EDE8; --vault-ink: #EBE7E2; --vault-ink-dark: #DEDAD4;
-      --vault-acrylic: rgba(240, 237, 232, 0.9); --vault-border: rgba(51, 51, 51, 0.15);
-      --vault-text: #1A1A1A; --vault-accent: #333333; --vault-gold: #333333;
-      --vault-gold-muted: rgba(51, 51, 51, 0.45); --vault-hover: rgba(51, 51, 51, 0.06);
-      --vault-selected: rgba(51, 51, 51, 0.12); --vault-slate: #777777; --vault-paper: #1A1A1A;
-      --vault-card-bg: rgba(200, 196, 190, 0.4); --vault-card-border: rgba(0, 0, 0, 0.07);
-    }
-    html[data-theme="crimson-bloom"] {
-      --vault-bg: #3D0000; --vault-ink: #3A0000; --vault-ink-dark: #280000;
-      --vault-acrylic: rgba(65, 0, 0, 0.82); --vault-border: rgba(255, 142, 160, 0.22);
-      --vault-text: #FFE8EC; --vault-accent: #FF8EA0; --vault-gold: #FF8EA0;
-      --vault-gold-muted: rgba(255, 142, 160, 0.5); --vault-hover: rgba(255, 142, 160, 0.08);
-      --vault-selected: rgba(255, 142, 160, 0.2); --vault-slate: #C08090; --vault-paper: #FFE8EC;
-      --vault-card-bg: rgba(70, 0, 0, 0.4); --vault-card-border: rgba(255, 142, 160, 0.07);
-    }
-    html[data-theme="ocean-mist"] {
-      --vault-bg: #E4EBF2; --vault-ink: #DDE5EE; --vault-ink-dark: #CDD8E5;
-      --vault-acrylic: rgba(228, 235, 242, 0.92); --vault-border: rgba(0, 105, 148, 0.2);
-      --vault-text: #0A2030; --vault-accent: #006994; --vault-gold: #006994;
-      --vault-gold-muted: rgba(0, 105, 148, 0.5); --vault-hover: rgba(0, 105, 148, 0.07);
-      --vault-selected: rgba(0, 105, 148, 0.16); --vault-slate: #4A6878; --vault-paper: #0A2030;
-      --vault-card-bg: rgba(195, 210, 225, 0.4); --vault-card-border: rgba(0, 105, 148, 0.1);
+      --vault-bg: #F8F7F4; --vault-ink: #EFEDE8; --vault-ink-dark: #E5E2DC;
+      --vault-acrylic: rgba(239, 237, 232, 0.88); --vault-border: rgba(26,26,26,0.14);
+      --vault-text: #111111; --vault-accent: #1A1A1A; --vault-gold: #1A1A1A;
+      --vault-gold-muted: rgba(26, 26, 26, 0.5); --vault-hover: rgba(26, 26, 26, 0.08);
+      --vault-selected: rgba(26, 26, 26, 0.16); --vault-slate: #444444; --vault-paper: #111111;
+      --vault-card-bg: rgba(239, 237, 232, 0.4); --vault-card-border: rgba(26, 26, 26, 0.1);
     }
     html[data-theme="neon-void"] {
-      --vault-bg: #0D0D0D; --vault-ink: #0D0D0D; --vault-ink-dark: #000000;
-      --vault-acrylic: rgba(12, 12, 12, 0.9); --vault-border: rgba(0, 255, 255, 0.18);
-      --vault-text: #CCFFFF; --vault-accent: #00FFFF; --vault-gold: #00FFFF;
-      --vault-gold-muted: rgba(0, 255, 255, 0.45); --vault-hover: rgba(0, 255, 255, 0.05);
-      --vault-selected: rgba(0, 255, 255, 0.13); --vault-slate: #2A8080; --vault-paper: #CCFFFF;
-      --vault-card-bg: rgba(0, 15, 15, 0.5); --vault-card-border: rgba(0, 255, 255, 0.07);
+      --vault-bg: #0D0D0D; --vault-ink: #141414; --vault-ink-dark: #1C1C1C;
+      --vault-acrylic: rgba(20, 20, 20, 0.88); --vault-border: rgba(0,229,255,0.2);
+      --vault-text: #E8E8E8; --vault-accent: #00E5FF; --vault-gold: #00E5FF;
+      --vault-gold-muted: rgba(0, 229, 255, 0.5); --vault-hover: rgba(0, 229, 255, 0.08);
+      --vault-selected: rgba(0, 229, 255, 0.16); --vault-slate: #B0B0B0; --vault-paper: #E8E8E8;
+      --vault-card-bg: rgba(20, 20, 20, 0.4); --vault-card-border: rgba(0, 229, 255, 0.1);
+    }
+    html[data-theme="ocean-mist"] {
+      --vault-bg: #EEF2F5; --vault-ink: #E3EAEF; --vault-ink-dark: #D6E0E8;
+      --vault-acrylic: rgba(227, 234, 239, 0.88); --vault-border: rgba(0,105,148,0.18);
+      --vault-text: #1A2A35; --vault-accent: #006994; --vault-gold: #006994;
+      --vault-gold-muted: rgba(0, 105, 148, 0.5); --vault-hover: rgba(0, 105, 148, 0.08);
+      --vault-selected: rgba(0, 105, 148, 0.16); --vault-slate: #4A5A65; --vault-paper: #1A2A35;
+      --vault-card-bg: rgba(227, 234, 239, 0.4); --vault-card-border: rgba(0, 105, 148, 0.1);
     }
     html[data-theme="royal-tangerine"] {
-      --vault-bg: #1E0035; --vault-ink: #1A0030; --vault-ink-dark: #120020;
-      --vault-acrylic: rgba(32, 0, 55, 0.84); --vault-border: rgba(242, 133, 0, 0.25);
-      --vault-text: #FFEEDD; --vault-accent: #F28500; --vault-gold: #F28500;
-      --vault-gold-muted: rgba(242, 133, 0, 0.5); --vault-hover: rgba(242, 133, 0, 0.09);
-      --vault-selected: rgba(242, 133, 0, 0.2); --vault-slate: #8866AA; --vault-paper: #FFEEDD;
-      --vault-card-bg: rgba(40, 0, 70, 0.45); --vault-card-border: rgba(242, 133, 0, 0.07);
+      --vault-bg: #1A0A2E; --vault-ink: #231240; --vault-ink-dark: #2C1850;
+      --vault-acrylic: rgba(35, 18, 64, 0.88); --vault-border: rgba(242,133,0,0.2);
+      --vault-text: #EEE8F8; --vault-accent: #F28500; --vault-gold: #F28500;
+      --vault-gold-muted: rgba(242, 133, 0, 0.5); --vault-hover: rgba(242, 133, 0, 0.08);
+      --vault-selected: rgba(242, 133, 0, 0.16); --vault-slate: #B8B0D0; --vault-paper: #EEE8F8;
+      --vault-card-bg: rgba(35, 18, 64, 0.4); --vault-card-border: rgba(242, 133, 0, 0.1);
+    }
+    html[data-theme="crimson-bloom"] {
+      --vault-bg: #2A0A0A; --vault-ink: #361212; --vault-ink-dark: #421818;
+      --vault-acrylic: rgba(54, 18, 18, 0.88); --vault-border: rgba(232,160,180,0.2);
+      --vault-text: #F5E8EA; --vault-accent: #E8A0B4; --vault-gold: #E8A0B4;
+      --vault-gold-muted: rgba(232, 160, 180, 0.5); --vault-hover: rgba(232, 160, 180, 0.08);
+      --vault-selected: rgba(232, 160, 180, 0.16); --vault-slate: #C5B8BA; --vault-paper: #F5E8EA;
+      --vault-card-bg: rgba(54, 18, 18, 0.4); --vault-card-border: rgba(232, 160, 180, 0.1);
     }
     html[data-theme="amethyst-frost"] {
-      --vault-bg: #F5F2FA; --vault-ink: #EDE8F8; --vault-ink-dark: #E0D8F0;
-      --vault-acrylic: rgba(245, 242, 250, 0.92); --vault-border: rgba(128, 0, 128, 0.18);
-      --vault-text: #1A0A2E; --vault-accent: #800080; --vault-gold: #800080;
-      --vault-gold-muted: rgba(128, 0, 128, 0.45); --vault-hover: rgba(128, 0, 128, 0.07);
-      --vault-selected: rgba(128, 0, 128, 0.14); --vault-slate: #7050B0; --vault-paper: #1A0A2E;
-      --vault-card-bg: rgba(210, 200, 235, 0.4); --vault-card-border: rgba(128, 0, 128, 0.09);
+      --vault-bg: #FAFAFE; --vault-ink: #F0EEF8; --vault-ink-dark: #E4E0F4;
+      --vault-acrylic: rgba(240, 238, 248, 0.88); --vault-border: rgba(107,48,168,0.18);
+      --vault-text: #1A0A2E; --vault-accent: #6B30A8; --vault-gold: #6B30A8;
+      --vault-gold-muted: rgba(107, 48, 168, 0.5); --vault-hover: rgba(107, 48, 168, 0.08);
+      --vault-selected: rgba(107, 48, 168, 0.16); --vault-slate: #4A3A6A; --vault-paper: #1A0A2E;
+      --vault-card-bg: rgba(240, 238, 248, 0.4); --vault-card-border: rgba(107, 48, 168, 0.1);
+    }
+    html[data-theme="catppuccin-mocha"] {
+      --vault-bg: #1E1E2E; --vault-ink: #181825; --vault-ink-dark: #11111B;
+      --vault-acrylic: rgba(24, 24, 37, 0.88); --vault-border: rgba(203,166,247,0.2);
+      --vault-text: #CDD6F4; --vault-accent: #CBA6F7; --vault-gold: #CBA6F7;
+      --vault-gold-muted: rgba(203, 166, 247, 0.5); --vault-hover: rgba(203, 166, 247, 0.08);
+      --vault-selected: rgba(203, 166, 247, 0.16); --vault-slate: #A6ADC8; --vault-paper: #CDD6F4;
+      --vault-card-bg: rgba(24, 24, 37, 0.4); --vault-card-border: rgba(203, 166, 247, 0.1);
+    }
+    html[data-theme="dracula"] {
+      --vault-bg: #282A36; --vault-ink: #343746; --vault-ink-dark: #44475A;
+      --vault-acrylic: rgba(52, 55, 70, 0.88); --vault-border: rgba(189,147,249,0.2);
+      --vault-text: #F8F8F2; --vault-accent: #FF79C6; --vault-gold: #FF79C6;
+      --vault-gold-muted: rgba(255, 121, 198, 0.5); --vault-hover: rgba(255, 121, 198, 0.08);
+      --vault-selected: rgba(255, 121, 198, 0.16); --vault-slate: #BD93F9; --vault-paper: #F8F8F2;
+      --vault-card-bg: rgba(52, 55, 70, 0.4); --vault-card-border: rgba(255, 121, 198, 0.1);
+    }
+    html[data-theme="tokyo-night-storm"] {
+      --vault-bg: #24283B; --vault-ink: #1F2335; --vault-ink-dark: #1A1B26;
+      --vault-acrylic: rgba(31, 35, 53, 0.88); --vault-border: rgba(122,162,247,0.2);
+      --vault-text: #A9B1D6; --vault-accent: #7AA2F7; --vault-gold: #7AA2F7;
+      --vault-gold-muted: rgba(122, 162, 247, 0.5); --vault-hover: rgba(122, 162, 247, 0.08);
+      --vault-selected: rgba(122, 162, 247, 0.16); --vault-slate: #9ECE6A; --vault-paper: #A9B1D6;
+      --vault-card-bg: rgba(31, 35, 53, 0.4); --vault-card-border: rgba(122, 162, 247, 0.1);
+    }
+    html[data-theme="github-light-default"] {
+      --vault-bg: #FFFFFF; --vault-ink: #F6F8FA; --vault-ink-dark: #EAEFEF;
+      --vault-acrylic: rgba(246, 248, 250, 0.88); --vault-border: rgba(31,35,40,0.15);
+      --vault-text: #1F2328; --vault-accent: #0969DA; --vault-gold: #0969DA;
+      --vault-gold-muted: rgba(9, 105, 218, 0.5); --vault-hover: rgba(9, 105, 218, 0.08);
+      --vault-selected: rgba(9, 105, 218, 0.16); --vault-slate: #65717E; --vault-paper: #1F2328;
+      --vault-card-bg: rgba(246, 248, 250, 0.4); --vault-card-border: rgba(9, 105, 218, 0.1);
+    }
+    html[data-theme="monokai-pro"] {
+      --vault-bg: #2D2A2E; --vault-ink: #37343A; --vault-ink-dark: #221F22;
+      --vault-acrylic: rgba(55, 52, 58, 0.88); --vault-border: rgba(255,216,102,0.2);
+      --vault-text: #FCFCFA; --vault-accent: #FFD866; --vault-gold: #FFD866;
+      --vault-gold-muted: rgba(255, 216, 102, 0.5); --vault-hover: rgba(255, 216, 102, 0.08);
+      --vault-selected: rgba(255, 216, 102, 0.16); --vault-slate: #A9DC76; --vault-paper: #FCFCFA;
+      --vault-card-bg: rgba(55, 52, 58, 0.4); --vault-card-border: rgba(255, 216, 102, 0.1);
     }
   </style>
 </head>
@@ -1304,16 +1360,22 @@
     seekArea.addEventListener('mouseleave', () => { seekPreview.style.display = 'none'; });
 
     // ─── Vault Theme System ──────────────────────────────────────────────────
-    const vaultThemes = [
-      { id: 'golden-slate',     name: 'Golden Slate',     mode: 'dark',  primary: '#4A5459', accent: '#D4AF37' },
-      { id: 'vintage-velvet',   name: 'Vintage Velvet',   mode: 'light', primary: '#EDE9DC', accent: '#800020' },
-      { id: 'cyberpunk-cinder', name: 'Cyberpunk Cinder', mode: 'dark',  primary: '#073642', accent: '#CB4B16' },
-      { id: 'modern-monolith',  name: 'Modern Monolith',  mode: 'light', primary: '#F0EDE8', accent: '#333333' },
-      { id: 'crimson-bloom',    name: 'Crimson Bloom',    mode: 'dark',  primary: '#3D0000', accent: '#FF8EA0' },
-      { id: 'ocean-mist',       name: 'Ocean Mist',       mode: 'light', primary: '#E4EBF2', accent: '#006994' },
-      { id: 'neon-void',        name: 'Neon Void',        mode: 'dark',  primary: '#0D0D0D', accent: '#00FFFF' },
-      { id: 'royal-tangerine',  name: 'Royal Tangerine',  mode: 'dark',  primary: '#1E0035', accent: '#F28500' },
-      { id: 'amethyst-frost',   name: 'Amethyst Frost',   mode: 'light', primary: '#F5F2FA', accent: '#800080' },
+        const vaultThemes = [
+      { id: 'golden-slate', name: 'Golden Slate', mode: 'dark', primary: '#363D41', accent: '#D4AF37' },
+      { id: 'codex-solarized-light-revisited', name: 'Codex Solarized Light Revisited', mode: 'light', primary: '#F5EFD6', accent: '#268BD2' },
+      { id: 'cyberpunk-cinder', name: 'Cyberpunk Cinder', mode: 'dark', primary: '#0F1E2E', accent: '#CB4B16' },
+      { id: 'vintage-velvet', name: 'Vintage Velvet', mode: 'light', primary: '#EDE7D9', accent: '#800020' },
+      { id: 'modern-monolith', name: 'Modern Monolith', mode: 'light', primary: '#EFEDE8', accent: '#1A1A1A' },
+      { id: 'neon-void', name: 'Neon Void', mode: 'dark', primary: '#141414', accent: '#00E5FF' },
+      { id: 'ocean-mist', name: 'Ocean Mist', mode: 'light', primary: '#E3EAEF', accent: '#006994' },
+      { id: 'royal-tangerine', name: 'Royal Tangerine', mode: 'dark', primary: '#231240', accent: '#F28500' },
+      { id: 'crimson-bloom', name: 'Crimson Bloom', mode: 'dark', primary: '#361212', accent: '#E8A0B4' },
+      { id: 'amethyst-frost', name: 'Amethyst Frost', mode: 'light', primary: '#F0EEF8', accent: '#6B30A8' },
+      { id: 'catppuccin-mocha', name: 'Catppuccin Mocha', mode: 'dark', primary: '#181825', accent: '#CBA6F7' },
+      { id: 'dracula', name: 'Dracula', mode: 'dark', primary: '#343746', accent: '#FF79C6' },
+      { id: 'tokyo-night-storm', name: 'Tokyo Night Storm', mode: 'dark', primary: '#1F2335', accent: '#7AA2F7' },
+      { id: 'github-light-default', name: 'GitHub Light Default', mode: 'light', primary: '#F6F8FA', accent: '#0969DA' },
+      { id: 'monokai-pro', name: 'Monokai Pro', mode: 'dark', primary: '#37343A', accent: '#FFD866' },
     ];
 
     function applyTheme(themeId) {
