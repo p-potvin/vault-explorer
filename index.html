@@ -1338,7 +1338,13 @@
         <span class="swatch-name">${theme.name}</span>`;
       btn.addEventListener('click', () => {
         applyTheme(theme.id);
-        if (appSettings) { appSettings.theme = theme.id; window.electronAPI.saveSettings(appSettings); }
+        if (appSettings) {
+           appSettings.theme = theme.id;
+           window.electronAPI.saveSettings(appSettings);
+           if (window.electronAPI.setTheme) {
+               window.electronAPI.setTheme(theme.id);
+           }
+        }
         el('theme-panel').style.display = 'none';
         el('theme-trigger').setAttribute('aria-expanded', 'false');
         el('theme-trigger').focus();

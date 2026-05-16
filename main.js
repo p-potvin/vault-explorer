@@ -44,6 +44,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
 });
 
 ipcMain.handle('get-everything-size', async (e, targetPath) => {
+  if (typeof targetPath !== 'string' || !fs.existsSync(targetPath)) return 0;
   return new Promise((resolve) => {
     execFile('es.exe', ['-size', '-exact', targetPath], { windowsHide: true }, (err, stdout) => {
       if (err || !stdout.trim()) {
@@ -161,6 +162,7 @@ function _processFileNodes(filesArray, allFilesSet) {
 }
 
 ipcMain.handle('scan-directory', async (event, dirPath) => {
+  if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return [];
   return new Promise(async (resolve) => {
     const allFiles = await findVideosAsync(dirPath);
     const allFilesSet = new Set(allFiles.map(f => f.toLowerCase()));
@@ -169,12 +171,14 @@ ipcMain.handle('scan-directory', async (event, dirPath) => {
 });
 
 ipcMain.handle('scan-specific-files', (event, pathsArray) => {
+  if (!Array.isArray(pathsArray) || !pathsArray.every(p => typeof p === 'string')) return [];
    // Validate existence briefly
    const existingPaths = pathsArray.filter(p => fs.existsSync(p));
    return _processFileNodes(existingPaths, null);
 });
 
 ipcMain.handle('get-trickplay-sprites', async (event, folderPath) => {
+    if (typeof folderPath !== 'string' || !fs.existsSync(folderPath)) return [];
     try {
         const files = await fsPromises.readdir(folderPath);
         let images = files.filter(f => f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png'));
@@ -188,11 +192,13 @@ ipcMain.handle('get-trickplay-sprites', async (event, folderPath) => {
 });
 
 ipcMain.handle('get-file-size', async (event, filePath) => {
+    if (typeof filePath !== 'string' || !fs.existsSync(filePath)) return 0;
     try { const stat = await fsPromises.stat(filePath); return stat.size; } catch(e) { return 0; }
 });
 
 // Explorer functions
 ipcMain.handle('rename-file', async (e, oldPath, newName) => {
+   if (typeof oldPath !== 'string' || typeof newName !== 'string' || !fs.existsSync(oldPath)) return { success: false, error: 'Invalid input' };
    try {
      const dir = path.dirname(oldPath);
      const oldExt = path.extname(oldPath);
@@ -216,8 +222,8 @@ ipcMain.handle('rename-file', async (e, oldPath, newName) => {
    } catch (err) { return { success: false, error: err.message }; }
 });
 
-ipcMain.handle('open-file', (event, filePath) => { shell.openPath(filePath); });
-ipcMain.handle('show-in-folder', (event, filePath) => { shell.showItemInFolder(filePath); });
+ipcMain.handle('open-file', (event, filePath) => { if (typeof filePath === 'string' && fs.existsSync(filePath)) shell.openPath(filePath); });
+ipcMain.handle('show-in-folder', (event, filePath) => { if (typeof filePath === 'string' && fs.existsSync(filePath)) shell.showItemInFolder(filePath); });
 ipcMain.handle('copy-to-clipboard', (event, text) => { clipboard.writeText(text); });
 
 ipcMain.handle('show-context-menu', async (event, item) => {
@@ -309,4 +315,26 @@ ipcMain.handle('generate-webm', (event, itemPath) => {
         });
         processFfmpegQueue();
     });
+});
+
+ipcMain.handle('get-theme', async (event) => {
+    try {
+        const appSettings = loadSettings();
+        const theme = appSettings.theme || 'golden-slate';
+        return { success: true, theme };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('set-theme', async (event, theme) => {
+    if (typeof theme !== 'string') return { success: false, error: 'Invalid input' };
+    try {
+        const appSettings = loadSettings();
+        appSettings.theme = theme;
+        saveSettings(appSettings);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
 });

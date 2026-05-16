@@ -15,5 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   upscaleVideo: (p) => ipcRenderer.invoke('upscale-video', p),
   renameFile: (oldPath, newName) => ipcRenderer.invoke('rename-file', oldPath, newName),
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveSettings: (s) => ipcRenderer.invoke('save-settings', s)
+  saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
+  getTheme: () => ipcRenderer.invoke('get-theme'),
+  setTheme: (t) => ipcRenderer.invoke('set-theme', t)
 });
