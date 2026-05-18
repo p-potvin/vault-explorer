@@ -2,7 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu } = require(
 const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
+const os = require('os');
 
 let mainWindow;
 
@@ -61,21 +62,63 @@ ipcMain.handle('get-everything-size', async (e, targetPath) => {
   });
 });
 
-async function findVideosAsync(dir) {
+function globToRegex(pattern) {
+  let regexStr = '^';
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
+    if (char === '*') {
+      if (pattern[i + 1] === '*') {
+        regexStr += '.*';
+        i++;
+      } else {
+        regexStr += '[^/\\\\]*';
+      }
+    } else if (char === '?') {
+      regexStr += '[^/\\\\]';
+    } else if ('./+^${}()|[\]\\'.includes(char)) {
+      regexStr += '\\' + char;
+    } else {
+      regexStr += char;
+    }
+  }
+  regexStr += '$';
+  return new RegExp(regexStr, 'i');
+}
+
+async function findVideosAsync(dir, exclusionRegexes = [], rootDir = dir) {
   let results = [];
   try {
     const entries = await fsPromises.readdir(dir, { withFileTypes: true });
-    
-    // Process subdirectories asynchronously in parallel
     const dirPromises = [];
     
     for (const d of entries) {
-      if (d.isDirectory()) {
-         if (!d.name.endsWith('.trickplay')) {
-             dirPromises.push(findVideosAsync(path.join(dir, d.name)));
+      const fullPath = path.join(dir, d.name);
+      const relativePath = path.relative(rootDir, fullPath);
+      
+      const isExcluded = exclusionRegexes.some(rx => rx.test(relativePath) || rx.test(d.name));
+      if (isExcluded) continue;
+
+      let isDir = d.isDirectory();
+      if (d.isSymbolicLink()) {
+          try {
+              const targetStat = fs.statSync(fullPath);
+              if (targetStat.isDirectory()) {
+                  isDir = true;
+              }
+          } catch(e) {}
+      }
+
+      if (isDir) {
+         if (d.name !== '.thumbs' && d.name !== '.git' && !d.name.endsWith('.trickplay')) {
+             dirPromises.push(findVideosAsync(fullPath, exclusionRegexes, rootDir));
          }
       } else {
-         results.push(path.join(dir, d.name));
+         const nameLower = d.name.toLowerCase();
+         if (nameLower.endsWith('_p.mp4') || nameLower.endsWith('_p.webm') || 
+             nameLower.endsWith('-preview.mp4') || nameLower.endsWith('-preview.webm')) {
+             continue;
+         }
+         results.push(fullPath);
       }
     }
     
@@ -87,8 +130,263 @@ async function findVideosAsync(dir) {
   return results;
 }
 
-function _processFileNodes(filesArray, allFilesSet) {
+class PriorityQueue {
+    constructor() {
+        this.queue = [];
+        this.running = false;
+    }
+    push(task) {
+        this.queue.push(task);
+        this.runNext();
+    }
+    async runNext() {
+        if (this.running || this.queue.length === 0) return;
+        this.running = true;
+        const task = this.queue.shift();
+        try {
+            await task();
+        } catch (e) {
+            console.error("Queue task error:", e);
+        }
+        this.running = false;
+        this.runNext();
+    }
+}
+const backgroundFfmpegQueue = new PriorityQueue();
+const activeQueuePaths = new Set();
+
+const benchmarkPath = path.join(__dirname, 'BENCHMARKS.md');
+function writeBenchmark(entry) {
+    const header = `| Timestamp | Video Name | Size | Duration | Thumb Time | WebM Time | Status |\n| --- | --- | --- | --- | --- | --- | --- |\n`;
+    if (!fs.existsSync(benchmarkPath)) {
+        fs.writeFileSync(benchmarkPath, header, 'utf8');
+    }
+    const row = `| ${new Date().toISOString()} | ${entry.name} | ${entry.size} | ${entry.duration.toFixed(1)}s | ${entry.thumbTime ? entry.thumbTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.webmTime ? entry.webmTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.status} |\n`;
+    fs.appendFileSync(benchmarkPath, row, 'utf8');
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function runLowPriorityProcess(command, args) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, { windowsHide: true });
+        try {
+            os.setPriority(child.pid, 19);
+        } catch (e) {
+            console.log("Failed to set process priority:", e.message);
+        }
+        
+        let stderr = '';
+        child.stderr.on('data', (data) => { stderr += data.toString(); });
+        child.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`Command ${command} failed with exit code ${code}. Stderr: ${stderr}`));
+        });
+    });
+}
+
+function getVideoDuration(videoPath) {
+    return new Promise((resolve) => {
+        execFile('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (err, stdout) => {
+            if (err) resolve(0);
+            else {
+                const dur = parseFloat(stdout.trim());
+                resolve(isNaN(dur) ? 0 : dur);
+            }
+        });
+    });
+}
+
+function checkAudioStream(videoPath) {
+    return new Promise((resolve) => {
+        execFile('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (err, stdout) => {
+            resolve(!!stdout.trim());
+        });
+    });
+}
+
+async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath) {
+    const duration = await getVideoDuration(videoPath);
+    const hasAudio = await checkAudioStream(videoPath);
+    
+    let thumbStart = Date.now();
+    let thumbTimeMs = null;
+    if (!fs.existsSync(thumbPath)) {
+        const thumbTime = duration > 0 ? (duration * 0.1).toFixed(2) : '5.00';
+        try {
+            await runLowPriorityProcess('ffmpeg', [
+                '-y',
+                '-ss', thumbTime,
+                '-i', videoPath,
+                '-vframes', '1',
+                '-q:v', '2',
+                thumbPath,
+                '-loglevel', 'error'
+            ]);
+            thumbTimeMs = Date.now() - thumbStart;
+        } catch (e) {
+            console.error("Failed to generate thumbnail:", e.message);
+        }
+    }
+
+    let webmStart = Date.now();
+    let webmTimeMs = null;
+    if (!fs.existsSync(hoverWebmPath)) {
+        try {
+            const tempFiles = [];
+            const interval = duration / 10;
+            const clipDuration = duration > 20 ? 2 : Math.max(0.5, interval);
+            
+            for (let i = 0; i < 10; i++) {
+                const seekTime = interval * i;
+                const tempPath = path.join(os.tmpdir(), `vw-clip-${Date.now()}-${i}.webm`);
+                tempFiles.push(tempPath);
+                
+                const args = [
+                    '-y',
+                    '-ss', seekTime.toFixed(2),
+                    '-t', clipDuration.toFixed(2),
+                    '-i', videoPath,
+                    '-threads', '2',
+                    '-c:v', 'libvpx-vp9',
+                    '-deadline', 'realtime',
+                    '-cpu-used', '8',
+                    '-b:v', '1M',
+                ];
+                if (hasAudio) {
+                    args.push('-c:a', 'libvorbis', '-b:a', '64k');
+                } else {
+                    args.push('-an');
+                }
+                args.push(tempPath, '-loglevel', 'error');
+                
+                await runLowPriorityProcess('ffmpeg', args);
+            }
+            
+            const concatFilePath = path.join(os.tmpdir(), `vw-concat-${Date.now()}.txt`);
+            const concatContent = tempFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
+            fs.writeFileSync(concatFilePath, concatContent, 'utf8');
+            
+            const concatArgs = [
+                '-y',
+                '-safe', '0',
+                '-f', 'concat',
+                '-i', concatFilePath,
+                '-c', 'copy',
+                hoverWebmPath,
+                '-loglevel', 'error'
+            ];
+            await runLowPriorityProcess('ffmpeg', concatArgs);
+            
+            for (const f of tempFiles) {
+                try { fs.unlinkSync(f); } catch (e) {}
+            }
+            try { fs.unlinkSync(concatFilePath); } catch (e) {}
+            
+            webmTimeMs = Date.now() - webmStart;
+        } catch (e) {
+            console.error("Failed to generate WebM preview:", e.message);
+        }
+    }
+
+    try {
+        writeBenchmark({
+            name: path.basename(videoPath),
+            size: formatBytes(fs.statSync(videoPath).size),
+            duration,
+            thumbTime: thumbTimeMs,
+            webmTime: webmTimeMs,
+            status: 'SUCCESS'
+        });
+    } catch(e) {}
+}
+
+function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
+    if (activeQueuePaths.has(videoPath)) return;
+    activeQueuePaths.add(videoPath);
+    
+    backgroundFfmpegQueue.push(async () => {
+        try {
+            await generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath);
+        } catch (e) {
+            console.error(`Preview generation failed for ${videoPath}:`, e.message);
+        } finally {
+            activeQueuePaths.delete(videoPath);
+        }
+    });
+}
+
+function convertLegacyMp4Previews(thumbsDir) {
+    if (!thumbsDir || !fs.existsSync(thumbsDir)) return;
+    try {
+        const files = fs.readdirSync(thumbsDir);
+        for (const f of files) {
+            if (f.toLowerCase().endsWith('.mp4')) {
+                const mp4Path = path.join(thumbsDir, f);
+                const webmPath = path.join(thumbsDir, path.basename(f, '.mp4') + '.webm');
+                
+                if (fs.existsSync(webmPath)) {
+                    try { fs.unlinkSync(mp4Path); } catch (e) {}
+                    continue;
+                }
+                
+                if (activeQueuePaths.has(mp4Path)) continue;
+                activeQueuePaths.add(mp4Path);
+                
+                backgroundFfmpegQueue.push(async () => {
+                    try {
+                        const hasAudio = await checkAudioStream(mp4Path);
+                        const args = [
+                            '-y',
+                            '-i', mp4Path,
+                            '-threads', '2',
+                            '-c:v', 'libvpx-vp9',
+                            '-deadline', 'realtime',
+                            '-cpu-used', '8',
+                            '-b:v', '1M',
+                        ];
+                        if (hasAudio) {
+                            args.push('-c:a', 'libvorbis', '-b:a', '64k');
+                        } else {
+                            args.push('-an');
+                        }
+                        args.push(webmPath, '-loglevel', 'error');
+                        
+                        await runLowPriorityProcess('ffmpeg', args);
+                        try { fs.unlinkSync(mp4Path); } catch (e) {}
+                    } catch (e) {
+                        console.error(`Legacy MP4 conversion failed for ${mp4Path}:`, e.message);
+                    } finally {
+                        activeQueuePaths.delete(mp4Path);
+                    }
+                });
+            }
+        }
+    } catch (e) {
+        console.error("Error converting legacy previews:", e.message);
+    }
+}
+
+function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
     const output = [];
+    if (!vaultRoot && filesArray.length > 0) {
+        vaultRoot = path.dirname(filesArray[0]);
+    }
+    const thumbsDir = vaultRoot ? path.join(vaultRoot, '.thumbs') : null;
+    if (thumbsDir && !fs.existsSync(thumbsDir)) {
+        try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch (e) {}
+    }
+
+    if (thumbsDir) {
+        convertLegacyMp4Previews(thumbsDir);
+    }
+
     for (let res of filesArray) {
       const ext = path.extname(res).toLowerCase();
       let type = 'other';
@@ -100,43 +398,72 @@ function _processFileNodes(filesArray, allFilesSet) {
       const dir = path.dirname(res);
       const name = path.basename(res);
       const baseName = path.basename(res, ext);
-      // If this is a preview file, skip displaying it as an independent video node
+      
+      if (thumbsDir && res.startsWith(thumbsDir)) continue;
+
       if (ext === '.webm' || name.endsWith('_p.mp4') || name.endsWith('-preview.mp4')) {
           let checkName = baseName;
           if (name.endsWith('_p.mp4')) checkName = baseName.substring(0, baseName.length - 2);
           else if (name.endsWith('-preview.mp4')) checkName = baseName.replace('-preview', '');
           
-          const hasParent = ['.mp4', '.mkv', '.avi', '.mov', '.ts', '.wmv'].some(e => 
-              allFilesSet.has(path.join(dir, checkName + e).toLowerCase())
-          );
-          if (hasParent) continue; 
+          if (allFilesSet) {
+              const hasParent = ['.mp4', '.mkv', '.avi', '.mov', '.ts', '.wmv'].some(e => 
+                  allFilesSet.has(path.join(dir, checkName + e).toLowerCase())
+              );
+              if (hasParent) continue; 
+          }
       }
       
       let checkName = baseName;
-      if (name.endsWith('_p.mp4')) checkName = baseName.substring(0, baseName.length - 2);
-      else if (name.endsWith('-preview.mp4')) checkName = baseName.replace('-preview', '');
+      const relativePath = vaultRoot ? path.relative(vaultRoot, res) : name;
+      const uniqueBase = relativePath.replace(/[^a-zA-Z0-9]/g, '_');
       
-      const thumbPath = path.join(dir, checkName + '.jpg');
-      const posterPath = path.join(dir, checkName + '-poster.jpg');
+      let thumbPath = thumbsDir ? path.join(thumbsDir, uniqueBase + '.jpg') : path.join(dir, checkName + '.jpg');
+      let hoverWebmPath = thumbsDir ? path.join(thumbsDir, uniqueBase + '.webm') : path.join(dir, checkName + '.webm');
+      
+      if (thumbsDir) {
+          const oldThumbPath = path.join(thumbsDir, checkName + '.jpg');
+          const oldWebmPath = path.join(thumbsDir, checkName + '.webm');
+          if (fs.existsSync(oldThumbPath) && !fs.existsSync(thumbPath)) {
+              try { fs.renameSync(oldThumbPath, thumbPath); } catch (e) {}
+          }
+          if (fs.existsSync(oldWebmPath) && !fs.existsSync(hoverWebmPath)) {
+              try { fs.renameSync(oldWebmPath, hoverWebmPath); } catch (e) {}
+          }
+      }
+
+      const localThumbPath = path.join(dir, checkName + '.jpg');
+      const localPosterPath = path.join(dir, checkName + '-poster.jpg');
+      const localWebmPath = path.join(dir, checkName + '.webm');
+      const localMp4Path = path.join(dir, checkName + '_p.mp4');
       const trickplayDir = path.join(dir, checkName + '.trickplay');
-      const hoverWebmPath = path.join(dir, checkName + '.webm');
-      const hoverPreviewPath = path.join(dir, checkName + '_p.mp4');
       
       let thumbnail = null;
       let hasTrickplayDir = false;
       let targetPreview = null;
       let mtimeMs = 0;
       let mtimeFormatted = '';
+      let sizeBytes = 0;
       
       try {
-        if (fs.existsSync(thumbPath)) thumbnail = thumbPath;
-        else if (fs.existsSync(posterPath)) thumbnail = posterPath;
+        if (fs.existsSync(thumbPath)) {
+            thumbnail = thumbPath;
+        } else if (fs.existsSync(localThumbPath)) {
+            thumbnail = localThumbPath;
+        } else if (fs.existsSync(localPosterPath)) {
+            thumbnail = localPosterPath;
+        }
         
         hasTrickplayDir = fs.existsSync(trickplayDir);
-        if (fs.existsSync(hoverPreviewPath)) targetPreview = hoverPreviewPath;
-        else if (fs.existsSync(hoverWebmPath)) targetPreview = hoverWebmPath;
         
-        // Auto-fix missing thumbnails using trickplay directory
+        if (fs.existsSync(hoverWebmPath)) {
+            targetPreview = hoverWebmPath;
+        } else if (fs.existsSync(localWebmPath)) {
+            targetPreview = localWebmPath;
+        } else if (fs.existsSync(localMp4Path)) {
+            targetPreview = localMp4Path;
+        }
+        
         if (!thumbnail && hasTrickplayDir) {
            const tpFiles = fs.readdirSync(trickplayDir);
            if (tpFiles.length > 0) thumbnail = path.join(trickplayDir, tpFiles[0]);
@@ -144,9 +471,14 @@ function _processFileNodes(filesArray, allFilesSet) {
         
         const stats = fs.statSync(res);
         mtimeMs = stats.mtimeMs;
+        sizeBytes = stats.size;
         const d = new Date(mtimeMs);
         mtimeFormatted = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
       } catch (e) {}
+
+      if (type === 'video' && (!thumbnail || !targetPreview)) {
+          schedulePreviewGeneration(res, thumbPath, hoverWebmPath);
+      }
 
       output.push({
         path: res, name: name, type: type,
@@ -155,6 +487,7 @@ function _processFileNodes(filesArray, allFilesSet) {
         trickplayFolder: hasTrickplayDir ? trickplayDir : null,
         directory: dir, baseName: checkName, ext: ext,
         mtime: mtimeMs,
+        size: sizeBytes,
         mtimeFormatted: mtimeFormatted
       });
     }
@@ -163,18 +496,21 @@ function _processFileNodes(filesArray, allFilesSet) {
 
 ipcMain.handle('scan-directory', async (event, dirPath) => {
   if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return [];
+  const settings = loadSettings();
+  const exclusions = settings.globExclusions || [];
+  const exclusionRegexes = exclusions.map(pat => globToRegex(pat));
+  
   return new Promise(async (resolve) => {
-    const allFiles = await findVideosAsync(dirPath);
+    const allFiles = await findVideosAsync(dirPath, exclusionRegexes, dirPath);
     const allFilesSet = new Set(allFiles.map(f => f.toLowerCase()));
-    resolve(_processFileNodes(allFiles, allFilesSet)); 
+    resolve(_processFileNodes(allFiles, allFilesSet, dirPath)); 
   });
 });
 
 ipcMain.handle('scan-specific-files', (event, pathsArray) => {
   if (!Array.isArray(pathsArray) || !pathsArray.every(p => typeof p === 'string')) return [];
-   // Validate existence briefly
-   const existingPaths = pathsArray.filter(p => fs.existsSync(p));
-   return _processFileNodes(existingPaths, null);
+  const existingPaths = pathsArray.filter(p => fs.existsSync(p));
+  return _processFileNodes(existingPaths, null, null);
 });
 
 ipcMain.handle('get-trickplay-sprites', async (event, folderPath) => {
@@ -183,8 +519,6 @@ ipcMain.handle('get-trickplay-sprites', async (event, folderPath) => {
         const files = await fsPromises.readdir(folderPath);
         let images = files.filter(f => f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png'));
         images.sort((a,b) => (parseInt(path.basename(a), 10)||0) - (parseInt(path.basename(b), 10)||0));
-        
-        // If it's a sprite sheet (a single long image) or multiple
         return images.map(img => path.join(folderPath, img));
     } catch(e) {
         return [];
@@ -196,7 +530,6 @@ ipcMain.handle('get-file-size', async (event, filePath) => {
     try { const stat = await fsPromises.stat(filePath); return stat.size; } catch(e) { return 0; }
 });
 
-// Explorer functions
 ipcMain.handle('rename-file', async (e, oldPath, newName) => {
    if (typeof oldPath !== 'string' || typeof newName !== 'string' || !fs.existsSync(oldPath)) return { success: false, error: 'Invalid input' };
    try {
@@ -237,11 +570,14 @@ ipcMain.handle('show-context-menu', async (event, item) => {
            { label: 'Copy Path', click: () => { clipboard.writeText(item.path); resolve('copied'); } },
            { type: 'separator' },
            { label: 'Generate WebM Preview (ffmpeg)', click: () => { resolve('generate-webm'); } },
-           { label: 'Upscale Video (AI)', click: () => { resolve('upscale-video'); } }
+           { label: 'Upscale Video (AI)', click: () => { resolve('upscale-video'); } },
+           { type: 'separator' },
+           { label: 'Delete File', click: () => { resolve('delete-item'); } }
          ];
       } else if (item.type === 'fakeFolder') {
+         const hasItems = Array.isArray(item.items) && item.items.length > 0;
          templ = [
-           { label: `Open Fake Folder: ${item.name}`, enabled: false },
+           { label: `Open Fake Folder: ${item.name}`, enabled: hasItems, click: () => { resolve('open-folder'); } },
            { type: 'separator' },
            { label: 'Remove Fake Folder', click: () => { resolve('remove-folder'); } }
          ];
@@ -252,45 +588,6 @@ ipcMain.handle('show-context-menu', async (event, item) => {
   });
 });
 
-let ffmpegQueue = [];
-let isFfmpegRunning = false;
-
-function processFfmpegQueue() {
-    if (isFfmpegRunning || ffmpegQueue.length === 0) return;
-    isFfmpegRunning = true;
-    const task = ffmpegQueue.shift();
-    
-    // First ensure we have a thumbnail if needed
-    if (task.needsThumb) {
-        execFile('ffmpeg', ['-y', '-ss', '00:00:15', '-i', task.itemPath, '-vframes', '1', '-q:v', '2', task.thumbPath], { windowsHide: true }, () => {
-             runPreviewFfmpeg(task);
-        });
-    } else {
-         runPreviewFfmpeg(task);
-    }
-}
-
-function runPreviewFfmpeg(task) {
-    if (fs.existsSync(task.outPath) || fs.existsSync(task.altWebmPath)) {
-        isFfmpegRunning = false; task.resolve({ success: true, path: task.outPath }); processFfmpegQueue(); return;
-    }
-    
-    execFile('ffmpeg', task.argsCuda, { windowsHide: true }, (err) => {
-        if (err) {
-            execFile('ffmpeg', task.argsCpu, { windowsHide: true }, (err2) => {
-                isFfmpegRunning = false;
-                if (err2) task.resolve({ success: false, error: err2.message });
-                else task.resolve({ success: true, path: task.outPath });
-                processFfmpegQueue();
-            });
-        } else {
-            isFfmpegRunning = false;
-            task.resolve({ success: true, path: task.outPath });
-            processFfmpegQueue();
-        }
-    });
-}
-
 ipcMain.handle('upscale-video', async (event, itemPath) => {
     return new Promise((resolve) => {
         setTimeout(() => {
@@ -299,22 +596,25 @@ ipcMain.handle('upscale-video', async (event, itemPath) => {
     });
 });
 
-ipcMain.handle('generate-webm', (event, itemPath) => {
-    return new Promise((resolve) => {
-        const dir = path.dirname(itemPath);
-        const baseName = path.basename(itemPath, path.extname(itemPath));
-        const outPath = path.join(dir, baseName + '_p.mp4');
-        const thumbPath = path.join(dir, baseName + '.jpg');
-        
-        const argsCuda = ['-y', '-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-ss', '00:00:15', '-i', itemPath, '-t', '10', '-vf', 'scale_cuda=320:-2', '-c:v', 'h264_nvenc', '-preset', 'p4', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
-        const argsCpu = ['-y', '-ss', '00:00:15', '-i', itemPath, '-t', '10', '-vf', 'scale=320:-2', '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
-
-        ffmpegQueue.push({
-            itemPath, outPath, thumbPath, argsCuda, argsCpu, altWebmPath: path.join(dir, baseName + '.webm'),
-            needsThumb: !fs.existsSync(thumbPath), resolve 
-        });
-        processFfmpegQueue();
-    });
+ipcMain.handle('generate-webm', async (event, itemPath, vaultRoot) => {
+    if (typeof itemPath !== 'string' || !fs.existsSync(itemPath)) return { success: false, error: 'File not found' };
+    
+    if (!vaultRoot) vaultRoot = path.dirname(itemPath);
+    const thumbsDir = path.join(vaultRoot, '.thumbs');
+    if (!fs.existsSync(thumbsDir)) {
+        try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch (e) {}
+    }
+    
+    const baseName = path.basename(itemPath, path.extname(itemPath));
+    const thumbPath = path.join(thumbsDir, baseName + '.jpg');
+    const hoverWebmPath = path.join(thumbsDir, baseName + '.webm');
+    
+    try {
+        await generateThumbAndPreview(itemPath, thumbPath, hoverWebmPath);
+        return { success: true, path: hoverWebmPath };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
 });
 
 ipcMain.handle('get-theme', async (event) => {
@@ -337,4 +637,69 @@ ipcMain.handle('set-theme', async (event, theme) => {
     } catch (error) {
         return { success: false, error: error.message };
     }
+});
+
+ipcMain.handle('delete-item', async (event, itemPath) => {
+    if (typeof itemPath !== 'string' || !fs.existsSync(itemPath)) {
+        return { success: false, error: 'Path does not exist' };
+    }
+    try {
+        const stats = fs.lstatSync(itemPath);
+        if (stats.isSymbolicLink()) {
+            fs.unlinkSync(itemPath);
+        } else if (stats.isDirectory()) {
+            try {
+                fs.unlinkSync(itemPath);
+            } catch (err) {
+                fs.rmdirSync(itemPath, { recursive: true });
+            }
+        } else {
+            fs.unlinkSync(itemPath);
+        }
+        return { success: true };
+    } catch (e) {
+        try {
+            if (fs.statSync(itemPath).isDirectory()) {
+                fs.rmdirSync(itemPath, { recursive: true });
+            } else {
+                fs.unlinkSync(itemPath);
+            }
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+});
+
+async function calculateDirectorySizeRecursive(dir) {
+    let size = 0;
+    try {
+        const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            let isDir = entry.isDirectory();
+            if (entry.isSymbolicLink()) {
+                try {
+                    const targetStat = fs.statSync(fullPath);
+                    if (targetStat.isDirectory()) isDir = true;
+                } catch (e) {}
+            }
+            if (isDir) {
+                if (entry.name !== '.thumbs' && entry.name !== '.git') {
+                    size += await calculateDirectorySizeRecursive(fullPath);
+                }
+            } else {
+                try {
+                    const stats = fs.statSync(fullPath);
+                    size += stats.size;
+                } catch(e) {}
+            }
+        }
+    } catch(e) {}
+    return size;
+}
+
+ipcMain.handle('get-folder-size-background', async (event, dirPath) => {
+    if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return 0;
+    return await calculateDirectorySizeRecursive(dirPath);
 });
