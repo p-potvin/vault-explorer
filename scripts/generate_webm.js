@@ -4,7 +4,7 @@ const { execFile } = require('child_process');
 const util = require('util');
 const execFilePromise = util.promisify(execFile);
 
-const TARGET_DIR = 'F:\\amd';
+const TARGET_DIR = '~/';
 const VIDEO_EXTS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'];
 
 function findVideosSync(dir) {
@@ -19,8 +19,8 @@ function findVideosSync(dir) {
                 }
             } else {
                 const ext = path.extname(entry.name).toLowerCase();
-                if (VIDEO_EXTS.includes(ext) && ext !== '.webm') {
-                     results.push(fullPath);
+                if (VIDEO_EXTS.includes(ext)) {
+                    results.push(fullPath);
                 }
             }
         }
@@ -39,19 +39,19 @@ async function start() {
     for (const vidPaths of videos) {
         const dir = path.dirname(vidPaths);
         const baseName = path.basename(vidPaths, path.extname(vidPaths));
-        const outPath = path.join(dir, baseName + '_p.mp4');
-        
-        if (fs.existsSync(outPath) || fs.existsSync(path.join(dir, baseName + '.webm'))) {
+        const outPath = path.join(dir, "/.thumbs/" + baseName + '_p.webm');
+
+        if (fs.existsSync(outPath) || fs.existsSync(path.join(dir, baseName + '.mp4'))) {
             console.log(`Skipping (already exists): ${baseName}`);
             continue;
         }
 
         console.log(`Processing [${++count}/${videos.length}]: ${path.basename(vidPaths)}`);
-        
+
         // Try hardware mapping natively
-        const argsCuda = ['-y', '-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-ss', '00:00:15', '-i', vidPaths, '-t', '10', '-vf', 'scale_cuda=320:-2', '-c:v', 'h264_nvenc', '-preset', 'p4', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
-        const argsCpu = ['-y', '-ss', '00:00:15', '-i', vidPaths, '-t', '10', '-vf', 'scale=320:-2', '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
-        
+        const argsCuda = ['-y', '-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-ss', '00:00:20', '-i', vidPaths, '-t', '10', '-vf', 'scale_cuda=320:-2', '-c:v', 'h264_nvenc', '-preset', 'p4', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
+        const argsCpu = ['-y', '-ss', '00:00:20', '-i', vidPaths, '-t', '10', '-vf', 'scale=320:-2', '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
+
         try {
             await execFilePromise('ffmpeg', argsCuda);
         } catch (err) {
