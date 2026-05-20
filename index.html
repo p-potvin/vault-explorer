@@ -6,8 +6,7 @@
   <link href="themes.css" rel="stylesheet">
   <script src="themes.js"></script>
 <style>
-    #settings-panel {
-      position: absolute; top: 100%; left: 0; z-index: 2000;
+    #settings-panel {\nposition: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
       background: var(--vt-surface-alt); border: 1px solid var(--vault-border);
       box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 280px; font-family: var(--font-body);
       border-radius: 6px;
@@ -248,8 +247,7 @@
     .empty-state h3 { font-size: 18px; margin: 0 0 8px 0; color: var(--vault-text); font-weight: 500; }
     .empty-state p { font-size: 14px; margin: 0; max-width: 300px; line-height: 1.5; }
 
-    #fake-folder-dialog {
-      display:none; position:fixed; top:120px; left:50%; transform:translateX(-50%);
+    #fake-folder-dialog {\n      display:none; position:fixed; top:80px; right:20px; left:auto; transform:none;
       background:var(--vt-surface); padding:20px 24px; border:1px solid var(--vault-border);
       z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.15); font-family: var(--font-body); color: var(--vault-text);
       border-radius: 6px; width: 380px;
@@ -278,8 +276,8 @@
       pointer-events: auto; min-width: 180px; text-transform: uppercase;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
-    .toast.success { border-color: var(--vt-emerald); }
-    .toast.error { border-color: var(--vt-red); }
+    .toast.success { border-color: var(--vt-success); }
+    .toast.error { border-color: var(--vt-error); }
     .toast-icon { display: inline-flex; align-items: center; justify-content: center; }
 
     /* Hover Video Preview */
@@ -316,8 +314,7 @@
       border-color: var(--vault-border) !important;
       transform: none !important; box-shadow: none !important;
     }
-    #theme-panel {
-      position: absolute; top: 100%; left: 0; z-index: 2000;
+    #theme-panel {\nposition: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
       background: var(--vt-surface); border: 1px solid var(--vault-border); border-top: none;
       padding: 16px; min-width: 280px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.15);
@@ -561,9 +558,9 @@
       
       let icon = '';
       if (type === 'success') {
-          icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vt-emerald)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+          icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vt-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
       } else {
-          icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vt-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+          icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vt-error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
       }
       
       toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
@@ -733,7 +730,7 @@
          thumbHtml = '<svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
       } else {
          const thumbSrc = sanitizePath(item.thumbnail) || 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle">NO THUMB</text></svg>';
-         thumbHtml = `<img class="thumbnail" loading="lazy" src="${thumbSrc}" alt="${escapeHtml(item.name)} thumbnail"><img class="trickplay" alt="">
+         thumbHtml = `<img class="thumbnail" loading="lazy" src='${thumbSrc}' alt="${escapeHtml(item.name)} thumbnail"><img class="trickplay" alt="">
                       <div class="duration-badge"></div>`;
       }
       
@@ -832,7 +829,7 @@
              else { input.value = item.name; alert("Rename failed: " + res.error); }
          }
       };
-      input.addEventListener('blur', commitRename);
+      input.addEventListener('mousedown', e => e.stopPropagation());\n      input.addEventListener('click', e => e.stopPropagation());\n      input.addEventListener('blur', commitRename);
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') { input.value = item.name; input.blur(); } });
       
       // Async Duration Extract
@@ -913,7 +910,7 @@
              else showToast('Upscale complete (stub — no AI model configured)', 'success');
          } else if (action === 'remove-folder') {
              if (confirm(`Remove folder "${item.name}"?`)) {
-                 appSettings.folders = appSettings.folders.filter(f => !(f.name === item.name && f.parent === currentNavPath));
+                 appSettings.folders = appSettings.folders.filter(f => !(f.name === item.name && (f.parent === currentNavPath || (currentNavPath === 'root' && !f.parent))));
                  window.electronAPI.saveSettings(appSettings);
                  showToast('Folder removed', 'success');
                  loadDirectory(currentNavPath, currentRealPath, true);
@@ -981,9 +978,9 @@
          } else if (action === 'properties') {
              showPropertiesDialog(item);
          } else if (action === 'opened') {
-             console.log('[open] opened file:', item.path);
+             console.log('[open] opened file:', item.path); showToast('Opened file in default app', 'success');
          } else if (action === 'show') {
-             console.log('[show] showed in folder:', item.path);
+             console.log('[show] showed in folder:', item.path); showToast('Opened in Windows Explorer', 'success');
          } else if (action === 'copied') {
              showToast('Path copied to clipboard', 'success');
          } else if (action === 'open-folder') {
@@ -1244,7 +1241,7 @@
     });
 
     el('btn-refresh').addEventListener('click', async () => {
-         if (!currentRealPath || currentNavPath !== 'root') return;
+         if (!currentRealPath) return;
          el('loading-text').innerText = 'Refreshing Views...'; el('loading').style.display = 'flex';
          const latest = await window.electronAPI.scanDirectory(currentRealPath);
          el('loading').style.display = 'none'; el('loading-text').innerText = 'Scanning directory... this may take a moment.';
@@ -1838,7 +1835,7 @@
         const list = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
         appSettings.globExclusions = list;
         await window.electronAPI.saveSettings(appSettings);
-        showToast(currentLang === 'fr' ? 'ParamÃ¨tres enregistrÃ©s' : 'Settings saved', 'success');
+        showToast(currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
         el('settings-panel').style.display = 'none';
         
         // Reload current directory if exists to apply exclusions
