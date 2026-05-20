@@ -63,5 +63,5 @@
 ## 2024-06-05
 - **Goal:** Execute Ziegler routine for security enforcement and trajectory planning.
 - **Decision:** Added input type and file existence validation to `main.js` IPC handlers. Identified `theme-manager` as the unfinished feature to scaffold and added a mock `get-theme` IPC handler.
-- **Context:** User inputs were lacking strict validation, causing vulnerabilities. The routine requires implementing safety features and scaffolding an identified unfinished feature based on `vault-themes` references.
+- **Context:** User inputs were lacking strict validation, causing vulnerabilities. The routine requires implementing safety features and scaffolding an identified unfinished feature based on `vaultwares-themes` references.
 - **Affected Components:** `main.js` (validation across `get-everything-size`, `scan-directory`, etc., plus new `get-theme` handler).

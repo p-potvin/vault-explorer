@@ -476,10 +476,6 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
         mtimeFormatted = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
       } catch (e) {}
 
-      if (type === 'video' && (!thumbnail || !targetPreview)) {
-          schedulePreviewGeneration(res, thumbPath, hoverWebmPath);
-      }
-
       output.push({
         path: res, name: name, type: type,
         thumbnail: thumbnail,
@@ -569,17 +565,24 @@ ipcMain.handle('show-context-menu', async (event, item) => {
            { type: 'separator' },
            { label: 'Copy Path', click: () => { clipboard.writeText(item.path); resolve('copied'); } },
            { type: 'separator' },
+           { label: 'Cut', click: () => { resolve('cut'); } },
+           { label: 'Copy', click: () => { resolve('copy'); } },
+           { label: 'Paste', click: () => { resolve('paste'); } },
+           { label: 'Rename', click: () => { resolve('rename'); } },
+           { type: 'separator' },
            { label: 'Generate WebM Preview (ffmpeg)', click: () => { resolve('generate-webm'); } },
            { label: 'Upscale Video (AI)', click: () => { resolve('upscale-video'); } },
+           { label: 'Zip Selection', click: () => { resolve('zip-selection'); } },
            { type: 'separator' },
-           { label: 'Delete File', click: () => { resolve('delete-item'); } }
+           { label: 'Delete File', click: () => { resolve('delete-item'); } },
+           { label: 'Properties', click: () => { resolve('properties'); } }
          ];
       } else if (item.type === 'fakeFolder') {
          const hasItems = Array.isArray(item.items) && item.items.length > 0;
          templ = [
-           { label: `Open Fake Folder: ${item.name}`, enabled: hasItems, click: () => { resolve('open-folder'); } },
+           { label: `Open Folder: ${item.name}`, enabled: hasItems, click: () => { resolve('open-folder'); } },
            { type: 'separator' },
-           { label: 'Remove Fake Folder', click: () => { resolve('remove-folder'); } }
+           { label: 'Remove Folder', click: () => { resolve('remove-folder'); } }
          ];
       }
       const menu = Menu.buildFromTemplate(templ);
@@ -609,12 +612,192 @@ ipcMain.handle('generate-webm', async (event, itemPath, vaultRoot) => {
     const thumbPath = path.join(thumbsDir, baseName + '.jpg');
     const hoverWebmPath = path.join(thumbsDir, baseName + '.webm');
     
+    if (activeQueuePaths.has(itemPath)) {
+        return { success: true, path: hoverWebmPath, queued: true };
+    }
+    activeQueuePaths.add(itemPath);
+    
+    return new Promise((resolve) => {
+        backgroundFfmpegQueue.push(async () => {
+            try {
+                await generateThumbAndPreview(itemPath, thumbPath, hoverWebmPath);
+                resolve({ success: true, path: hoverWebmPath });
+            } catch (e) {
+                resolve({ success: false, error: e.message });
+            } finally {
+                activeQueuePaths.delete(itemPath);
+            }
+        });
+    });
+});
+
+ipcMain.handle('schedule-idle-previews', async (event, items) => {
+    if (!Array.isArray(items)) return { success: false, error: 'Invalid items array' };
+    let scheduledCount = 0;
+    for (const item of items) {
+        const { path: videoPath, thumbPath, hoverWebmPath } = item;
+        if (!videoPath || !thumbPath || !hoverWebmPath) continue;
+        if (activeQueuePaths.has(videoPath)) continue;
+        activeQueuePaths.add(videoPath);
+        backgroundFfmpegQueue.push(async () => {
+            try {
+                await generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath);
+            } catch (e) {
+                console.error(`Idle Preview generation failed for ${videoPath}:`, e.message);
+            } finally {
+                activeQueuePaths.delete(videoPath);
+            }
+        });
+        scheduledCount++;
+    }
+    return { success: true, scheduledCount };
+});
+
+ipcMain.handle('paste-files', async (event, { paths, mode, destination }) => {
+    if (!Array.isArray(paths) || !destination || !fs.existsSync(destination)) {
+        return { success: false, error: 'Invalid input parameters' };
+    }
+    let count = 0;
+    const errors = [];
+    for (const src of paths) {
+        if (!fs.existsSync(src)) {
+            errors.push(`${src} does not exist`);
+            continue;
+        }
+        const dest = path.join(destination, path.basename(src));
+        try {
+            if (mode === 'copy') {
+                fs.copyFileSync(src, dest);
+            } else if (mode === 'cut') {
+                fs.renameSync(src, dest);
+            }
+            count++;
+        } catch (e) {
+            errors.push(`Failed to paste ${src}: ${e.message}`);
+        }
+    }
+    return { success: true, count, errors };
+});
+
+ipcMain.handle('zip-selection', async (event, { paths, outputPath }) => {
+    if (!Array.isArray(paths) || !outputPath) {
+        return { success: false, error: 'Invalid parameters' };
+    }
+    return new Promise((resolve) => {
+        const escapedPaths = paths.map(p => `'${p.replace(/'/g, "''")}'`).join(',');
+        const escapedOutput = `'${outputPath.replace(/'/g, "''")}'`;
+        const cmd = `Compress-Archive -Path ${escapedPaths} -DestinationPath ${escapedOutput} -Force`;
+        execFile('powershell', ['-Command', cmd], { windowsHide: true }, (err, stdout, stderr) => {
+            if (err) resolve({ success: false, error: stderr || err.message });
+            else resolve({ success: true, path: outputPath });
+        });
+    });
+});
+
+ipcMain.handle('get-file-properties', async (event, filePath) => {
+    if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+        return { success: false, error: 'File not found' };
+    }
     try {
-        await generateThumbAndPreview(itemPath, thumbPath, hoverWebmPath);
-        return { success: true, path: hoverWebmPath };
+        const stats = fs.statSync(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+        const baseProps = {
+            name: path.basename(filePath),
+            path: filePath,
+            size: stats.size,
+            created: stats.birthtime,
+            modified: stats.mtime,
+            type: ext
+        };
+        
+        if (['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'].includes(ext)) {
+            const ffprobePromise = new Promise((resolve) => {
+                execFile('ffprobe', [
+                    '-v', 'error',
+                    '-select_streams', 'v:0',
+                    '-show_entries', 'stream=width,height,codec_name,bit_rate,duration',
+                    '-of', 'json',
+                    filePath
+                ], (err, stdout) => {
+                    if (err) return resolve({});
+                    try {
+                        const data = JSON.parse(stdout);
+                        if (data.streams && data.streams[0]) {
+                            const s = data.streams[0];
+                            resolve({
+                                width: s.width,
+                                height: s.height,
+                                codec: s.codec_name,
+                                bitrate: s.bit_rate ? parseInt(s.bit_rate, 10) : null,
+                                duration: s.duration ? parseFloat(s.duration) : null
+                            });
+                        } else resolve({});
+                    } catch(e) { resolve({}); }
+                });
+            });
+            const videoProps = await ffprobePromise;
+            return { success: true, properties: { ...baseProps, ...videoProps } };
+        } else if (['.jpg', '.png', '.jpeg', '.gif', '.webp'].includes(ext)) {
+            const ffprobePromise = new Promise((resolve) => {
+                execFile('ffprobe', [
+                    '-v', 'error',
+                    '-select_streams', 'v:0',
+                    '-show_entries', 'stream=width,height',
+                    '-of', 'json',
+                    filePath
+                ], (err, stdout) => {
+                    if (err) return resolve({});
+                    try {
+                        const data = JSON.parse(stdout);
+                        if (data.streams && data.streams[0]) {
+                            const s = data.streams[0];
+                            resolve({ width: s.width, height: s.height });
+                        } else resolve({});
+                    } catch(e) { resolve({}); }
+                });
+            });
+            const imgProps = await ffprobePromise;
+            return { success: true, properties: { ...baseProps, ...imgProps } };
+        }
+        return { success: true, properties: baseProps };
     } catch (e) {
         return { success: false, error: e.message };
     }
+});
+
+const folderSizeCache = new Map();
+
+ipcMain.handle('get-folder-size-smart', async (event, dirPath, fileCount) => {
+    if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return 0;
+    
+    const cached = folderSizeCache.get(dirPath);
+    if (cached && cached.fileCount === fileCount) {
+        return cached.size;
+    }
+    
+    const everythingSize = await new Promise((resolve) => {
+        execFile('es.exe', ['-size', '-exact', dirPath], { windowsHide: true }, (err, stdout) => {
+            if (err || !stdout.trim()) {
+                execFile('es.exe', ['-size', dirPath], { windowsHide: true }, (err2, stdout2) => {
+                   if (err2 || !stdout2.trim()) return resolve(0);
+                   const parts = stdout2.trim().split(/\s+/);
+                   if (parts.length > 0 && !isNaN(parts[0])) resolve(parseInt(parts[0], 10)); else resolve(0);
+                });
+            } else {
+                const parts = stdout.trim().split(/\s+/);
+                if (parts.length > 0 && !isNaN(parts[0])) resolve(parseInt(parts[0], 10)); else resolve(0);
+            }
+        });
+    });
+    
+    if (everythingSize > 0) {
+        folderSizeCache.set(dirPath, { fileCount, size: everythingSize });
+        return everythingSize;
+    }
+    
+    const calculatedSize = await calculateDirectorySizeRecursive(dirPath);
+    folderSizeCache.set(dirPath, { fileCount, size: calculatedSize });
+    return calculatedSize;
 });
 
 ipcMain.handle('get-theme', async (event) => {
@@ -651,7 +834,7 @@ ipcMain.handle('delete-item', async (event, itemPath) => {
             try {
                 fs.unlinkSync(itemPath);
             } catch (err) {
-                fs.rmdirSync(itemPath, { recursive: true });
+                fs.rmSync(itemPath, { recursive: true, force: true });
             }
         } else {
             fs.unlinkSync(itemPath);
@@ -659,8 +842,8 @@ ipcMain.handle('delete-item', async (event, itemPath) => {
         return { success: true };
     } catch (e) {
         try {
-            if (fs.statSync(itemPath).isDirectory()) {
-                fs.rmdirSync(itemPath, { recursive: true });
+            if (fs.lstatSync(itemPath).isDirectory()) {
+                fs.rmSync(itemPath, { recursive: true, force: true });
             } else {
                 fs.unlinkSync(itemPath);
             }
