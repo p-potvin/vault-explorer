@@ -26,5 +26,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFileProperties: (p) => ipcRenderer.invoke('get-file-properties', p),
   getFolderSizeSmart: (dirPath, fileCount) => ipcRenderer.invoke('get-folder-size-smart', dirPath, fileCount),
   encryptFiles: (data) => ipcRenderer.invoke('encrypt-files', data),
-  decryptFiles: (data) => ipcRenderer.invoke('decrypt-files', data)
+  decryptFiles: (data) => ipcRenderer.invoke('decrypt-files', data),
+  startUpscaleStream: (data) => ipcRenderer.invoke('upscale-stream-start', data),
+  stopUpscaleStream: () => ipcRenderer.invoke('upscale-stream-stop'),
+  onUpscaleChunk: (cb) => ipcRenderer.on('upscale-chunk', (_, data) => cb(data)),
+  offUpscaleChunk: () => ipcRenderer.removeAllListeners('upscale-chunk'),
+  onUpscaleStatus: (cb) => ipcRenderer.on('upscale-status', (_, data) => cb(data)),
+  offUpscaleStatus: () => ipcRenderer.removeAllListeners('upscale-status'),
 });

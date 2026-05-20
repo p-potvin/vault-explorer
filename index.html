@@ -6,7 +6,8 @@
   <link href="themes.css" rel="stylesheet">
   <script src="themes.js"></script>
 <style>
-    #settings-panel {\nposition: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
+    #settings-panel {
+      position: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
       background: var(--vt-surface-alt); border: 1px solid var(--vault-border);
       box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 280px; font-family: var(--font-body);
       border-radius: 6px;
@@ -204,16 +205,35 @@
     
     /* Video Player Modal */
     #video-modal {
-      display:none; position:fixed; top:44px; left:0; right:0; bottom:0; 
-      background: var(--vt-primary); z-index: 200; align-items:center; justify-content:center;
+      display:none; position:fixed; top:0; left:0; right:0; bottom:0; 
+      background: var(--vt-primary); z-index: 10000; align-items:center; justify-content:center;
     }
-    #close-modal { 
-      position:absolute; top:24px; right:32px; font-family: var(--font-body); font-size:28px; font-weight: 200; 
-      color:var(--vault-slate); cursor:pointer; background:none; border:none; z-index: 201; transition: color 0.3s;
+    /* Player title bar */
+    #player-topbar {
+      position:absolute; top:0; left:0; right:0; z-index: 202;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 12px; height:44px;
+      background:linear-gradient(rgba(0,0,0,0.7), transparent);
+      pointer-events:none;
     }
-    #close-modal:hover { color: var(--vault-accent); transform: scale(1.1); box-shadow: none; border: none; background: transparent; }
+    #player-topbar .player-title {
+      font-family: var(--font-display); font-size:13px; font-weight:500;
+      color:#fff; letter-spacing:0.04em; white-space:nowrap; overflow:hidden;
+      text-overflow:ellipsis; max-width:70%; opacity:0.9;
+    }
+    #player-topbar .player-corner-btns {
+      display:flex; gap:4px; pointer-events:auto;
+    }
+    .player-corner-btn {
+      background:none; border:none; color:rgba(255,255,255,0.75); cursor:pointer;
+      font-size:18px; padding:6px 8px; border-radius:4px; line-height:1;
+      transition: color 0.2s, background 0.2s; transform:none !important;
+    }
+    .player-corner-btn:hover { color:#fff; background:rgba(255,255,255,0.12); box-shadow:none; }
+    /* hide top bar in PiP */
+    #video-modal.minimized #player-topbar { display:none; }
     
-    .video-wrapper { position:relative; width:100vw; height:calc(100vh - 44px); overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; }
+    .video-wrapper { position:relative; width:100vw; height:100vh; overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; }
     #video-player { width:100%; height:100%; object-fit:contain; outline:none; cursor:pointer; }
     
     #custom-controls { 
@@ -242,17 +262,35 @@
       position: fixed; bottom: 20px; right: 20px; top: auto; left: auto;
       width: 320px; height: 180px; background: var(--vt-surface-alt);
       border: 1px solid var(--vault-border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-      border-radius: 8px; z-index: 9999;
+      border-radius: 8px; z-index: 9999; cursor: pointer;
     }
-    #video-modal.minimized #close-modal { top: 10px; right: 15px; font-size: 20px; }
-    #video-modal.minimized #minimize-modal { top: 10px; right: 45px; font-size: 16px; }
+    #video-modal.minimized .player-corner-btns { display:none; }
+    #video-modal.minimized #pip-close-btn { display:flex !important; pointer-events:auto; }
     #video-modal.minimized .video-wrapper { width: 100%; height: 100%; }
-    #video-modal.minimized #custom-controls { padding: 10px; padding-top: 20px; }
-    #video-modal.minimized #custom-controls .volume-container,
-    #video-modal.minimized #custom-controls #btn-prev,
-    #video-modal.minimized #custom-controls #btn-next { display: none !important; }
+    #video-modal.minimized #custom-controls { display:none; }
     #video-modal.minimized #seek-area { height: 8px; margin-top: 4px; }
     #video-modal.minimized #seek-bg { margin-top: 2px !important; }
+    /* time ticks below seek bar */
+    #seek-time-row {
+      display:flex; justify-content:space-between; color:rgba(255,255,255,0.6);
+      font-size:10px; font-family:var(--font-body); padding:2px 2px 0;
+      pointer-events:none; user-select:none;
+    }
+    /* player control icon size */
+    .ctrl-btn {
+      background:none; border:none; color:white; font-size:22px; cursor:pointer;
+      padding:4px 6px; border-radius:4px; line-height:1; transition:color 0.2s, background 0.2s;
+      transform:none !important;
+    }
+    .ctrl-btn:hover { color:var(--vault-accent); background:rgba(255,255,255,0.08); box-shadow:none; }
+    .ctrl-btn-sm {
+      background:none; border:none; color:rgba(255,255,255,0.8); font-size:13px; cursor:pointer;
+      padding:3px 7px; border-radius:4px; line-height:1; font-family:var(--font-body);
+      font-weight:600; letter-spacing:0.04em; transition:color 0.2s, background 0.2s;
+      transform:none !important;
+    }
+    .ctrl-btn-sm:hover { color:#fff; background:rgba(255,255,255,0.1); box-shadow:none; }
+    .ctrl-btn-sm.active { color:var(--vault-accent); }
 
 
     .empty-state {
@@ -264,7 +302,8 @@
     .empty-state h3 { font-size: 18px; margin: 0 0 8px 0; color: var(--vault-text); font-weight: 500; }
     .empty-state p { font-size: 14px; margin: 0; max-width: 300px; line-height: 1.5; }
 
-    #fake-folder-dialog {\n      display:none; position:fixed; top:80px; right:20px; left:auto; transform:none;
+    #fake-folder-dialog {
+      display:none; position:absolute; top:100%; left:0; transform:none;
       background:var(--vt-surface); padding:20px 24px; border:1px solid var(--vault-border);
       z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.15); font-family: var(--font-body); color: var(--vault-text);
       border-radius: 6px; width: 380px;
@@ -331,7 +370,8 @@
       border-color: var(--vault-border) !important;
       transform: none !important; box-shadow: none !important;
     }
-    #theme-panel {\nposition: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
+    #theme-panel {
+      position: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
       background: var(--vt-surface); border: 1px solid var(--vault-border); border-top: none;
       padding: 16px; min-width: 280px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.15);
@@ -418,6 +458,7 @@
     <div class="toolbar">
       <button id="btn-back" title="No folder selected" aria-label="Back" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:16px;" disabled>&#8592;</button>
       <button id="btn-select">Browse Vault</button>
+      <div style="position:relative;">
       <button id="btn-new-folder" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center;" title="Select a Vault to create folders" disabled>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
@@ -425,6 +466,15 @@
           <line x1="9" y1="14" x2="15" y2="14"></line>
         </svg>
       </button>
+      <div id="fake-folder-dialog" role="dialog" aria-modal="true" aria-label="Create new folder">
+        <label for="fake-folder-name" style="display:block; margin-bottom:10px;">Enter Folder Name:</label>
+        <input type="text" id="fake-folder-name" class="search-box" placeholder="My Virtual Folder" style="width:100%; margin-bottom:15px;" />
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button id="btn-cancel-folder">Cancel</button>
+          <button id="btn-create-folder" style="background:var(--vault-accent)" disabled title="Folder name cannot be empty">Create</button>
+        </div>
+      </div>
+      </div>
       <button id="btn-refresh" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center;" title="No folder selected" disabled>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"></polyline>
@@ -479,14 +529,7 @@
     </div>
   </div>
 
-  <div id="fake-folder-dialog" role="dialog" aria-modal="true" aria-label="Create new folder">
-    <label for="fake-folder-name" style="display:block; margin-bottom:10px;">Enter Folder Name:</label>
-    <input type="text" id="fake-folder-name" class="search-box" placeholder="My Virtual Folder" style="width:100%; margin-bottom:15px;" />
-    <div style="display:flex; justify-content:flex-end; gap:10px;">
-      <button id="btn-cancel-folder">Cancel</button>
-      <button id="btn-create-folder" style="background:var(--vault-accent)" disabled title="Folder name cannot be empty">Create</button>
-    </div>
-  </div>
+
 
   <div id="crypto-dialog" role="dialog" aria-modal="true" aria-label="Encryption Password Dialog" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:var(--vt-surface-alt); padding:20px 24px; border:1px solid var(--vault-border); z-index: 3000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-family: var(--font-body); border-radius: 6px; width: 320px; color: var(--vault-text);">
     <label for="crypto-password" style="display:block; margin-bottom:10px;" id="crypto-dialog-label">Enter Password:</label>
@@ -497,9 +540,19 @@
     </div>
   </div>
 
+  <input type="file" id="subtitle-file-input" accept=".srt,.vtt,.ass,.ssa" style="display:none;">
+
   <div id="video-modal" role="dialog" aria-modal="true" aria-label="Video Player Modal" tabindex="-1">
-    <button id="close-modal" aria-label="Close modal" title="Close">&times;</button>
-    <button id="minimize-modal" aria-label="Minimize modal" title="Minimize/Maximize" style="position:absolute; top:24px; right:72px; font-family: var(--font-body); font-size:20px; color:var(--vault-slate); cursor:pointer; background:none; border:none; z-index: 201; transition: color 0.3s;">🗗</button>
+    <!-- Top bar: title + corner buttons -->
+    <div id="player-topbar">
+      <span class="player-title" id="player-title">—</span>
+      <div class="player-corner-btns">
+        <button class="player-corner-btn" id="minimize-modal" aria-label="Picture-in-Picture" title="Picture-in-Picture">🗗</button>
+        <button class="player-corner-btn" id="close-modal" aria-label="Close" title="Close (Esc)">✕</button>
+      </div>
+    </div>
+    <!-- PiP-only close button (visible only in minimized mode) -->
+    <button id="pip-close-btn" aria-label="Close" title="Close" style="display:none; position:absolute; top:6px; right:8px; z-index:203; background:rgba(0,0,0,0.5); border:none; color:#fff; border-radius:50%; width:20px; height:20px; font-size:12px; align-items:center; justify-content:center; cursor:pointer; padding:0; line-height:1;">✕</button>
     <div class="video-wrapper">
        <video id="video-player" autoplay></video>
        <div id="video-ended-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:100; align-items:center; justify-content:center; flex-direction:column; color:#fff; font-family:var(--font-body);">
@@ -507,26 +560,35 @@
          <div id="ended-countdown" style="font-size:16px;">Next video in 5 seconds...</div>
        </div>
        <div id="custom-controls">
-          <div id="seek-area" style="position:relative; width:100%; height:20px; cursor:pointer;">
-             <div style="width:100%; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin-top:8px;" id="seek-bg">
+          <div id="seek-area" style="position:relative; width:100%; height:24px; cursor:pointer;">
+             <div style="width:100%; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin-top:10px;" id="seek-bg">
                 <div id="seek-fill" style="width:0%; height:100%; background:var(--vault-accent); border-radius:2px; pointer-events:none;"></div>
              </div>
-             <div id="seek-hover-preview" style="position:absolute; bottom:25px; left:0; width:160px; aspect-ratio:16/9; background:#000; border:1px solid #fff; border-radius:4px; display:none; background-size:cover; pointer-events:none; transform:translateX(-50%);"></div>
+             <canvas id="seek-hover-preview" style="position:absolute; bottom:30px; left:0; width:160px; height:90px; border:1px solid rgba(255,255,255,0.4); border-radius:4px; display:none; pointer-events:none; transform:translateX(-50%); background:#000;"></canvas>
           </div>
-          <div style="display:flex; justify-content:space-between; color:#fff; font-size:13px; align-items:center;">
-             <div style="display:flex; gap:15px; align-items:center;">
-                <button id="btn-prev" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Previous" aria-label="Previous">&#9198;</button>
-                <button id="btn-playpause" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Play/Pause (Space)" aria-label="Play or Pause">&#10074;&#10074;</button>
-                <button id="btn-next" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Next" aria-label="Next">&#9199;</button>
+          <div id="seek-time-row">
+            <span id="time-elapsed">0:00</span>
+            <span id="time-total">0:00</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; color:#fff; font-size:13px; align-items:center; margin-top:4px;">
+             <div style="display:flex; gap:8px; align-items:center;">
+                <button id="btn-prev" class="ctrl-btn" title="Previous" aria-label="Previous">&#9198;</button>
+                <button id="btn-playpause" class="ctrl-btn" title="Play/Pause (Space)" aria-label="Play or Pause">&#10074;&#10074;</button>
+                <button id="btn-next" class="ctrl-btn" title="Next" aria-label="Next">&#9199;</button>
                 <div class="volume-container" style="position:relative; display:flex; align-items:center; cursor:pointer; height:30px;">
-                   <span style="font-size:16px;">&#128266;</span>
-                   <div class="volume-slider-wrapper" style="position:absolute; bottom:25px; left:50%; transform:translateX(-50%); display:none; background:rgba(0,0,0,0.8); padding:15px 10px; border-radius:4px; z-index:205;">
+                   <button class="ctrl-btn" style="font-size:20px; padding:2px 6px;" title="Volume">&#128266;</button>
+                   <div class="volume-slider-wrapper" style="position:absolute; bottom:35px; left:50%; transform:translateX(-50%); display:none; background:rgba(0,0,0,0.8); padding:15px 10px; border-radius:4px; z-index:205;">
                       <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; appearance: slider-vertical; width:8px; height:80px; accent-color:var(--vault-accent); cursor:pointer;" title="Volume (Up/Down)" aria-label="Volume">
                    </div>
                 </div>
-                <span id="time-display" style="margin-left:10px;">0:00 / 0:00</span>
+                <span id="time-display" style="font-size:12px; opacity:0.8; margin-left:4px;">0:00 / 0:00</span>
              </div>
-             <button id="btn-fullscreen" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;" title="Fullscreen (F)" aria-label="Toggle Fullscreen">&#x26F6;</button>
+             <div style="display:flex; gap:6px; align-items:center;">
+                <button id="btn-speed" class="ctrl-btn-sm" title="Playback speed" aria-label="Playback speed">1×</button>
+                <button id="btn-subtitles" class="ctrl-btn-sm" title="Load subtitles" aria-label="Load subtitles">CC</button>
+                <button id="btn-upscale" class="ctrl-btn-sm" title="Real-Time Upscaling (ESRGAN)" aria-label="Toggle upscaling">⬆ AI</button>
+                <button id="btn-fullscreen" class="ctrl-btn" title="Fullscreen (F)" aria-label="Toggle Fullscreen">&#x26F6;</button>
+             </div>
           </div>
        </div>
     </div>
@@ -860,7 +922,9 @@
              else { input.value = item.name; alert("Rename failed: " + res.error); }
          }
       };
-      input.addEventListener('mousedown', e => e.stopPropagation());\n      input.addEventListener('click', e => e.stopPropagation());\n      input.addEventListener('blur', commitRename);
+      input.addEventListener('mousedown', e => e.stopPropagation());
+      input.addEventListener('click', e => e.stopPropagation());
+      input.addEventListener('blur', commitRename);
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') { input.value = item.name; input.blur(); } });
       
       // Async Duration Extract
@@ -1567,24 +1631,39 @@
     });
     window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; sbox.style.display = 'none'; } });
 
+    // video-modal backdrop click: close only when NOT minimized
     el('video-modal').addEventListener('click', (e) => {
+        if (el('video-modal').classList.contains('minimized')) {
+            // PiP mode: any click except the X restores the player
+            if (!e.target.closest('#pip-close-btn')) {
+                el('video-modal').classList.remove('minimized');
+            }
+            return;
+        }
         if (e.target === el('video-modal')) el('close-modal').click();
     });
 
-    el('minimize-modal').addEventListener('click', () => {
+    el('minimize-modal').addEventListener('click', (e) => {
+        e.stopPropagation();
         el('video-modal').classList.toggle('minimized');
     });
 
-    el('close-modal').addEventListener('click', () => {
+    el('close-modal').addEventListener('click', (e) => {
+        e.stopPropagation();
         el('video-modal').style.display = 'none';
         el('video-modal').classList.remove('minimized');
         el('video-ended-overlay').style.display = 'none';
         if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
-        el('video-player').pause(); el('video-player').src = "";
+        el('video-player').pause(); el('video-player').src = '';
         if (currentPlayingIndex !== -1) {
             const card = document.querySelector(`.file-card[data-index="${currentPlayingIndex}"]`);
             if (card) card.focus();
         }
+    });
+
+    el('pip-close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        el('close-modal').click();
     });
 
     // Custom Video Player Logic
@@ -1601,6 +1680,23 @@
     let autoplayTimer = null;
     let autoplayCountdown = 5;
 
+    // Hidden scrubber video + canvas for seek preview
+    const scrubVideo = document.createElement('video');
+    scrubVideo.muted = true;
+    scrubVideo.preload = 'metadata';
+    scrubVideo.style.display = 'none';
+    document.body.appendChild(scrubVideo);
+    const seekCanvas = seekPreview;
+    const seekCtx = seekCanvas.getContext('2d');
+    seekCanvas.width = 320;
+    seekCanvas.height = 180;
+    let seekDebounceTimer = null;
+    let lastScrubSrc = '';
+
+    scrubVideo.addEventListener('seeked', () => {
+        seekCtx.drawImage(scrubVideo, 0, 0, seekCanvas.width, seekCanvas.height);
+    });
+
     function playItem(idx) {
         if (idx < 0 || idx >= displayedItems.length) return;
         const itm = displayedItems[idx];
@@ -1609,7 +1705,18 @@
         currentPlayingIndex = idx;
         trickFrames = [];
         vp.dataset.trickplay = itm.trickplayFolder || '';
-        vp.src = sanitizePath(itm.path);
+        const newSrc = sanitizePath(itm.path);
+        vp.src = newSrc;
+        // Keep scrubber synced to the same source
+        if (lastScrubSrc !== newSrc) {
+            scrubVideo.src = newSrc;
+            lastScrubSrc = newSrc;
+        }
+        // Update title display
+        const titleEl = el('player-title');
+        if (titleEl) titleEl.textContent = itm.name.replace(/\.[^.]+$/, '');
+        // Restore from PiP if needed
+        el('video-modal').classList.remove('minimized');
         btnPlay.innerHTML = '&#10074;&#10074;';
         el('video-modal').style.display = 'flex';
         el('video-modal').focus();
@@ -1694,11 +1801,27 @@
 
     vp.addEventListener('timeupdate', () => {
         if (!vp.duration) return;
-        seekFill.style.width = (vp.currentTime / vp.duration * 100) + '%';
-        el('time-display').innerText = formatDuration(vp.currentTime) + ' / ' + formatDuration(vp.duration);
+        const pct = vp.currentTime / vp.duration;
+        seekFill.style.width = (pct * 100) + '%';
+        const cur = formatDuration(vp.currentTime);
+        const tot = formatDuration(vp.duration);
+        el('time-display').innerText = cur + ' / ' + tot;
+        const elEl = el('time-elapsed'); if (elEl) elEl.innerText = cur;
+        const totEl = el('time-total'); if (totEl) totEl.innerText = tot;
     });
 
-    vp.addEventListener('click', () => { if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; } else { vp.pause(); btnPlay.innerHTML = '&#9654;'; } });
+    // Update total time on metadata load
+    vp.addEventListener('loadedmetadata', () => {
+        const totEl = el('time-total');
+        if (totEl && vp.duration) totEl.innerText = formatDuration(vp.duration);
+    });
+
+    // Click on video: play/pause only when NOT in PiP mode
+    vp.addEventListener('click', () => {
+        if (el('video-modal').classList.contains('minimized')) return;
+        if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; }
+        else { vp.pause(); btnPlay.innerHTML = '&#9654;'; }
+    });
 
     vp.addEventListener('ended', () => {
         let nextIdx = currentPlayingIndex + 1;
@@ -1756,6 +1879,188 @@
         }
     });
 
+    // Playback speed cycling
+    const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+    let speedIdx = 0;
+    el('btn-speed').addEventListener('click', () => {
+        speedIdx = (speedIdx + 1) % SPEEDS.length;
+        vp.playbackRate = SPEEDS[speedIdx];
+        el('btn-speed').textContent = SPEEDS[speedIdx] + '×';
+        el('btn-speed').classList.toggle('active', SPEEDS[speedIdx] !== 1);
+        showToast(`Speed: ${SPEEDS[speedIdx]}×`, 'success');
+    });
+
+    // Subtitle file picker
+    el('btn-subtitles').addEventListener('click', () => {
+        el('subtitle-file-input').click();
+    });
+    el('subtitle-file-input').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        // Remove existing track
+        const existing = vp.querySelector('track');
+        if (existing) existing.remove();
+        const track = document.createElement('track');
+        track.kind = 'subtitles';
+        track.label = file.name;
+        track.srclang = 'und';
+        track.src = URL.createObjectURL(file);
+        track.default = true;
+        vp.appendChild(track);
+        vp.textTracks[0].mode = 'showing';
+        el('btn-subtitles').classList.add('active');
+        showToast('Subtitles loaded: ' + file.name, 'success');
+        e.target.value = '';
+    });
+
+    // ── Real-Time ESRGAN Upscale ─────────────────────────────────────────────
+    let upscaleActive   = false;
+    let upscaleMS       = null;   // MediaSource instance
+    let upscaleSB       = null;   // SourceBuffer
+    let upscaleQueue    = [];     // pending ArrayBuffer chunks waiting to append
+    let upscaleAppending = false;
+    let upscaleOrigSrc  = '';
+    let upscaleOrigTime = 0;
+    let upscaleChunkCount = 0;
+
+    function upscaleFlushQueue() {
+        if (upscaleAppending || upscaleQueue.length === 0 || !upscaleSB) return;
+        if (upscaleSB.updating) return;
+        upscaleAppending = true;
+        try {
+            upscaleSB.appendBuffer(upscaleQueue.shift());
+        } catch(e) {
+            upscaleAppending = false;
+        }
+    }
+
+    function upscaleSetStatus(txt, color) {
+        const badge = el('upscale-badge');
+        if (badge) { badge.textContent = txt; badge.style.background = color || 'rgba(0,0,0,0.65)'; }
+    }
+
+    async function startUpscaleMode() {
+        if (!vp.src || !vp.src.startsWith('file://')) {
+            showToast('Upscaling requires a local video file', 'error'); return;
+        }
+        upscaleOrigSrc  = vp.src;
+        upscaleOrigTime = vp.currentTime;
+        upscaleChunkCount = 0;
+        upscaleQueue    = [];
+        upscaleAppending = false;
+
+        // Show badge
+        let badge = el('upscale-badge');
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.id = 'upscale-badge';
+            badge.style.cssText = 'position:absolute;top:52px;left:12px;z-index:210;padding:3px 8px;border-radius:4px;font-size:10px;font-family:var(--font-body);font-weight:700;letter-spacing:0.06em;color:#fff;pointer-events:none;background:rgba(0,0,0,0.65);';
+            el('video-modal').appendChild(badge);
+        }
+        upscaleSetStatus('⬆ AI  ·  initializing…', '#1a1a2e');
+
+        // Decode file:// path back to a system path for IPC
+        let rawPath = decodeURIComponent(upscaleOrigSrc.replace(/^file:\/\/\//, '').replace(/\//g, '\\'));
+        // Handle Windows drive letters (C%3A → C:)
+        rawPath = rawPath.replace(/^([A-Za-z])%3A/, '$1:');
+
+        // Register push-event listeners before starting
+        window.electronAPI.offUpscaleChunk();
+        window.electronAPI.offUpscaleStatus();
+
+        window.electronAPI.onUpscaleStatus(({ type, chunk, chunkStart, fps, width, height, duration }) => {
+            if (type === 'init') {
+                upscaleSetStatus(`⬆ AI  ·  ${width}×${height}→${width*2}×${height*2}  ·  buffering…`, '#0d1117');
+            } else if (type === 'processing') {
+                upscaleSetStatus(`⬆ AI  ·  chunk ${chunk+1}  processing…`, '#0d1117');
+            } else if (type === 'done') {
+                upscaleSetStatus('⬆ AI  ·  complete', '#155724');
+                if (upscaleMS && upscaleMS.readyState === 'open') {
+                    try { upscaleMS.endOfStream(); } catch(_) {}
+                }
+            } else if (type === 'chunk-error') {
+                console.warn('[upscale] chunk error on chunk', chunk);
+            }
+        });
+
+        window.electronAPI.onUpscaleChunk(({ chunk, buffer }) => {
+            upscaleChunkCount++;
+            upscaleSetStatus(`⬆ AI  ·  buf ${upscaleChunkCount} chunk(s)`, '#0d3349');
+            const ab = buffer instanceof ArrayBuffer ? buffer : buffer.buffer || Buffer.from(buffer).buffer;
+            upscaleQueue.push(ab);
+            upscaleFlushQueue();
+        });
+
+        // Set up MediaSource
+        upscaleMS = new MediaSource();
+        const msUrl = URL.createObjectURL(upscaleMS);
+
+        upscaleMS.addEventListener('sourceopen', () => {
+            try {
+                upscaleSB = upscaleMS.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+                upscaleSB.mode = 'sequence';
+                upscaleSB.addEventListener('updateend', () => {
+                    upscaleAppending = false;
+                    upscaleFlushQueue();
+                });
+                upscaleSB.addEventListener('error', (e) => {
+                    console.error('[upscale] SourceBuffer error', e);
+                    upscaleAppending = false;
+                });
+            } catch(e) {
+                console.error('[upscale] addSourceBuffer failed:', e.message);
+                upscaleSetStatus('⬆ AI  ·  codec error', '#721c24');
+            }
+        });
+
+        vp.src = msUrl;
+        vp.play().catch(() => {});
+
+        // Kick off the pipeline
+        const result = await window.electronAPI.startUpscaleStream({
+            videoPath: rawPath,
+            startTime: upscaleOrigTime
+        });
+        if (!result.success) {
+            showToast('Upscale failed: ' + result.error, 'error');
+            stopUpscaleMode();
+        }
+    }
+
+    function stopUpscaleMode() {
+        window.electronAPI.stopUpscaleStream();
+        window.electronAPI.offUpscaleChunk();
+        window.electronAPI.offUpscaleStatus();
+        if (upscaleMS) {
+            try { upscaleMS.endOfStream(); } catch(_) {}
+        }
+        upscaleMS   = null;
+        upscaleSB   = null;
+        upscaleQueue = [];
+
+        // Restore original src
+        if (upscaleOrigSrc) {
+            vp.src = upscaleOrigSrc;
+            vp.currentTime = upscaleOrigTime;
+            vp.play().catch(() => {});
+        }
+        const badge = el('upscale-badge');
+        if (badge) badge.remove();
+    }
+
+    el('btn-upscale').addEventListener('click', async () => {
+        upscaleActive = !upscaleActive;
+        el('btn-upscale').classList.toggle('active', upscaleActive);
+        if (upscaleActive) {
+            showToast('Starting real-time upscaling…', 'success');
+            await startUpscaleMode();
+        } else {
+            showToast('Upscaling stopped', 'success');
+            stopUpscaleMode();
+        }
+    });
+
+
     // Video Shortcut Keys
     document.addEventListener('keydown', (e) => {
         if (el('video-modal').style.display === 'flex') {
@@ -1803,15 +2108,28 @@
         let percent = (e.clientX - rect.left) / rect.width;
         if (percent < 0) percent = 0; if (percent > 1) percent = 1;
 
+        seekPreview.style.display = 'block';
+        seekPreview.style.left = (percent * 100) + '%';
+
         const tpFolder = vp.dataset.trickplay;
+        let usedTrickplay = false;
         if (tpFolder) {
-            seekPreview.style.display = 'block';
-            seekPreview.style.left = (percent * 100) + '%';
             if (trickFrames.length === 0) trickFrames = await window.electronAPI.getTrickplaySprites(tpFolder);
             if (trickFrames.length > 0) {
-                const idx = Math.floor(percent * trickFrames.length);
-                if (trickFrames[idx]) seekPreview.style.backgroundImage = `url('${sanitizePath(trickFrames[idx])}')`;
+                usedTrickplay = true;
+                const idx = Math.min(Math.floor(percent * trickFrames.length), trickFrames.length - 1);
+                const img = new Image();
+                img.onload = () => seekCtx.drawImage(img, 0, 0, seekCanvas.width, seekCanvas.height);
+                img.src = sanitizePath(trickFrames[idx]);
             }
+        }
+        if (!usedTrickplay && vp.duration && scrubVideo.src) {
+            // Canvas scrubber fallback (no trickplay or trickplay returned 0 frames)
+            const targetTime = percent * vp.duration;
+            clearTimeout(seekDebounceTimer);
+            seekDebounceTimer = setTimeout(() => {
+                scrubVideo.currentTime = targetTime;
+            }, 60);
         }
     });
 
