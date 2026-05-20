@@ -238,6 +238,23 @@
       background: var(--vt-primary); z-index: 100;
     }
 
+    #video-modal.minimized {
+      position: fixed; bottom: 20px; right: 20px; top: auto; left: auto;
+      width: 320px; height: 180px; background: var(--vt-surface-alt);
+      border: 1px solid var(--vault-border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      border-radius: 8px; z-index: 9999;
+    }
+    #video-modal.minimized #close-modal { top: 10px; right: 15px; font-size: 20px; }
+    #video-modal.minimized #minimize-modal { top: 10px; right: 45px; font-size: 16px; }
+    #video-modal.minimized .video-wrapper { width: 100%; height: 100%; }
+    #video-modal.minimized #custom-controls { padding: 10px; padding-top: 20px; }
+    #video-modal.minimized #custom-controls .volume-container,
+    #video-modal.minimized #custom-controls #btn-prev,
+    #video-modal.minimized #custom-controls #btn-next { display: none !important; }
+    #video-modal.minimized #seek-area { height: 8px; margin-top: 4px; }
+    #video-modal.minimized #seek-bg { margin-top: 2px !important; }
+
+
     .empty-state {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       width: 100%; height: 60vh; color: var(--vault-slate); text-align: center;
@@ -471,10 +488,24 @@
     </div>
   </div>
 
+  <div id="crypto-dialog" role="dialog" aria-modal="true" aria-label="Encryption Password Dialog" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:var(--vt-surface-alt); padding:20px 24px; border:1px solid var(--vault-border); z-index: 3000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-family: var(--font-body); border-radius: 6px; width: 320px; color: var(--vault-text);">
+    <label for="crypto-password" style="display:block; margin-bottom:10px;" id="crypto-dialog-label">Enter Password:</label>
+    <input type="password" id="crypto-password" class="search-box" placeholder="••••••••" style="width:100%; margin-bottom:15px; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none;" />
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button id="btn-cancel-crypto" style="background:transparent; border:1px solid var(--vault-border); padding:6px 12px; border-radius:4px; font-weight:600; font-family:var(--font-body); cursor:pointer; color:var(--vault-text);">Cancel</button>
+      <button id="btn-confirm-crypto" style="background:var(--vault-accent); color:var(--vt-primary); border:none; padding:6px 12px; border-radius:4px; font-weight:600; font-family:var(--font-body); cursor:pointer;">Confirm</button>
+    </div>
+  </div>
+
   <div id="video-modal" role="dialog" aria-modal="true" aria-label="Video Player Modal" tabindex="-1">
     <button id="close-modal" aria-label="Close modal" title="Close">&times;</button>
+    <button id="minimize-modal" aria-label="Minimize modal" title="Minimize/Maximize" style="position:absolute; top:24px; right:72px; font-family: var(--font-body); font-size:20px; color:var(--vault-slate); cursor:pointer; background:none; border:none; z-index: 201; transition: color 0.3s;">🗗</button>
     <div class="video-wrapper">
        <video id="video-player" autoplay></video>
+       <div id="video-ended-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:100; align-items:center; justify-content:center; flex-direction:column; color:#fff; font-family:var(--font-body);">
+         <div style="font-size:48px; margin-bottom:20px; cursor:pointer;" id="ended-play-btn">&#9658;</div>
+         <div id="ended-countdown" style="font-size:16px;">Next video in 5 seconds...</div>
+       </div>
        <div id="custom-controls">
           <div id="seek-area" style="position:relative; width:100%; height:20px; cursor:pointer;">
              <div style="width:100%; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin-top:8px;" id="seek-bg">
@@ -908,6 +939,84 @@
              el('loading-text').innerText = translations[currentLang].scanning;
              if (!res.success) showToast('Upscale failed: ' + (res.error || 'Unknown'), 'error');
              else showToast('Upscale complete (stub — no AI model configured)', 'success');
+         } else if (action === 'encrypt-prompt' || action === 'decrypt-prompt') {
+             const pathsToProcess = [];
+             selectedIndices.forEach(idx => {
+                 const si = displayedItems[idx];
+                 if (si && si.path && si.type !== 'fakeFolder') pathsToProcess.push(si.path);
+             });
+             
+             if (pathsToProcess.length === 0) {
+                 showToast('No valid files selected', 'error');
+                 return;
+             }
+             
+             const dialogEl = el('crypto-dialog');
+             const passwordInput = el('crypto-password');
+             const labelEl = el('crypto-dialog-label');
+             
+             labelEl.innerText = action === 'encrypt-prompt' 
+                 ? `Encrypt ${pathsToProcess.length} file(s) with AES-256:` 
+                 : `Decrypt ${pathsToProcess.length} file(s) with AES-256:`;
+             passwordInput.value = '';
+             dialogEl.style.display = 'block';
+             passwordInput.focus();
+             
+             const onCancel = () => {
+                 dialogEl.style.display = 'none';
+                 cleanup();
+             };
+             
+             const onConfirm = async () => {
+                 const password = passwordInput.value;
+                 if (!password) {
+                     showToast('Password cannot be empty', 'error');
+                     return;
+                 }
+                 dialogEl.style.display = 'none';
+                 cleanup();
+                 
+                 el('loading-text').innerText = action === 'encrypt-prompt' ? 'Encrypting files...' : 'Decrypting files...';
+                 el('loading').style.display = 'flex';
+                 
+                 if (action === 'encrypt-prompt') {
+                     const res = await window.electronAPI.encryptFiles({ paths: pathsToProcess, password });
+                     el('loading').style.display = 'none';
+                     el('loading-text').innerText = translations[currentLang].scanning;
+                     if (res.success) {
+                         showToast('Files encrypted successfully', 'success');
+                         loadDirectory(currentNavPath, currentRealPath, true);
+                     } else {
+                         showToast('Encryption failed: ' + res.error, 'error');
+                     }
+                 } else {
+                     const res = await window.electronAPI.decryptFiles({ paths: pathsToProcess, password });
+                     el('loading').style.display = 'none';
+                     el('loading-text').innerText = translations[currentLang].scanning;
+                     if (res.success) {
+                         showToast('Files decrypted successfully', 'success');
+                         loadDirectory(currentNavPath, currentRealPath, true);
+                     } else {
+                         showToast(`Decrypted ${res.count || 0}/${pathsToProcess.length} files successfully. Some passwords may be incorrect.`, 'error');
+                         loadDirectory(currentNavPath, currentRealPath, true);
+                     }
+                 }
+             };
+             
+             const onKeydown = (e) => {
+                 if (e.key === 'Enter') onConfirm();
+                 else if (e.key === 'Escape') onCancel();
+             };
+             
+             const cleanup = () => {
+                 el('btn-cancel-crypto').removeEventListener('click', onCancel);
+                 el('btn-confirm-crypto').removeEventListener('click', onConfirm);
+                 passwordInput.removeEventListener('keydown', onKeydown);
+             };
+             
+             el('btn-cancel-crypto').addEventListener('click', onCancel);
+             el('btn-confirm-crypto').addEventListener('click', onConfirm);
+             passwordInput.addEventListener('keydown', onKeydown);
          } else if (action === 'remove-folder') {
              if (confirm(`Remove folder "${item.name}"?`)) {
                  appSettings.folders = appSettings.folders.filter(f => !(f.name === item.name && (f.parent === currentNavPath || (currentNavPath === 'root' && !f.parent))));
@@ -1332,6 +1441,7 @@
     });
 
     document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
             e.preventDefault();
             const sb = el('search-box');
@@ -1352,6 +1462,74 @@
                 const inp = card.querySelector('.rename-input'); const fn = card.querySelector('.filename');
                 inp.style.display = 'block'; fn.style.display = 'none'; inp.focus(); inp.select();
             }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+            if (selectedIndices.size > 0) {
+                e.preventDefault();
+                window._clipboard = { paths: [], mode: 'copy' };
+                selectedIndices.forEach(idx => {
+                    const si = displayedItems[idx];
+                    if (si && si.path) window._clipboard.paths.push(si.path);
+                });
+                showToast(`Copied ${window._clipboard.paths.length} item(s)`, 'success');
+            }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+            if (selectedIndices.size > 0) {
+                e.preventDefault();
+                window._clipboard = { paths: [], mode: 'cut' };
+                selectedIndices.forEach(idx => {
+                    const si = displayedItems[idx];
+                    if (si && si.path) window._clipboard.paths.push(si.path);
+                });
+                showToast(`Cut ${window._clipboard.paths.length} item(s)`, 'success');
+            }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+            if (window._clipboard && window._clipboard.paths.length > 0) {
+                e.preventDefault();
+                (async () => {
+                    const res = await window.electronAPI.pasteFiles({ paths: window._clipboard.paths, mode: window._clipboard.mode, destination: currentRealPath });
+                    if (res.success) {
+                        showToast(`Pasted ${res.count} file(s)`, 'success');
+                        if (window._clipboard.mode === 'cut') window._clipboard = { paths: [], mode: 'copy' };
+                        loadDirectory(currentNavPath, currentRealPath, false);
+                    } else {
+                        showToast('Paste failed: ' + res.error, 'error');
+                    }
+                })();
+            }
+        } else if (e.key === 'Delete') {
+            if (selectedIndices.size > 0) {
+                e.preventDefault();
+                const itemsToDelete = Array.from(selectedIndices).map(idx => displayedItems[idx]).filter(Boolean);
+                if (itemsToDelete.length > 0) {
+                    const names = itemsToDelete.map(i => i.name).join(', ');
+                    if (confirm(`Delete selected item(s): ${names}?`)) {
+                        (async () => {
+                            let successCount = 0;
+                            for (const item of itemsToDelete) {
+                                if (item.type === 'fakeFolder') {
+                                    appSettings.folders = appSettings.folders.filter(f => !(f.name === item.name && (f.parent === currentNavPath || (currentNavPath === 'root' && !f.parent))));
+                                    successCount++;
+                                } else {
+                                    const res = await window.electronAPI.deleteItem(item.path);
+                                    if (res.success) {
+                                        allItems = allItems.filter(i => i.path !== item.path);
+                                        successCount++;
+                                    }
+                                }
+                            }
+                            if (successCount > 0) {
+                                showToast(`Deleted ${successCount} item(s)`, 'success');
+                                window.electronAPI.saveSettings(appSettings);
+                                loadDirectory(currentNavPath, currentRealPath, true);
+                            }
+                        })();
+                    }
+                }
+            }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+            e.preventDefault();
+            const btn = document.getElementById('btn-new-folder');
+            if (btn && !btn.disabled) btn.click();
         }
     });
 
@@ -1393,8 +1571,15 @@
         if (e.target === el('video-modal')) el('close-modal').click();
     });
 
+    el('minimize-modal').addEventListener('click', () => {
+        el('video-modal').classList.toggle('minimized');
+    });
+
     el('close-modal').addEventListener('click', () => {
         el('video-modal').style.display = 'none';
+        el('video-modal').classList.remove('minimized');
+        el('video-ended-overlay').style.display = 'none';
+        if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
         el('video-player').pause(); el('video-player').src = "";
         if (currentPlayingIndex !== -1) {
             const card = document.querySelector(`.file-card[data-index="${currentPlayingIndex}"]`);
@@ -1413,6 +1598,8 @@
     const volSlider = el('volume-slider');
     let trickFrames = [];
     let currentPlayingIndex = -1;
+    let autoplayTimer = null;
+    let autoplayCountdown = 5;
 
     function playItem(idx) {
         if (idx < 0 || idx >= displayedItems.length) return;
@@ -1512,6 +1699,53 @@
     });
 
     vp.addEventListener('click', () => { if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; } else { vp.pause(); btnPlay.innerHTML = '&#9654;'; } });
+
+    vp.addEventListener('ended', () => {
+        let nextIdx = currentPlayingIndex + 1;
+        while (nextIdx < displayedItems.length && displayedItems[nextIdx].type !== 'video') nextIdx++;
+        
+        const overlay = el('video-ended-overlay');
+        if (!overlay) return;
+        overlay.style.display = 'flex';
+        
+        const countdownEl = el('ended-countdown');
+        if (nextIdx < displayedItems.length) {
+            autoplayCountdown = 5;
+            countdownEl.innerText = `Next video in ${autoplayCountdown} seconds... (Click to cancel)`;
+            countdownEl.style.cursor = 'pointer';
+            
+            if (autoplayTimer) clearInterval(autoplayTimer);
+            autoplayTimer = setInterval(() => {
+                autoplayCountdown--;
+                if (autoplayCountdown <= 0) {
+                    clearInterval(autoplayTimer);
+                    overlay.style.display = 'none';
+                    playItem(nextIdx);
+                } else {
+                    countdownEl.innerText = `Next video in ${autoplayCountdown} seconds... (Click to cancel)`;
+                }
+            }, 1000);
+        } else {
+            countdownEl.innerText = "End of playlist. Click Replay to start over.";
+            countdownEl.style.cursor = 'default';
+        }
+    });
+
+    el('ended-play-btn').addEventListener('click', () => {
+        if (autoplayTimer) clearInterval(autoplayTimer);
+        el('video-ended-overlay').style.display = 'none';
+        vp.currentTime = 0;
+        vp.play();
+        btnPlay.innerHTML = '&#10074;&#10074;';
+    });
+
+    el('ended-countdown').addEventListener('click', () => {
+        if (autoplayTimer) {
+            clearInterval(autoplayTimer);
+            autoplayTimer = null;
+            el('ended-countdown').innerText = "Autoplay cancelled. Click Play icon to replay.";
+        }
+    });
 
     btnPlay.addEventListener('click', () => { if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; } else { vp.pause(); btnPlay.innerHTML = '&#9654;'; } });
     el('btn-fullscreen').addEventListener('click', () => { 
