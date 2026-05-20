@@ -19,5 +19,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   getTheme: () => ipcRenderer.invoke('get-theme'),
-  setTheme: (t) => ipcRenderer.invoke('set-theme', t)
+  setTheme: (t) => ipcRenderer.invoke('set-theme', t),
+  scheduleIdlePreviews: (items) => ipcRenderer.invoke('schedule-idle-previews', items),
+  pasteFiles: (data) => ipcRenderer.invoke('paste-files', data),
+  zipSelection: (data) => ipcRenderer.invoke('zip-selection', data),
+  getFileProperties: (p) => ipcRenderer.invoke('get-file-properties', p),
+  getFolderSizeSmart: (dirPath, fileCount) => ipcRenderer.invoke('get-folder-size-smart', dirPath, fileCount)
 });

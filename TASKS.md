@@ -33,7 +33,7 @@ Refactor backend services and data structures:
 <!-- ESTIMATE: 45min -->
 Deploy the new UI design system and solve related layout bugs:
 
-- **Brand Deployment**: Apply the UI Kit details found in `vault-themes/assets/new-theme/dist-to-vault-themes/README.md`. Move/copy CSS theme tokens into `index.css`.
+- **Brand Deployment**: Apply the UI Kit details found in `vaultwares-themes/assets/new-theme/dist-to-vaultwares-themes/README.md`. Move/copy CSS theme tokens into `index.css`.
 - **Exporters Update**: Integrate 14 themes inside `theme_manager.py` (Title Case names, kebab-case IDs). Expose all semantic variables (`primary`, `surface`, `accent`, `text`, etc.). Add dark mode default (`golden-slate`) and light mode default (`codex-solar-light-revisited`) dynamic selector.
 - **Logo Integration**: Insert the full VaultWares SVG logo in the top bar header. Use the minimal gold icon when collapsed or in tight spots.
 - **Header Refactor**: Move the text folders and refresh buttons into small, elegant icon buttons placed immediately in the top bar next to "browse vault". Move the "search files..." input from the top bar to the secondary header row.
