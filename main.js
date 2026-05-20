@@ -228,11 +228,12 @@ const activeQueuePaths = new Set();
 
 const benchmarkPath = path.join(__dirname, 'BENCHMARKS.md');
 function writeBenchmark(entry) {
-    const header = `| Timestamp | Video Name | Size | Duration | Thumb Time | WebM Time | Status |\n| --- | --- | --- | --- | --- | --- | --- |\n`;
+    const header = `| Timestamp | Video Name | Size | Duration | Thumb Time | WebM Time | Status 
+    | --- | --- | --- | --- | --- | --- | --- |`;
     if (!fs.existsSync(benchmarkPath)) {
         fs.writeFileSync(benchmarkPath, header, 'utf8');
     }
-    const row = `| ${new Date().toISOString()} | ${entry.name} | ${entry.size} | ${entry.duration.toFixed(1)}s | ${entry.thumbTime ? entry.thumbTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.webmTime ? entry.webmTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.status} |\n`;
+    const row = `| ${new Date().toISOString()} | ${entry.name} | ${entry.size} | ${entry.duration.toFixed(1)}s | ${entry.thumbTime ? entry.thumbTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.webmTime ? entry.webmTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.status} |`;
     fs.appendFileSync(benchmarkPath, row, 'utf8');
 }
 
@@ -444,7 +445,8 @@ function convertLegacyMp4Previews(thumbsDir) {
                         try { fs.unlinkSync(mp4Path); } catch (e) {}
                         log('legacy-convert', 'Converted:', f, '->', path.basename(webmPath));
                     } catch (e) {
-                        log('legacy-convert', 'Failed for', mp4Path, ':', e.message);\n                            try { fs.unlinkSync(mp4Path); } catch (err) {}
+                        log('legacy-convert', 'Failed for', mp4Path, ':', e.message);
+                        try { fs.unlinkSync(mp4Path); } catch (err) {}
                     } finally {
                         activeQueuePaths.delete(mp4Path);
                     }
@@ -574,7 +576,7 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
     return output;
 }
 
-ipcMain.handle('scan-directory', async (event, dirPath) => {\n  console.log('[API] scan-directory called with', dirPath);
+ipcMain.handle('scan-directory', async (event, dirPath) => { console.log('[API] scan-directory called with', dirPath);
   if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return [];
   log('scan', 'Scanning:', dirPath);
   const settings = loadSettings();
@@ -601,7 +603,7 @@ ipcMain.handle('get-trickplay-sprites', async (event, folderPath) => {
     try {
         const files = await fsPromises.readdir(folderPath);
         let images = files.filter(f => f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png'));
-        images.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));\n        console.log('[API] get-trickplay-sprites returned', images.length, 'images');
+        images.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));        console.log('[API] get-trickplay-sprites returned', images.length, 'images');
         return images.map(img => path.join(folderPath, img));
     } catch(e) {
         return [];
@@ -844,7 +846,16 @@ ipcMain.handle('paste-files', async (event, { paths, mode, destination }) => {
             errors.push(`${src} does not exist`);
             continue;
         }
-        let dest = path.join(destination, path.basename(src));\n        if (src.toLowerCase() === dest.toLowerCase()) {\n            let baseName = path.basename(src, path.extname(src));\n            let ext = path.extname(src);\n            let counter = 1;\n            while (fs.existsSync(dest)) {\n                dest = path.join(destination, baseName + ' - Copy (' + counter + ')' + ext);\n                counter++;\n            }\n        }
+        let dest = path.join(destination, path.basename(src));
+        if (src.toLowerCase() === dest.toLowerCase()) {
+            let baseName = path.basename(src, path.extname(src));
+            let ext = path.extname(src);
+            let counter = 1;
+            while (fs.existsSync(dest)) {
+                dest = path.join(destination, baseName + ' - Copy (' + counter + ')' + ext);
+                counter++;
+                }
+                }
         try {
             if (mode === 'copy') {
                 fs.copyFileSync(src, dest);
@@ -874,7 +885,8 @@ ipcMain.handle('zip-selection', async (event, { paths, outputPath }) => {
     });
 });
 
-ipcMain.handle('get-file-properties', async (event, filePath) => {\n    console.log('[API] get-file-properties called with', filePath);
+ipcMain.handle('get-file-properties', async (event, filePath) => {
+    console.log('[API] get-file-properties called with', filePath);
     if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
         return { success: false, error: 'File not found' };
     }
@@ -1074,4 +1086,222 @@ async function calculateDirectorySizeRecursive(dir) {
 ipcMain.handle('get-folder-size-background', async (event, dirPath) => {
     if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return 0;
     return await calculateDirectorySizeRecursive(dirPath);
+});
+
+// ─── Real-Time ESRGAN Upscale Stream ──────────────────────────────────────────
+const CHUNK_FRAMES = 60;      // frames per batch  (2 s @ 30 fps)
+const PARALLEL_ESRGAN = 4;    // concurrent ESRGAN processes per batch
+const ESRGAN_MODEL = 'realesr-animevideov3-x2';  // fastest video model
+const LEAD_CHUNKS = 3;        // how many chunks to pre-process ahead
+
+let upscaleSession = null;    // active session state
+
+function killSession(session) {
+    if (!session) return;
+    session.cancelled = true;
+    for (const proc of (session.procs || [])) {
+        try { proc.kill(); } catch (_) {}
+    }
+    // clean temp dir async
+    if (session.tmpDir && fs.existsSync(session.tmpDir)) {
+        fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+    }
+}
+
+ipcMain.handle('upscale-stream-stop', async () => {
+    if (upscaleSession) {
+        log('upscale', 'Stopping session');
+        killSession(upscaleSession);
+        upscaleSession = null;
+    }
+    return { success: true };
+});
+
+ipcMain.handle('upscale-stream-start', async (event, { videoPath, startTime, fps: hintFps }) => {
+    if (upscaleSession) { killSession(upscaleSession); upscaleSession = null; }
+
+    if (!fs.existsSync(videoPath)) return { success: false, error: 'File not found' };
+
+    const realesrganPath = path.join(__dirname, 'tools', 'realesrgan-ncnn-vulkan.exe');
+    const modelsPath     = path.join(__dirname, 'tools', 'models');
+    if (!fs.existsSync(realesrganPath)) return { success: false, error: 'Real-ESRGAN not found' };
+
+    const sender = event.sender;
+    const send   = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
+
+    // ── Probe video fps & duration ──────────────────────────────────────────
+    const probe = await new Promise(res => {
+        execFile('ffprobe', [
+            '-v', 'error', '-select_streams', 'v:0',
+            '-show_entries', 'stream=r_frame_rate,duration,width,height',
+            '-of', 'json', videoPath
+        ], (err, stdout) => {
+            if (err) return res({ fps: hintFps || 24, duration: 0, width: 1920, height: 1080 });
+            try {
+                const d = JSON.parse(stdout);
+                const s = d.streams && d.streams[0];
+                if (!s) return res({ fps: hintFps || 24, duration: 0 });
+                const [n, den] = s.r_frame_rate.split('/').map(Number);
+                res({ fps: den ? n / den : 24, duration: parseFloat(s.duration) || 0,
+                      width: s.width, height: s.height });
+            } catch (_) { res({ fps: hintFps || 24, duration: 0 }); }
+        });
+    });
+
+    const { fps, duration, width, height } = probe;
+    log('upscale', `Starting: ${videoPath} | ${width}x${height} @ ${fps.toFixed(2)} fps | start=${startTime}s`);
+    send('upscale-status', { type: 'init', fps, width, height, duration });
+
+    // ── Create temp workspace ───────────────────────────────────────────────
+    const tmpDir = path.join(os.tmpdir(), `ve-upscale-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    const session = { cancelled: false, procs: [], tmpDir };
+    upscaleSession = session;
+
+    // ── Producer: extract → ESRGAN → encode one chunk, emit segment buffer ─
+    async function processChunk(chunkIndex) {
+        if (session.cancelled) return;
+        const chunkStart = startTime + chunkIndex * (CHUNK_FRAMES / fps);
+        if (duration > 0 && chunkStart >= duration) {
+            send('upscale-status', { type: 'done' });
+            return;
+        }
+
+        const chunkDir   = path.join(tmpDir, `chunk_${chunkIndex}`);
+        const rawDir     = path.join(chunkDir, 'raw');
+        const upDir      = path.join(chunkDir, 'up');
+        const segPath    = path.join(chunkDir, 'seg.mp4');
+        fs.mkdirSync(rawDir, { recursive: true });
+        fs.mkdirSync(upDir,  { recursive: true });
+
+        send('upscale-status', { type: 'processing', chunk: chunkIndex, chunkStart });
+
+        // 1) Extract raw frames
+        await new Promise((res, rej) => {
+            const args = [
+                '-y', '-ss', String(chunkStart), '-i', videoPath,
+                '-frames:v', String(CHUNK_FRAMES), '-vsync', 'vfr',
+                path.join(rawDir, 'f%05d.png')
+            ];
+            const proc = execFile('ffmpeg', args, { windowsHide: true }, (err) => {
+                session.procs.splice(session.procs.indexOf(proc), 1);
+                if (err && !session.cancelled) return rej(err);
+                res();
+            });
+            session.procs.push(proc);
+        }).catch(e => { if (!session.cancelled) log('upscale', 'ffmpeg extract error:', e.message); });
+
+        if (session.cancelled) return;
+
+        // 2) ESRGAN: process frames in parallel batches
+        const frames = fs.readdirSync(rawDir).filter(f => f.endsWith('.png')).sort();
+        if (frames.length === 0) {
+            send('upscale-status', { type: 'done' });
+            return;
+        }
+
+        // Split frames across parallel workers
+        const batches = [];
+        for (let i = 0; i < frames.length; i += Math.ceil(frames.length / PARALLEL_ESRGAN)) {
+            batches.push(frames.slice(i, i + Math.ceil(frames.length / PARALLEL_ESRGAN)));
+        }
+
+        await Promise.all(batches.map(batch => new Promise((res) => {
+            // Write batch list to a temp txt file for ESRGAN input
+            const batchRawDir  = path.join(chunkDir, `raw_b${batches.indexOf(batch)}`);
+            const batchUpDir   = path.join(chunkDir, `up_b${batches.indexOf(batch)}`);
+            fs.mkdirSync(batchRawDir, { recursive: true });
+            fs.mkdirSync(batchUpDir,  { recursive: true });
+            for (const f of batch) {
+                fs.copyFileSync(path.join(rawDir, f), path.join(batchRawDir, f));
+            }
+            const args = ['-i', batchRawDir, '-o', batchUpDir, '-n', ESRGAN_MODEL,
+                          '-m', modelsPath, '-f', 'png'];
+            const proc = execFile(realesrganPath, args, { windowsHide: true }, (err) => {
+                session.procs.splice(session.procs.indexOf(proc), 1);
+                // Copy results back to upDir
+                try {
+                    const outFiles = fs.readdirSync(batchUpDir);
+                    for (const f of outFiles) {
+                        fs.copyFileSync(path.join(batchUpDir, f), path.join(upDir, f));
+                    }
+                } catch (_) {}
+                res();
+            });
+            session.procs.push(proc);
+        })));
+
+        if (session.cancelled) return;
+
+        // 3) Re-encode upscaled frames to fragmented MP4 segment
+        const upFrames = fs.readdirSync(upDir).filter(f => f.endsWith('.png'));
+        if (upFrames.length === 0) {
+            // Fallback: encode original frames
+            fs.readdirSync(rawDir).filter(f => f.endsWith('.png'))
+              .forEach(f => fs.copyFileSync(path.join(rawDir, f), path.join(upDir, f)));
+        }
+
+        await new Promise((res) => {
+            const args = [
+                '-y', '-framerate', String(fps),
+                '-i', path.join(upDir, 'f%05d.png'),
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '20',
+                '-pix_fmt', 'yuv420p',
+                '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+                '-g', '30',
+                segPath
+            ];
+            const proc = execFile('ffmpeg', args, { windowsHide: true }, (err) => {
+                session.procs.splice(session.procs.indexOf(proc), 1);
+                if (err && !session.cancelled) log('upscale', 'encode error:', err.message);
+                res();
+            });
+            session.procs.push(proc);
+        });
+
+        if (session.cancelled) return;
+
+        // 4) Send the segment buffer to renderer
+        if (fs.existsSync(segPath)) {
+            const buf = fs.readFileSync(segPath);
+            send('upscale-chunk', {
+                chunk: chunkIndex,
+                chunkStart,
+                duration: CHUNK_FRAMES / fps,
+                buffer: buf,       // Buffer → transferred as Uint8Array in renderer
+            });
+            log('upscale', `Chunk ${chunkIndex} sent (${buf.length} bytes)`);
+        } else {
+            send('upscale-status', { type: 'chunk-error', chunk: chunkIndex });
+        }
+
+        // 5) Clean up this chunk's temp files to save disk space
+        fs.rm(chunkDir, { recursive: true, force: true }, () => {});
+    }
+
+    // ── Pipeline: process LEAD_CHUNKS ahead, then respond to renderer asks ─
+    (async () => {
+        let chunkIndex = 0;
+        let inFlight   = 0;
+        const MAX_INFLIGHT = LEAD_CHUNKS;
+
+        async function maybeNext() {
+            while (inFlight < MAX_INFLIGHT && !session.cancelled) {
+                const ci = chunkIndex++;
+                inFlight++;
+                processChunk(ci).then(() => {
+                    inFlight--;
+                    maybeNext();
+                }).catch(e => {
+                    inFlight--;
+                    log('upscale', 'Chunk error:', e?.message);
+                    maybeNext();
+                });
+            }
+        }
+        maybeNext();
+    })();
+
+    return { success: true, fps, width, height, duration };
 });
