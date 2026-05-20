@@ -378,7 +378,7 @@ function convertLegacyMp4Previews(thumbsDir) {
                         try { fs.unlinkSync(mp4Path); } catch (e) {}
                         log('legacy-convert', 'Converted:', f, '->', path.basename(webmPath));
                     } catch (e) {
-                        log('legacy-convert', 'Failed for', mp4Path, ':', e.message);
+                        log('legacy-convert', 'Failed for', mp4Path, ':', e.message);\n                            try { fs.unlinkSync(mp4Path); } catch (err) {}
                     } finally {
                         activeQueuePaths.delete(mp4Path);
                     }
@@ -418,10 +418,11 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
       
       if (thumbsDir && res.startsWith(thumbsDir)) continue;
 
-      if (ext === '.webm' || name.endsWith('_p.mp4') || name.endsWith('-preview.mp4')) {
+      if (type === 'image' || ext === '.webm' || name.endsWith('_p.mp4') || name.endsWith('-preview.mp4')) {
           let checkName = baseName;
           if (name.endsWith('_p.mp4')) checkName = baseName.substring(0, baseName.length - 2);
           else if (name.endsWith('-preview.mp4')) checkName = baseName.replace('-preview', '');
+          else if (name.endsWith('-poster')) checkName = baseName.replace('-poster', '');
           
           if (allFilesSet) {
               const hasParent = ['.mp4', '.mkv', '.avi', '.mov', '.ts', '.wmv'].some(e => 
@@ -507,7 +508,7 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
     return output;
 }
 
-ipcMain.handle('scan-directory', async (event, dirPath) => {
+ipcMain.handle('scan-directory', async (event, dirPath) => {\n  console.log('[API] scan-directory called with', dirPath);
   if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return [];
   log('scan', 'Scanning:', dirPath);
   const settings = loadSettings();
@@ -534,7 +535,7 @@ ipcMain.handle('get-trickplay-sprites', async (event, folderPath) => {
     try {
         const files = await fsPromises.readdir(folderPath);
         let images = files.filter(f => f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png'));
-        images.sort((a,b) => (parseInt(path.basename(a), 10)||0) - (parseInt(path.basename(b), 10)||0));
+        images.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));\n        console.log('[API] get-trickplay-sprites returned', images.length, 'images');
         return images.map(img => path.join(folderPath, img));
     } catch(e) {
         return [];
@@ -697,7 +698,7 @@ ipcMain.handle('paste-files', async (event, { paths, mode, destination }) => {
             errors.push(`${src} does not exist`);
             continue;
         }
-        const dest = path.join(destination, path.basename(src));
+        let dest = path.join(destination, path.basename(src));\n        if (src.toLowerCase() === dest.toLowerCase()) {\n            let baseName = path.basename(src, path.extname(src));\n            let ext = path.extname(src);\n            let counter = 1;\n            while (fs.existsSync(dest)) {\n                dest = path.join(destination, baseName + ' - Copy (' + counter + ')' + ext);\n                counter++;\n            }\n        }
         try {
             if (mode === 'copy') {
                 fs.copyFileSync(src, dest);
@@ -727,7 +728,7 @@ ipcMain.handle('zip-selection', async (event, { paths, outputPath }) => {
     });
 });
 
-ipcMain.handle('get-file-properties', async (event, filePath) => {
+ipcMain.handle('get-file-properties', async (event, filePath) => {\n    console.log('[API] get-file-properties called with', filePath);
     if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
         return { success: false, error: 'File not found' };
     }
