@@ -4,6 +4,7 @@ const fs = require('fs');
 const fsPromises = fs.promises;
 const { execFile, spawn } = require('child_process');
 const os = require('os');
+const crypto = require('crypto');
 
 let mainWindow;
 
@@ -40,6 +41,71 @@ function loadSettings() {
 function saveSettings(settings) { fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2)); }
 ipcMain.handle('get-settings', () => loadSettings());
 ipcMain.handle('save-settings', (e, s) => { saveSettings(s); return true; });
+
+ipcMain.handle('encrypt-files', async (event, { paths, password }) => {
+  log('crypto', `Encrypting ${paths.length} files`);
+  try {
+    for (const filePath of paths) {
+      if (!fs.existsSync(filePath)) continue;
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) continue;
+
+      const fileData = fs.readFileSync(filePath);
+      const salt = crypto.randomBytes(16);
+      const key = crypto.scryptSync(password, salt, 32);
+      const iv = crypto.randomBytes(16);
+
+      const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+      const encrypted = Buffer.concat([cipher.update(fileData), cipher.final()]);
+
+      const outputData = Buffer.concat([salt, iv, encrypted]);
+      const outputEncPath = filePath + '.enc';
+
+      fs.writeFileSync(outputEncPath, outputData);
+      fs.unlinkSync(filePath);
+    }
+    return { success: true };
+  } catch (e) {
+    log('crypto', `Encryption failed: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('decrypt-files', async (event, { paths, password }) => {
+  log('crypto', `Decrypting ${paths.length} files`);
+  try {
+    let successCount = 0;
+    for (const filePath of paths) {
+      if (!fs.existsSync(filePath) || !filePath.endsWith('.enc')) continue;
+
+      const fileData = fs.readFileSync(filePath);
+      if (fileData.length < 32) continue;
+
+      const salt = fileData.subarray(0, 16);
+      const iv = fileData.subarray(16, 32);
+      const encryptedData = fileData.subarray(32);
+
+      const key = crypto.scryptSync(password, salt, 32);
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+
+      let decrypted;
+      try {
+        decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
+      } catch (err) {
+        continue;
+      }
+
+      const outputDecPath = filePath.substring(0, filePath.length - 4);
+      fs.writeFileSync(outputDecPath, decrypted);
+      fs.unlinkSync(filePath);
+      successCount++;
+    }
+    return { success: successCount === paths.length, count: successCount };
+  } catch (e) {
+    log('crypto', `Decryption failed: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+});
 
 ipcMain.handle('dialog:openDirectory', async () => {
   log('dialog', 'Opening directory dialog...');
@@ -593,6 +659,7 @@ ipcMain.handle('show-context-menu', async (event, item) => {
   return new Promise((resolve) => {
       let templ = [];
       if (item.type === 'video' || item.type === 'image' || item.type === 'other') {
+         const isEnc = typeof item.path === 'string' && item.path.toLowerCase().endsWith('.enc');
          templ = [
            { label: 'Open File', click: () => { shell.openPath(item.path); resolve('opened'); } },
            { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); resolve('show'); } },
@@ -603,6 +670,9 @@ ipcMain.handle('show-context-menu', async (event, item) => {
            { label: 'Copy', click: () => { resolve('copy'); } },
            { label: 'Paste', click: () => { resolve('paste'); } },
            { label: 'Rename', click: () => { resolve('rename'); } },
+           { type: 'separator' },
+           isEnc ? { label: 'Decrypt File (AES-256)', click: () => { resolve('decrypt-prompt'); } }
+                 : { label: 'Encrypt File (AES-256)', click: () => { resolve('encrypt-prompt'); } },
            { type: 'separator' },
            { label: 'Generate WebM Preview (ffmpeg)', click: () => { resolve('generate-webm'); } },
            { label: 'Upscale Video (AI)', click: () => { resolve('upscale-video'); } },
@@ -626,10 +696,86 @@ ipcMain.handle('show-context-menu', async (event, item) => {
 });
 
 ipcMain.handle('upscale-video', async (event, itemPath) => {
+    log('ai', `Upscaling item: ${itemPath}`);
     return new Promise((resolve) => {
-        setTimeout(() => {
-            resolve({ success: true, path: itemPath });
-        }, 3000);
+        if (!fs.existsSync(itemPath)) {
+            return resolve({ success: false, error: 'File not found' });
+        }
+        
+        const ext = path.extname(itemPath).toLowerCase();
+        const dir = path.dirname(itemPath);
+        const baseName = path.basename(itemPath, ext);
+        
+        const realesrganPath = path.join(__dirname, 'tools', 'realesrgan-ncnn-vulkan.exe');
+        const modelsPath = path.join(__dirname, 'tools', 'models');
+        
+        if (!fs.existsSync(realesrganPath)) {
+            return resolve({ success: false, error: 'Real-ESRGAN executable not found' });
+        }
+
+        const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
+        const isVideo = ['.mp4', '.mkv', '.avi', '.mov', '.webm'].includes(ext);
+
+        if (isImage) {
+            const outPath = path.join(dir, `${baseName}_upscaled${ext}`);
+            const args = ['-i', itemPath, '-o', outPath, '-n', 'realesrgan-x4plus-anime', '-m', modelsPath];
+            log('ai', `Running Real-ESRGAN on image: ${args.join(' ')}`);
+            execFile(realesrganPath, args, (error, stdout, stderr) => {
+                if (error) return resolve({ success: false, error: error.message || stderr });
+                resolve({ success: true, path: outPath });
+            });
+        } else if (isVideo) {
+            const thumbsDir = path.join(dir, '.thumbs');
+            const thumbPath = path.join(thumbsDir, `${baseName}.jpg`);
+            const outPoster = path.join(dir, `${baseName}_upscaled_poster.png`);
+            const tempFrame = path.join(os.tmpdir(), `temp_frame_${Date.now()}.png`);
+
+            const upscaleImage = (inImg, outImg) => {
+                return new Promise((resImg) => {
+                    const args = ['-i', inImg, '-o', outImg, '-n', 'realesrgan-x4plus-anime', '-m', modelsPath];
+                    execFile(realesrganPath, args, (error) => {
+                        resImg(!error);
+                    });
+                });
+            };
+
+            const extractArgs = ['-y', '-ss', '00:00:02', '-i', itemPath, '-vframes', '1', tempFrame];
+            log('ai', `Extracting frame for video AI enhancement: ffmpeg ${extractArgs.join(' ')}`);
+            execFile('ffmpeg', extractArgs, async (error) => {
+                if (error) {
+                    execFile('ffmpeg', ['-y', '-i', itemPath, '-vframes', '1', tempFrame], async (err2) => {
+                        if (err2) {
+                            if (fs.existsSync(thumbPath)) {
+                                const success = await upscaleImage(thumbPath, thumbPath);
+                                return resolve({ success, path: thumbPath });
+                            }
+                            return resolve({ success: false, error: 'Could not extract video frame or find thumbnail' });
+                        }
+                        await processUpscale();
+                    });
+                } else {
+                    await processUpscale();
+                }
+            });
+
+            async function processUpscale() {
+                const posterDone = await upscaleImage(tempFrame, outPoster);
+                
+                if (fs.existsSync(thumbPath)) {
+                    await upscaleImage(thumbPath, thumbPath);
+                }
+                
+                try { fs.unlinkSync(tempFrame); } catch (e) {}
+                
+                if (posterDone) {
+                    resolve({ success: true, path: outPoster });
+                } else {
+                    resolve({ success: false, error: 'Real-ESRGAN upscaling failed' });
+                }
+            }
+        } else {
+            resolve({ success: false, error: 'Unsupported file type for AI upscaling' });
+        }
     });
 });
 

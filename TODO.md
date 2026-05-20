@@ -42,13 +42,13 @@
 
 ## features to add
 
-can browse the folder while video plays minimized in the corner (like picture in picture)
-add a play icon when video is over or switch to the next one automatically after 5 second
-make the encryption fully functional
-add more settings -> to plan with me
-fix the AI enhancements
-fix webm playback/generation
-remove old mp4 capture
-add a local model for video inference
-add keyboard shortcuts for all actions
+- [x] can browse the folder while video plays minimized in the corner (like picture in picture)
+- [x] add a play icon when video is over or switch to the next one automatically after 5 second
+- [x] make the encryption fully functional
+- [ ] add more settings -> to plan with me
+- [x] fix the AI enhancements
+- [x] fix webm playback/generation
+- [x] remove old mp4 capture
+- [x] add a local model for video inference
+- [x] add keyboard shortcuts for all actions
 

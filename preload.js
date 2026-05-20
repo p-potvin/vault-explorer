@@ -24,5 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pasteFiles: (data) => ipcRenderer.invoke('paste-files', data),
   zipSelection: (data) => ipcRenderer.invoke('zip-selection', data),
   getFileProperties: (p) => ipcRenderer.invoke('get-file-properties', p),
-  getFolderSizeSmart: (dirPath, fileCount) => ipcRenderer.invoke('get-folder-size-smart', dirPath, fileCount)
+  getFolderSizeSmart: (dirPath, fileCount) => ipcRenderer.invoke('get-folder-size-smart', dirPath, fileCount),
+  encryptFiles: (data) => ipcRenderer.invoke('encrypt-files', data),
+  decryptFiles: (data) => ipcRenderer.invoke('decrypt-files', data)
 });
