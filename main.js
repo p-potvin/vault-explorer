@@ -30,6 +30,8 @@ app.whenReady().then(() => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
+function log(tag, ...args) { console.log(`[main:${tag}]`, ...args); }
+
 const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
 function loadSettings() {
   try { if (fs.existsSync(settingsPath)) return JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch (e) {}
@@ -40,8 +42,11 @@ ipcMain.handle('get-settings', () => loadSettings());
 ipcMain.handle('save-settings', (e, s) => { saveSettings(s); return true; });
 
 ipcMain.handle('dialog:openDirectory', async () => {
+  log('dialog', 'Opening directory dialog...');
   const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-  if (canceled) return null; return filePaths[0];
+  if (canceled) { log('dialog', 'Cancelled'); return null; }
+  log('dialog', 'Selected:', filePaths[0]);
+  return filePaths[0];
 });
 
 ipcMain.handle('get-everything-size', async (e, targetPath) => {
@@ -341,6 +346,17 @@ function convertLegacyMp4Previews(thumbsDir) {
                 
                 backgroundFfmpegQueue.push(async () => {
                     try {
+                        // Verify file has a video stream before converting
+                        const hasVideo = await new Promise((resolveCheck) => {
+                            execFile('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', mp4Path], (err, stdout) => {
+                                resolveCheck(!!stdout.trim());
+                            });
+                        });
+                        if (!hasVideo) {
+                            log('legacy-convert', 'Skipping (no video stream):', f);
+                            try { fs.unlinkSync(mp4Path); } catch (e) {}
+                            return;
+                        }
                         const hasAudio = await checkAudioStream(mp4Path);
                         const args = [
                             '-y',
@@ -360,8 +376,9 @@ function convertLegacyMp4Previews(thumbsDir) {
                         
                         await runLowPriorityProcess('ffmpeg', args);
                         try { fs.unlinkSync(mp4Path); } catch (e) {}
+                        log('legacy-convert', 'Converted:', f, '->', path.basename(webmPath));
                     } catch (e) {
-                        console.error(`Legacy MP4 conversion failed for ${mp4Path}:`, e.message);
+                        log('legacy-convert', 'Failed for', mp4Path, ':', e.message);
                     } finally {
                         activeQueuePaths.delete(mp4Path);
                     }
@@ -492,6 +509,7 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
 
 ipcMain.handle('scan-directory', async (event, dirPath) => {
   if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return [];
+  log('scan', 'Scanning:', dirPath);
   const settings = loadSettings();
   const exclusions = settings.globExclusions || [];
   const exclusionRegexes = exclusions.map(pat => globToRegex(pat));
@@ -499,7 +517,9 @@ ipcMain.handle('scan-directory', async (event, dirPath) => {
   return new Promise(async (resolve) => {
     const allFiles = await findVideosAsync(dirPath, exclusionRegexes, dirPath);
     const allFilesSet = new Set(allFiles.map(f => f.toLowerCase()));
-    resolve(_processFileNodes(allFiles, allFilesSet, dirPath)); 
+    const result = _processFileNodes(allFiles, allFilesSet, dirPath);
+    log('scan', 'Found', result.length, 'items');
+    resolve(result); 
   });
 });
 
@@ -551,9 +571,22 @@ ipcMain.handle('rename-file', async (e, oldPath, newName) => {
    } catch (err) { return { success: false, error: err.message }; }
 });
 
-ipcMain.handle('open-file', (event, filePath) => { if (typeof filePath === 'string' && fs.existsSync(filePath)) shell.openPath(filePath); });
-ipcMain.handle('show-in-folder', (event, filePath) => { if (typeof filePath === 'string' && fs.existsSync(filePath)) shell.showItemInFolder(filePath); });
-ipcMain.handle('copy-to-clipboard', (event, text) => { clipboard.writeText(text); });
+ipcMain.handle('open-file', (event, filePath) => {
+  log('open', 'Opening:', filePath);
+  if (typeof filePath === 'string' && fs.existsSync(filePath)) {
+    shell.openPath(path.resolve(filePath)).then(err => {
+      if (err) log('open', 'Error:', err);
+    });
+  }
+});
+ipcMain.handle('show-in-folder', (event, filePath) => {
+  log('show-folder', filePath);
+  if (typeof filePath === 'string' && fs.existsSync(filePath)) shell.showItemInFolder(path.resolve(filePath));
+});
+ipcMain.handle('copy-to-clipboard', (event, text) => {
+  log('clipboard', 'Copying text');
+  clipboard.writeText(text);
+});
 
 ipcMain.handle('show-context-menu', async (event, item) => {
   return new Promise((resolve) => {
@@ -829,12 +862,16 @@ ipcMain.handle('delete-item', async (event, itemPath) => {
     try {
         const stats = fs.lstatSync(itemPath);
         if (stats.isSymbolicLink()) {
-            fs.unlinkSync(itemPath);
-        } else if (stats.isDirectory()) {
             try {
                 fs.unlinkSync(itemPath);
             } catch (err) {
+                fs.rmdirSync(itemPath);
+            }
+        } else if (stats.isDirectory()) {
+            try {
                 fs.rmSync(itemPath, { recursive: true, force: true });
+            } catch (err) {
+                fs.rmdirSync(itemPath);
             }
         } else {
             fs.unlinkSync(itemPath);
@@ -842,10 +879,15 @@ ipcMain.handle('delete-item', async (event, itemPath) => {
         return { success: true };
     } catch (e) {
         try {
-            if (fs.lstatSync(itemPath).isDirectory()) {
+            const stats = fs.lstatSync(itemPath);
+            if (stats.isDirectory()) {
                 fs.rmSync(itemPath, { recursive: true, force: true });
             } else {
-                fs.unlinkSync(itemPath);
+                try {
+                    fs.unlinkSync(itemPath);
+                } catch (err) {
+                    fs.rmdirSync(itemPath);
+                }
             }
             return { success: true };
         } catch (err) {

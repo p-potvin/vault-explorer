@@ -29,5 +29,11 @@
     "dependencies": {
         "express": "^5.2.1",
         "node-fetch": "^3.3.2"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "electron",
+            "electron-winstaller"
+        ]
     }
 }
