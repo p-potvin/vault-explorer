@@ -57,7 +57,7 @@
     .titlebar {
       height: 32px; -webkit-app-region: drag; background: var(--vault-acrylic);
       display: flex; align-items: center; padding: 0 16px; font-size: 11px; color: var(--vault-gold);
-      border-bottom: 1px solid var(--vault-border); flex-shrink: 0; position: relative; z-index: 10;
+      border-bottom: 1px solid var(--vault-border); flex-shrink: 0; position: relative; z-index: 20000;
       font-family: var(--font-display); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
       padding-right: 140px;
     }
@@ -205,7 +205,7 @@
     
     /* Video Player Modal */
     #video-modal {
-      display:none; position:fixed; top:0; left:0; right:0; bottom:0; 
+      display:none; position:fixed; top:32px; left:0; right:0; bottom:0; 
       background: var(--vt-primary); z-index: 10000; align-items:center; justify-content:center;
     }
     /* Player title bar */
@@ -233,7 +233,7 @@
     /* hide top bar in PiP */
     #video-modal.minimized #player-topbar { display:none; }
     
-    .video-wrapper { position:relative; width:100vw; height:100vh; overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; }
+    .video-wrapper { position:relative; width:100vw; height:calc(100vh - 32px); overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; }
     #video-player { width:100%; height:100%; object-fit:contain; outline:none; cursor:pointer; }
     
     #custom-controls { 
@@ -244,6 +244,12 @@
     .video-wrapper:hover #custom-controls, .video-wrapper:focus-within #custom-controls { opacity:1; }
 
     .volume-container:hover .volume-slider-wrapper, .volume-container:focus-within .volume-slider-wrapper { display: flex !important; }
+
+    /* Dropdown Hover Effects */
+    .speed-option:hover, .subtitle-option:hover, .subtitle-option-upload:hover {
+      background: var(--vault-hover) !important;
+      color: var(--vault-accent) !important;
+    }
 
     /* Center loading screen */
     .spinner { 
@@ -278,19 +284,214 @@
     }
     /* player control icon size */
     .ctrl-btn {
-      background:none; border:none; color:white; font-size:22px; cursor:pointer;
-      padding:4px 6px; border-radius:4px; line-height:1; transition:color 0.2s, background 0.2s;
+      background:none; border:none; color:white; font-size:26px; cursor:pointer;
+      padding:6px 10px; border-radius:4px; line-height:1; transition:color 0.2s, background 0.2s;
       transform:none !important;
     }
     .ctrl-btn:hover { color:var(--vault-accent); background:rgba(255,255,255,0.08); box-shadow:none; }
     .ctrl-btn-sm {
-      background:none; border:none; color:rgba(255,255,255,0.8); font-size:13px; cursor:pointer;
-      padding:3px 7px; border-radius:4px; line-height:1; font-family:var(--font-body);
-      font-weight:600; letter-spacing:0.04em; transition:color 0.2s, background 0.2s;
+      background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.85); font-size:14px; cursor:pointer;
+      padding:5px 10px; border-radius:4px; line-height:1; font-family:var(--font-body);
+      font-weight:600; letter-spacing:0.04em; transition:color 0.2s, background 0.2s, border-color 0.2s;
       transform:none !important;
     }
-    .ctrl-btn-sm:hover { color:#fff; background:rgba(255,255,255,0.1); box-shadow:none; }
-    .ctrl-btn-sm.active { color:var(--vault-accent); }
+    .ctrl-btn-sm:hover { color:#fff; background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.3); box-shadow:none; }
+    .ctrl-btn-sm.active { color:var(--vault-accent); border-color:var(--vault-accent); background:rgba(116, 177, 190, 0.1); }
+
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 100%; height: 60vh; color: var(--vault-slate); text-align: center;
+      font-family: var(--font-body); animation: fadeInScale 0.4s ease forwards;
+    }
+    .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
+    .empty-state h3 { font-size: 18px; margin: 0 0 8px 0; color: var(--vault-text); font-weight: 500; }
+    .empty-state p { font-size: 14px; margin: 0; max-width: 300px; line-height: 1.5; }
+
+    #fake-folder-dialog {
+      display:none; position:absolute; top:100%; left:0; transform:none;
+      background:var(--vt-surface); padding:20px 24px; border:1px solid var(--vault-border);
+      z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.15); font-family: var(--font-body); color: var(--vault-text);
+      border-radius: 6px; width: 380px;
+    }
+    
+    .nav-hover-preview {
+        position: absolute; display: none; width: 180px; height: 100px;
+        background: var(--vt-surface-alt); background-size: contain; background-position: center; background-repeat: no-repeat;
+        border: 1px solid var(--vault-border); border-radius: 4px; pointer-events: none; z-index: 10001;
+        bottom: 80px; transform: translateX(-50%); font-size: 11px;
+        align-items: flex-end; justify-content: center; padding: 6px; text-align: center;
+        word-break: break-all; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      background: var(--vt-surface); border: 1px solid var(--vault-border);
+      color: var(--vault-text); padding: 10px 16px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px;
+      transform: translateY(20px); opacity: 0; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: auto; min-width: 180px; text-transform: uppercase;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-color: var(--vt-success); }
+    .toast.error { border-color: var(--vt-error); }
+    .toast-icon { display: inline-flex; align-items: center; justify-content: center; }
+
+    /* Hover Video Preview */
+    .hover-video {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; z-index: 2;
+    }
+
+    /* â”€â”€ Sorting Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    .sorting-bar {
+      display: flex; gap: 10px; align-items: center; padding: 12px 24px;
+      background: var(--vault-acrylic); border-bottom: 1px solid var(--vault-border);
+      flex-shrink: 0; position: relative; z-index: 9;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+    .sort-label {
+      color: var(--vault-slate); font-size: 10px; letter-spacing: 0.08em;
+      text-transform: uppercase; margin-left: auto;
+    }
+    .btn-sm { padding: 4px 10px !important; font-size: 10px !important; letter-spacing: 0.06em !important; }
+
+    /* â”€â”€ Theme Picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    .titlebar { position: relative; }
+    .theme-trigger {
+      margin-left: auto; -webkit-app-region: no-drag;
+      background: transparent !important; border: 1px solid transparent !important;
+      color: var(--vault-gold) !important; padding: 2px 8px !important; cursor: pointer;
+      border-radius: 4px; display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-family: var(--font-body); text-transform: uppercase;
+      letter-spacing: 0.08em; transition: background 0.2s, border-color 0.2s;
+      transform: none !important; box-shadow: none !important;
+    }
+    .theme-trigger:hover {
+      background: var(--vault-hover) !important;
+      border-color: var(--vault-border) !important;
+      transform: none !important; box-shadow: none !important;
+    }
+    #theme-panel {
+      position: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
+      background: var(--vt-surface); border: 1px solid var(--vault-border); border-top: none;
+      padding: 16px; min-width: 280px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+    .theme-panel-header {
+      font-family: var(--font-display); font-size: 12px; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--vault-gold);
+      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--vault-border);
+    }
+    #theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .theme-swatch {
+      background: transparent !important; border: 1px solid var(--vault-border) !important;
+      border-radius: 4px !important; padding: 7px 8px !important; cursor: pointer;
+      display: flex !important; align-items: center !important; gap: 8px !important;
+      text-align: left; transition: all 0.2s !important;
+      transform: none !important; box-shadow: none !important;
+    }
+    .theme-swatch:hover {
+      border-color: var(--vault-accent) !important;
+      background: var(--vault-hover) !important;
+      transform: translateY(-1px) !important;
+      display:none; position:fixed; top:32px; left:0; right:0; bottom:0; 
+      background: var(--vt-primary); z-index: 10000; align-items:center; justify-content:center;
+    }
+    /* Player title bar */
+    #player-topbar {
+      position:absolute; top:0; left:0; right:0; z-index: 202;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 12px; height:44px;
+      background:linear-gradient(rgba(0,0,0,0.7), transparent);
+      pointer-events:none;
+    }
+    #player-topbar .player-title {
+      font-family: var(--font-display); font-size:13px; font-weight:500;
+      color:#fff; letter-spacing:0.04em; white-space:nowrap; overflow:hidden;
+      text-overflow:ellipsis; max-width:70%; opacity:0.9;
+    }
+    #player-topbar .player-corner-btns {
+      display:flex; gap:4px; pointer-events:auto;
+    }
+    .player-corner-btn {
+      background:none; border:none; color:rgba(255,255,255,0.75); cursor:pointer;
+      font-size:18px; padding:6px 8px; border-radius:4px; line-height:1;
+      transition: color 0.2s, background 0.2s; transform:none !important;
+    }
+    .player-corner-btn:hover { color:#fff; background:rgba(255,255,255,0.12); box-shadow:none; }
+    /* hide top bar in PiP */
+    #video-modal.minimized #player-topbar { display:none; }
+    
+    .video-wrapper { position:relative; width:100vw; height:calc(100vh - 32px); overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; }
+    #video-player { width:100%; height:100%; object-fit:contain; outline:none; cursor:pointer; }
+    
+    #custom-controls { 
+      position:absolute; bottom:0; left:0; width:100%; padding:32px; padding-top:64px; 
+      background:linear-gradient(transparent, var(--vt-surface-alt)); opacity:0; transition:opacity 0.4s ease; 
+      display:flex; flex-direction:column; gap:16px;
+    }
+    .video-wrapper:hover #custom-controls, .video-wrapper:focus-within #custom-controls { opacity:1; }
+
+    .volume-container:hover .volume-slider-wrapper, .volume-container:focus-within .volume-slider-wrapper { display: flex !important; }
+
+    /* Dropdown Hover Effects */
+    .speed-option:hover, .subtitle-option:hover, .subtitle-option-upload:hover {
+      background: var(--vault-hover) !important;
+      color: var(--vault-accent) !important;
+    }
+
+    /* Center loading screen */
+    .spinner { 
+      width: 48px; height: 48px; border: 2px solid var(--vault-border); 
+      border-top: 2px solid var(--vault-accent); border-radius: 50%; animation: spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite; margin-bottom: 24px; 
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    .loading {
+      display: none; align-items: center; justify-content: center; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      font-size: 14px; font-family: var(--font-body); font-weight: 400; letter-spacing: 0.05em; color: var(--vault-gold-muted);
+      background: var(--vt-primary); z-index: 100;
+    }
+
+    #video-modal.minimized {
+      position: fixed; bottom: 20px; right: 20px; top: auto; left: auto;
+      width: 320px; height: 180px; background: var(--vt-surface-alt);
+      border: 1px solid var(--vault-border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      border-radius: 8px; z-index: 9999; cursor: pointer;
+    }
+    #video-modal.minimized .player-corner-btns { display:none; }
+    #video-modal.minimized #pip-close-btn { display:flex !important; pointer-events:auto; }
+    #video-modal.minimized .video-wrapper { width: 100%; height: 100%; }
+    #video-modal.minimized #custom-controls { display:none; }
+    #video-modal.minimized #seek-area { height: 8px; margin-top: 4px; }
+    #video-modal.minimized #seek-bg { margin-top: 2px !important; }
+    /* time ticks below seek bar */
+    #seek-time-row {
+      display:flex; justify-content:space-between; color:rgba(255,255,255,0.6);
+      font-size:10px; font-family:var(--font-body); padding:2px 2px 0;
+      pointer-events:none; user-select:none;
+    }
+    /* player control icon size */
+    .ctrl-btn {
+      background:none; border:none; color:white; font-size:26px; cursor:pointer;
+      padding:6px 10px; border-radius:4px; line-height:1; transition:color 0.2s, background 0.2s;
+      transform:none !important;
+    }
+    .ctrl-btn:hover { color:var(--vault-accent); background:rgba(255,255,255,0.08); box-shadow:none; }
+    .ctrl-btn-sm {
+      background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.85); font-size:14px; cursor:pointer;
+      padding:5px 10px; border-radius:4px; line-height:1; font-family:var(--font-body);
+      font-weight:600; letter-spacing:0.04em; transition:color 0.2s, background 0.2s, border-color 0.2s;
+      transform:none !important;
+    }
+    .ctrl-btn-sm:hover { color:#fff; background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.3); box-shadow:none; }
+    .ctrl-btn-sm.active { color:var(--vault-accent); border-color:var(--vault-accent); background:rgba(116, 177, 190, 0.1); }
 
 
     .empty-state {
@@ -400,7 +601,6 @@
       background: var(--vault-selected) !important;
     }
     .swatch-colors { display: flex; border-radius: 4px; overflow: hidden; flex-shrink: 0; height: 28px; width: 22px; }
-    .swatch-bg { flex: 2; } .swatch-accent-strip { flex: 1; }
     .swatch-name { font-size: 10px; color: var(--vault-text); letter-spacing: 0.04em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; }
   </style>
 </head>
@@ -412,7 +612,8 @@
       <circle fill="var(--vault-gold)" cx="55" cy="62" r="4"/>
     </svg>
     <span style="font-size: 11px; font-weight: 500; letter-spacing: 0.1em; opacity: 0.75; margin-right: 16px;">Explorer</span>
-    <div style="display: flex; gap: 8px; align-items: center; -webkit-app-region: no-drag;">
+    <span id="titlebar-video-title" style="margin-left: 20px; font-size:11px; font-weight:600; color:var(--vault-accent); display:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:400px; text-transform: none; font-family: var(--font-body); letter-spacing: 0.02em;"></span>
+    <div id="titlebar-menus" style="display: flex; gap: 8px; align-items: center; -webkit-app-region: no-drag; margin-left: auto; transition: opacity 0.25s ease;">
       <button id="lang-trigger" class="theme-trigger" aria-label="Switch Language">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-right:3px;">
           <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
@@ -442,7 +643,7 @@
           <span id="settings-btn-text">Settings</span>
         </button>
         <div id="settings-panel" style="display:none;" role="dialog" aria-label="Settings Panel">
-          <div class="settings-panel-header">Settings / Param\u00e8tres</div>
+          <div class="settings-panel-header">Settings / Paramètres</div>
           <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
             <label for="settings-glob-exclusions" id="glob-exclusions-label" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Glob Exclusions (comma-separated):</label>
             <input type="text" id="settings-glob-exclusions" class="search-box" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none;" placeholder="e.g. *.txt, temp/*, private*" />
@@ -458,23 +659,6 @@
     <div class="toolbar">
       <button id="btn-back" title="No folder selected" aria-label="Back" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:16px;" disabled>&#8592;</button>
       <button id="btn-select">Browse Vault</button>
-      <div style="position:relative;">
-      <button id="btn-new-folder" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center;" title="Select a Vault to create folders" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-          <line x1="12" y1="11" x2="12" y2="17"></line>
-          <line x1="9" y1="14" x2="15" y2="14"></line>
-        </svg>
-      </button>
-      <div id="fake-folder-dialog" role="dialog" aria-modal="true" aria-label="Create new folder">
-        <label for="fake-folder-name" style="display:block; margin-bottom:10px;">Enter Folder Name:</label>
-        <input type="text" id="fake-folder-name" class="search-box" placeholder="My Virtual Folder" style="width:100%; margin-bottom:15px;" />
-        <div style="display:flex; justify-content:flex-end; gap:10px;">
-          <button id="btn-cancel-folder">Cancel</button>
-          <button id="btn-create-folder" style="background:var(--vault-accent)" disabled title="Folder name cannot be empty">Create</button>
-        </div>
-      </div>
-      </div>
       <button id="btn-refresh" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center;" title="No folder selected" disabled>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"></polyline>
@@ -509,6 +693,10 @@
       <div id="loading" class="loading" role="status" aria-live="polite">
           <div class="spinner"></div>
           <span id="loading-text">Scanning directory... this may take a moment.</span>
+          <div id="loading-progress-container" style="display:none; width:220px; height:4px; background:var(--vault-border); border-radius:2px; margin-top:12px; overflow:hidden;">
+            <div id="loading-progress-bar" style="width:0%; height:100%; background:var(--vault-accent); transition:width 0.1s ease;"></div>
+          </div>
+          <div id="loading-progress-text" style="display:none; font-size:10px; font-family:var(--font-body); color:var(--vault-slate); margin-top:4px;">0%</div>
       </div>
       <div id="file-grid" class="file-grid">
         <div class="empty-state">
@@ -523,6 +711,14 @@
     </div>
     
     <div class="status-bar">
+      <span id="status-items">0 items</span>
+      <span id="status-size" style="margin-left:auto; margin-right:20px;"></span>
+      <span id="status-selected"></span>
+    </div>
+  </div>
+  <!-- Removing legacy residual nodes below -->
+  <div style="display:none;">
+    </svg>
       <span id="status-items">0 items</span>
       <span id="status-size" style="margin-left:auto; margin-right:20px;"></span>
       <span id="status-selected"></span>
@@ -584,8 +780,31 @@
                 <span id="time-display" style="font-size:12px; opacity:0.8; margin-left:4px;">0:00 / 0:00</span>
              </div>
              <div style="display:flex; gap:6px; align-items:center;">
-                <button id="btn-speed" class="ctrl-btn-sm" title="Playback speed" aria-label="Playback speed">1×</button>
-                <button id="btn-subtitles" class="ctrl-btn-sm" title="Load subtitles" aria-label="Load subtitles">CC</button>
+                <!-- Speed Dropdown Container -->
+                <div class="speed-dropdown-container" style="position:relative; display:inline-block; -webkit-app-region: no-drag;">
+                   <button id="btn-speed" class="ctrl-btn-sm" title="Playback speed" aria-label="Playback speed">1.0× ▾</button>
+                   <div id="speed-menu" style="display:none; position:absolute; bottom:38px; right:0; background:var(--vt-surface); border:1px solid var(--vault-border); border-radius:4px; padding:4px 0; z-index:210; min-width:110px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
+                      <div class="speed-option" data-val="0.5" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">0.5×</div>
+                      <div class="speed-option" data-val="0.75" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">0.75×</div>
+                      <div class="speed-option active" data-val="1" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-accent); font-weight:600; transition:background 0.2s;">1.0× (Normal)</div>
+                      <div class="speed-option" data-val="1.25" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">1.25×</div>
+                      <div class="speed-option" data-val="1.5" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">1.5×</div>
+                      <div class="speed-option" data-val="2" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">2.0×</div>
+                   </div>
+                </div>
+
+                <!-- Subtitles Dropdown Container -->
+                <div class="subtitle-dropdown-container" style="position:relative; display:inline-block; -webkit-app-region: no-drag;">
+                   <button id="btn-subtitles" class="ctrl-btn-sm" title="Subtitles (CC)" aria-label="Subtitles">CC ▾</button>
+                   <div id="subtitles-menu" style="display:none; position:absolute; bottom:38px; right:0; background:var(--vt-surface); border:1px solid var(--vault-border); border-radius:4px; padding:4px 0; z-index:210; min-width:140px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
+                      <div class="subtitle-option active" data-idx="-1" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-accent); font-weight:600; transition:background 0.2s;">Off</div>
+                      <div class="subtitle-divider" style="height:1px; background:var(--vault-border); margin:4px 0;"></div>
+                      <div id="subtitle-tracks-list" style="max-height: 120px; overflow-y: auto;"></div>
+                      <div class="subtitle-divider" style="height:1px; background:var(--vault-border); margin:4px 0;"></div>
+                      <div class="subtitle-option-upload" id="opt-upload-subtitle" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">Upload SRT/VTT...</div>
+                   </div>
+                </div>
+
                 <button id="btn-upscale" class="ctrl-btn-sm" title="Real-Time Upscaling (ESRGAN)" aria-label="Toggle upscaling">⬆ AI</button>
                 <button id="btn-fullscreen" class="ctrl-btn" title="Fullscreen (F)" aria-label="Toggle Fullscreen">&#x26F6;</button>
              </div>
@@ -1437,17 +1656,18 @@
          });
          
          if (hasUpdates) applyFilters(); 
+         showToast('Views refreshed successfully', 'success');
     });
 
     el('btn-select').addEventListener('click', async () => {
       const folderPath = await window.electronAPI.openDirectory();
-      if (folderPath) loadDirectory('root', folderPath, false);
+      if (folderPath) { loadDirectory('root', folderPath, false); showToast('Vault loaded: ' + folderPath, 'success'); }
     });
 
     // Path display click opens folder browser
     el('path-display').addEventListener('click', async () => {
       const folderPath = await window.electronAPI.openDirectory();
-      if (folderPath) loadDirectory('root', folderPath, false);
+      if (folderPath) { loadDirectory('root', folderPath, false); showToast('Vault loaded: ' + folderPath, 'success'); }
     });
 
     // F5 refresh hotkey
@@ -1456,7 +1676,7 @@
             e.preventDefault();
             if (currentRealPath) {
                 console.log('[F5] Refreshing directory:', currentRealPath);
-                loadDirectory(currentNavPath, currentRealPath, false);
+                loadDirectory(currentNavPath, currentRealPath, false); showToast('Views refreshed successfully', 'success');
             }
         }
     });
@@ -1653,6 +1873,7 @@
         el('video-modal').style.display = 'none';
         el('video-modal').classList.remove('minimized');
         el('video-ended-overlay').style.display = 'none';
+        if (el('titlebar-video-title')) el('titlebar-video-title').style.display = 'none';
         if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
         el('video-player').pause(); el('video-player').src = '';
         if (currentPlayingIndex !== -1) {
@@ -1697,7 +1918,7 @@
         seekCtx.drawImage(scrubVideo, 0, 0, seekCanvas.width, seekCanvas.height);
     });
 
-    function playItem(idx) {
+    async function playItem(idx) {
         if (idx < 0 || idx >= displayedItems.length) return;
         const itm = displayedItems[idx];
         if (itm.type !== 'video') return;
@@ -1712,9 +1933,45 @@
             scrubVideo.src = newSrc;
             lastScrubSrc = newSrc;
         }
-        // Update title display
+        
+        // Update title display in player and main titlebar
+        const baseTitle = itm.name.replace(/\.[^.]+$/, '');
         const titleEl = el('player-title');
-        if (titleEl) titleEl.textContent = itm.name.replace(/\.[^.]+$/, '');
+        if (titleEl) titleEl.textContent = baseTitle;
+        const tbTitle = el('titlebar-video-title');
+        if (tbTitle) {
+            tbTitle.textContent = `·  Playing: ${itm.name}`;
+            tbTitle.style.display = 'inline-block';
+        }
+        
+        // Auto-discover subtitle tracks in video's folder
+        vp.querySelectorAll('track').forEach(t => t.remove());
+        try {
+            const subs = await window.electronAPI.findSubtitles(itm.path);
+            if (subs && subs.length > 0) {
+                subs.forEach((sub, i) => {
+                    const track = document.createElement('track');
+                    track.kind = 'subtitles';
+                    track.label = sub.label === 'Default' ? 'Default Track' : `Subtitles (${sub.label})`;
+                    track.srclang = sub.lang;
+                    track.src = sanitizePath(sub.path);
+                    vp.appendChild(track);
+                });
+                
+                // Refresh list options
+                refreshSubtitlesList();
+                
+                // Select and show first subtitle track by default
+                selectSubtitleTrack(0);
+                showToast(`Loaded ${subs.length} subtitle track(s) automatically`, 'success');
+            } else {
+                refreshSubtitlesList();
+                selectSubtitleTrack(-1);
+            }
+        } catch (err) {
+            console.error("Auto subtitle loading error:", err);
+        }
+
         // Restore from PiP if needed
         el('video-modal').classList.remove('minimized');
         btnPlay.innerHTML = '&#10074;&#10074;';
@@ -1817,8 +2074,8 @@
     });
 
     // Click on video: play/pause only when NOT in PiP mode
-    vp.addEventListener('click', () => {
-        if (el('video-modal').classList.contains('minimized')) return;
+    vp.addEventListener('click', (e) => {
+        if (el('video-modal').classList.contains('minimized')) { el('video-modal').classList.remove('minimized'); e.stopPropagation(); return; }
         if (vp.paused) { vp.play(); btnPlay.innerHTML = '&#10074;&#10074;'; }
         else { vp.pause(); btnPlay.innerHTML = '&#9654;'; }
     });
@@ -1834,7 +2091,7 @@
         const countdownEl = el('ended-countdown');
         if (nextIdx < displayedItems.length) {
             autoplayCountdown = 5;
-            countdownEl.innerText = `Next video in ${autoplayCountdown} seconds... (Click to cancel)`;
+            countdownEl.innerText = `Next video in ${autoplayCountdown} seconds... (Click to play now)`;
             countdownEl.style.cursor = 'pointer';
             
             if (autoplayTimer) clearInterval(autoplayTimer);
@@ -1845,7 +2102,7 @@
                     overlay.style.display = 'none';
                     playItem(nextIdx);
                 } else {
-                    countdownEl.innerText = `Next video in ${autoplayCountdown} seconds... (Click to cancel)`;
+                    countdownEl.innerText = `Next video in ${autoplayCountdown} seconds... (Click to play now)`;
                 }
             }, 1000);
         } else {
@@ -1863,10 +2120,12 @@
     });
 
     el('ended-countdown').addEventListener('click', () => {
-        if (autoplayTimer) {
-            clearInterval(autoplayTimer);
-            autoplayTimer = null;
-            el('ended-countdown').innerText = "Autoplay cancelled. Click Play icon to replay.";
+        let nextIdx = currentPlayingIndex + 1;
+        while (nextIdx < displayedItems.length && displayedItems[nextIdx].type !== 'video') nextIdx++;
+        if (nextIdx < displayedItems.length) {
+            if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+            el('video-ended-overlay').style.display = 'none';
+            playItem(nextIdx);
         }
     });
 
@@ -1879,39 +2138,144 @@
         }
     });
 
-    // Playback speed cycling
-    const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
-    let speedIdx = 0;
-    el('btn-speed').addEventListener('click', () => {
-        speedIdx = (speedIdx + 1) % SPEEDS.length;
-        vp.playbackRate = SPEEDS[speedIdx];
-        el('btn-speed').textContent = SPEEDS[speedIdx] + '×';
-        el('btn-speed').classList.toggle('active', SPEEDS[speedIdx] !== 1);
-        showToast(`Speed: ${SPEEDS[speedIdx]}×`, 'success');
+    // ── Playback Speed Dropdown ────────────────────────────────────────────────
+    el('btn-speed').addEventListener('click', (e) => {
+        e.stopPropagation();
+        el('subtitles-menu').style.display = 'none'; // Close other dropdown
+        const menu = el('speed-menu');
+        const isHidden = menu.style.display === 'none';
+        menu.style.display = isHidden ? 'block' : 'none';
     });
 
-    // Subtitle file picker
-    el('btn-subtitles').addEventListener('click', () => {
+    document.querySelectorAll('.speed-option').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const val = parseFloat(opt.dataset.val);
+            vp.playbackRate = val;
+            el('btn-speed').textContent = val === 1 ? '1.0× ▾' : `${val}× ▾`;
+            el('btn-speed').classList.toggle('active', val !== 1);
+            
+            document.querySelectorAll('.speed-option').forEach(o => {
+                o.classList.remove('active');
+                o.style.color = 'var(--vault-text)';
+                o.style.fontWeight = 'normal';
+            });
+            opt.classList.add('active');
+            opt.style.color = 'var(--vault-accent)';
+            opt.style.fontWeight = '600';
+            
+            el('speed-menu').style.display = 'none';
+            showToast(`Playback Speed: ${val}×`, 'success');
+        });
+    });
+
+    // ── Subtitles Dropdown ───────────────────────────────────────────────────
+    el('btn-subtitles').addEventListener('click', (e) => {
+        e.stopPropagation();
+        el('speed-menu').style.display = 'none'; // Close other dropdown
+        const menu = el('subtitles-menu');
+        const isHidden = menu.style.display === 'none';
+        menu.style.display = isHidden ? 'block' : 'none';
+    });
+
+    // Dismiss dropdowns on document click
+    document.addEventListener('click', (e) => {
+        const sm = el('speed-menu');
+        if (sm && !e.target.closest('.speed-dropdown-container')) sm.style.display = 'none';
+        const sbm = el('subtitles-menu');
+        if (sbm && !e.target.closest('.subtitle-dropdown-container')) sbm.style.display = 'none';
+    });
+
+    el('opt-upload-subtitle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        el('subtitles-menu').style.display = 'none';
         el('subtitle-file-input').click();
     });
+
     el('subtitle-file-input').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        // Remove existing track
-        const existing = vp.querySelector('track');
-        if (existing) existing.remove();
+        
         const track = document.createElement('track');
         track.kind = 'subtitles';
         track.label = file.name;
         track.srclang = 'und';
         track.src = URL.createObjectURL(file);
-        track.default = true;
+        
         vp.appendChild(track);
-        vp.textTracks[0].mode = 'showing';
-        el('btn-subtitles').classList.add('active');
+        refreshSubtitlesList();
+        
+        const trackIdx = vp.textTracks.length - 1;
+        selectSubtitleTrack(trackIdx);
+        
         showToast('Subtitles loaded: ' + file.name, 'success');
         e.target.value = '';
     });
+
+    function selectSubtitleTrack(trackIdx) {
+        for (let i = 0; i < vp.textTracks.length; i++) {
+            vp.textTracks[i].mode = 'disabled';
+        }
+        
+        if (trackIdx >= 0 && vp.textTracks[trackIdx]) {
+            vp.textTracks[trackIdx].mode = 'showing';
+            el('btn-subtitles').classList.add('active');
+            el('btn-subtitles').textContent = `${vp.textTracks[trackIdx].label.replace('Subtitles (', '').replace(')', '')} ▾`;
+        } else {
+            el('btn-subtitles').classList.remove('active');
+            el('btn-subtitles').textContent = 'CC ▾';
+        }
+
+        const options = el('subtitles-menu').querySelectorAll('.subtitle-option');
+        options.forEach(opt => {
+            const idx = parseInt(opt.dataset.idx);
+            if (idx === trackIdx) {
+                opt.classList.add('active');
+                opt.style.color = 'var(--vault-accent)';
+                opt.style.fontWeight = '600';
+            } else {
+                opt.classList.remove('active');
+                opt.style.color = 'var(--vault-text)';
+                opt.style.fontWeight = 'normal';
+            }
+        });
+    }
+
+    function refreshSubtitlesList() {
+        const listContainer = el('subtitle-tracks-list');
+        listContainer.innerHTML = '';
+        
+        for (let i = 0; i < vp.textTracks.length; i++) {
+            const track = vp.textTracks[i];
+            const opt = document.createElement('div');
+            opt.className = 'subtitle-option';
+            opt.dataset.idx = i;
+            opt.style.cssText = 'padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;';
+            opt.textContent = track.label || `Track ${i + 1}`;
+            
+            if (track.mode === 'showing') {
+                opt.classList.add('active');
+                opt.style.color = 'var(--vault-accent)';
+                opt.style.fontWeight = '600';
+            }
+            
+            opt.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectSubtitleTrack(i);
+                el('subtitles-menu').style.display = 'none';
+            });
+            listContainer.appendChild(opt);
+        }
+        
+        const offOption = el('subtitles-menu').querySelector('.subtitle-option[data-idx="-1"]');
+        if (offOption) {
+            offOption.onclick = (e) => {
+                e.stopPropagation();
+                selectSubtitleTrack(-1);
+                el('subtitles-menu').style.display = 'none';
+            };
+        }
+    }
 
     // ── Real-Time ESRGAN Upscale ─────────────────────────────────────────────
     let upscaleActive   = false;
@@ -2216,7 +2580,7 @@
     function setLanguage(lang) {
       currentLang = lang;
       // Show the OPPOSITE lang as the button label (clicking switches TO that lang)
-      el('lang-text').innerText = (lang === 'en') ? 'FR' : 'EN';
+      el('lang-text').innerText = (lang === 'en') ? 'EN' : 'FR';
       console.log('[i18n] Language set to:', lang);
       
       // Update text-only DOM elements (NOT icon buttons — those would lose their SVGs)
