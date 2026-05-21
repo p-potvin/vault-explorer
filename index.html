@@ -6,17 +6,6 @@
   <link href="themes.css" rel="stylesheet">
   <script src="themes.js"></script>
 <style>
-    #settings-panel {
-      position: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
-      background: var(--vt-surface-alt); border: 1px solid var(--vault-border);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 280px; font-family: var(--font-body);
-      border-radius: 6px;
-    }
-    .settings-panel-header {
-      background: var(--vt-primary); padding: 8px 16px; font-size: 10px; font-weight: 600;
-      text-transform: uppercase; color: var(--vault-slate); border-bottom: 1px solid var(--vault-border);
-      letter-spacing: 0.05em; border-top-left-radius: 6px; border-top-right-radius: 6px;
-    }
     :root {
       /* Vault-Themes Brand Tokens mapped to active VaultTheme variables */
       --vault-ink: var(--vt-text);
@@ -117,7 +106,7 @@
     .main-area { flex: 1; overflow-y: auto; padding: 32px; position: relative; }
     
     .file-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); 
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); width: 100%;
       gap: 24px; align-content: start; position: relative;
     }
     
@@ -238,7 +227,7 @@
     
     #custom-controls { 
       position:absolute; bottom:0; left:0; width:100%; padding:32px; padding-top:64px; 
-      background:linear-gradient(transparent, var(--vt-surface-alt)); opacity:0; transition:opacity 0.4s ease; 
+      background:linear-gradient(transparent, rgba(0, 0, 0, 0.85)); opacity:0; transition:opacity 0.4s ease; 
       display:flex; flex-direction:column; gap:16px;
     }
     .video-wrapper:hover #custom-controls, .video-wrapper:focus-within #custom-controls { opacity:1; }
@@ -383,201 +372,18 @@
       box-shadow: 0 10px 30px rgba(0,0,0,0.15);
       transition: background-color 0.2s, border-color 0.2s;
     }
-    .theme-panel-header {
-      font-family: var(--font-display); font-size: 12px; font-weight: 700;
-      letter-spacing: 0.14em; text-transform: uppercase; color: var(--vault-gold);
-      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--vault-border);
-    }
-    #theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    .theme-swatch {
-      background: transparent !important; border: 1px solid var(--vault-border) !important;
-      border-radius: 4px !important; padding: 7px 8px !important; cursor: pointer;
-      display: flex !important; align-items: center !important; gap: 8px !important;
-      text-align: left; transition: all 0.2s !important;
-      transform: none !important; box-shadow: none !important;
-    }
-    .theme-swatch:hover {
-      border-color: var(--vault-accent) !important;
-      background: var(--vault-hover) !important;
-      transform: translateY(-1px) !important;
-      display:none; position:fixed; top:32px; left:0; right:0; bottom:0; 
-      background: var(--vt-primary); z-index: 10000; align-items:center; justify-content:center;
-    }
-    /* Player title bar */
-    #player-topbar {
-      position:absolute; top:0; left:0; right:0; z-index: 202;
-      display:flex; align-items:center; justify-content:space-between;
-      padding:0 12px; height:44px;
-      background:linear-gradient(rgba(0,0,0,0.7), transparent);
-      pointer-events:none;
-    }
-    #player-topbar .player-title {
-      font-family: var(--font-display); font-size:13px; font-weight:500;
-      color:#fff; letter-spacing:0.04em; white-space:nowrap; overflow:hidden;
-      text-overflow:ellipsis; max-width:70%; opacity:0.9;
-    }
-    #player-topbar .player-corner-btns {
-      display:flex; gap:4px; pointer-events:auto;
-    }
-    .player-corner-btn {
-      background:none; border:none; color:rgba(255,255,255,0.75); cursor:pointer;
-      font-size:18px; padding:6px 8px; border-radius:4px; line-height:1;
-      transition: color 0.2s, background 0.2s; transform:none !important;
-    }
-    .player-corner-btn:hover { color:#fff; background:rgba(255,255,255,0.12); box-shadow:none; }
-    /* hide top bar in PiP */
-    #video-modal.minimized #player-topbar { display:none; }
-    
-    .video-wrapper { position:relative; width:100vw; height:calc(100vh - 32px); overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; }
-    #video-player { width:100%; height:100%; object-fit:contain; outline:none; cursor:pointer; }
-    
-    #custom-controls { 
-      position:absolute; bottom:0; left:0; width:100%; padding:32px; padding-top:64px; 
-      background:linear-gradient(transparent, var(--vt-surface-alt)); opacity:0; transition:opacity 0.4s ease; 
-      display:flex; flex-direction:column; gap:16px;
-    }
-    .video-wrapper:hover #custom-controls, .video-wrapper:focus-within #custom-controls { opacity:1; }
-
-    .volume-container:hover .volume-slider-wrapper, .volume-container:focus-within .volume-slider-wrapper { display: flex !important; }
-
-    /* Dropdown Hover Effects */
-    .speed-option:hover, .subtitle-option:hover, .subtitle-option-upload:hover {
-      background: var(--vault-hover) !important;
-      color: var(--vault-accent) !important;
-    }
-
-    /* Center loading screen */
-    .spinner { 
-      width: 48px; height: 48px; border: 2px solid var(--vault-border); 
-      border-top: 2px solid var(--vault-accent); border-radius: 50%; animation: spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite; margin-bottom: 24px; 
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    
-    .loading {
-      display: none; align-items: center; justify-content: center; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      font-size: 14px; font-family: var(--font-body); font-weight: 400; letter-spacing: 0.05em; color: var(--vault-gold-muted);
-      background: var(--vt-primary); z-index: 100;
-    }
-
-    #video-modal.minimized {
-      position: fixed; bottom: 20px; right: 20px; top: auto; left: auto;
-      width: 320px; height: 180px; background: var(--vt-surface-alt);
-      border: 1px solid var(--vault-border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-      border-radius: 8px; z-index: 9999; cursor: pointer;
-    }
-    #video-modal.minimized .player-corner-btns { display:none; }
-    #video-modal.minimized #pip-close-btn { display:flex !important; pointer-events:auto; }
-    #video-modal.minimized .video-wrapper { width: 100%; height: 100%; }
-    #video-modal.minimized #custom-controls { display:none; }
-    #video-modal.minimized #seek-area { height: 8px; margin-top: 4px; }
-    #video-modal.minimized #seek-bg { margin-top: 2px !important; }
-    /* time ticks below seek bar */
-    #seek-time-row {
-      display:flex; justify-content:space-between; color:rgba(255,255,255,0.6);
-      font-size:10px; font-family:var(--font-body); padding:2px 2px 0;
-      pointer-events:none; user-select:none;
-    }
-    /* player control icon size */
-    .ctrl-btn {
-      background:none; border:none; color:white; font-size:26px; cursor:pointer;
-      padding:6px 10px; border-radius:4px; line-height:1; transition:color 0.2s, background 0.2s;
-      transform:none !important;
-    }
-    .ctrl-btn:hover { color:var(--vault-accent); background:rgba(255,255,255,0.08); box-shadow:none; }
-    .ctrl-btn-sm {
-      background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.85); font-size:14px; cursor:pointer;
-      padding:5px 10px; border-radius:4px; line-height:1; font-family:var(--font-body);
-      font-weight:600; letter-spacing:0.04em; transition:color 0.2s, background 0.2s, border-color 0.2s;
-      transform:none !important;
-    }
-    .ctrl-btn-sm:hover { color:#fff; background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.3); box-shadow:none; }
-    .ctrl-btn-sm.active { color:var(--vault-accent); border-color:var(--vault-accent); background:rgba(116, 177, 190, 0.1); }
-
-
-    .empty-state {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      width: 100%; height: 60vh; color: var(--vault-slate); text-align: center;
-      font-family: var(--font-body); animation: fadeInScale 0.4s ease forwards;
-    }
-    .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5; }
-    .empty-state h3 { font-size: 18px; margin: 0 0 8px 0; color: var(--vault-text); font-weight: 500; }
-    .empty-state p { font-size: 14px; margin: 0; max-width: 300px; line-height: 1.5; }
-
-    #fake-folder-dialog {
-      display:none; position:absolute; top:100%; left:0; transform:none;
-      background:var(--vt-surface); padding:20px 24px; border:1px solid var(--vault-border);
-      z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.15); font-family: var(--font-body); color: var(--vault-text);
-      border-radius: 6px; width: 380px;
-    }
-    
-    .nav-hover-preview {
-        position: absolute; display: none; width: 180px; height: 100px;
-        background: var(--vt-surface-alt); background-size: contain; background-position: center; background-repeat: no-repeat;
-        border: 1px solid var(--vault-border); border-radius: 4px; pointer-events: none; z-index: 10001;
-        bottom: 80px; transform: translateX(-50%); font-size: 11px;
-        align-items: flex-end; justify-content: center; padding: 6px; text-align: center;
-        word-break: break-all; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
-    }
-
-    /* Toast Notification */
-    .toast-container {
-      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
-    }
-    .toast {
-      background: var(--vt-surface); border: 1px solid var(--vault-border);
-      color: var(--vault-text); padding: 10px 16px; border-radius: 6px;
-      font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px;
-      transform: translateY(20px); opacity: 0; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: auto; min-width: 180px; text-transform: uppercase;
-    }
-    .toast.show { transform: translateY(0); opacity: 1; }
-    .toast.success { border-color: var(--vt-success); }
-    .toast.error { border-color: var(--vt-error); }
-    .toast-icon { display: inline-flex; align-items: center; justify-content: center; }
-
-    /* Hover Video Preview */
-    .hover-video {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; z-index: 2;
-    }
-
-    /* â”€â”€ Sorting Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .sorting-bar {
-      display: flex; gap: 10px; align-items: center; padding: 12px 24px;
-      background: var(--vault-acrylic); border-bottom: 1px solid var(--vault-border);
-      flex-shrink: 0; position: relative; z-index: 9;
-      transition: background-color 0.2s, border-color 0.2s;
-    }
-    .sort-label {
-      color: var(--vault-slate); font-size: 10px; letter-spacing: 0.08em;
-      text-transform: uppercase; margin-left: auto;
-    }
-    .btn-sm { padding: 4px 10px !important; font-size: 10px !important; letter-spacing: 0.06em !important; }
-
-    /* â”€â”€ Theme Picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .titlebar { position: relative; }
-    .theme-trigger {
-      margin-left: auto; -webkit-app-region: no-drag;
-      background: transparent !important; border: 1px solid transparent !important;
-      color: var(--vault-gold) !important; padding: 2px 8px !important; cursor: pointer;
-      border-radius: 4px; display: inline-flex; align-items: center; gap: 5px;
-      font-size: 10px; font-family: var(--font-body); text-transform: uppercase;
-      letter-spacing: 0.08em; transition: background 0.2s, border-color 0.2s;
-      transform: none !important; box-shadow: none !important;
-    }
-    .theme-trigger:hover {
-      background: var(--vault-hover) !important;
-      border-color: var(--vault-border) !important;
-      transform: none !important; box-shadow: none !important;
-    }
-    #theme-panel {
+    #settings-panel {
       position: absolute; top: 100%; right: 0; left: auto; z-index: 2000;
       background: var(--vt-surface); border: 1px solid var(--vault-border); border-top: none;
-      padding: 16px; min-width: 280px;
+      padding: 16px; min-width: 320px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.15);
       transition: background-color 0.2s, border-color 0.2s;
     }
+    .settings-panel-header {
+      font-family: var(--font-display); font-size: 12px; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--vault-gold);
+      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--vault-border);
+    }
     .theme-panel-header {
       font-family: var(--font-display); font-size: 12px; font-weight: 700;
       letter-spacing: 0.14em; text-transform: uppercase; color: var(--vault-gold);
@@ -596,12 +402,41 @@
       background: var(--vault-hover) !important;
       transform: translateY(-1px) !important;
     }
-    .theme-swatch.active {
-      border-color: var(--vault-accent) !important;
-      background: var(--vault-selected) !important;
+    /* Glob Exclusions Pill Tags */
+    .pill-tag-container {
+      display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+      background: var(--vt-primary); border: 1px solid var(--vault-border); border-radius: 4px;
+      padding: 5px 8px; min-height: 36px; cursor: text;
+      transition: border-color 0.2s;
     }
-    .swatch-colors { display: flex; border-radius: 4px; overflow: hidden; flex-shrink: 0; height: 28px; width: 22px; }
-    .swatch-name { font-size: 10px; color: var(--vault-text); letter-spacing: 0.04em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; }
+    .pill-tag-container:focus-within { border-color: var(--vault-accent); }
+    .pill-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--vt-warning-bg); border: 1px solid var(--vault-accent);
+      color: var(--vault-text); border-radius: 100px; padding: 2px 8px 2px 10px;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+      white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+      animation: fadeInScale 0.15s ease forwards;
+    }
+    .pill-tag-remove {
+      background: none; border: none; color: var(--vault-slate); cursor: pointer;
+      font-size: 13px; line-height: 1; padding: 0 1px; margin: 0;
+      transform: none !important; transition: color 0.15s;
+    }
+    .pill-tag-remove:hover { color: var(--vt-error) !important; background: none !important; box-shadow: none !important; }
+    .pill-tag-input {
+      border: none; background: transparent; color: var(--vault-text); outline: none;
+      font-family: var(--font-body); font-size: 12px; min-width: 80px; flex: 1;
+    }
+    /* Customizable HTML5 Video Subtitles */
+    video::cue {
+      font-size: var(--sub-font-size, 20px);
+      font-family: var(--font-body), sans-serif;
+      background-color: rgba(0, 0, 0, 0.75);
+      color: #ffffff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
@@ -642,11 +477,60 @@
           </svg>
           <span id="settings-btn-text">Settings</span>
         </button>
-        <div id="settings-panel" style="display:none;" role="dialog" aria-label="Settings Panel">
+        <div id="settings-panel" style="display:none; width: 340px;" role="dialog" aria-label="Settings Panel">
           <div class="settings-panel-header">Settings / Paramètres</div>
-          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-            <label for="settings-glob-exclusions" id="glob-exclusions-label" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Glob Exclusions (comma-separated):</label>
-            <input type="text" id="settings-glob-exclusions" class="search-box" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none;" placeholder="e.g. *.txt, temp/*, private*" />
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label for="pill-tag-input-glob" id="glob-exclusions-label" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Glob Exclusions:</label>
+              <div class="pill-tag-container" id="pill-tag-container-glob" onclick="document.getElementById('pill-tag-input-glob').focus()">
+                <input type="text" id="pill-tag-input-glob" class="pill-tag-input" placeholder="e.g. *.txt" autocomplete="off" />
+              </div>
+              <input type="hidden" id="settings-glob-exclusions" />
+            </div>
+
+            <div>
+              <label for="settings-default-folder" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Default Opened Folder:</label>
+              <input type="text" id="settings-default-folder" class="search-box" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6.5px 8px; font-family:var(--font-body); outline:none; border-radius:4px;" placeholder="e.g. C:\MyVideos" />
+            </div>
+
+            <div>
+              <label for="settings-default-theme" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Default Theme:</label>
+              <select id="settings-default-theme" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;"></select>
+            </div>
+
+            <div>
+              <label for="settings-default-lang" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Default Language:</label>
+              <select id="settings-default-lang" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+                <option value="en">English</option>
+                <option value="fr">Québécois</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="settings-default-sub-lang" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Default Subtitle:</label>
+              <select id="settings-default-sub-lang" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+                <option value="und">None / Off</option>
+                <option value="en">English (EN)</option>
+                <option value="fr">French (FR)</option>
+                <option value="es">Spanish (ES)</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="settings-sub-font-size" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Subtitle Font Size:</label>
+              <select id="settings-sub-font-size" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+                <option value="16px">16px (Small)</option>
+                <option value="20px">20px (Medium)</option>
+                <option value="26px">26px (Large)</option>
+                <option value="32px">32px (Extra Large)</option>
+              </select>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+              <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Remember Playback Pos:</span>
+              <input type="checkbox" id="settings-remember-position" style="accent-color: var(--vault-accent); width: 16px; height: 16px; cursor: pointer;" />
+            </div>
+
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
               <button id="settings-btn-save" style="background:var(--vault-accent); color:var(--vt-primary); border:none; padding:6px 12px; border-radius:4px; font-weight:600; font-family:var(--font-body); cursor:pointer;">Save</button>
             </div>
@@ -852,7 +736,7 @@
            .replace(/'/g, "&#039;");
     }
 
-    let appSettings = { folders: [] };
+    let appSettings = { folders: [] }; let currentLang = 'en';
     let currentNavPath = '', currentRealPath = '';
     let folderSizeTimer = null;
 
@@ -930,18 +814,25 @@
        
        scrollPositions = appSettings.scrollPositions;
 
+       // Apply saved subtitle font size
+       const subSize = appSettings.subFontSize || '20px';
+       document.documentElement.style.setProperty('--sub-font-size', subSize);
+
        // Apply saved theme
-       applyTheme(appSettings.theme || 'golden-slate');
+       applyTheme(appSettings.theme || appSettings.defaultTheme || 'golden-slate');
 
        // Apply saved language
-       if (appSettings.lang && (appSettings.lang === 'en' || appSettings.lang === 'fr')) {
-           setLanguage(appSettings.lang);
+       const preferredLang = appSettings.lang || appSettings.defaultLang || 'en';
+       if (preferredLang && (preferredLang === 'en' || preferredLang === 'fr')) {
+           setLanguage(preferredLang);
        } else {
            setLanguage('en');
        }
 
        if (appSettings.lastPath.realPath) {
            loadDirectory(appSettings.lastPath.navPath, appSettings.lastPath.realPath, false);
+        } else if (appSettings.defaultFolder) {
+            loadDirectory('root/' + appSettings.defaultFolder.split(/[\\/]/).pop(), appSettings.defaultFolder, false);
        }
     }
     init();
@@ -1137,8 +1028,13 @@
          input.style.display = 'none'; filename.style.display = 'block';
          if (input.value && input.value !== item.name) {
              const res = await window.electronAPI.renameFile(item.path, input.value);
-             if (res.success) loadDirectory(currentNavPath, currentRealPath, false);
-             else { input.value = item.name; alert("Rename failed: " + res.error); }
+             if (res.success) {
+                 showToast(`Renamed to "${input.value}"`, 'success');
+                 loadDirectory(currentNavPath, currentRealPath, false);
+             } else {
+                 input.value = item.name;
+                 showToast('Rename failed: ' + res.error, 'error');
+             }
          }
       };
       input.addEventListener('mousedown', e => e.stopPropagation());
@@ -1370,13 +1266,18 @@
          } else if (action === 'properties') {
              showPropertiesDialog(item);
          } else if (action === 'opened') {
-             console.log('[open] opened file:', item.path); showToast('Opened file in default app', 'success');
+             showToast('Opening in default app...', 'success');
+         } else if (action === 'open-error') {
+             showToast('Failed to open — check default app config', 'error');
          } else if (action === 'show') {
-             console.log('[show] showed in folder:', item.path); showToast('Opened in Windows Explorer', 'success');
+             showToast('Opened in Windows Explorer', 'success');
          } else if (action === 'copied') {
              showToast('Path copied to clipboard', 'success');
          } else if (action === 'open-folder') {
              navigateTo(currentNavPath + '/' + item.name, currentRealPath);
+             showToast(`Opened: ${item.name}`, 'success');
+         } else if (action === 'remove-folder-cancelled') {
+             // No-op
          } else if (action === 'closed') {
              // Menu was closed without action
          }
@@ -1431,6 +1332,13 @@
 
     }
     
+    // Kill all running hover-preview videos (prevents ghost audio after refresh)
+    function killAllHoverVideos() {
+        document.querySelectorAll('#file-grid video.trickplay').forEach(v => {
+            try { v.pause(); v.src = ''; v.remove(); } catch(e) {}
+        });
+    }
+
     function applyFilters() {
        const term = el('search-box').value.toLowerCase();
        const filterAttr = el('filter-type').value;
@@ -1441,10 +1349,7 @@
        const allHiddenItems = new Set();
        appSettings.folders.forEach(f => f.items.forEach(p => allHiddenItems.add(p)));
        
-       // If we're inside a logical folder, allItems only contains those nodes we loaded, 
-       // but here allItems represents the CURRENT logic pull
        const displayableFiles = allItems.filter(v => {
-           // Hide if we're at root BUT it's dragged into a fake folder
            if (currentNavPath === 'root' || !currentNavPath.includes('/')) {
                if (allHiddenItems.has(v.path)) return false;
            }
@@ -1461,49 +1366,39 @@
            return true; 
        });
        
-       // Sort logic
        const sortBy = el('sort-by').value;
        const sortOrder = el('btn-sort-order').dataset.order || 'desc';
        
        filteredItems.sort((a,b) => {
-           // Always keep fake folders floating at top natively like Windows
            if (a.type === 'fakeFolder' && b.type !== 'fakeFolder') return -1;
            if (b.type === 'fakeFolder' && a.type !== 'fakeFolder') return 1;
-           
-           let valA = a[sortBy];
-           let valB = b[sortBy];
-           
+           let valA = a[sortBy]; let valB = b[sortBy];
            if (sortBy === 'name') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
-           else if (sortBy === 'size') { valA = valA || 0; valB = valB || 0; }
-           else if (sortBy === 'duration') { valA = valA || 0; valB = valB || 0; }
-           else if (sortBy === 'mtime') { valA = valA || 0; valB = valB || 0; }
-           
+           else if (['size','duration','mtime'].includes(sortBy)) { valA = valA || 0; valB = valB || 0; }
            let compare = 0;
-           if (valA < valB) compare = -1;
-           else if (valA > valB) compare = 1;
-           
+           if (valA < valB) compare = -1; else if (valA > valB) compare = 1;
            return sortOrder === 'desc' ? compare * -1 : compare;
        });
        
        displayedItems = filteredItems;
+       
+       // Kill any running hover videos before wiping the grid
+       killAllHoverVideos();
        
        if (displayedItems.length === 0) {
            const hasActiveFilters = term !== '' || filterAttr !== 'all';
            const ctaButton = hasActiveFilters
                ? `<button style="margin-top:16px;" onclick="document.getElementById('search-box').value=''; document.getElementById('filter-type').value='all'; applyFilters();">Clear Filters</button>`
                : `<button style="margin-top:16px;" onclick="document.getElementById('btn-select').click()">Browse Vault</button>`;
-
            el('file-grid').innerHTML = `
                <div class="empty-state" style="grid-column: 1 / -1;">
                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                       <circle cx="11" cy="11" r="8"></circle>
-                       <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                       <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                    </svg>
                    <h3>No Items Found</h3>
                    <p>Adjust your search, filters, or select a different vault.</p>
                    ${ctaButton}
-               </div>
-           `;
+               </div>`;
            selectedIndices.clear(); lastSelectedIndex = -1; currentlyRendered = 0;
            updateStatusBar();
        } else {
@@ -1556,8 +1451,8 @@
       el('path-display').innerText = navPath === 'root' ? realPath : navPath;
       
       // Enable new folder / refresh buttons if we have a real path
-      el('btn-new-folder').disabled = false;
-      el('btn-new-folder').title = "Create virtual folder";
+      if (el('btn-new-folder')) el('btn-new-folder').disabled = false;
+      if (el('btn-new-folder')) el('btn-new-folder').title = "Create virtual folder";
       el('btn-refresh').disabled = false;
       el('btn-refresh').title = "Refresh directory";
       el('btn-back').disabled = true;
@@ -1608,8 +1503,8 @@
             // We are in a virtual folder
             el('btn-back').disabled = false;
             el('btn-back').title = "Go back";
-            el('btn-new-folder').disabled = false;
-            el('btn-new-folder').title = "Create virtual folder";
+            if (el('btn-new-folder')) el('btn-new-folder').disabled = false;
+            if (el('btn-new-folder')) el('btn-new-folder').title = "Create virtual folder";
             el('btn-refresh').disabled = true;
             el('btn-refresh').title = "Refresh unavailable in virtual folders";
 
@@ -1682,7 +1577,7 @@
     });
     
     // FAKE folders handling
-    document.getElementById('btn-new-folder').addEventListener('click', () => {
+    if (el('btn-new-folder') && el('fake-folder-name')) { document.getElementById('btn-new-folder').addEventListener('click', () => {
         document.getElementById('fake-folder-dialog').style.display = 'block';
         const input = document.getElementById('fake-folder-name');
         input.value = '';
@@ -1722,7 +1617,7 @@
             e.preventDefault();
             document.getElementById('btn-cancel-folder').click();
         }
-    });
+    }); }
 
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1851,7 +1746,38 @@
     });
     window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; sbox.style.display = 'none'; } });
 
+    // Background right-click (not on a card) — shows paste/refresh/select-all/new-folder
+    area.addEventListener('contextmenu', async (e) => {
+        if (e.target.closest('.file-card')) return; // handled by card's own listener
+        if (!currentRealPath) return; // no vault loaded
+        const hasClip = !!(window._clipboard && window._clipboard.paths.length > 0);
+        const action = await window.electronAPI.showContextMenu({
+            type: 'background', _hasClipboard: hasClip
+        });
+        if (action === 'paste') {
+            if (!window._clipboard || window._clipboard.paths.length === 0) { showToast('Nothing to paste', 'error'); return; }
+            const res = await window.electronAPI.pasteFiles({ paths: window._clipboard.paths, mode: window._clipboard.mode, destination: currentRealPath });
+            if (res.success) {
+                showToast(`Pasted ${res.count} file(s)`, 'success');
+                if (window._clipboard.mode === 'cut') window._clipboard = { paths: [], mode: 'copy' };
+                loadDirectory(currentNavPath, currentRealPath, false);
+            } else { showToast('Paste failed: ' + res.error, 'error'); }
+        } else if (action === 'bg-refresh') {
+            loadDirectory(currentNavPath, currentRealPath, false);
+        } else if (action === 'bg-select-all') {
+            selectedIndices.clear();
+            displayedItems.forEach((_, i) => selectedIndices.add(i));
+            document.querySelectorAll('.file-card').forEach(c => { c.classList.add('selected'); c.querySelector('.file-checkbox').checked = true; });
+            updateStatusBar();
+            showToast(`Selected ${displayedItems.length} item(s)`, 'success');
+        } else if (action === 'bg-new-folder') {
+            const btn = document.getElementById('btn-new-folder');
+            if (btn && !btn.disabled) btn.click();
+        }
+    });
+
     // video-modal backdrop click: close only when NOT minimized
+
     el('video-modal').addEventListener('click', (e) => {
         if (el('video-modal').classList.contains('minimized')) {
             // PiP mode: any click except the X restores the player
@@ -1875,6 +1801,19 @@
         el('video-ended-overlay').style.display = 'none';
         if (el('titlebar-video-title')) el('titlebar-video-title').style.display = 'none';
         if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+        // Save playback position before closing (rememberPosition setting)
+        if (appSettings && appSettings.rememberPosition !== false && currentPlayingIndex !== -1) {
+            const closingItm = displayedItems[currentPlayingIndex];
+            if (closingItm && closingItm.path && vp.duration > 0) {
+                appSettings.playbackPositions = appSettings.playbackPositions || {};
+                if (vp.currentTime >= vp.duration - 3) {
+                    delete appSettings.playbackPositions[closingItm.path];
+                } else {
+                    appSettings.playbackPositions[closingItm.path] = vp.currentTime;
+                }
+                window.electronAPI.saveSettings(appSettings);
+            }
+        }
         el('video-player').pause(); el('video-player').src = '';
         if (currentPlayingIndex !== -1) {
             const card = document.querySelector(`.file-card[data-index="${currentPlayingIndex}"]`);
@@ -1961,15 +1900,44 @@
                 // Refresh list options
                 refreshSubtitlesList();
                 
-                // Select and show first subtitle track by default
-                selectSubtitleTrack(0);
-                showToast(`Loaded ${subs.length} subtitle track(s) automatically`, 'success');
+                // Select subtitle track based on defaultSubLang preference
+                const prefLang = (appSettings && appSettings.defaultSubLang) || 'und';
+                let preferredTrackIdx = -1;
+                if (prefLang !== 'und') {
+                    for (let i = 0; i < vp.textTracks.length; i++) {
+                        const tl = vp.textTracks[i].language || '';
+                        if (tl.toLowerCase().startsWith(prefLang.toLowerCase())) {
+                            preferredTrackIdx = i;
+                            break;
+                        }
+                    }
+                }
+                selectSubtitleTrack(preferredTrackIdx);
+                if (preferredTrackIdx >= 0) {
+                    showToast(`Loaded ${subs.length} subtitle track(s) — ${vp.textTracks[preferredTrackIdx].label}`, 'success');
+                } else {
+                    showToast(`Loaded ${subs.length} subtitle track(s)`, 'success');
+                }
             } else {
                 refreshSubtitlesList();
                 selectSubtitleTrack(-1);
             }
         } catch (err) {
             console.error("Auto subtitle loading error:", err);
+        }
+
+        // Restore playback position if rememberPosition is enabled
+        const savedPos = (appSettings && appSettings.rememberPosition !== false &&
+            appSettings.playbackPositions && appSettings.playbackPositions[itm.path]) || 0;
+        if (savedPos > 0) {
+            const restoreOnce = () => {
+                if (savedPos < vp.duration - 3) {
+                    vp.currentTime = savedPos;
+                    showToast(`Resumed from ${formatDuration(savedPos)}`, 'success');
+                }
+                vp.removeEventListener('loadedmetadata', restoreOnce);
+            };
+            vp.addEventListener('loadedmetadata', restoreOnce);
         }
 
         // Restore from PiP if needed
@@ -2361,7 +2329,7 @@
 
         upscaleMS.addEventListener('sourceopen', () => {
             try {
-                upscaleSB = upscaleMS.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+                upscaleSB = upscaleMS.addSourceBuffer('video/mp4; codecs="avc1.640033"');
                 upscaleSB.mode = 'sequence';
                 upscaleSB.addEventListener('updateend', () => {
                     upscaleAppending = false;
@@ -2575,12 +2543,12 @@
       }
     };
 
-    let currentLang = 'en';
+    currentLang = 'en';
 
     function setLanguage(lang) {
       currentLang = lang;
       // Show the OPPOSITE lang as the button label (clicking switches TO that lang)
-      el('lang-text').innerText = (lang === 'en') ? 'EN' : 'FR';
+      el('lang-text').innerText = (lang === 'en') ? 'FR' : 'EN';
       console.log('[i18n] Language set to:', lang);
       
       // Update text-only DOM elements (NOT icon buttons — those would lose their SVGs)
@@ -2594,7 +2562,7 @@
       
       el('search-box').placeholder = translations[lang].searchPlaceholder;
       // btn-new-folder and btn-refresh are SVG icon buttons — do NOT set innerText
-      el('btn-new-folder').title = translations[lang].addFolder;
+      if (el('btn-new-folder')) el('btn-new-folder').title = translations[lang].addFolder;
       el('btn-refresh').title = translations[lang].refresh;
       el('sort-label').innerText = translations[lang].sortLabel;
       
@@ -2612,8 +2580,8 @@
       // Dialog inputs and labels
       const dialogLabel = document.querySelector('#fake-folder-dialog label');
       if (dialogLabel) dialogLabel.innerText = translations[lang].enterFolderName;
-      el('btn-cancel-folder').innerText = translations[lang].cancel;
-      el('btn-create-folder').innerText = translations[lang].create;
+      if (el('btn-cancel-folder')) el('btn-cancel-folder').innerText = translations[lang].cancel;
+      if (el('btn-create-folder')) el('btn-create-folder').innerText = translations[lang].create;
       
       el('theme-btn-text').innerText = translations[lang].theme;
       document.querySelector('.theme-panel-header').innerText = translations[lang].theme;
@@ -2735,30 +2703,99 @@
       }
     });
 
+    // Populate default theme select on startup
+    const settingsThemeSelect = el('settings-default-theme');
+    if (settingsThemeSelect) {
+        settingsThemeSelect.innerHTML = '';
+        (window.VAULT_THEMES || []).forEach(theme => {
+            const opt = document.createElement('option');
+            opt.value = theme.id;
+            opt.textContent = theme.name;
+            settingsThemeSelect.appendChild(opt);
+        });
+    }
+
+    // ── Pill-Tag system for Glob Exclusions ──────────────────────────────────
+    function pillTagGetValues() {
+        return Array.from(document.querySelectorAll('#pill-tag-container-glob .pill-tag'))
+            .map(p => p.dataset.value);
+    }
+    function pillTagAdd(val) {
+        const v = val.trim().replace(/^,+|,+$/g, '').trim();
+        if (!v) return;
+        const existing = pillTagGetValues();
+        if (existing.includes(v)) return;
+        const pill = document.createElement('span');
+        pill.className = 'pill-tag'; pill.dataset.value = v;
+        pill.innerHTML = `${v}<button class="pill-tag-remove" title="Remove" tabindex="-1">&times;</button>`;
+        pill.querySelector('.pill-tag-remove').addEventListener('click', (e) => {
+            e.stopPropagation(); pill.remove();
+        });
+        const input = document.getElementById('pill-tag-input-glob');
+        input.parentNode.insertBefore(pill, input);
+    }
+    function pillTagLoad(arr) {
+        // Remove existing pills
+        document.querySelectorAll('#pill-tag-container-glob .pill-tag').forEach(p => p.remove());
+        (arr || []).forEach(v => pillTagAdd(v));
+    }
+    document.getElementById('pill-tag-input-glob').addEventListener('keydown', (e) => {
+        const input = e.target;
+        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+            e.preventDefault();
+            pillTagAdd(input.value);
+            input.value = '';
+        } else if (e.key === 'Backspace' && input.value === '') {
+            // Remove last pill on backspace when empty
+            const pills = document.querySelectorAll('#pill-tag-container-glob .pill-tag');
+            if (pills.length > 0) pills[pills.length - 1].remove();
+        }
+    });
+    document.getElementById('pill-tag-input-glob').addEventListener('blur', (e) => {
+        if (e.target.value.trim()) { pillTagAdd(e.target.value); e.target.value = ''; }
+    });
+    // ── End Pill-Tag system ──────────────────────────────────────────────────
+
     el('settings-trigger').addEventListener('click', (e) => {
         e.stopPropagation();
         const panel = el('settings-panel');
         const isOpening = panel.style.display === 'none';
         panel.style.display = isOpening ? 'block' : 'none';
         if (isOpening) {
-            el('settings-glob-exclusions').value = (appSettings.globExclusions || []).join(', ');
-            el('settings-glob-exclusions').focus();
+            pillTagLoad(appSettings.globExclusions || []);
+            el('settings-default-folder').value = appSettings.defaultFolder || '';
+            el('settings-default-theme').value = appSettings.defaultTheme || 'golden-slate';
+            el('settings-default-lang').value = appSettings.defaultLang || 'en';
+            el('settings-default-sub-lang').value = appSettings.defaultSubLang || 'und';
+            el('settings-sub-font-size').value = appSettings.subFontSize || '20px';
+            el('settings-remember-position').checked = appSettings.rememberPosition !== false;
+            document.getElementById('pill-tag-input-glob').focus();
         }
     });
 
     el('settings-btn-save').addEventListener('click', async () => {
-        const value = el('settings-glob-exclusions').value;
-        const list = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
-        appSettings.globExclusions = list;
+        // Flush any uncommitted text in the input
+        const rawInput = document.getElementById('pill-tag-input-glob');
+        if (rawInput.value.trim()) { pillTagAdd(rawInput.value); rawInput.value = ''; }
+        
+        appSettings.globExclusions = pillTagGetValues();
+        appSettings.defaultFolder = el('settings-default-folder').value.trim();
+        appSettings.defaultTheme = el('settings-default-theme').value;
+        appSettings.defaultLang = el('settings-default-lang').value;
+        appSettings.defaultSubLang = el('settings-default-sub-lang').value;
+        
+        const subSize = el('settings-sub-font-size').value;
+        appSettings.subFontSize = subSize;
+        document.documentElement.style.setProperty('--sub-font-size', subSize);
+        
+        appSettings.rememberPosition = el('settings-remember-position').checked;
         await window.electronAPI.saveSettings(appSettings);
         showToast(currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
         el('settings-panel').style.display = 'none';
         
-        // Reload current directory if exists to apply exclusions
-        if (currentRealPath) {
-            loadDirectory(currentNavPath, currentRealPath, false);
-        }
+        if (currentRealPath) loadDirectory(currentNavPath, currentRealPath, false);
     });
+
 
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#settings-panel') && !e.target.closest('#settings-trigger')) {
