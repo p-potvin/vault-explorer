@@ -52,7 +52,7 @@ ipcMain.handle('encrypt-files', async (event, { paths, password }) => {
 
       const fileData = fs.readFileSync(filePath);
       const salt = crypto.randomBytes(16);
-      const key = crypto.scryptSync(password, salt, 32);
+      const key = crypto.scryptSync(password, salt, 32, { N: 1024, r: 8, p: 1 });
       const iv = crypto.randomBytes(16);
 
       const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
@@ -85,7 +85,7 @@ ipcMain.handle('decrypt-files', async (event, { paths, password }) => {
       const iv = fileData.subarray(16, 32);
       const encryptedData = fileData.subarray(32);
 
-      const key = crypto.scryptSync(password, salt, 32);
+      const key = crypto.scryptSync(password, salt, 32, { N: 1024, r: 8, p: 1 });
       const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
 
       let decrypted;
@@ -365,6 +365,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                             '-o', upDir,
                             '-n', 'realesr-animevideov3-x2',
                             '-m', modelsPath,
+                            '-j', '1:1:1',
                             '-f', 'png'
                         ];
                         execFile(realesrganPath, args, { windowsHide: true }, () => {
@@ -571,8 +572,9 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
       
       if (thumbsDir && res.startsWith(thumbsDir)) continue;
 
+      let checkName = baseName;
+
       if (type === 'image' || ext === '.webm' || name.endsWith('_p.mp4') || name.endsWith('-preview.mp4')) {
-          let checkName = baseName;
           if (name.endsWith('_p.mp4')) checkName = baseName.substring(0, baseName.length - 2);
           else if (name.endsWith('-preview.mp4')) checkName = baseName.replace('-preview', '');
           else if (name.endsWith('-poster')) checkName = baseName.replace('-poster', '');
@@ -584,8 +586,6 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
               if (hasParent) continue; 
           }
       }
-      
-      let checkName = baseName;
       const relativePath = vaultRoot ? path.relative(vaultRoot, res) : name;
       const uniqueBase = relativePath.replace(/[^a-zA-Z0-9]/g, '_');
       
@@ -744,41 +744,54 @@ ipcMain.handle('copy-to-clipboard', (event, text) => {
 
 ipcMain.handle('show-context-menu', async (event, item) => {
   return new Promise((resolve) => {
+      let resolved = false;
+      const once = (val) => { if (!resolved) { resolved = true; resolve(val); } };
+
       let templ = [];
       if (item.type === 'video' || item.type === 'image' || item.type === 'other') {
          const isEnc = typeof item.path === 'string' && item.path.toLowerCase().endsWith('.enc');
          templ = [
-           { label: 'Open File', click: () => { shell.openPath(item.path); resolve('opened'); } },
-           { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); resolve('show'); } },
+           { label: 'Open File', click: () => {
+               shell.openPath(item.path).then(err => { once(err ? 'open-error' : 'opened'); });
+           }},
+           { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); once('show'); } },
            { type: 'separator' },
-           { label: 'Copy Path', click: () => { clipboard.writeText(item.path); resolve('copied'); } },
+           { label: 'Copy Path', click: () => { clipboard.writeText(item.path); once('copied'); } },
            { type: 'separator' },
-           { label: 'Cut', click: () => { resolve('cut'); } },
-           { label: 'Copy', click: () => { resolve('copy'); } },
-           { label: 'Paste', click: () => { resolve('paste'); } },
-           { label: 'Rename', click: () => { resolve('rename'); } },
+           { label: 'Cut',    click: () => once('cut') },
+           { label: 'Copy',   click: () => once('copy') },
+           { label: 'Rename', click: () => once('rename') },
            { type: 'separator' },
-           isEnc ? { label: 'Decrypt File (AES-256)', click: () => { resolve('decrypt-prompt'); } }
-                 : { label: 'Encrypt File (AES-256)', click: () => { resolve('encrypt-prompt'); } },
+           isEnc ? { label: 'Decrypt File (AES-256)', click: () => once('decrypt-prompt') }
+                 : { label: 'Encrypt File (AES-256)', click: () => once('encrypt-prompt') },
            { type: 'separator' },
-           { label: 'Generate WebM Preview (ffmpeg)', click: () => { resolve('generate-webm'); } },
-           { label: 'Upscale Video (AI)', click: () => { resolve('upscale-video'); } },
-           { label: 'Zip Selection', click: () => { resolve('zip-selection'); } },
+           { label: 'Generate WebM Preview', click: () => once('generate-webm') },
+           { label: 'Upscale Video (AI)',      click: () => once('upscale-video') },
+           { label: 'Zip Selection',           click: () => once('zip-selection') },
            { type: 'separator' },
-           { label: 'Delete File', click: () => { resolve('delete-item'); } },
-           { label: 'Properties', click: () => { resolve('properties'); } }
+           { label: 'Delete',     click: () => once('delete-item') },
+           { label: 'Properties', click: () => once('properties') }
          ];
       } else if (item.type === 'fakeFolder') {
-         const hasItems = Array.isArray(item.items) && item.items.length > 0;
          templ = [
-           { label: `Open Folder: ${item.name}`, enabled: hasItems, click: () => { resolve('open-folder'); } },
+           { label: `Open Folder: ${item.name}`, click: () => once('open-folder') },
            { type: 'separator' },
-           { label: 'Remove Folder', click: () => { resolve('remove-folder'); } }
+           { label: 'Remove Folder', click: () => once('remove-folder') }
+         ];
+      } else if (item.type === 'background') {
+         templ = [
+           { label: 'Paste',               enabled: item._hasClipboard === true, click: () => once('paste') },
+           { type: 'separator' },
+           { label: 'Refresh',             click: () => once('bg-refresh') },
+           { label: 'Select All',          click: () => once('bg-select-all') },
+           { type: 'separator' },
+           { label: 'New Virtual Folder…', click: () => once('bg-new-folder') },
          ];
       }
       const menu = Menu.buildFromTemplate(templ);
       menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
-      menu.once('menu-will-close', () => resolve('closed'));
+      // Only resolve 'closed' if no item was clicked
+      menu.once('menu-will-close', () => { setTimeout(() => once('closed'), 50); });
   });
 });
 
@@ -805,7 +818,7 @@ ipcMain.handle('upscale-video', async (event, itemPath) => {
 
         if (isImage) {
             const outPath = path.join(dir, `${baseName}_upscaled${ext}`);
-            const args = ['-i', itemPath, '-o', outPath, '-n', 'realesrgan-x4plus-anime', '-m', modelsPath];
+            const args = ['-i', itemPath, '-o', outPath, '-n', 'realesrgan-x4plus-anime', '-m', modelsPath, '-j', '1:1:1'];
             log('ai', `Running Real-ESRGAN on image: ${args.join(' ')}`);
             execFile(realesrganPath, args, (error, stdout, stderr) => {
                 if (error) return resolve({ success: false, error: error.message || stderr });
@@ -819,7 +832,7 @@ ipcMain.handle('upscale-video', async (event, itemPath) => {
 
             const upscaleImage = (inImg, outImg) => {
                 return new Promise((resImg) => {
-                    const args = ['-i', inImg, '-o', outImg, '-n', 'realesrgan-x4plus-anime', '-m', modelsPath];
+                    const args = ['-i', inImg, '-o', outImg, '-n', 'realesrgan-x4plus-anime', '-m', modelsPath, '-j', '1:1:1'];
                     execFile(realesrganPath, args, (error) => {
                         resImg(!error);
                     });
@@ -991,17 +1004,27 @@ ipcMain.handle('paste-files', async (event, { paths, mode, destination }) => {
 });
 
 ipcMain.handle('zip-selection', async (event, { paths, outputPath }) => {
-    if (!Array.isArray(paths) || !outputPath) {
+    if (!Array.isArray(paths) || paths.length === 0 || !outputPath) {
         return { success: false, error: 'Invalid parameters' };
     }
     return new Promise((resolve) => {
-        const escapedPaths = paths.map(p => `'${p.replace(/'/g, "''")}'`).join(',');
-        const escapedOutput = `'${outputPath.replace(/'/g, "''")}'`;
-        const cmd = `Compress-Archive -Path ${escapedPaths} -DestinationPath ${escapedOutput} -Force`;
-        execFile('powershell', ['-Command', cmd], { windowsHide: true }, (err, stdout, stderr) => {
-            if (err) resolve({ success: false, error: stderr || err.message });
-            else resolve({ success: true, path: outputPath });
-        });
+        // Build PowerShell array literal: @('path1','path2',...)
+        const psPathArray = '@(' + paths.map(p => "'" + p.replace(/'/g, "''")
+            .replace(/\\/g, '\\\\') + "'").join(',') + ')';
+        const psOut = "'" + outputPath.replace(/'/g, "''").replace(/\\/g, '\\\\') + "'";
+        const cmd = `Compress-Archive -LiteralPath ${psPathArray} -DestinationPath ${psOut} -Force`;
+        log('zip', 'Running:', cmd);
+        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd],
+            { windowsHide: true, timeout: 120000 },
+            (err, stdout, stderr) => {
+                if (err) {
+                    log('zip', 'Error:', stderr || err.message);
+                    resolve({ success: false, error: (stderr || err.message).substring(0, 300) });
+                } else {
+                    resolve({ success: true, path: outputPath });
+                }
+            }
+        );
     });
 });
 
@@ -1335,7 +1358,7 @@ ipcMain.handle('upscale-stream-start', async (event, { videoPath, startTime, fps
                 fs.copyFileSync(path.join(rawDir, f), path.join(batchRawDir, f));
             }
             const args = ['-i', batchRawDir, '-o', batchUpDir, '-n', ESRGAN_MODEL,
-                          '-m', modelsPath, '-f', 'png'];
+                          '-m', modelsPath, '-j', '1:1:1', '-f', 'png'];
             const proc = execFile(realesrganPath, args, { windowsHide: true }, (err) => {
                 session.procs.splice(session.procs.indexOf(proc), 1);
                 // Copy results back to upDir

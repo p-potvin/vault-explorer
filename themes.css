@@ -266,3 +266,19 @@
   --vt-success:      #1A7F37; --vt-success-bg: rgba(26,127,55,0.11);
   --vt-info:         #0550AE; --vt-info-bg:    rgba(5,80,174,0.11);
 }
+
+/* ── Light-mode overrides ───────────────────────────────────────────────────
+   Reduces the "halo" brightness at the bottom of the app when --vt-surface-alt
+   is near-white on light themes. Forces a softer surface background. */
+[data-theme-mode="light"] .status-bar {
+  background: var(--vt-surface) !important;
+  border-top-color: var(--vt-border) !important;
+}
+[data-theme-mode="light"] .sorting-bar {
+  background: var(--vt-surface) !important;
+  border-bottom-color: var(--vt-border) !important;
+}
+[data-theme-mode="light"] .titlebar {
+  background: var(--vt-surface) !important;
+  border-bottom-color: var(--vt-border) !important;
+}
