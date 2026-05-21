@@ -33,4 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpscaleChunk: () => ipcRenderer.removeAllListeners('upscale-chunk'),
   onUpscaleStatus: (cb) => ipcRenderer.on('upscale-status', (_, data) => cb(data)),
   offUpscaleStatus: () => ipcRenderer.removeAllListeners('upscale-status'),
+  findSubtitles: (videoPath) => ipcRenderer.invoke('find-subtitles', videoPath),
+  onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
+  offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress')
 });

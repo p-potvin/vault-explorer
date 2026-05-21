@@ -282,8 +282,7 @@ function checkAudioStream(videoPath) {
         });
     });
 }
-
-async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath) {
+async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null) {
     const duration = await getVideoDuration(videoPath);
     const hasAudio = await checkAudioStream(videoPath);
     
@@ -312,56 +311,143 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath) {
     if (!fs.existsSync(hoverWebmPath)) {
         try {
             const tempFiles = [];
-            const interval = duration / 10;
-            const clipDuration = duration > 20 ? 2 : Math.max(0.5, interval);
+            const numClips = 8;
+            const interval = duration / numClips;
+            const clipDuration = duration > 40 ? 4 : Math.max(1.0, interval);
+            const fps = 12; // Lower framerate for high-speed upscaling and processing
             
-            for (let i = 0; i < 10; i++) {
-                const seekTime = interval * i;
-                const tempPath = path.join(os.tmpdir(), `vw-clip-${Date.now()}-${i}.webm`);
-                tempFiles.push(tempPath);
-                
-                const args = [
-                    '-y',
-                    '-ss', seekTime.toFixed(2),
-                    '-t', clipDuration.toFixed(2),
-                    '-i', videoPath,
-                    '-threads', '2',
-                    '-c:v', 'libvpx-vp9',
-                    '-deadline', 'realtime',
-                    '-cpu-used', '8',
-                    '-b:v', '1M',
-                ];
-                if (hasAudio) {
-                    args.push('-c:a', 'libvorbis', '-b:a', '64k');
-                } else {
-                    args.push('-an');
+            const realesrganPath = path.join(__dirname, 'tools', 'realesrgan-ncnn-vulkan.exe');
+            const modelsPath     = path.join(__dirname, 'tools', 'models');
+            const hasAI = fs.existsSync(realesrganPath);
+
+            log('webm-preview', `Generating AI-upscaled preview: ${path.basename(videoPath)} (hasAI=${hasAI})`);
+
+            for (let i = 0; i < numClips; i++) {
+                if (sender && !sender.isDestroyed()) {
+                    sender.send('generate-webm-progress', {
+                        percent: Math.round(((i) / numClips) * 100),
+                        label: `Processing AI-upscaled clip ${i + 1} of ${numClips}...`
+                    });
                 }
-                args.push(tempPath, '-loglevel', 'error');
+
+                const seekTime = interval * i;
+                const clipDir = path.join(os.tmpdir(), `vw-preview-clip-${Date.now()}-${i}`);
+                fs.mkdirSync(clipDir, { recursive: true });
+
+                const rawDir = path.join(clipDir, 'raw');
+                const upDir = path.join(clipDir, 'up');
+                fs.mkdirSync(rawDir, { recursive: true });
+                fs.mkdirSync(upDir, { recursive: true });
+
+                // 1. Extract frames at low fps
+                await new Promise((res, rej) => {
+                    const args = [
+                        '-y',
+                        '-ss', seekTime.toFixed(2),
+                        '-i', videoPath,
+                        '-t', clipDuration.toFixed(2),
+                        '-r', String(fps),
+                        '-f', 'image2',
+                        path.join(rawDir, 'f%05d.png'),
+                        '-loglevel', 'error'
+                    ];
+                    execFile('ffmpeg', args, { windowsHide: true }, (err) => {
+                        if (err) return rej(err);
+                        res();
+                    });
+                });
+
+                // 2. Apply ESRGAN if tools exist
+                if (hasAI) {
+                    await new Promise((res) => {
+                        const args = [
+                            '-i', rawDir,
+                            '-o', upDir,
+                            '-n', 'realesr-animevideov3-x2',
+                            '-m', modelsPath,
+                            '-f', 'png'
+                        ];
+                        execFile(realesrganPath, args, { windowsHide: true }, () => {
+                            res();
+                        });
+                    });
+                } else {
+                    // Fallback to copy raw to up
+                    const rawFiles = fs.readdirSync(rawDir);
+                    for (const f of rawFiles) {
+                        fs.copyFileSync(path.join(rawDir, f), path.join(upDir, f));
+                    }
+                }
+
+                // 3. Encode upscaled frames into webm clip
+                const tempClipPath = path.join(os.tmpdir(), `vw-clip-${Date.now()}-${i}.webm`);
+                tempFiles.push(tempClipPath);
+
+                const upFrames = fs.readdirSync(upDir).filter(f => f.endsWith('.png'));
+                if (upFrames.length > 0) {
+                    await new Promise((res, rej) => {
+                        const args = [
+                            '-y',
+                            '-framerate', String(fps),
+                            '-i', path.join(upDir, 'f%05d.png'),
+                            '-threads', '2',
+                            '-c:v', 'libvpx-vp9',
+                            '-deadline', 'realtime',
+                            '-cpu-used', '8',
+                            '-b:v', '1M',
+                            '-an',
+                            tempClipPath,
+                            '-loglevel', 'error'
+                        ];
+                        execFile('ffmpeg', args, { windowsHide: true }, (err) => {
+                            if (err) return rej(err);
+                            res();
+                        });
+                    });
+                }
+
+                // Clean up clip files
+                fs.rm(clipDir, { recursive: true, force: true }, () => {});
+            }
+
+            if (sender && !sender.isDestroyed()) {
+                sender.send('generate-webm-progress', {
+                    percent: 95,
+                    label: `Compiling clips into seamless WebM preview...`
+                });
+            }
+
+            // 4. Concat clip files
+            if (tempFiles.length > 0) {
+                const concatFilePath = path.join(os.tmpdir(), `vw-concat-${Date.now()}.txt`);
+                const concatContent = tempFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
+                fs.writeFileSync(concatFilePath, concatContent, 'utf8');
                 
-                await runLowPriorityProcess('ffmpeg', args);
+                const concatArgs = [
+                    '-y',
+                    '-safe', '0',
+                    '-f', 'concat',
+                    '-i', concatFilePath,
+                    '-c', 'copy',
+                    hoverWebmPath,
+                    '-loglevel', 'error'
+                ];
+                await runLowPriorityProcess('ffmpeg', concatArgs);
+                
+                for (const f of tempFiles) {
+                    try { fs.unlinkSync(f); } catch (e) {}
+                }
+                try { fs.unlinkSync(concatFilePath); } catch (e) {}
             }
-            
-            const concatFilePath = path.join(os.tmpdir(), `vw-concat-${Date.now()}.txt`);
-            const concatContent = tempFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
-            fs.writeFileSync(concatFilePath, concatContent, 'utf8');
-            
-            const concatArgs = [
-                '-y',
-                '-safe', '0',
-                '-f', 'concat',
-                '-i', concatFilePath,
-                '-c', 'copy',
-                hoverWebmPath,
-                '-loglevel', 'error'
-            ];
-            await runLowPriorityProcess('ffmpeg', concatArgs);
-            
-            for (const f of tempFiles) {
-                try { fs.unlinkSync(f); } catch (e) {}
-            }
-            try { fs.unlinkSync(concatFilePath); } catch (e) {}
             
             webmTimeMs = Date.now() - webmStart;
+            
+            if (sender && !sender.isDestroyed()) {
+                sender.send('generate-webm-progress', {
+                    percent: 100,
+                    label: `Preview generation completed successfully!`
+                });
+            }
         } catch (e) {
             console.error("Failed to generate WebM preview:", e.message);
         }
@@ -378,7 +464,6 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath) {
         });
     } catch(e) {}
 }
-
 function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
     if (activeQueuePaths.has(videoPath)) return;
     activeQueuePaths.add(videoPath);
@@ -780,7 +865,6 @@ ipcMain.handle('upscale-video', async (event, itemPath) => {
         }
     });
 });
-
 ipcMain.handle('generate-webm', async (event, itemPath, vaultRoot) => {
     if (typeof itemPath !== 'string' || !fs.existsSync(itemPath)) return { success: false, error: 'File not found' };
     
@@ -794,23 +878,59 @@ ipcMain.handle('generate-webm', async (event, itemPath, vaultRoot) => {
     const thumbPath = path.join(thumbsDir, baseName + '.jpg');
     const hoverWebmPath = path.join(thumbsDir, baseName + '.webm');
     
-    if (activeQueuePaths.has(itemPath)) {
-        return { success: true, path: hoverWebmPath, queued: true };
+    // Explicit generation deletes existing first to guarantee a clean new render
+    try {
+        if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
+        if (fs.existsSync(hoverWebmPath)) fs.unlinkSync(hoverWebmPath);
+    } catch (e) {
+        console.error("Failed to delete legacy previews for recreation:", e.message);
     }
-    activeQueuePaths.add(itemPath);
     
-    return new Promise((resolve) => {
-        backgroundFfmpegQueue.push(async () => {
-            try {
-                await generateThumbAndPreview(itemPath, thumbPath, hoverWebmPath);
-                resolve({ success: true, path: hoverWebmPath });
-            } catch (e) {
-                resolve({ success: false, error: e.message });
-            } finally {
-                activeQueuePaths.delete(itemPath);
+    // Execute IMMEDIATELY for manually clicked items to bypass the idle queue!
+    try {
+        await generateThumbAndPreview(itemPath, thumbPath, hoverWebmPath, event.sender);
+        return { success: true, path: hoverWebmPath };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+ipcMain.handle('find-subtitles', async (event, videoPath) => {
+    if (typeof videoPath !== 'string' || !fs.existsSync(videoPath)) return [];
+    const dir = path.dirname(videoPath);
+    const ext = path.extname(videoPath);
+    const base = path.basename(videoPath, ext);
+    const subExts = ['.srt', '.vtt', '.ass', '.ssa'];
+    
+    try {
+        const files = fs.readdirSync(dir);
+        const discovered = [];
+        for (const f of files) {
+            const fExt = path.extname(f).toLowerCase();
+            if (!subExts.includes(fExt)) continue;
+            
+            const fBase = path.basename(f, fExt);
+            if (fBase === base) {
+                discovered.push({
+                    path: path.join(dir, f),
+                    name: f,
+                    label: 'Default',
+                    lang: 'und'
+                });
+            } else if (fBase.startsWith(base + '.') || fBase.startsWith(base + '_')) {
+                const suffix = fBase.substring(base.length + 1);
+                discovered.push({
+                    path: path.join(dir, f),
+                    name: f,
+                    label: suffix.toUpperCase(),
+                    lang: suffix.toLowerCase()
+                });
             }
-        });
-    });
+        }
+        return discovered;
+    } catch (e) {
+        console.error("find-subtitles error:", e.message);
+        return [];
+    }
 });
 
 ipcMain.handle('schedule-idle-previews', async (event, items) => {
@@ -1087,13 +1207,11 @@ ipcMain.handle('get-folder-size-background', async (event, dirPath) => {
     if (typeof dirPath !== 'string' || !fs.existsSync(dirPath)) return 0;
     return await calculateDirectorySizeRecursive(dirPath);
 });
-
 // ─── Real-Time ESRGAN Upscale Stream ──────────────────────────────────────────
-const CHUNK_FRAMES = 60;      // frames per batch  (2 s @ 30 fps)
-const PARALLEL_ESRGAN = 4;    // concurrent ESRGAN processes per batch
-const ESRGAN_MODEL = 'realesr-animevideov3-x2';  // fastest video model
-const LEAD_CHUNKS = 3;        // how many chunks to pre-process ahead
-
+const CHUNK_FRAMES = 60;      // frames per batch (2s @ 30fps)
+const PARALLEL_ESRGAN = 1;    // sequential processing per chunk (VRAM friendly!)
+const ESRGAN_MODEL = 'realesr-animevideov3-x2';
+const LEAD_CHUNKS = 1;        // buffer exactly 1 chunk ahead to prevent overlapping spawned threads!
 let upscaleSession = null;    // active session state
 
 function killSession(session) {
