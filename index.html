@@ -336,6 +336,21 @@
       position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; z-index: 2;
     }
 
+    .webm-loading-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.75); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 10;
+      color: var(--vault-accent); font-family: var(--font-body); font-size: 10px;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      gap: 6px; pointer-events: auto;
+    }
+    .webm-loading-overlay .spinner-small {
+      width: 20px; height: 20px; border: 2px solid rgba(255, 255, 255, 0.15);
+      border-top-color: var(--vault-accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+
     /* â”€â”€ Sorting Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .sorting-bar {
       display: flex; gap: 10px; align-items: center; padding: 12px 24px;
@@ -447,6 +462,10 @@
       <circle fill="var(--vault-gold)" cx="55" cy="62" r="4"/>
     </svg>
     <span style="font-size: 11px; font-weight: 500; letter-spacing: 0.1em; opacity: 0.75; margin-right: 16px;">Explorer</span>
+    <span id="task-badge" style="display:none; font-size:10px; font-weight:700; color:var(--vt-primary); background:var(--vault-accent); padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.05em; align-items:center; gap:5px; margin-left: 10px; animation: fadeInScale 0.2s ease; vertical-align: middle;">
+      <span style="width:8px; height:8px; border:1px solid rgba(0,0,0,0.3); border-top-color:#000; border-radius:50%; display:inline-block; animation:spin 0.8s linear infinite;"></span>
+      <span>Generating Previews: <span id="task-percent">0%</span></span>
+    </span>
     <span id="titlebar-video-title" style="margin-left: 20px; font-size:11px; font-weight:600; color:var(--vault-accent); display:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:400px; text-transform: none; font-family: var(--font-body); letter-spacing: 0.02em;"></span>
     <div id="titlebar-menus" style="display: flex; gap: 8px; align-items: center; -webkit-app-region: no-drag; margin-left: auto; transition: opacity 0.25s ease;">
       <button id="lang-trigger" class="theme-trigger" aria-label="Switch Language">
@@ -806,6 +825,33 @@
         return 'file:///' + decodedDrive;
     }
 
+    function attachHoverWebmToCard(card, hoverWebmPath) {
+        if (!card || !hoverWebmPath) return;
+        let wT;
+        const mainImg = card.querySelector('.thumbnail');
+        const thumbCont = card.querySelector('.thumbnail-container');
+        if (!mainImg || !thumbCont) return;
+        
+        card.addEventListener('mouseenter', () => {
+             clearTimeout(wT);
+             wT = setTimeout(() => {
+                if (thumbCont.querySelector('video.trickplay')) return;
+                let v = document.createElement('video');
+                v.src = sanitizePath(hoverWebmPath);
+                v.autoplay = true; v.loop = true; v.muted = false; v.volume = 0.5; v.className = 'trickplay';
+                v.style.display = 'block'; v.style.objectFit = 'cover';
+                thumbCont.appendChild(v);
+                mainImg.style.display = 'none';
+             }, 300);
+        });
+        card.addEventListener('mouseleave', () => {
+            clearTimeout(wT);
+            const v = thumbCont.querySelector('video.trickplay');
+            if(v) { v.pause(); v.src = ""; v.remove(); }
+            if(mainImg) mainImg.style.display = 'block';
+        });
+    }
+
     async function init() {
        appSettings = await window.electronAPI.getSettings();
        if (!appSettings.folders) appSettings.folders = [];
@@ -925,6 +971,7 @@
       }
       
       card.dataset.index = index; card.title = item.name;
+      card.dataset.path = item.path || '';
       if (item.hoverWebm) card.dataset.hasWebm = "true";
       if (item.thumbnail) card.dataset.hasThumb = "true";
 
@@ -979,27 +1026,7 @@
       
       // WebM Hover Play Logic
       if (item.hoverWebm) {
-         let wT;
-         const mainImg = card.querySelector('.thumbnail');
-         const thumbCont = card.querySelector('.thumbnail-container');
-         card.addEventListener('mouseenter', () => {
-              clearTimeout(wT);
-              wT = setTimeout(() => {
-                 if (thumbCont.querySelector('video.trickplay')) return;
-                 let v = document.createElement('video');
-                 v.src = sanitizePath(item.hoverWebm);
-                 v.autoplay = true; v.loop = true; v.muted = false; v.volume = 0.5; v.className = 'trickplay';
-                 v.style.display = 'block'; v.style.objectFit = 'cover';
-                 thumbCont.appendChild(v);
-                 mainImg.style.display = 'none';
-              }, 300);
-         });
-         card.addEventListener('mouseleave', () => {
-             clearTimeout(wT);
-             const v = thumbCont.querySelector('video.trickplay');
-             if(v) { v.pause(); v.src = ""; v.remove(); }
-             if(mainImg) mainImg.style.display = 'block';
-         });
+         attachHoverWebmToCard(card, item.hoverWebm);
       } else if (item.trickplayFolder) {
          let hoverTimer; let tpIndex = 0; let frames = [];
          const tpImg = card.querySelector('.trickplay');
@@ -1098,17 +1125,73 @@
          const action = await window.electronAPI.showContextMenu({ type: item.type, path: item.path, name: item.name, items: item.items });
          console.log('[ctx-menu] action:', action, 'item:', item.name);
          if (action === 'generate-webm') {
-             showToast('Generating WebM preview...', 'success');
-             el('loading-text').innerText = 'Generating WebM preview...';
-             el('loading').style.display = 'flex';
-             const res = await window.electronAPI.generateWebm(item.path, currentRealPath);
-             el('loading').style.display = 'none';
-             el('loading-text').innerText = translations[currentLang].scanning;
-             if (!res.success) showToast('WebM failed: ' + res.error, 'error');
-             else {
-                 showToast('WebM generated successfully!', 'success');
-                 loadDirectory(currentNavPath, currentRealPath, false);
+             showToast('WebM generation started in background', 'success');
+             const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+             const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                 .find(c => normPath(c.dataset.path) === normPath(item.path));
+             if (cardElement) {
+                 let overlay = cardElement.querySelector('.webm-loading-overlay');
+                 if (!overlay) {
+                     overlay = document.createElement('div');
+                     overlay.className = 'webm-loading-overlay';
+                     overlay.innerHTML = `<div class="spinner-small"></div><div class="webm-percent" style="margin-top:4px; font-size:10px;">0%</div>`;
+                     const thumbCont = cardElement.querySelector('.thumbnail-container');
+                     if (thumbCont) thumbCont.appendChild(overlay);
+                 }
              }
+             window.electronAPI.generateWebm(item.path, currentRealPath).then(res => {
+                 if (cardElement) {
+                     const overlay = cardElement.querySelector('.webm-loading-overlay');
+                     if (overlay) overlay.remove();
+                 }
+                 if (!res.success) {
+                     showToast('WebM failed: ' + res.error, 'error');
+                 } else {
+                     showToast('WebM generated successfully!', 'success');
+                     // WebM dynamic load
+                 }
+             });
+         } else if (action === 'normalize-audio' || action === 'normalize-audio-transcribe') {
+              const transcribe = (action === 'normalize-audio-transcribe');
+               showToast(transcribe ? 'Vocal isolation, normalization & AI transcription started' : 'Vocal isolation & normalization started in background', 'success');
+              const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+              const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                  .find(c => normPath(c.dataset.path) === normPath(item.path));
+              let overlay = null;
+              if (cardElement) {
+                  overlay = cardElement.querySelector('.webm-loading-overlay');
+                  if (!overlay) {
+                      overlay = document.createElement('div');
+                      overlay.className = 'webm-loading-overlay';
+                      overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Initializing...</div>`;
+                      const thumbCont = cardElement.querySelector('.thumbnail-container');
+                      if (thumbCont) thumbCont.appendChild(overlay);
+                  }
+              }
+              
+              const progressHandler = (eventData) => {
+                  if (normPath(eventData.videoPath) === normPath(item.path)) {
+                      if (overlay) {
+                          const pctEl = overlay.querySelector('.webm-percent');
+                          if (pctEl) pctEl.innerText = `${eventData.percent}%`;
+                          const lblEl = overlay.querySelector('.normalize-lbl');
+                          if (lblEl) lblEl.innerText = eventData.label || 'Processing...';
+                      }
+                  }
+              };
+              
+              window.electronAPI.onNormalizeProgress(progressHandler);
+              
+              window.electronAPI.normalizeAudio(item.path, currentRealPath, transcribe).then(res => {
+                  window.electronAPI.offNormalizeProgress();
+                  if (overlay) overlay.remove();
+                  
+                  if (res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                      showToast(transcribe ? 'Audio normalization & AI transcription complete!' : 'Audio normalization complete!', 'success');
+                  } else {
+                      showToast('Audio processing failed: ' + (res.error || 'Unknown error'), 'error');
+                  }
+              });
          } else if (action === 'upscale-video') {
              showToast('Upscaling video (stub)...', 'success');
              el('loading-text').innerText = 'AI Upscaling Video...';
@@ -2802,9 +2885,59 @@
             el('settings-panel').style.display = 'none';
         }
     });
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    // ── WebM Real-time Progress Tracking ─────────────────────────────────────
+    window.electronAPI.onWebmProgress((data) => {
+        if (!data || !data.videoPath) return;
+        const { videoPath, percent, label } = data;
+        
+        // Find corresponding file card by path dataset
+        const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+        const card = Array.from(document.querySelectorAll('.file-card'))
+            .find(c => normPath(c.dataset.path) === normPath(videoPath));
+            
+        if (card) {
+            let overlay = card.querySelector('.webm-loading-overlay');
+            if (percent < 100) {
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.className = 'webm-loading-overlay';
+                    overlay.innerHTML = `<div class="spinner-small"></div><div class="webm-percent" style="margin-top:4px; font-size:10px;">0%</div>`;
+                    const thumbCont = card.querySelector('.thumbnail-container');
+                    if (thumbCont) thumbCont.appendChild(overlay);
+                }
+                const pctText = overlay.querySelector('.webm-percent');
+                if (pctText) pctText.innerText = `${percent}%`;
+            } else {
+                if (overlay) overlay.remove();
+                if (data.hoverWebm) {
+                    card.dataset.hasWebm = "true";
+                    const idx = parseInt(card.dataset.index);
+                    if (displayedItems[idx]) {
+                        displayedItems[idx].hoverWebm = data.hoverWebm;
+                    }
+                    attachHoverWebmToCard(card, data.hoverWebm);
+                    showToast('Hover preview compiled and loaded!', 'success');
+                }
+            }
+        }
+        
+        // Update Titlebar global Task Badge
+        const badge = el('task-badge');
+        if (badge) {
+            if (percent < 100) {
+                badge.style.display = 'inline-flex';
+                const pctText = el('task-percent');
+                if (pctText) pctText.innerText = `${percent}%`;
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    });
+    // ─────────────────────────────────────────────────────────────────────────
 
   </script>
 </body>
 </html>
+
 
