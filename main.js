@@ -22,6 +22,7 @@ function createWindow() {
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#2f3241', symbolColor: '#74b1be' }
   });
+  mainWindow.maximize();
   mainWindow.loadFile('index.html');
 }
 
@@ -289,7 +290,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     let thumbStart = Date.now();
     let thumbTimeMs = null;
     if (!fs.existsSync(thumbPath)) {
-        const thumbTime = duration > 0 ? (duration * 0.1).toFixed(2) : '5.00';
+        const thumbTime = duration > 0 ? Math.min(20, duration).toFixed(2) : '5.00';
         try {
             await runLowPriorityProcess('ffmpeg', [
                 '-y',
@@ -310,45 +311,28 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     let webmTimeMs = null;
     if (!fs.existsSync(hoverWebmPath)) {
         try {
-            const tempFiles = [];
-            const numClips = 8;
-            const interval = duration / numClips;
-            const clipDuration = duration > 40 ? 4 : Math.max(1.0, interval);
-            const fps = 12; // Lower framerate for high-speed upscaling and processing
-            
-            const realesrganPath = path.join(__dirname, 'tools', 'realesrgan-ncnn-vulkan.exe');
-            const modelsPath     = path.join(__dirname, 'tools', 'models');
-            const hasAI = fs.existsSync(realesrganPath);
+            log('webm-preview', `Generating preview: ${path.basename(videoPath)}`);
 
-            log('webm-preview', `Generating AI-upscaled preview: ${path.basename(videoPath)} (hasAI=${hasAI})`);
-
-            for (let i = 0; i < numClips; i++) {
+            if (duration <= 100) {
                 if (sender && !sender.isDestroyed()) {
                     sender.send('generate-webm-progress', {
-                        percent: Math.round(((i) / numClips) * 100),
-                        label: `Processing AI-upscaled clip ${i + 1} of ${numClips}...`
+                        videoPath,
+                        percent: 50,
+                        label: `Short video detected (<=100s). Transcoding full preview...`
                     });
                 }
-
-                const seekTime = interval * i;
-                const clipDir = path.join(os.tmpdir(), `vw-preview-clip-${Date.now()}-${i}`);
-                fs.mkdirSync(clipDir, { recursive: true });
-
-                const rawDir = path.join(clipDir, 'raw');
-                const upDir = path.join(clipDir, 'up');
-                fs.mkdirSync(rawDir, { recursive: true });
-                fs.mkdirSync(upDir, { recursive: true });
-
-                // 1. Extract frames at low fps
+                // Just copy/transcode the whole video as a WebM!
                 await new Promise((res, rej) => {
                     const args = [
                         '-y',
-                        '-ss', seekTime.toFixed(2),
                         '-i', videoPath,
-                        '-t', clipDuration.toFixed(2),
-                        '-r', String(fps),
-                        '-f', 'image2',
-                        path.join(rawDir, 'f%05d.png'),
+                        '-c:v', 'libvpx-vp9',
+                        '-b:v', '1M',
+                        '-deadline', 'realtime',
+                        '-cpu-used', '8',
+                        '-c:a', 'libopus',
+                        '-b:a', '64k',
+                        hoverWebmPath,
                         '-loglevel', 'error'
                     ];
                     execFile('ffmpeg', args, { windowsHide: true }, (err) => {
@@ -356,47 +340,38 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                         res();
                     });
                 });
-
-                // 2. Apply ESRGAN if tools exist
-                if (hasAI) {
-                    await new Promise((res) => {
-                        const args = [
-                            '-i', rawDir,
-                            '-o', upDir,
-                            '-n', 'realesr-animevideov3-x2',
-                            '-m', modelsPath,
-                            '-j', '1:1:1',
-                            '-f', 'png'
-                        ];
-                        execFile(realesrganPath, args, { windowsHide: true }, () => {
-                            res();
+            } else {
+                const tempFiles = [];
+                const numClips = 12;
+                const interval = duration / numClips;
+                const clipDuration = 5.0; // 5 seconds each, total 60s
+                
+                for (let i = 0; i < numClips; i++) {
+                    if (sender && !sender.isDestroyed()) {
+                        sender.send('generate-webm-progress', {
+                            videoPath,
+                            percent: Math.round(((i) / numClips) * 100),
+                            label: `Processing clip ${i + 1} of ${numClips}...`
                         });
-                    });
-                } else {
-                    // Fallback to copy raw to up
-                    const rawFiles = fs.readdirSync(rawDir);
-                    for (const f of rawFiles) {
-                        fs.copyFileSync(path.join(rawDir, f), path.join(upDir, f));
                     }
-                }
 
-                // 3. Encode upscaled frames into webm clip
-                const tempClipPath = path.join(os.tmpdir(), `vw-clip-${Date.now()}-${i}.webm`);
-                tempFiles.push(tempClipPath);
+                    const seekTime = interval * i;
+                    const tempClipPath = path.join(os.tmpdir(), `vw-clip-${Date.now()}-${i}.webm`);
+                    tempFiles.push(tempClipPath);
 
-                const upFrames = fs.readdirSync(upDir).filter(f => f.endsWith('.png'));
-                if (upFrames.length > 0) {
+                    // Directly extract clip with video and synchronized audio streams
                     await new Promise((res, rej) => {
                         const args = [
                             '-y',
-                            '-framerate', String(fps),
-                            '-i', path.join(upDir, 'f%05d.png'),
-                            '-threads', '2',
+                            '-ss', seekTime.toFixed(2),
+                            '-i', videoPath,
+                            '-t', clipDuration.toFixed(2),
                             '-c:v', 'libvpx-vp9',
+                            '-b:v', '1M',
                             '-deadline', 'realtime',
                             '-cpu-used', '8',
-                            '-b:v', '1M',
-                            '-an',
+                            '-c:a', 'libopus',
+                            '-b:a', '64k',
                             tempClipPath,
                             '-loglevel', 'error'
                         ];
@@ -407,46 +382,46 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                     });
                 }
 
-                // Clean up clip files
-                fs.rm(clipDir, { recursive: true, force: true }, () => {});
-            }
-
-            if (sender && !sender.isDestroyed()) {
-                sender.send('generate-webm-progress', {
-                    percent: 95,
-                    label: `Compiling clips into seamless WebM preview...`
-                });
-            }
-
-            // 4. Concat clip files
-            if (tempFiles.length > 0) {
-                const concatFilePath = path.join(os.tmpdir(), `vw-concat-${Date.now()}.txt`);
-                const concatContent = tempFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
-                fs.writeFileSync(concatFilePath, concatContent, 'utf8');
-                
-                const concatArgs = [
-                    '-y',
-                    '-safe', '0',
-                    '-f', 'concat',
-                    '-i', concatFilePath,
-                    '-c', 'copy',
-                    hoverWebmPath,
-                    '-loglevel', 'error'
-                ];
-                await runLowPriorityProcess('ffmpeg', concatArgs);
-                
-                for (const f of tempFiles) {
-                    try { fs.unlinkSync(f); } catch (e) {}
+                if (sender && !sender.isDestroyed()) {
+                    sender.send('generate-webm-progress', {
+                        videoPath,
+                        percent: 95,
+                        label: `Compiling clips into seamless WebM preview...`
+                    });
                 }
-                try { fs.unlinkSync(concatFilePath); } catch (e) {}
+
+                // Concat clip files
+                if (tempFiles.length > 0) {
+                    const concatFilePath = path.join(os.tmpdir(), `vw-concat-${Date.now()}.txt`);
+                    const concatContent = tempFiles.map(f => `file '${f.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`).join('\n');
+                    fs.writeFileSync(concatFilePath, concatContent, 'utf8');
+                    
+                    const concatArgs = [
+                        '-y',
+                        '-safe', '0',
+                        '-f', 'concat',
+                        '-i', concatFilePath,
+                        '-c', 'copy',
+                        hoverWebmPath,
+                        '-loglevel', 'error'
+                    ];
+                    await runLowPriorityProcess('ffmpeg', concatArgs);
+                    
+                    for (const f of tempFiles) {
+                        try { fs.unlinkSync(f); } catch (e) {}
+                    }
+                    try { fs.unlinkSync(concatFilePath); } catch (e) {}
+                }
             }
             
             webmTimeMs = Date.now() - webmStart;
             
             if (sender && !sender.isDestroyed()) {
                 sender.send('generate-webm-progress', {
+                    videoPath,
                     percent: 100,
-                    label: `Preview generation completed successfully!`
+                    label: `Preview generation completed successfully!`,
+                    hoverWebm: hoverWebmPath
                 });
             }
         } catch (e) {
@@ -765,9 +740,11 @@ ipcMain.handle('show-context-menu', async (event, item) => {
            isEnc ? { label: 'Decrypt File (AES-256)', click: () => once('decrypt-prompt') }
                  : { label: 'Encrypt File (AES-256)', click: () => once('encrypt-prompt') },
            { type: 'separator' },
-           { label: 'Generate WebM Preview', click: () => once('generate-webm') },
-           { label: 'Upscale Video (AI)',      click: () => once('upscale-video') },
-           { label: 'Zip Selection',           click: () => once('zip-selection') },
+            { label: 'Generate WebM Preview', click: () => once('generate-webm') },
+            { label: 'Normalize Audio (Demucs)', click: () => once('normalize-audio') },
+            { label: 'Normalize & Transcribe (AI)', click: () => once('normalize-audio-transcribe') },
+            { label: 'Upscale Video (AI)',      click: () => once('upscale-video') },
+            { label: 'Zip Selection',           click: () => once('zip-selection') },
            { type: 'separator' },
            { label: 'Delete',     click: () => once('delete-item') },
            { label: 'Properties', click: () => once('properties') }
@@ -793,6 +770,56 @@ ipcMain.handle('show-context-menu', async (event, item) => {
       // Only resolve 'closed' if no item was clicked
       menu.once('menu-will-close', () => { setTimeout(() => once('closed'), 50); });
   });
+});
+
+ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe }) => {
+    log('normalize', `Starting audio normalization for: ${videoPath} (transcribe: ${!!transcribe})`);
+    const sender = event.sender;
+    
+    return new Promise((resolve) => {
+        const pyScript = path.join(__dirname, 'python-scripts', 'audio_normalize.py');
+        const pythonPath = path.join(__dirname, '..', 'vaultwares-media-processing', '.venv', 'Scripts', 'python.exe');
+        const execPython = fs.existsSync(pythonPath) ? pythonPath : 'python';
+        
+        const args = [pyScript, videoPath, vaultRoot];
+        if (transcribe) {
+            args.push('--transcribe');
+        }
+        
+        const proc = spawn(execPython, args, { windowsHide: true });
+        let finalStatus = null;
+        
+        proc.stdout.on('data', (data) => {
+            const lines = data.toString().split('\n');
+            for (const line of lines) {
+                if (line.startsWith('PROGRESS_UPDATE:')) {
+                    try {
+                        const payload = JSON.parse(line.substring('PROGRESS_UPDATE:'.length).trim());
+                        if (sender && !sender.isDestroyed()) {
+                            sender.send('normalize-progress', { videoPath, ...payload });
+                        }
+                    } catch (e) {}
+                } else if (line.startsWith('JSON_STATUS:')) {
+                    try {
+                        finalStatus = JSON.parse(line.substring('JSON_STATUS:'.length).trim());
+                    } catch (e) {}
+                }
+            }
+        });
+        
+        proc.stderr.on('data', (data) => {
+            log('normalize-err', data.toString());
+        });
+        
+        proc.on('close', (code) => {
+            log('normalize', `Python subprocess exited with code ${code}`);
+            if (finalStatus) {
+                resolve(finalStatus);
+            } else {
+                resolve({ status: 'FAILED', error: `Subprocess exited with code ${code}` });
+            }
+        });
+    });
 });
 
 ipcMain.handle('upscale-video', async (event, itemPath) => {
@@ -887,9 +914,10 @@ ipcMain.handle('generate-webm', async (event, itemPath, vaultRoot) => {
         try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch (e) {}
     }
     
-    const baseName = path.basename(itemPath, path.extname(itemPath));
-    const thumbPath = path.join(thumbsDir, baseName + '.jpg');
-    const hoverWebmPath = path.join(thumbsDir, baseName + '.webm');
+    const relativePath = path.relative(vaultRoot, itemPath);
+    const uniqueBase = relativePath.replace(/[^a-zA-Z0-9]/g, '_');
+    const thumbPath = path.join(thumbsDir, uniqueBase + '.jpg');
+    const hoverWebmPath = path.join(thumbsDir, uniqueBase + '.webm');
     
     // Explicit generation deletes existing first to guarantee a clean new render
     try {
@@ -956,7 +984,7 @@ ipcMain.handle('schedule-idle-previews', async (event, items) => {
         activeQueuePaths.add(videoPath);
         backgroundFfmpegQueue.push(async () => {
             try {
-                await generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath);
+                await generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, event.sender);
             } catch (e) {
                 console.error(`Idle Preview generation failed for ${videoPath}:`, e.message);
             } finally {
@@ -1446,3 +1474,4 @@ ipcMain.handle('upscale-stream-start', async (event, { videoPath, startTime, fps
 
     return { success: true, fps, width, height, duration };
 });
+

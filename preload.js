@@ -35,5 +35,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpscaleStatus: () => ipcRenderer.removeAllListeners('upscale-status'),
   findSubtitles: (videoPath) => ipcRenderer.invoke('find-subtitles', videoPath),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
-  offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress')
+  offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
+  normalizeAudio: (videoPath, vaultRoot, transcribe) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe }),
+  onNormalizeProgress: (cb) => ipcRenderer.on('normalize-progress', (_, data) => cb(data)),
+  offNormalizeProgress: () => ipcRenderer.removeAllListeners('normalize-progress')
 });
