@@ -80,13 +80,13 @@ def run_command_with_progress(cmd, desc, start_pct, scale, duration):
 def main():
     parser = argparse.ArgumentParser(description="Real-time Demucs + FFmpeg dynaudnorm audio normalization")
     parser.add_argument("video_path", help="Path to video file")
-    parser.add_argument("vault_root", help="Root vault path")
+    parser.add_argument("vault_root", nargs="?", default=None, help="Root vault path")
     parser.add_argument("--transcribe", action="store_true", default=False, help="Enable automatic speech transcription and translation using Parakeet & isolated vocals")
     
     args = parser.parse_args()
     
     video_path = os.path.abspath(args.video_path)
-    vault_root = os.path.abspath(args.vault_root)
+    vault_root = os.path.abspath(args.vault_root) if args.vault_root else os.path.dirname(video_path)
     
     if not os.path.exists(video_path):
         print(f"Error: Video file {video_path} does not exist.")
@@ -201,23 +201,18 @@ def main():
                     utils.write_srt(normalized_base + ".srt", all_segments, original_texts)
                     utils.write_srt(normalized_base + ".en.srt", all_segments, original_texts)
                     
-                    report_progress(98, "Translating isolated vocals to French...")
+                    report_progress(98, "Performing native translation of isolated vocals to French...")
                     try:
-                        import asyncio
-                        from vaultwares_media_processing import translation
-                        translated_texts = asyncio.run(translation.translate_segments(
-                            all_segments,
-                            target_lang = "fr",
-                            translate_api = "deep-translator",
-                            translate_mode = "non-target",
-                            max_chars = 350000,
-                            max_calls = 500,
-                            detector = None
-                        ))
+                        translated_segments = model.transcribe_file(
+                            vocals_path,
+                            language="en",
+                            target_language="fr"
+                        )
+                        translated_texts = [seg.text for seg in translated_segments]
                         
-                        utils.write_srt(original_base + ".fr.srt", all_segments, translated_texts)
-                        utils.write_srt(normalized_base + ".fr.srt", all_segments, translated_texts)
-                        print("Subtitles successfully generated and translated!")
+                        utils.write_srt(original_base + ".fr.srt", translated_segments, translated_texts)
+                        utils.write_srt(normalized_base + ".fr.srt", translated_segments, translated_texts)
+                        print("Subtitles successfully generated and translated natively!")
                     except Exception as trans_ex:
                         print(f"Translation to French skipped: {trans_ex}")
                 else:

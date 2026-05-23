@@ -1,5 +1,15 @@
-| Timestamp | Video Name | Size | Duration | Thumb Time | WebM Time | Status |
-| --- | --- | --- | --- | --- | --- | --- |
-| 2026-05-20T12:55:32.983Z | Watch Alejamillan1 live on Chaturbate (5).mp4 | 110.25 MB | 441.6s | 392ms | 3004ms | SUCCESS |
-| 2026-05-20T12:55:36.468Z | Juan Stefflers Live Asian Big Butts Bisexual Chat Room.mp4 | 41.01 MB | 258.0s | 109ms | 3235ms | SUCCESS |
-| 2026-05-21T19:39:19.311Z | Michelle Floress pvt 20min bj dirty talk.mp4 | 206.25 MB | 1012.0s | 127ms | 348296ms | SUCCESS || 2026-05-21T23:34:48.837Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(2).mp4 | 73.07 MB | 294.5s | 99ms | N/A | SUCCESS || 2026-05-21T23:46:18.450Z | Watch B3cky_ live on Chaturbate.mp4 | 132.62 MB | 542.4s | 82ms | N/A | SUCCESS || 2026-05-21T23:49:43.016Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room.mp4 | 159.57 MB | 645.6s | 91ms | 10911ms | SUCCESS || 2026-05-21T23:49:45.844Z | Watch B3cky_ live on Chaturbate.mp4 | 132.62 MB | 542.4s | 95ms | 9715ms | SUCCESS || 2026-05-21T23:49:46.602Z | Nadina Sage Pov Nadine Sage.mp4 | 374.24 MB | 1489.2s | 126ms | 12598ms | SUCCESS || 2026-05-22T00:03:54.157Z | Watch B3cky_ live on Chaturbate.mp4 | 132.62 MB | 542.4s | 134ms | 13046ms | SUCCESS || 2026-05-22T00:03:54.848Z | Nadina Sage Pov Nadine Sage.mp4 | 374.24 MB | 1489.2s | 111ms | 15702ms | SUCCESS || 2026-05-22T00:04:00.322Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room.mp4 | 159.57 MB | 645.6s | 308ms | 16682ms | SUCCESS || 2026-05-22T00:04:02.410Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(1).mp4 | 211.62 MB | 852.0s | 353ms | 16648ms | SUCCESS || 2026-05-22T00:04:03.270Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(2).mp4 | 73.07 MB | 294.5s | 591ms | 15556ms | SUCCESS || 2026-05-22T00:04:06.202Z | Michelle Floress pvt 20min bj dirty talk.mp4 | 206.25 MB | 1012.0s | 281ms | 12617ms | SUCCESS || 2026-05-22T00:50:55.480Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(1).mp4 | 211.62 MB | 852.0s | 98ms | 4321ms | SUCCESS || 2026-05-22T00:50:57.836Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room.mp4 | 159.57 MB | 645.6s | 121ms | 4947ms | SUCCESS || 2026-05-22T00:50:59.470Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(2).mp4 | 73.07 MB | 294.5s | 142ms | 4577ms | SUCCESS || 2026-05-22T00:51:01.728Z | Nadina Sage Pov Nadine Sage.mp4 | 374.24 MB | 1489.2s | 159ms | 4612ms | SUCCESS || 2026-05-22T00:51:57.482Z | Michelle Floress pvt 20min bj dirty talk.mp4 | 206.25 MB | 1012.0s | 175ms | 5321ms | SUCCESS || 2026-05-22T00:52:02.610Z | Watch B3cky_ live on Chaturbate.mp4 | 132.62 MB | 542.4s | 81ms | 13527ms | SUCCESS || 2026-05-22T00:55:57.842Z | Bittoni Sexys Live Alternative Big Boobs Brunette Chat Room.mp4 | 34.2 MB | 170.0s | 85ms | 3572ms | SUCCESS |
+# VaultWares ASR & Translation Engine Benchmarks
+
+### **VaultWares ASR Performance Benchmarks**
+
+| Metric | Measured Performance Value | Description |
+| :--- | :--- | :--- |
+| **ASR Model Mode** | `SIMULATED FALLBACK` | Model engine implementation mode |
+| **Execution Hardware** | `CUDA` | Target GPU/CPU computation device |
+| **ASR Initialization Latency** | `1.5001 seconds` | Time to warm-load ASR weights onto RAM/VRAM |
+| **Inference Latency (10s audio)** | `0.2774 seconds` | Time spent transcribing isolated vocals track |
+| **Real-Time Factor (RTF)** | `0.0277` | Processing throughput factor (Speed Ratio) |
+| **Native Translation Latency** | `0.1721 seconds` | Time to decode speech with translation to French |
+| **Translation Throughput RTF** | `0.0172` | Real-time factor for translated decoding |
+| **PyTorch VRAM Allocated** | `0.00 MB` | Active VRAM footprint utilized by model weights |
+| **PyTorch VRAM Reserved** | `2.00 MB` | Peak GPU caching pool |

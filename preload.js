@@ -38,5 +38,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
   normalizeAudio: (videoPath, vaultRoot, transcribe) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe }),
   onNormalizeProgress: (cb) => ipcRenderer.on('normalize-progress', (_, data) => cb(data)),
-  offNormalizeProgress: () => ipcRenderer.removeAllListeners('normalize-progress')
+  offNormalizeProgress: () => ipcRenderer.removeAllListeners('normalize-progress'),
+  runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation })
 });
