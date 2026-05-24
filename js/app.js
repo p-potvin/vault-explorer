@@ -388,6 +388,33 @@ async function initApp() {
             if (mainImg) mainImg.style.display = 'block';
         });
     });
+    // Tab Navigation setup
+    window.currentTab = 'vault';
+    
+    const tabVault = el('tab-vault');
+    const tabFavs = el('tab-favorites');
+    const tabTmdb = el('tab-tmdb');
+    
+    if (tabVault) tabVault.addEventListener('click', () => window.switchTab('vault'));
+    if (tabFavs) tabFavs.addEventListener('click', () => window.switchTab('favorites'));
+    if (tabTmdb) tabTmdb.addEventListener('click', () => window.switchTab('tmdb'));
+
+    // TMDB Search listeners
+    const tmdbSearchBtn = el('tmdb-search-btn');
+    const tmdbSearchInput = el('tmdb-search-input');
+    if (tmdbSearchBtn) {
+        tmdbSearchBtn.addEventListener('click', () => {
+            const query = tmdbSearchInput.value.trim();
+            window.renderTMDB(query);
+        });
+    }
+    if (tmdbSearchInput) {
+        tmdbSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                window.renderTMDB(tmdbSearchInput.value.trim());
+            }
+        });
+    }
 }
 
 // Kickstart app when page loads
@@ -396,3 +423,373 @@ document.addEventListener('DOMContentLoaded', initApp);
 // Bind i18n setter
 window.setLanguage = setLanguage;
 window.updateSortOrderButtonUI = updateSortOrderButtonUI;
+
+window.switchTab = function(tabName) {
+    window.currentTab = tabName;
+    
+    // --- FORCE CLEANUP OF ACTIVE MEDIA PROCESSES & SOUNDS ---
+    const vp = el('video-player');
+    if (vp) {
+        try { vp.pause(); } catch(e) {}
+    }
+    const vm = el('video-modal');
+    if (vm) {
+        vm.style.display = 'none';
+        vm.classList.remove('minimized');
+    }
+    if (window.autoplayTimer) {
+        clearInterval(window.autoplayTimer);
+        window.autoplayTimer = null;
+    }
+    const endedOverlay = el('video-ended-overlay');
+    if (endedOverlay) endedOverlay.style.display = 'none';
+    const tbTitle = el('titlebar-video-title');
+    if (tbTitle) tbTitle.style.display = 'none';
+    
+    if (window.killAllHoverVideos) {
+        window.killAllHoverVideos();
+    }
+    document.querySelectorAll('.file-card').forEach(card => {
+        const mainImg = card.querySelector('.thumbnail');
+        if (mainImg) mainImg.style.display = 'block';
+    });
+    
+    // Toggle active state on tabs
+    const tabs = {
+        'vault': el('tab-vault'),
+        'favorites': el('tab-favorites'),
+        'tmdb': el('tab-tmdb')
+    };
+    
+    Object.keys(tabs).forEach(name => {
+        const btn = tabs[name];
+        if (!btn) return;
+        if (name === tabName) {
+            btn.classList.add('active');
+            btn.style.background = 'var(--vault-accent)';
+            btn.style.color = 'var(--vt-primary)';
+            btn.style.border = 'none';
+            btn.style.opacity = '1';
+        } else {
+            btn.classList.remove('active');
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--vault-text)';
+            btn.style.border = '1px solid var(--vault-border)';
+            btn.style.opacity = '0.8';
+        }
+    });
+
+    // Toggle view elements
+    const fileGrid = el('file-grid');
+    const favGrid = el('favorites-grid');
+    const tmdbContainer = el('tmdb-container');
+    const toolbar = document.querySelector('.toolbar');
+    
+    if (fileGrid) fileGrid.style.display = (tabName === 'vault') ? 'grid' : 'none';
+    if (favGrid) favGrid.style.display = (tabName === 'favorites') ? 'grid' : 'none';
+    if (tmdbContainer) tmdbContainer.style.display = (tabName === 'tmdb') ? 'block' : 'none';
+    
+    // Manage toolbar elements visibility
+    if (toolbar) {
+        // For TMDB, hide the entire standard vault toolbar search and browse buttons
+        toolbar.style.display = (tabName === 'tmdb') ? 'none' : 'flex';
+    }
+
+    if (tabName === 'favorites') {
+        window.renderFavorites();
+    } else if (tabName === 'tmdb') {
+        window.renderTMDB();
+    }
+};
+
+window.toggleFavorite = function(filePath, btnEl) {
+    window.appSettings.favorites = window.appSettings.favorites || [];
+    const idx = window.appSettings.favorites.indexOf(filePath);
+    let isNowStarred = false;
+    
+    if (idx !== -1) {
+        window.appSettings.favorites.splice(idx, 1);
+        window.showToast('Removed from Favorites', 'success');
+    } else {
+        window.appSettings.favorites.push(filePath);
+        window.showToast('Added to Favorites', 'success');
+        isNowStarred = true;
+    }
+    
+    // Save settings persistently
+    window.electronAPI.saveSettings(window.appSettings);
+    
+    // Update SVG icon in any matching card elements
+    const escapedPath = filePath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    document.querySelectorAll(`.file-card[data-path="${escapedPath}"]`).forEach(c => {
+        const svg = c.querySelector('.star-svg');
+        if (svg) {
+            svg.setAttribute('fill', isNowStarred ? '#E5A93B' : 'none');
+            svg.setAttribute('stroke', isNowStarred ? '#E5A93B' : '#ffffff');
+            svg.style.transform = 'scale(1.3)';
+            setTimeout(() => { svg.style.transform = 'scale(1.0)'; }, 200);
+        }
+    });
+
+    if (window.currentTab === 'favorites') {
+        window.renderFavorites();
+    }
+};
+
+window.renderFavorites = async function() {
+    const grid = el('favorites-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    
+    window.appSettings.favorites = window.appSettings.favorites || [];
+    if (window.appSettings.favorites.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1; padding: 40px 0;">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px; color: var(--vault-gold);">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+               </svg>
+               <h3>No Favorites Yet</h3>
+               <p>Click the star icon on any video or image in your Vault to save it here for fast access.</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;"><div class="spinner" style="margin: 0 auto 12px;"></div>Loading favorites...</div>';
+
+    try {
+        const items = await window.electronAPI.scanSpecificFiles(window.appSettings.favorites);
+        grid.innerHTML = '';
+        if (!items || items.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;">Favorites could not be loaded (make sure they exist).</div>';
+            return;
+        }
+        
+        window.displayedItems = items;
+        
+        items.forEach((item, i) => {
+            grid.appendChild(window.createCardElement(item, i));
+        });
+    } catch (e) {
+        console.error("Failed to load favorites:", e);
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;">Error loading favorites.</div>';
+    }
+};
+
+const MOCK_TMDB_DATA = [
+    {
+        title: "Dune: Part Two",
+        year: "2024",
+        rating: "8.3",
+        genres: "Sci-Fi, Adventure",
+        poster: "dune_poster.png",
+        overview: "Follow the mythic journey of Paul Atreides as he unites with Chani and the Fremen while on a path of revenge against the conspirators who destroyed his family."
+    },
+    {
+        title: "Oppenheimer",
+        year: "2023",
+        rating: "8.1",
+        genres: "Drama, History",
+        poster: "oppenheimer_poster.png",
+        overview: "The story of J. Robert Oppenheimer's role in the development of the atomic bomb during World War II."
+    },
+    {
+        title: "Interstellar",
+        year: "2014",
+        rating: "8.4",
+        genres: "Sci-Fi, Drama",
+        poster: "dune_poster.png",
+        overview: "The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel."
+    },
+    {
+        title: "The Dark Knight",
+        year: "2008",
+        rating: "8.6",
+        genres: "Action, Crime, Drama",
+        poster: "oppenheimer_poster.png",
+        overview: "When the menace known as the Joker wreaks havoc and chaos on Gotham, Batman must accept one of the greatest psychological and physical tests."
+    }
+];
+
+window.renderTMDB = async function(query = '') {
+    const grid = el('tmdb-results-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    
+    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;"><div class="spinner" style="margin: 0 auto 12px;"></div>Searching TMDB...</div>';
+
+    try {
+        const response = await window.electronAPI.searchTMDB(query);
+        grid.innerHTML = '';
+        
+        if (!response || !response.success) {
+            const errMsg = response ? response.error : 'Unknown error';
+            grid.innerHTML = `
+                <div class="empty-state" style="grid-column: 1 / -1; padding: 40px 0;">
+                   <svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert, #FF6B7A)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px;">
+                      <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+                   </svg>
+                   <h3>TMDB Request Failed</h3>
+                   <p>${window.escapeHtml(errMsg)}</p>
+                </div>
+            `;
+            return;
+        }
+
+        const results = response.results || [];
+        if (results.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-state" style="grid-column: 1 / -1; padding: 40px 0;">
+                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px; color: var(--vault-accent);">
+                      <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                   </svg>
+                   <h3>No TMDB Results Found</h3>
+                   <p>We couldn't find any movies matching "${window.escapeHtml(query)}" in our TMDB database.</p>
+                </div>
+            `;
+            return;
+        }
+
+        results.forEach(movie => {
+            const card = document.createElement('div');
+            card.className = 'file-card tmdb-movie-card';
+            card.style.cursor = 'default';
+            card.style.background = 'var(--vault-warm-card)';
+            card.style.border = '1px solid var(--vault-border)';
+            card.style.borderRadius = '6px';
+            card.style.overflow = 'hidden';
+            card.style.transition = 'transform 0.2s, box-shadow 0.2s';
+            
+            card.innerHTML = `
+                <div class="thumbnail-container" style="position:relative; background:#111; height: 180px; width: 100%;">
+                   <button onclick="event.stopPropagation(); window.triggerRDStream(\`${window.escapeHtml(movie.title)}\`, ${movie.id}, \`${movie.media_type}\`)" style="position: absolute; top: 8px; left: 8px; border: none; background: rgba(0,0,0,0.75); color: var(--vault-gold); font-family: var(--font-sans); font-size: 9.5px; font-weight: 800; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; z-index: 10; border: 1px solid var(--vault-gold); transition: all 0.2s; letter-spacing:0.05em;" title="Stream via Real-Debrid">
+                      ⚡ STREAM
+                   </button>
+                   <img class="thumbnail" src="${movie.poster}" alt="${window.escapeHtml(movie.title)}" style="object-fit: cover; width:100%; height:100%; transition: opacity 0.25s ease;" onerror="this.src='oppenheimer_poster.png'">
+                   <div class="size-badge" style="background:var(--vault-accent); color:var(--vt-primary); font-weight:700; position:absolute; bottom: 8px; right: 8px; font-size:10px; padding: 2px 6px; border-radius: 4px;">★ ${movie.rating}</div>
+                </div>
+                <div class="filename-container" style="padding:12px; text-align:left;">
+                   <div style="font-weight:700; font-size:13px; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-mono);">${window.escapeHtml(movie.title)}</div>
+                   <div style="font-size:10px; color:var(--vault-slate); margin-top:2px; font-weight:500;">${movie.year} • ${window.escapeHtml(movie.genres)}</div>
+                   <div style="font-size:11px; color:#bbb; margin-top:6px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; line-height:1.4; font-family:var(--font-body);">${window.escapeHtml(movie.overview)}</div>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    } catch (e) {
+        console.error("TMDB search error:", e);
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;">Error loading TMDB results.</div>';
+    }
+};
+
+window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = 'movie') {
+    const dialog = el('rd-stream-dialog');
+    const loadingStatus = el('rd-loading-status');
+    const statusText = el('rd-status-text');
+    const torrentsList = el('rd-torrents-list');
+    
+    if (!dialog || !loadingStatus || !statusText || !torrentsList) return;
+    
+    // Reset view state
+    dialog.style.display = 'flex';
+    loadingStatus.style.display = 'block';
+    torrentsList.style.display = 'none';
+    torrentsList.innerHTML = '';
+    
+    statusText.innerHTML = `🔍 Scraping Torrentio index for:<br><strong>${window.escapeHtml(movieTitle)}</strong>...`;
+    
+    try {
+        const response = await window.electronAPI.searchTorrents({ movieTitle, tmdbId, mediaType });
+        if (!response || !response.success || !response.torrents || response.torrents.length === 0) {
+            loadingStatus.querySelector('.spinner').style.display = 'none';
+            statusText.innerHTML = `❌ No torrent sources found for:<br><strong>${window.escapeHtml(movieTitle)}</strong>.`;
+            return;
+        }
+        
+        // Hide loading, show torrents
+        loadingStatus.style.display = 'none';
+        torrentsList.style.display = 'flex';
+        
+        const header = document.createElement('div');
+        header.style.cssText = 'font-weight: 700; font-size: 13px; color: #fff; margin-bottom: 10px; font-family: var(--font-mono);';
+        header.innerHTML = `Available streams for "${window.escapeHtml(response.title)}":`;
+        torrentsList.appendChild(header);
+        
+        response.torrents.forEach(t => {
+            const btn = document.createElement('button');
+            btn.className = 'ctrl-btn-sm';
+            btn.style.cssText = 'background: var(--vault-warm-card, #252535); border: 1px solid var(--vault-border); border-radius: 6px; padding: 12px; color: var(--vault-text); font-family: var(--font-sans); text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: all 0.2s; width: 100%;';
+            
+            btn.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <strong style="color: var(--vault-accent); font-family: var(--font-mono); font-size: 11px;">Quality: ${t.quality} (${t.type.toUpperCase()})</strong>
+                    <span style="font-size: 9.5px; color: var(--vault-slate); font-weight: 600;">📁 ${t.size}</span>
+                </div>
+                <div style="font-size: 10px; color: var(--vault-text, #eee); text-align: left; margin: 4px 0; font-weight: 500; font-family: var(--font-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">${window.escapeHtml(t.desc || '')}</div>
+                <div style="display: flex; gap: 15px; font-size: 9px; color: var(--vault-slate);">
+                    <span>🟢 Seeds: ${t.seeds}</span>
+                    <span>🔴 Peers: ${t.peers}</span>
+                </div>
+            `;
+            
+            btn.addEventListener('mouseenter', () => {
+                btn.style.borderColor = 'var(--vault-gold)';
+                btn.style.background = 'rgba(245,185,41,0.05)';
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.borderColor = 'var(--vault-border)';
+                btn.style.background = 'var(--vault-warm-card, #252535)';
+            });
+            
+            btn.addEventListener('click', () => {
+                window.startRDDebridFlow(t, response.title);
+            });
+            
+            torrentsList.appendChild(btn);
+        });
+    } catch (e) {
+        console.error('Error fetching torrents:', e);
+        loadingStatus.querySelector('.spinner').style.display = 'none';
+        statusText.innerText = 'Error scraping torrent index.';
+    }
+};
+
+window.startRDDebridFlow = async function(torrent, movieTitle) {
+    const loadingStatus = el('rd-loading-status');
+    const statusText = el('rd-status-text');
+    const torrentsList = el('rd-torrents-list');
+    
+    torrentsList.style.display = 'none';
+    loadingStatus.style.display = 'block';
+    loadingStatus.querySelector('.spinner').style.display = 'block';
+    statusText.innerHTML = `⚡ Unrestricting cached torrent on Real-Debrid servers...<br><span style="font-size:10px; color:var(--vault-slate);">Checking availability & generating direct stream link</span>`;
+    
+    try {
+        const response = await window.electronAPI.streamRDTorrent({ magnet: torrent.magnet, hash: torrent.hash });
+        if (!response || !response.success) {
+            loadingStatus.querySelector('.spinner').style.display = 'none';
+            const errMsg = response ? response.error : 'Failed to unrestrict torrent.';
+            statusText.innerHTML = `❌ Real-Debrid Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px;">${window.escapeHtml(errMsg)}</strong>`;
+            
+            const retryBtn = document.createElement('button');
+            retryBtn.innerText = 'Back to Streams';
+            retryBtn.style.cssText = 'margin-top: 15px; background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;';
+            retryBtn.addEventListener('click', () => {
+                loadingStatus.style.display = 'none';
+                torrentsList.style.display = 'flex';
+            });
+            statusText.appendChild(document.createElement('br'));
+            statusText.appendChild(retryBtn);
+            return;
+        }
+        
+        // Hide modal & Play
+        el('rd-stream-dialog').style.display = 'none';
+        window.playStream(response.streamUrl, movieTitle);
+        window.showToast('Direct high-speed RD stream loaded successfully!', 'success');
+    } catch (e) {
+        console.error('Real-Debrid streaming workflow failed:', e);
+        loadingStatus.querySelector('.spinner').style.display = 'none';
+        statusText.innerText = 'Fatal workflow error occurred.';
+    }
+};

@@ -254,9 +254,20 @@ def run_benchmark():
     # Save to BENCHMARKS.md for audit trail persistence
     benchmark_file = os.path.join(project_root, "BENCHMARKS.md")
     try:
+        old_content = ""
+        if os.path.exists(benchmark_file):
+            with open(benchmark_file, "r", encoding="utf-8") as f:
+                old_content = f.read()
+        
         with open(benchmark_file, "w", encoding="utf-8") as f:
-            f.write("# VaultWares ASR & Translation Engine Benchmarks\n\n")
-            f.write(report)
+            if old_content:
+                f.write(old_content)
+                f.write("\n\n---\n\n")
+                f.write(f"### **Benchmark Run: {time.strftime('%Y-%m-%d %H:%M:%S')}**\n\n")
+                f.write(report)
+            else:
+                f.write("# VaultWares ASR & Translation Engine Benchmarks\n\n")
+                f.write(report)
         print(f"Report saved to persistent audit trail: {benchmark_file}")
     except Exception as file_ex:
         print(f"Failed to persist benchmarks report to disk: {file_ex}")

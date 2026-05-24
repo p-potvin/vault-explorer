@@ -4,7 +4,23 @@ const { execFile } = require('child_process');
 const util = require('util');
 const execFilePromise = util.promisify(execFile);
 
-const TARGET_DIR = '~/';
+// Target Directory input via Command Line Argument
+const targetPathArg = process.argv[2];
+if (!targetPathArg) {
+    console.log(`
+Vault Explorer - PowerShell Directory Preview Generator
+======================================================
+Usage:
+  node scripts/generate_webm.js "<directory_path>"
+
+Example:
+  node scripts/generate_webm.js "C:\\Users\\Administrator\\Videos"
+  
+Running with default directory: "${process.cwd()}"
+`);
+}
+
+const TARGET_DIR = targetPathArg ? path.resolve(targetPathArg) : process.cwd();
 const VIDEO_EXTS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'];
 
 function findVideosSync(dir) {
@@ -14,7 +30,7 @@ function findVideosSync(dir) {
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
-                if (!entry.name.endsWith('.trickplay')) {
+                if (entry.name !== '.thumbs' && entry.name !== '.git' && !entry.name.endsWith('.trickplay')) {
                     results.push(...findVideosSync(fullPath));
                 }
             } else {
@@ -25,44 +41,140 @@ function findVideosSync(dir) {
             }
         }
     } catch (e) {
-        console.error("Error reading dir", dir, e);
+        console.error(`Error reading directory: ${dir}`, e.message);
     }
     return results;
 }
 
+async function getVideoDuration(videoPath) {
+    try {
+        const { stdout } = await execFilePromise('ffprobe', [
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            videoPath
+        ]);
+        const dur = parseFloat(stdout.trim());
+        return isNaN(dur) ? 0 : dur;
+    } catch (e) {
+        return 0;
+    }
+}
+
 async function start() {
-    console.log(`Scanning ${TARGET_DIR} for videos...`);
+    if (!fs.existsSync(TARGET_DIR)) {
+        console.error(`Error: Target directory "${TARGET_DIR}" does not exist.`);
+        process.exit(1);
+    }
+
+    console.log(`Scanning "${TARGET_DIR}" recursively for video files...`);
     const videos = findVideosSync(TARGET_DIR);
-    console.log(`Found ${videos.length} videos. Processing...`);
+    console.log(`Found ${videos.length} videos. Commencing preview generation...\n`);
 
     let count = 0;
-    for (const vidPaths of videos) {
-        const dir = path.dirname(vidPaths);
-        const baseName = path.basename(vidPaths, path.extname(vidPaths));
-        const outPath = path.join(dir, "/.thumbs/" + baseName + '_p.webm');
+    for (const vidPath of videos) {
+        const dir = path.dirname(vidPath);
+        const ext = path.extname(vidPath);
+        const baseName = path.basename(vidPath, ext);
+        
+        // Ensure local .thumbs folder at the exact folder level of the video
+        const thumbsDir = path.join(dir, '.thumbs');
+        if (!fs.existsSync(thumbsDir)) {
+            try {
+                fs.mkdirSync(thumbsDir, { recursive: true });
+            } catch (e) {
+                console.error(`Failed to create thumbs folder: ${thumbsDir}`, e.message);
+                continue;
+            }
+        }
 
-        if (fs.existsSync(outPath) || fs.existsSync(path.join(dir, baseName + '.mp4'))) {
-            console.log(`Skipping (already exists): ${baseName}`);
+        const outThumbPath = path.join(thumbsDir, `${baseName}.jpg`);
+        const outWebmPath = path.join(thumbsDir, `${baseName}.webm`);
+
+        const isThumbExists = fs.existsSync(outThumbPath);
+        const isWebmExists = fs.existsSync(outWebmPath);
+
+        if (isThumbExists && isWebmExists) {
+            console.log(`[${++count}/${videos.length}] Skipping (already exists): ${baseName}`);
             continue;
         }
 
-        console.log(`Processing [${++count}/${videos.length}]: ${path.basename(vidPaths)}`);
+        console.log(`[${++count}/${videos.length}] Processing: ${path.basename(vidPath)}`);
 
-        // Try hardware mapping natively
-        const argsCuda = ['-y', '-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-ss', '00:00:20', '-i', vidPaths, '-t', '10', '-vf', 'scale_cuda=320:-2', '-c:v', 'h264_nvenc', '-preset', 'p4', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
-        const argsCpu = ['-y', '-ss', '00:00:20', '-i', vidPaths, '-t', '10', '-vf', 'scale=320:-2', '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1M', '-c:a', 'aac', '-b:a', '64k', outPath, '-loglevel', 'error'];
+        // Get video duration to pick representative keyframes
+        const duration = await getVideoDuration(vidPath);
 
-        try {
-            await execFilePromise('ffmpeg', argsCuda);
-        } catch (err) {
+        // 1. Generate Keyframe Thumbnail (.jpg)
+        if (!isThumbExists) {
+            const middleTime = duration > 0 ? (duration / 2).toFixed(2) : '5.00';
             try {
-                await execFilePromise('ffmpeg', argsCpu);
-            } catch (err2) {
-                console.error(`ERROR on ${baseName}: `, err2.message);
+                await execFilePromise('ffmpeg', [
+                    '-y',
+                    '-ss', middleTime,
+                    '-i', vidPath,
+                    '-vf', "select='eq(pict_type,I)'",
+                    '-vframes', '1',
+                    '-q:v', '2',
+                    outThumbPath,
+                    '-loglevel', 'error'
+                ]);
+                console.log(`  -> Created thumbnail: ${baseName}.jpg`);
+            } catch (err) {
+                console.error(`  -> Failed to create thumbnail: ${err.message}`);
+            }
+        }
+
+        // 2. Generate Concatenated WebM Preview
+        if (!isWebmExists) {
+            try {
+                if (duration <= 30) {
+                    // Small video, generate quick 1-take preview
+                    await execFilePromise('ffmpeg', [
+                        '-y',
+                        '-i', vidPath,
+                        '-c:v', 'libvpx',
+                        '-b:v', '800k',
+                        '-speed', '4',
+                        '-an',
+                        outWebmPath,
+                        '-loglevel', 'error'
+                    ]);
+                } else {
+                    // Larger video: extract 5 pieces of 2 seconds each
+                    const numClips = 5;
+                    const interval = duration / numClips;
+                    const clipDuration = 2.0;
+
+                    const args = ['-y'];
+                    let filterStr = '';
+                    for (let i = 0; i < numClips; i++) {
+                        const seekTime = interval * i;
+                        args.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', vidPath);
+                        filterStr += `[${i}:v]`;
+                    }
+                    filterStr += `concat=n=${numClips}:v=1:a=0[outv]`;
+                    
+                    args.push(
+                        '-filter_complex', filterStr,
+                        '-map', '[outv]',
+                        '-c:v', 'libvpx',
+                        '-b:v', '800k',
+                        '-speed', '4',
+                        '-an',
+                        outWebmPath,
+                        '-loglevel', 'error'
+                    );
+
+                    await execFilePromise('ffmpeg', args);
+                }
+                console.log(`  -> Created WebM preview: ${baseName}.webm`);
+            } catch (err) {
+                console.error(`  -> Failed to create WebM preview: ${err.message}`);
             }
         }
     }
-    console.log("Finished generating all webms.");
+
+    console.log(`\nAll previews fully synchronized inside the directory structures!`);
 }
 
 start();

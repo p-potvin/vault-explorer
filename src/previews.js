@@ -2,7 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const child_process = require('child_process');
 const { execFile } = child_process;
+const { BrowserWindow } = require('electron');
 const utils = require('./utils');
+
+let totalBatchCount = 0;
+let completedBatchCount = 0;
 
 const backgroundFfmpegQueue = new utils.PriorityQueue();
 const activeQueuePaths = new Set();
@@ -18,12 +22,32 @@ function writeBenchmark(entry) {
 }
 
 async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null) {
+    const activeWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const finalSender = sender || (activeWindow ? activeWindow.webContents : null);
+    
+    if (finalSender && !finalSender.isDestroyed()) {
+        finalSender.send('generate-webm-progress', {
+            videoPath,
+            percent: 5,
+            label: `Initiating preview...`
+        });
+    }
+
     const duration = await utils.getVideoDuration(videoPath);
     const hasAudio = await utils.checkAudioStream(videoPath);
     
     const bothExist = fs.existsSync(thumbPath) && fs.existsSync(hoverWebmPath);
     if (bothExist) {
         console.log(`[main:preview] Skipping: both thumbnail and preview exist for ${videoPath}`);
+        if (finalSender && !finalSender.isDestroyed()) {
+            finalSender.send('generate-webm-progress', {
+                videoPath,
+                percent: 100,
+                label: `Completed!`,
+                thumbnail: thumbPath,
+                hoverWebm: hoverWebmPath
+            });
+        }
         return;
     }
     
@@ -45,9 +69,35 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             thumbPath,
             '-loglevel', 'error'
         ]);
+        if (!fs.existsSync(thumbPath)) {
+            console.log(`[main:preview] Keyframe select produced no file, falling back to simple frame capture at ${middleTime}`);
+            await utils.runLowPriorityProcess('ffmpeg', [
+                '-y',
+                '-ss', middleTime,
+                '-i', videoPath,
+                '-vframes', '1',
+                '-q:v', '2',
+                thumbPath,
+                '-loglevel', 'error'
+            ]);
+        }
         thumbTimeMs = Date.now() - thumbStart;
     } catch (e) {
         console.error("Failed to generate keyframe thumbnail:", e.message);
+        try {
+            await utils.runLowPriorityProcess('ffmpeg', [
+                '-y',
+                '-ss', middleTime,
+                '-i', videoPath,
+                '-vframes', '1',
+                '-q:v', '2',
+                thumbPath,
+                '-loglevel', 'error'
+            ]);
+            thumbTimeMs = Date.now() - thumbStart;
+        } catch(err) {
+            console.error("Fallback thumbnail generation also failed:", err.message);
+        }
     }
 
     let webmStart = Date.now();
@@ -55,42 +105,61 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     try {
         console.log(`[main:webm-preview] Generating preview: ${path.basename(videoPath)}`);
 
-        if (duration <= 100) {
-            if (sender && !sender.isDestroyed()) {
-                sender.send('generate-webm-progress', {
-                    videoPath,
-                    percent: 50,
-                    label: `Creating preview...`
-                });
-            }
-            await new Promise((res, rej) => {
-                const args = [
-                    '-y',
-                    '-i', videoPath,
-                    '-c:v', 'libvpx-vp9',
-                    '-b:v', '1M',
-                    '-deadline', 'realtime',
-                    '-cpu-used', '8'
-                ];
-                if (hasAudio) {
-                    args.push('-c:a', 'libopus', '-b:a', '64k');
-                } else {
-                    args.push('-an');
-                }
-                args.push(hoverWebmPath, '-loglevel', 'error');
-                
+        const runFfmpegPromise = (args) => {
+            return new Promise((res, rej) => {
                 execFile('ffmpeg', args, { windowsHide: true }, (err) => {
                     if (err) return rej(err);
                     res();
                 });
             });
+        };
+
+        if (duration <= 100) {
+            if (finalSender && !finalSender.isDestroyed()) {
+                finalSender.send('generate-webm-progress', {
+                    videoPath,
+                    percent: 50,
+                    label: `Creating preview...`
+                });
+            }
+            let success = false;
+            if (hasAudio) {
+                try {
+                    await runFfmpegPromise([
+                        '-y',
+                        '-i', videoPath,
+                        '-c:v', 'libvpx',
+                        '-b:v', '1M',
+                        '-speed', '4',
+                        '-c:a', 'libvorbis',
+                        '-b:a', '64k',
+                        hoverWebmPath,
+                        '-loglevel', 'error'
+                    ]);
+                    success = true;
+                } catch (e) {
+                    console.warn(`[main:webm-preview] VP8 + Vorbis failed, falling back to silent VP8:`, e.message);
+                }
+            }
+            if (!success) {
+                await runFfmpegPromise([
+                    '-y',
+                    '-i', videoPath,
+                    '-c:v', 'libvpx',
+                    '-b:v', '1M',
+                    '-speed', '4',
+                    '-an',
+                    hoverWebmPath,
+                    '-loglevel', 'error'
+                ]);
+            }
         } else {
-            const numClips = 12;
+            const numClips = 8; // 8 clips for compact size & faster processing
             const interval = duration / numClips;
-            const clipDuration = 5.0; // 5 seconds each, total 60s
+            const clipDuration = 3.0; // 3 seconds each, total 24s preview
             
-            if (sender && !sender.isDestroyed()) {
-                sender.send('generate-webm-progress', {
+            if (finalSender && !finalSender.isDestroyed()) {
+                finalSender.send('generate-webm-progress', {
                     videoPath,
                     percent: 40,
                     label: `Compiling preview...`
@@ -103,47 +172,28 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 const seekTime = interval * i;
                 args.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
                 filterStr += `[${i}:v]`;
-                if (hasAudio) {
-                    filterStr += `[${i}:a]`;
-                }
             }
             
-            filterStr += `concat=n=${numClips}:v=1:a=${hasAudio ? 1 : 0}[outv]`;
-            if (hasAudio) {
-                filterStr += `[outa]`;
-            }
+            filterStr += `concat=n=${numClips}:v=1:a=0[outv]`;
             
             args.push('-filter_complex', filterStr);
             args.push('-map', '[outv]');
-            if (hasAudio) {
-                args.push('-map', '[outa]');
-            }
             
             args.push(
-                '-c:v', 'libvpx-vp9',
+                '-c:v', 'libvpx',
                 '-b:v', '1M',
-                '-deadline', 'realtime',
-                '-cpu-used', '8'
+                '-speed', '4',
+                '-an'
             );
-            if (hasAudio) {
-                args.push('-c:a', 'libopus', '-b:a', '64k');
-            } else {
-                args.push('-an');
-            }
             args.push(hoverWebmPath, '-loglevel', 'error');
             
-            await new Promise((res, rej) => {
-                execFile('ffmpeg', args, { windowsHide: true }, (err) => {
-                    if (err) return rej(err);
-                    res();
-                });
-            });
+            await runFfmpegPromise(args);
         }
         
         webmTimeMs = Date.now() - webmStart;
         
-        if (sender && !sender.isDestroyed()) {
-            sender.send('generate-webm-progress', {
+        if (finalSender && !finalSender.isDestroyed()) {
+            finalSender.send('generate-webm-progress', {
                 videoPath,
                 percent: 100,
                 label: `Preview completed!`,
@@ -188,6 +238,19 @@ function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
             console.error(`Preview generation failed for ${videoPath}:`, e.message);
         } finally {
             activeQueuePaths.delete(videoPath);
+            completedBatchCount++;
+            if (completedBatchCount >= totalBatchCount) {
+                totalBatchCount = 0;
+                completedBatchCount = 0;
+            }
+            const activeWin = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+            if (activeWin && !activeWin.webContents.isDestroyed()) {
+                activeWin.webContents.send('generate-webm-progress', {
+                    isBatchProgress: true,
+                    total: totalBatchCount,
+                    completed: completedBatchCount
+                });
+            }
         }
     });
 }
@@ -279,6 +342,7 @@ function registerPreviewHandlers(ipcMain) {
     });
 
     ipcMain.handle('schedule-idle-previews', (event, items) => {
+        let added = 0;
         for (const item of items) {
             if (item.type === 'video') {
                 const ext = path.extname(item.path);
@@ -289,7 +353,23 @@ function registerPreviewHandlers(ipcMain) {
                 }
                 const thumbPath = path.join(thumbsDir, `${base}.jpg`);
                 const webmPath = path.join(thumbsDir, `${base}.webm`);
-                schedulePreviewGeneration(item.path, thumbPath, webmPath);
+                if (!fs.existsSync(thumbPath) || !fs.existsSync(webmPath)) {
+                    if (!activeQueuePaths.has(item.path)) {
+                        added++;
+                        schedulePreviewGeneration(item.path, thumbPath, webmPath);
+                    }
+                }
+            }
+        }
+        if (added > 0) {
+            totalBatchCount += added;
+            const activeWin = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+            if (activeWin && !activeWin.webContents.isDestroyed()) {
+                activeWin.webContents.send('generate-webm-progress', {
+                    isBatchStart: true,
+                    total: totalBatchCount,
+                    completed: completedBatchCount
+                });
             }
         }
         return true;

@@ -92,14 +92,15 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
         let type = 'other';
         if (['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'].includes(ext)) type = 'video';
         else if (['.jpg', '.png', '.jpeg', '.gif', '.webp'].includes(ext)) type = 'image';
+        else if (ext === '.enc') type = 'encrypted';
         
-        if (type !== 'video' && type !== 'image') continue;
+        if (type !== 'video' && type !== 'image' && type !== 'encrypted') continue;
 
         const dir = path.dirname(res);
         const name = path.basename(res);
         const baseName = path.basename(res, ext);
         
-        if (thumbsDir && res.startsWith(thumbsDir)) continue;
+        if (res.split(/[\\/]/).includes('.thumbs')) continue;
 
         let checkName = baseName;
 
@@ -119,15 +120,21 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
         let poster = null;
         let hoverWebm = null;
 
-        if (type === 'video' && thumbsDir) {
-            const specificThumb = path.join(thumbsDir, `${baseName}.jpg`);
-            const specificWebm = path.join(thumbsDir, `${baseName}.webm`);
-            
-            if (fs.existsSync(specificThumb)) {
-                poster = specificThumb;
+        if (type === 'video') {
+            const localThumbsDir = path.join(dir, '.thumbs');
+            const localThumb = path.join(localThumbsDir, `${baseName}.jpg`);
+            const localWebm = path.join(localThumbsDir, `${baseName}.webm`);
+
+            if (fs.existsSync(localThumb)) {
+                poster = localThumb;
+            } else if (thumbsDir && fs.existsSync(path.join(thumbsDir, `${baseName}.jpg`))) {
+                poster = path.join(thumbsDir, `${baseName}.jpg`);
             }
-            if (fs.existsSync(specificWebm)) {
-                hoverWebm = specificWebm;
+
+            if (fs.existsSync(localWebm)) {
+                hoverWebm = localWebm;
+            } else if (thumbsDir && fs.existsSync(path.join(thumbsDir, `${baseName}.webm`))) {
+                hoverWebm = path.join(thumbsDir, `${baseName}.webm`);
             }
         }
 
@@ -147,6 +154,22 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             mtimeFormatted = `${y}-${m}-${d} ${hr}:${min}`;
         } catch (e) {}
 
+        const metaPath = res + '.meta.json';
+        let meta = null;
+        if (fs.existsSync(metaPath)) {
+            try {
+                meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            } catch (e) {}
+        }
+
+        let enhancedPath = null;
+        if (type === 'video' || type === 'encrypted') {
+            const potentialEnhanced = path.join(dir, '.enhanced', name);
+            if (fs.existsSync(potentialEnhanced)) {
+                enhancedPath = potentialEnhanced;
+            }
+        }
+
         output.push({
             name,
             path: res,
@@ -157,7 +180,20 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             size,
             mtime,
             mtimeFormatted,
-            ext
+            ext,
+            duration: (meta && meta.duration) ? meta.duration : 0,
+            width: meta ? meta.width : null,
+            height: meta ? meta.height : null,
+            codec: meta ? meta.codec : null,
+            fps: meta ? meta.fps : null,
+            audioCodec: meta ? meta.audioCodec : null,
+            channels: meta ? meta.channels : null,
+            sampleRate: meta ? meta.sampleRate : null,
+            bitrate: meta ? meta.bitrate : null,
+            hasAudio: meta ? meta.hasAudio : null,
+            hasVideo: meta ? meta.hasVideo : null,
+            enhancements: meta ? meta.enhancements : null,
+            enhancedPath
         });
     }
     return output;

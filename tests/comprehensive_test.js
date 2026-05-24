@@ -15,7 +15,22 @@ async function runTests() {
         args: ['.']
     });
 
-    const window = await electronApp.firstWindow();
+    // Wait for pages/windows to initialize and find the correct app window
+    await electronApp.context().waitForEvent('page');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const windows = electronApp.windows();
+    let window = null;
+    for (const win of windows) {
+        const title = await win.title();
+        if (title === 'Vault Explorer') {
+            window = win;
+            break;
+        }
+    }
+    if (!window) {
+        window = windows[0];
+    }
     
     const errors = [];
     const logs = [];
@@ -42,7 +57,7 @@ async function runTests() {
 
     // Assert base elements are visible in DOM
     console.log('[Test Step 1] Verifying core UI layout elements are in DOM...');
-    const toolbarExists = await window.locator('.toolbar').isVisible();
+    const toolbarExists = await window.locator('div.glass-container > div.toolbar').isVisible();
     const searchBoxExists = await window.locator('#search-box').isVisible();
     const filterTypeExists = await window.locator('#filter-type').isVisible();
     const fileGridExists = await window.locator('#file-grid').isVisible();
@@ -117,7 +132,7 @@ async function runTests() {
     // Save Settings
     console.log('  -> Clicking Save Settings...');
     await window.locator('#settings-btn-save').click();
-    await window.waitForTimeout(500);
+    await window.locator('#settings-panel').waitFor({ state: 'hidden', timeout: 5000 });
 
     const isSettingsPanelHiddenAfterSave = !(await window.locator('#settings-panel').isVisible());
     assert.ok(isSettingsPanelHiddenAfterSave, 'Settings panel should be dismissed after save');

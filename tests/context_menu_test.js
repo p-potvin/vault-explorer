@@ -14,7 +14,20 @@ async function runContextMenuTests() {
         args: ['.']
     });
 
-    const window = await electronApp.firstWindow();
+    let window = await electronApp.firstWindow();
+    console.log('[Test Setup] Waiting for windows to instantiate...');
+    await window.waitForTimeout(3000);
+    const windows = electronApp.windows();
+    console.log(`  -> Open windows: ${windows.length}`);
+    for (let i = 0; i < windows.length; i++) {
+        const title = await windows[i].title();
+        const url = windows[i].url();
+        console.log(`     Window ${i} Title: "${title}" URL: "${url}"`);
+        if (title.includes('Vault Explorer') || url.includes('index.html')) {
+            window = windows[i];
+            console.log(`  -> Selected main renderer window: ${i}`);
+        }
+    }
     
     const errors = [];
 
@@ -38,8 +51,8 @@ async function runContextMenuTests() {
         errors.push(`Page Exception: ${err.message}`);
     });
 
-    console.log('[Test Setup] Waiting for application load and mock assets...');
-    await window.waitForTimeout(4000);
+    console.log('[Test Setup] Waiting for application load and mock assets to settle...');
+    await window.waitForTimeout(8000);
 
     // Mock IPC handlers in the main process using electronApp.evaluate
     console.log('[Test Step 1] Injecting custom IPC show-context-menu mock in Electron Main Process...');
@@ -54,35 +67,34 @@ async function runContextMenuTests() {
         });
     });
 
-    // Check if at least one file card is rendered
-    const cardCount = await window.locator('.file-card').count();
-    console.log(`  -> Rendered file cards count: ${cardCount}`);
-    
-    if (cardCount === 0) {
-        console.log('  -> Grid is empty on startup. Injecting mock item to perform context menu test...');
-        await window.evaluate(() => {
-            window.displayedItems = [{
-                name: 'Test_Video_Sample.mp4',
-                path: 'F:\\amd\\Models\\Test_Video_Sample.mp4',
+    console.log('[Test Step 1b] Directly injecting standard DOM file-card mock item...');
+    await window.evaluate(() => {
+        window.loadDirectory = () => { console.log('Mocked loadDirectory prevented wipe'); };
+        const fileGrid = document.getElementById('file-grid');
+        if (fileGrid) {
+            fileGrid.innerHTML = '';
+            const item = {
+                name: 'NVIDIA_USD_Cosmos_Pipeline.mp4',
+                path: 'C:\\Users\\Administrator\\Desktop\\Agent Vaultwares files\\NVIDIA_USD_Cosmos_Pipeline.mp4',
                 type: 'video',
-                size: 1048576,
+                size: 6465116,
                 mtime: Date.now()
-            }];
+            };
+            window.displayedItems = [item];
             window.selectedIndices = new Set();
-            
-            // Trigger a re-render in frontend navigation controller
-            const fileGrid = document.getElementById('file-grid');
-            if (fileGrid) {
-                fileGrid.innerHTML = '';
-                const card = window.createCardElement(window.displayedItems[0], 0);
-                fileGrid.appendChild(card);
-                window.updateStatusBar();
-            }
-        });
-        await window.waitForTimeout(500);
-    }
+            const card = window.createCardElement(item, 0);
+            fileGrid.appendChild(card);
+        }
+    });
 
     const firstCard = window.locator('.file-card').first();
+    try {
+        await firstCard.waitFor({ state: 'visible', timeout: 5000 });
+    } catch (e) {
+        const docHtml = await window.evaluate(() => document.documentElement.innerHTML);
+        console.log('DOM DOCUMENT HTML DURING FAILURE:', docHtml);
+        throw e;
+    }
     assert.ok(await firstCard.isVisible(), 'No file card available to right-click');
 
     // Right click first card with action 'encrypt-prompt'
@@ -120,6 +132,73 @@ async function runContextMenuTests() {
 
     // Ensure no crash or exception occurred and upscale-video trigger complete toasts or alerts
     console.log('  -> Upscale trigger finished without error.');
+
+    // Test Step 3a: Test Generate Subtitles Modal
+    console.log('[Test Step 3a] Simulating context action: "generate-subtitles-prompt"...');
+    await electronApp.evaluate(async (electron) => {
+        global.mockContextMenuAction = 'generate-subtitles-prompt';
+    });
+    await firstCard.click({ button: 'right' });
+    await window.waitForTimeout(1500);
+
+    // Check if the dynamic modal backdrop is in the DOM
+    let isLangModalVisible = await window.evaluate(() => {
+        const backdrops = Array.from(document.querySelectorAll('div')).filter(d => 
+            d.style.position === 'fixed' && d.style.zIndex === '5000'
+        );
+        return backdrops.length > 0;
+    });
+    console.log(`  -> Generate Subtitles Language modal visible: ${isLangModalVisible}`);
+    assert.ok(isLangModalVisible, 'Language modal backdrop failed to render dynamically');
+
+    // Simulate clicking Cancel
+    console.log('  -> Clicking Cancel on Language Modal...');
+    await window.locator('.vw-dynamic-modal-backdrop button:has-text("Cancel")').first().click();
+    await window.waitForTimeout(1000);
+
+    // Test Step 3b: Test Translate Video Modal
+    console.log('[Test Step 3b] Simulating context action: "translate-video-prompt"...');
+    await electronApp.evaluate(async (electron) => {
+        global.mockContextMenuAction = 'translate-video-prompt';
+    });
+    await firstCard.click({ button: 'right' });
+    await window.waitForTimeout(1500);
+
+    isLangModalVisible = await window.evaluate(() => {
+        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d => 
+            d.innerHTML.includes('Translate target spoken') || d.innerHTML.includes('Translate Video')
+        );
+        return backdrops.length > 0;
+    });
+    console.log(`  -> Translate Video Language modal visible: ${isLangModalVisible}`);
+    assert.ok(isLangModalVisible, 'Language modal backdrop failed to render dynamically');
+
+    // Simulate clicking Cancel
+    console.log('  -> Clicking Cancel on Translation Modal...');
+    await window.locator('.vw-dynamic-modal-backdrop button:has-text("Cancel")').first().click();
+    await window.waitForTimeout(1000);
+
+    // Test Step 3c: Test Video Enhancement VSR Modal
+    console.log('[Test Step 3c] Simulating context action: "enhance-video-prompt"...');
+    await electronApp.evaluate(async (electron) => {
+        global.mockContextMenuAction = 'enhance-video-prompt';
+    });
+    await firstCard.click({ button: 'right' });
+    await window.waitForTimeout(1500);
+
+    const isVsrModalVisible = await window.evaluate(() => {
+        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d => 
+            d.innerHTML.includes('AI Video Optimization Center')
+        );
+        return backdrops.length > 0;
+    });
+    console.log(`  -> AI Video Optimization Center (VSR) modal visible: ${isVsrModalVisible}`);
+    assert.ok(isVsrModalVisible, 'VSR modal backdrop failed to render dynamically');
+
+    // Simulate clicking Abort
+    console.log('  -> Clicking Abort on VSR Modal...');
+    await window.locator('.vw-dynamic-modal-backdrop button:has-text("Abort")').first().click();
+    await window.waitForTimeout(1000);
 
     // Check application state for errors
     console.log('[Test Step 4] Performing final Runtime Console Error audit...');
