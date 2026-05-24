@@ -10,10 +10,19 @@ function applyTheme(themeId) {
     sw.classList.toggle('active', sw.dataset.theme === themeId);
   });
   
+  // Switch body class dynamically to match the theme mode!
+  const isConsole = themeId === 'vaultwares-revisited-console';
+  if (isConsole) {
+      document.body.classList.remove('vw-warm-shell');
+      document.body.classList.add('vw-console-shell');
+  } else {
+      document.body.classList.remove('vw-console-shell');
+      document.body.classList.add('vw-warm-shell');
+  }
+  
   // Update theme trigger button text dynamically
   const labelSpan = el('theme-btn-text');
   if (labelSpan) {
-    const isConsole = themeId === 'vaultwares-revisited-console';
     const lang = window.currentLang || 'en';
     const modeKey = isConsole ? 'consoleMode' : 'warmMode';
     labelSpan.innerText = (window.translations && window.translations[lang] && window.translations[lang][modeKey]) || (isConsole ? 'Console' : 'Warm');
@@ -115,6 +124,9 @@ function initSettingsListeners() {
             el('settings-default-sub-lang').value = window.appSettings.defaultSubLang || 'und';
             el('settings-sub-font-size').value = window.appSettings.subFontSize || '20px';
             el('settings-remember-position').checked = window.appSettings.rememberPosition !== false;
+            el('settings-minimize-to-tray').checked = window.appSettings.minimizeToTray === true;
+            el('debrid-proxy-enable').checked = window.appSettings.debridProxyEnable === true;
+            el('debrid-proxy-address-input').value = window.appSettings.debridProxyAddress || '';
             document.getElementById('pill-tag-input-glob').focus();
         }
     });
@@ -154,6 +166,9 @@ function initSettingsListeners() {
         document.documentElement.style.setProperty('--sub-font-size', subSize);
         
         window.appSettings.rememberPosition = el('settings-remember-position').checked;
+        window.appSettings.minimizeToTray = el('settings-minimize-to-tray').checked;
+        window.appSettings.debridProxyEnable = el('debrid-proxy-enable').checked;
+        window.appSettings.debridProxyAddress = el('debrid-proxy-address-input').value.trim();
         await window.electronAPI.saveSettings(window.appSettings);
         showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
         el('settings-panel').style.display = 'none';
@@ -179,6 +194,8 @@ function initSettingsListeners() {
 
   // Visual Benchmark Dashboard Event Listeners
   let forceSimulation = false; // native CUDA RTX 3060 hardware test by default!
+  let waveIntervalId = null;
+  let fluctuationIntervalId = null;
   
   const btnOpenBenchmark = el('settings-btn-benchmark');
   const dialogBenchmark = el('benchmark-dialog');
@@ -189,40 +206,106 @@ function initSettingsListeners() {
   const modeBtnSim = el('mode-btn-sim');
   const modeDesc = el('benchmark-mode-desc');
   
+  // Real-time smooth SVG Waveform animation loop
+  function updateWavepath() {
+    const svgPath = document.getElementById('telemetry-wave-path');
+    if (!svgPath) return;
+    
+    // Generate organic oscillation coordinates
+    let d = "M 0 50";
+    for (let i = 1; i <= 6; i++) {
+      const x = i * 90;
+      // Oscillate wave heights naturally with phase shift
+      const targetY = 38 + Math.sin((Date.now() + i * 350) / 450) * 16 + (Math.random() - 0.5) * 5;
+      const controlY = 38 + Math.cos((Date.now() + i * 200) / 350) * 12;
+      d += ` Q ${(x - 45).toFixed(1)} ${controlY.toFixed(1)}, ${x.toFixed(1)} ${targetY.toFixed(1)}`;
+    }
+    svgPath.setAttribute('d', d);
+  }
+
+  // Micro-indicators numerical fluctuation loops
+  function updateFluctuations() {
+    const inspectVal = el('telemetry-inspect-val');
+    const relayVal = el('telemetry-relay-val');
+    
+    if (inspectVal) {
+      const current = parseInt(inspectVal.innerText) || 93;
+      // Slight crawl around 90-95
+      const next = Math.max(90, Math.min(97, current + (Math.random() > 0.5 ? 1 : -1)));
+      inspectVal.innerText = next;
+    }
+    
+    if (relayVal) {
+      const current = parseInt(relayVal.innerText) || 67;
+      // Slight crawl around 60-70
+      const next = Math.max(60, Math.min(72, current + (Math.random() > 0.5 ? 1 : -1)));
+      relayVal.innerText = next;
+    }
+  }
+
+  function startTelemetryAnimations() {
+    stopTelemetryAnimations();
+    // 60FPS SVG line updates
+    waveIntervalId = setInterval(updateWavepath, 80);
+    // Dynamic value changes every 1.5s
+    fluctuationIntervalId = setInterval(updateFluctuations, 1500);
+  }
+
+  function stopTelemetryAnimations() {
+    if (waveIntervalId) clearInterval(waveIntervalId);
+    if (fluctuationIntervalId) clearInterval(fluctuationIntervalId);
+  }
+  
   if (btnOpenBenchmark && dialogBenchmark) {
     btnOpenBenchmark.addEventListener('click', (e) => {
       e.stopPropagation();
       el('settings-panel').style.display = 'none';
       dialogBenchmark.style.display = 'block';
+      startTelemetryAnimations();
     });
   }
   
   if (btnCloseBenchmark && dialogBenchmark) {
     btnCloseBenchmark.addEventListener('click', () => {
       dialogBenchmark.style.display = 'none';
+      stopTelemetryAnimations();
     });
   }
 
   if (modeBtnNative && modeBtnSim) {
     modeBtnNative.addEventListener('click', () => {
       forceSimulation = false;
+      // High-contrast, very obvious active styles for Native GPU Strategy
       modeBtnNative.style.background = 'var(--vault-console-elevated)';
       modeBtnNative.style.color = 'var(--vault-gold)';
+      modeBtnNative.style.border = '1px solid var(--vault-gold)';
+      modeBtnNative.style.boxShadow = '0 0 10px rgba(245, 185, 41, 0.35)';
       modeBtnNative.style.fontWeight = 'bold';
+      
       modeBtnSim.style.background = 'transparent';
       modeBtnSim.style.color = 'var(--vault-console-text-secondary)';
+      modeBtnSim.style.border = '1px solid transparent';
+      modeBtnSim.style.boxShadow = 'none';
       modeBtnSim.style.fontWeight = 'normal';
+      
       modeDesc.innerText = 'Execute on native NVIDIA CUDA RTX 3060 hardware';
     });
 
     modeBtnSim.addEventListener('click', () => {
       forceSimulation = true;
+      // High-contrast, very obvious active styles for Simulated Fallback Strategy
       modeBtnSim.style.background = 'var(--vault-console-elevated)';
       modeBtnSim.style.color = 'var(--vault-gold)';
+      modeBtnSim.style.border = '1px solid var(--vault-gold)';
+      modeBtnSim.style.boxShadow = '0 0 10px rgba(245, 185, 41, 0.35)';
       modeBtnSim.style.fontWeight = 'bold';
+      
       modeBtnNative.style.background = 'transparent';
       modeBtnNative.style.color = 'var(--vault-console-text-secondary)';
+      modeBtnNative.style.border = '1px solid transparent';
+      modeBtnNative.style.boxShadow = 'none';
       modeBtnNative.style.fontWeight = 'normal';
+      
       modeDesc.innerText = 'Run high-fidelity simulated ASR Parakeet engine';
     });
   }
@@ -231,6 +314,19 @@ function initSettingsListeners() {
     btnRunBenchmark.addEventListener('click', async () => {
       const consoleEl = el('benchmark-console');
       const statusInd = el('benchmark-status-indicator');
+      const alertsLed = el('telemetry-alerts-led');
+      const alertsVal = el('telemetry-alerts-val');
+      const ledWarning = el('led-warning');
+      const ledDanger = el('led-danger');
+      
+      // Reset Alerts indicators
+      if (alertsLed) {
+        alertsLed.style.backgroundColor = 'rgba(255,255,255,0.15)';
+        alertsLed.style.boxShadow = 'none';
+      }
+      if (alertsVal) alertsVal.innerText = '0';
+      if (ledWarning) ledWarning.style.opacity = '0.3';
+      if (ledDanger) ledDanger.style.opacity = '0.3';
       
       // Reset Metrics values with animation placeholders
       el('metric-init-time').innerText = 'Warming...';
@@ -302,6 +398,16 @@ function initSettingsListeners() {
           el('metric-trans-rtf').innerText = transVal.toFixed(4);
           el('metric-vram').innerText = `${vramVal.toFixed(2)} MB`;
           
+          // If native execution succeeded but was forced to simulate under-the-hood due to lack of CUDA, throw a soft warning alert!
+          if (!forceSimulation && result.output.includes('SIMULATION FALLBACK')) {
+            if (alertsLed) {
+              alertsLed.style.backgroundColor = 'var(--vault-signal-warning, #F0B94B)';
+              alertsLed.style.boxShadow = '0 0 6px var(--vault-signal-warning, #F0B94B)';
+            }
+            if (alertsVal) alertsVal.innerText = '1';
+            if (ledWarning) ledWarning.style.opacity = '1';
+          }
+          
           showToast(window.currentLang === 'fr' ? 'Analyse comparative terminée' : 'Benchmark analysis completed', 'success');
         } else {
           statusInd.innerText = 'FAILED';
@@ -315,6 +421,13 @@ function initSettingsListeners() {
           el('metric-rtf').innerText = 'ERR';
           el('metric-trans-rtf').innerText = 'ERR';
           el('metric-vram').innerText = 'ERR';
+          
+          if (alertsLed) {
+            alertsLed.style.backgroundColor = 'var(--vault-signal-alert, #FF6B7A)';
+            alertsLed.style.boxShadow = '0 0 6px var(--vault-signal-alert, #FF6B7A)';
+          }
+          if (alertsVal) alertsVal.innerText = '1';
+          if (ledDanger) ledDanger.style.opacity = '1';
         }
       } catch (err) {
         clearInterval(interval);
@@ -332,7 +445,256 @@ function initSettingsListeners() {
         el('metric-rtf').innerText = 'ERR';
         el('metric-trans-rtf').innerText = 'ERR';
         el('metric-vram').innerText = 'ERR';
+        
+        if (alertsLed) {
+          alertsLed.style.backgroundColor = 'var(--vault-signal-alert, #FF6B7A)';
+          alertsLed.style.boxShadow = '0 0 6px var(--vault-signal-alert, #FF6B7A)';
+        }
+        if (alertsVal) alertsVal.innerText = '1';
+        if (ledDanger) ledDanger.style.opacity = '1';
       }
+    });
+  }
+
+  // ── Debrid URL Downloader & Secure Proxy Modal Event Listeners ─────────
+  const btnDebridOpen = el('settings-btn-debrid-downloader');
+  if (btnDebridOpen) {
+    btnDebridOpen.addEventListener('click', (e) => {
+        e.stopPropagation();
+        el('settings-panel').style.display = 'none';
+        
+        const dialog = el('debrid-download-dialog');
+        dialog.style.display = 'flex';
+        
+        // Load active proxy states from window.appSettings
+        const isProxyEnabled = window.appSettings.debridProxyEnable === true;
+        const proxyAddress = window.appSettings.debridProxyAddress || '';
+        
+        el('debrid-proxy-enable').checked = isProxyEnabled;
+        el('debrid-proxy-address-input').value = proxyAddress;
+        
+        updateProxyWidgetStatus();
+    });
+  }
+
+  const proxyEnableCheckbox = el('debrid-proxy-enable');
+  const proxyAddressInput = el('debrid-proxy-address-input');
+  
+  function updateProxyWidgetStatus() {
+      const isChecked = proxyEnableCheckbox.checked;
+      const addrValue = proxyAddressInput.value.trim();
+      const statusLabel = el('debrid-proxy-status');
+      if (statusLabel) {
+          if (isChecked) {
+              if (addrValue) {
+                  statusLabel.innerText = 'Active';
+                  statusLabel.style.color = 'var(--vault-gold)';
+                  statusLabel.style.background = 'rgba(255,215,0,0.1)';
+              } else {
+                  statusLabel.innerText = 'Missing Addr';
+                  statusLabel.style.color = '#ff5555';
+                  statusLabel.style.background = 'rgba(255,85,85,0.1)';
+              }
+          } else {
+              statusLabel.innerText = 'Disabled';
+              statusLabel.style.color = 'var(--vault-slate)';
+              statusLabel.style.background = 'rgba(255,255,255,0.05)';
+          }
+      }
+  }
+
+  if (proxyEnableCheckbox) {
+      proxyEnableCheckbox.addEventListener('change', () => {
+          updateProxyWidgetStatus();
+          // Auto-persist when modified directly in the downloader dialog
+          window.appSettings.debridProxyEnable = proxyEnableCheckbox.checked;
+          window.electronAPI.saveSettings(window.appSettings);
+      });
+  }
+
+  if (proxyAddressInput) {
+      proxyAddressInput.addEventListener('input', () => {
+          updateProxyWidgetStatus();
+          window.appSettings.debridProxyAddress = proxyAddressInput.value.trim();
+          window.electronAPI.saveSettings(window.appSettings);
+      });
+  }
+
+  const btnDebridTestProxy = el('btn-debrid-test-proxy');
+  if (btnDebridTestProxy) {
+      btnDebridTestProxy.addEventListener('click', async () => {
+          const proxyAddr = proxyAddressInput.value.trim();
+          if (!proxyAddr) {
+              showToast(window.currentLang === 'fr' ? 'Veuillez saisir une adresse de proxy' : 'Please enter a proxy address', 'error');
+              return;
+          }
+
+          btnDebridTestProxy.disabled = true;
+          btnDebridTestProxy.style.opacity = '0.5';
+          
+          const statusLabel = el('debrid-proxy-status');
+          if (statusLabel) {
+              statusLabel.innerText = window.currentLang === 'fr' ? 'Essai...' : 'Testing...';
+              statusLabel.style.color = 'var(--vault-gold)';
+              statusLabel.style.background = 'rgba(255,215,0,0.1)';
+          }
+
+          try {
+              console.log('[Debrid Downloader] Initiating proxy connectivity check for:', proxyAddr);
+              const res = await window.electronAPI.testDebridProxy(proxyAddr);
+              
+              if (res && res.success) {
+                  showToast((window.currentLang === 'fr' ? 'Connexion réussie ! Latence: ' : 'Proxy connection successful! Latency: ') + res.latency + 'ms', 'success');
+                  if (statusLabel) {
+                      statusLabel.innerText = 'Connected';
+                      statusLabel.style.color = '#10b981';
+                      statusLabel.style.background = 'rgba(16,185,129,0.1)';
+                  }
+              } else {
+                  throw new Error(res ? res.error : 'Unknown response');
+              }
+          } catch (err) {
+              console.error('[Debrid Downloader] Proxy connectivity check failed:', err);
+              showToast((window.currentLang === 'fr' ? 'Échec de la connexion: ' : 'Connection failed: ') + err.message, 'error');
+              if (statusLabel) {
+                  statusLabel.innerText = 'Failed';
+                  statusLabel.style.color = '#ef4444';
+                  statusLabel.style.background = 'rgba(239,68,68,0.1)';
+              }
+          } finally {
+              btnDebridTestProxy.disabled = false;
+              btnDebridTestProxy.style.opacity = '1.0';
+          }
+      });
+  }
+
+  // Unrestrict trigger
+  const btnDebridDlUnrestrict = el('btn-debrid-dl-unrestrict');
+  let activeDownloadUrl = '';
+  let activeFilename = '';
+
+  if (btnDebridDlUnrestrict) {
+    btnDebridDlUnrestrict.addEventListener('click', async () => {
+        const linkInput = el('debrid-dl-input');
+        const rawLink = linkInput ? linkInput.value.trim() : '';
+        if (!rawLink) {
+            showToast(window.currentLang === 'fr' ? 'Veuillez coller un lien valide' : 'Please paste a valid link', 'error');
+            return;
+        }
+
+        // Show loading UI
+        el('debrid-dl-output-placeholder').style.display = 'none';
+        el('debrid-dl-output-content').style.display = 'none';
+        el('debrid-dl-output-progress').style.display = 'none';
+        el('debrid-dl-output-loading').style.display = 'block';
+
+        const proxy = (proxyEnableCheckbox.checked && proxyAddressInput.value.trim()) || '';
+
+        try {
+            console.log('[Debrid Downloader] Sending link to unrestrict:', rawLink, 'Proxy:', proxy);
+            const res = await window.electronAPI.debridURL({ link: rawLink, proxy });
+            
+            if (res && res.success) {
+                activeDownloadUrl = res.download;
+                activeFilename = res.filename;
+                
+                // Format file size
+                const sizeInGB = res.filesize ? (res.filesize / 1e9).toFixed(2) + ' GB' : 'Unknown Size';
+                
+                el('debrid-dl-filename').innerText = res.filename;
+                el('debrid-dl-filesize').innerText = `Size: ${sizeInGB}`;
+                
+                el('debrid-dl-output-loading').style.display = 'none';
+                el('debrid-dl-output-content').style.display = 'block';
+                
+                showToast(window.currentLang === 'fr' ? 'Lien débridé avec succès' : 'Link successfully unrestricted', 'success');
+            } else {
+                throw new Error(res ? res.error : 'Unknown API response error');
+            }
+        } catch (err) {
+            console.error('[Debrid Downloader] Unrestricting failed:', err);
+            el('debrid-dl-output-loading').style.display = 'none';
+            el('debrid-dl-output-placeholder').style.display = 'block';
+            showToast((window.currentLang === 'fr' ? 'Échec du débridage: ' : 'Unrestricting failed: ') + err.message, 'error');
+        }
+    });
+  }
+
+  // Copy link
+  const btnDebridCopyLink = el('btn-debrid-copy-link');
+  if (btnDebridCopyLink) {
+      btnDebridCopyLink.addEventListener('click', () => {
+          if (activeDownloadUrl) {
+              window.electronAPI.copyToClipboard(activeDownloadUrl);
+              showToast(window.currentLang === 'fr' ? 'Lien copié dans le presse-papiers' : 'Direct link copied to clipboard', 'success');
+          }
+      });
+  }
+
+  // Start download trigger
+  const btnDebridStartDownload = el('btn-debrid-start-download');
+  if (btnDebridStartDownload) {
+    btnDebridStartDownload.addEventListener('click', async () => {
+        if (!activeDownloadUrl || !activeFilename) return;
+
+        // Reset progress displays
+        el('debrid-dl-output-content').style.display = 'none';
+        el('debrid-dl-output-progress').style.display = 'block';
+        
+        el('debrid-dl-progress-status').innerText = window.currentLang === 'fr' ? 'Connexion en cours...' : 'Connecting...';
+        el('debrid-dl-progress-percent').innerText = '0%';
+        el('debrid-dl-progress-bar').style.width = '0%';
+        el('debrid-dl-progress-speed').innerText = '';
+        el('debrid-dl-progress-bytes').innerText = '';
+
+        const proxy = (proxyEnableCheckbox.checked && proxyAddressInput.value.trim()) || '';
+
+        // Register download telemetry listener
+        window.electronAPI.onDownloadProgress((data) => {
+            if (data.status === 'Downloading') {
+                el('debrid-dl-progress-status').innerText = window.currentLang === 'fr' ? 'Téléchargement...' : 'Downloading...';
+                el('debrid-dl-progress-percent').innerText = `${data.progress}%`;
+                el('debrid-dl-progress-bar').style.width = `${data.progress}%`;
+                
+                const speedMB = (data.speed / 1e6).toFixed(1);
+                el('debrid-dl-progress-speed').innerText = `Speed: ${speedMB} MB/s`;
+                
+                const loadedMB = (data.bytesDownloaded / 1e6).toFixed(0);
+                const totalMB = (data.totalBytes / 1e6).toFixed(0);
+                el('debrid-dl-progress-bytes').innerText = `${loadedMB} MB / ${totalMB} MB`;
+            } else if (data.status === 'Completed') {
+                el('debrid-dl-progress-status').innerText = window.currentLang === 'fr' ? 'Terminé' : 'Completed';
+                el('debrid-dl-progress-percent').innerText = '100%';
+                el('debrid-dl-progress-bar').style.width = '100%';
+                el('debrid-dl-progress-speed').innerText = 'Speed: 0 MB/s';
+                
+                showToast(window.currentLang === 'fr' ? 'Téléchargement terminé avec succès !' : 'File downloaded successfully to Downloads folder!', 'success');
+                window.electronAPI.offDownloadProgress();
+            } else if (data.status === 'Failed') {
+                el('debrid-dl-progress-status').innerText = window.currentLang === 'fr' ? 'Échec' : 'Failed';
+                el('debrid-dl-progress-bar').style.backgroundColor = '#ff5555';
+                showToast((window.currentLang === 'fr' ? 'Erreur de téléchargement: ' : 'Download failed: ') + (data.error || 'Unknown Error'), 'error');
+                window.electronAPI.offDownloadProgress();
+            }
+        });
+
+        try {
+            console.log('[Debrid Downloader] Starting download for:', activeFilename, 'Proxy:', proxy);
+            const res = await window.electronAPI.downloadDebridFile({
+                downloadUrl: activeDownloadUrl,
+                filename: activeFilename,
+                proxy
+            });
+            
+            if (!res.success) {
+                throw new Error(res.error);
+            }
+        } catch (err) {
+            console.error('[Debrid Downloader] Download invocation failed:', err);
+            el('debrid-dl-progress-status').innerText = 'Failed';
+            showToast('Download failed: ' + err.message, 'error');
+            window.electronAPI.offDownloadProgress();
+        }
     });
   }
 }
@@ -341,4 +703,5 @@ function initSettingsListeners() {
 window.applyTheme = applyTheme;
 window.initThemeGrid = initThemeGrid;
 window.initSettingsListeners = initSettingsListeners;
+
 

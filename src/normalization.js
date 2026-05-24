@@ -4,14 +4,14 @@ const { spawn } = child_process;
 const fs = require('fs');
 
 function registerNormalizationHandlers(ipcMain) {
-    ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe }) => {
+    ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe, translateTo }) => {
         console.log(`[main:normalize] Starting audio normalization for ${videoPath}`);
         return new Promise((resolve) => {
             const pythonScript = path.join(__dirname, '..', 'python-scripts', 'audio_normalize.py');
             
             // Find venv python interpreter, prioritizing the fully-equipped media processing environment
             let pythonExe = 'python';
-            const mediaProcessingVenv = path.join(__dirname, '..', '..', 'vaultwares-media-processing', '.venv');
+            const mediaProcessingVenv = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv';
             const localVenv = path.join(__dirname, '..', '.venv');
             const legacyVenv = path.join(__dirname, '..', 'venv');
             
@@ -39,42 +39,76 @@ function registerNormalizationHandlers(ipcMain) {
             if (transcribe) {
                 args.push('--transcribe');
             }
+            if (translateTo) {
+                args.push('--translate-to', translateTo);
+            }
 
             console.log(`[main:normalize] Spawning: ${pythonExe} ${args.join(' ')}`);
-            const pyProc = spawn(pythonExe, args, { windowsHide: true });
+            const env = { ...process.env };
+            env.PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION = 'python';
+            const pyProc = spawn(pythonExe, args, { env, windowsHide: true });
             
             let outputData = '';
             let errorData = '';
+            let stdoutBuffer = '';
+            let stderrBuffer = '';
 
-            pyProc.stdout.on('data', (data) => {
-                const str = data.toString();
-                outputData += str;
-                console.log(`[normalize:stdout] ${str.trim()}`);
-            });
-
-            pyProc.stderr.on('data', (data) => {
-                const str = data.toString();
-                errorData += str;
-                
-                // Parse custom progress logs e.g. "PROGRESS: 45: Vocal Isolation running..."
-                const matches = str.match(/PROGRESS:\s*(\d+):(.*)/);
+            const handleLine = (line) => {
+                if (line.includes('PROGRESS_UPDATE:')) {
+                    try {
+                        const jsonStr = line.substring(line.indexOf('PROGRESS_UPDATE:') + 16).trim();
+                        const data = JSON.parse(jsonStr);
+                        if (data && typeof data.percent === 'number' && data.label) {
+                            if (event.sender && !event.sender.isDestroyed()) {
+                                event.sender.send('normalize-progress', { percent: data.percent, label: data.label });
+                            }
+                            return;
+                        }
+                    } catch (e) {
+                        // ignore JSON parse errors
+                    }
+                }
+                const matches = line.match(/PROGRESS:\s*(\d+):(.*)/);
                 if (matches && matches.length >= 3) {
                     const percent = parseInt(matches[1], 10);
                     const label = matches[2].trim();
                     if (event.sender && !event.sender.isDestroyed()) {
                         event.sender.send('normalize-progress', { percent, label });
                     }
-                } else {
-                    console.log(`[normalize:stderr] ${str.trim()}`);
+                }
+            };
+
+            pyProc.stdout.on('data', (data) => {
+                const str = data.toString();
+                outputData += str;
+                stdoutBuffer += str;
+                let lines = stdoutBuffer.split(/\r?\n/);
+                stdoutBuffer = lines.pop();
+                for (const line of lines) {
+                    handleLine(line);
+                    console.log(`[normalize:stdout] ${line.trim()}`);
+                }
+            });
+
+            pyProc.stderr.on('data', (data) => {
+                const str = data.toString();
+                errorData += str;
+                stderrBuffer += str;
+                let lines = stderrBuffer.split(/\r?\n/);
+                stderrBuffer = lines.pop();
+                for (const line of lines) {
+                    handleLine(line);
+                    console.log(`[normalize:stderr] ${line.trim()}`);
                 }
             });
 
             pyProc.on('close', (code) => {
+                if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
+                if (stderrBuffer.trim()) handleLine(stderrBuffer);
                 console.log(`[main:normalize] Finished with code ${code}`);
                 if (code === 0) {
                     resolve({ success: true, log: outputData });
                 } else {
-                    // Propagate the real error message back to the frontend
                     const cleanErr = errorData.replace(/PROGRESS:\s*\d+:.*\n?/g, '').trim();
                     resolve({ 
                         success: false, 
@@ -92,7 +126,7 @@ function registerNormalizationHandlers(ipcMain) {
             
             // Find venv python interpreter
             let pythonExe = 'python';
-            const mediaProcessingVenv = path.join(__dirname, '..', '..', 'vaultwares-media-processing', '.venv');
+            const mediaProcessingVenv = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv';
             const localVenv = path.join(__dirname, '..', '.venv');
             const legacyVenv = path.join(__dirname, '..', 'venv');
             

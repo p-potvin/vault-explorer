@@ -36,8 +36,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   findSubtitles: (videoPath) => ipcRenderer.invoke('find-subtitles', videoPath),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
-  normalizeAudio: (videoPath, vaultRoot, transcribe) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe }),
+  normalizeAudio: (videoPath, vaultRoot, transcribe, translateTo) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe, translateTo }),
   onNormalizeProgress: (cb) => ipcRenderer.on('normalize-progress', (_, data) => cb(data)),
   offNormalizeProgress: () => ipcRenderer.removeAllListeners('normalize-progress'),
-  runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation })
+  onUpscaleProgress: (cb) => ipcRenderer.on('upscale-progress', (_, data) => cb(data)),
+  offUpscaleProgress: () => ipcRenderer.removeAllListeners('upscale-progress'),
+  runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation }),
+  revertEnhancements: (p) => ipcRenderer.invoke('revert-enhancements', p),
+  searchTMDB: (query) => ipcRenderer.invoke('search-tmdb', query),
+  searchTorrents: (movieTitle) => ipcRenderer.invoke('search-torrents', movieTitle),
+  streamRDTorrent: (data) => ipcRenderer.invoke('rd-stream-torrent', data),
+  debridURL: (data) => ipcRenderer.invoke('rd-unrestrict-url', data),
+  downloadDebridFile: (data) => ipcRenderer.invoke('rd-download-file', data),
+  testDebridProxy: (proxy) => ipcRenderer.invoke('rd-test-proxy', proxy),
+  onDownloadProgress: (cb) => ipcRenderer.on('rd-download-progress', (_, data) => cb(data)),
+  offDownloadProgress: () => ipcRenderer.removeAllListeners('rd-download-progress')
 });

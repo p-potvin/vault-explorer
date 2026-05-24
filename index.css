@@ -503,6 +503,7 @@ select option {
 .status-bar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 8px 24px;
   background: var(--vault-acrylic);
   font-size: 11px;
@@ -514,6 +515,21 @@ select option {
   flex-shrink: 0;
   z-index: 10;
   position: relative;
+}
+
+/* Micro loading spinner for the status bar progress zone */
+.status-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--vault-accent);
+  animation: status-spin 0.8s infinite linear;
+}
+
+@keyframes status-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Drag selection box */
@@ -554,6 +570,7 @@ select option {
   z-index: 10000;
   align-items: center;
   justify-content: center;
+  outline: none !important;
 }
 
 /* Player title bar */
@@ -570,6 +587,8 @@ select option {
   height: 44px;
   background: linear-gradient(rgba(0, 0, 0, 0.7), transparent);
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 #player-topbar .player-title {
@@ -639,18 +658,96 @@ select option {
   bottom: 0;
   left: 0;
   width: 100%;
-  padding: 32px;
-  padding-top: 64px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  padding: 16px 20px;
+  background: linear-gradient(transparent, rgba(7, 8, 10, 0.95));
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.3s ease;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+}
+
+.player-controls-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.controls-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+  order: 1;
+}
+
+.controls-center-seek {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-grow: 1;
+  order: 2;
+}
+
+.controls-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+  order: 3;
+}
+
+.seek-time-lbl {
+  font-size: 11px;
+  font-family: var(--vault-font-mono), monospace;
+  color: rgba(255, 255, 255, 0.8);
+  min-width: 32px;
+  text-align: center;
+}
+
+/* On large screens (width >= 800px) */
+@media (min-width: 800px) {
+  .player-controls-container {
+    flex-wrap: nowrap;
+  }
+  .controls-center-seek {
+    margin: 0 8px;
+    order: 2;
+  }
+  .seek-time-lbl {
+    display: none;
+  }
+  #time-display {
+    display: inline-block !important;
+  }
+}
+
+/* On small screens (width < 800px) */
+@media (max-width: 799px) {
+  .player-controls-container {
+    flex-wrap: wrap;
+  }
+  .controls-center-seek {
+    order: 0;
+    width: 100%;
+    flex-basis: 100%;
+    margin-bottom: 4px;
+  }
+  .seek-time-lbl {
+    display: inline-block;
+  }
+  #time-display {
+    display: none !important;
+  }
 }
 
 .video-wrapper:hover #custom-controls,
-.video-wrapper:focus-within #custom-controls {
+.video-wrapper:focus-within #custom-controls,
+.video-wrapper:hover #player-topbar,
+.video-wrapper:focus-within #player-topbar {
   opacity: 1;
 }
 
@@ -717,10 +814,53 @@ select option {
   height: 180px;
   background: var(--vt-surface-alt);
   border: 1px solid var(--vault-border);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border-radius: 8px;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.85);
+  border-radius: 0;
   z-index: 9999;
   cursor: pointer;
+}
+
+#pip-controls-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(7, 8, 10, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: none;
+  z-index: 200;
+}
+
+#video-modal.minimized .video-wrapper:hover #pip-controls-overlay {
+  display: flex !important;
+}
+
+.pip-ctrl-btn {
+  pointer-events: auto;
+  background: rgba(15, 17, 23, 0.85);
+  border: 1px solid var(--vault-border);
+  color: #fff;
+  font-size: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.pip-ctrl-btn:hover {
+  background: var(--vault-accent);
+  color: #000;
+  border-color: var(--vault-accent);
+  transform: scale(1.1);
 }
 
 #video-modal.minimized .player-corner-btns {
@@ -735,6 +875,10 @@ select option {
 #video-modal.minimized .video-wrapper {
   width: 100%;
   height: 100%;
+}
+
+#video-modal.minimized .video-wrapper:hover #video-ended-overlay {
+  display: none !important;
 }
 
 #video-modal.minimized #custom-controls {
@@ -1198,4 +1342,9 @@ video::cue {
   color: #ffffff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   border-radius: 4px;
+}
+
+.sort-option:hover,
+.sort-order-option:hover {
+  background: var(--vault-hover) !important;
 }
