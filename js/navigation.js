@@ -30,6 +30,21 @@ function displayFolderSize(bytes) {
 }
 
 async function updateStatusBar() {
+    if (window.currentTab === 'tmdb') {
+        const resultsCount = el('tmdb-results-grid') ? el('tmdb-results-grid').querySelectorAll('.tmdb-movie-card').length : 0;
+        el('status-items').innerText = `${resultsCount} items`;
+        el('status-selected').innerText = '';
+        el('status-size').innerText = '';
+        return;
+    }
+    
+    if (window.currentTab === 'livestream') {
+        el('status-items').innerText = '';
+        el('status-selected').innerText = '';
+        el('status-size').innerText = '';
+        return;
+    }
+
     el('status-items').innerText = `${window.displayedItems.length} items`;
     if (window.selectedIndices.size > 0) {
         let size = 0;
@@ -44,8 +59,11 @@ async function updateStatusBar() {
         el('status-selected').innerText = '';
     }
 
-    if (window.allItems && window.allItems.length > 0) {
+    if (window.currentTab === 'vault' && window.allItems && window.allItems.length > 0) {
         const totalSize = window.allItems.reduce((sum, item) => sum + (item.size || 0), 0);
+        displayFolderSize(totalSize);
+    } else if (window.currentTab === 'favorites' && window.displayedItems && window.displayedItems.length > 0) {
+        const totalSize = window.displayedItems.reduce((sum, item) => sum + (item.size || 0), 0);
         displayFolderSize(totalSize);
     } else {
         el('status-size').innerText = '';
@@ -133,8 +151,8 @@ function createCardElement(item, index) {
     card.innerHTML = `
     <input type="checkbox" class="file-checkbox" aria-label="Select ${window.escapeHtml(item.name)}">
     <div class="thumbnail-container" style="position:relative;">
-       <button class="favorite-star-btn" style="position: absolute; top: 6px; left: 6px; border: none; background: rgba(0,0,0,0.65); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; padding: 0; margin: 0; outline: none; box-shadow: none; transition: background 0.2s;" title="Add to Favorites" aria-label="Favorite">
-          <svg class="star-svg" width="14" height="14" viewBox="0 0 24 24" fill="${starFill}" stroke="${starStroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s; display: block; margin: 0; padding: 0;">
+       <button class="favorite-star-btn" style="position: absolute; top: 6px; left: 6px; border: none; background: rgba(0,0,0,0.65); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 9999 !important; pointer-events: auto !important; padding: 0; margin: 0; outline: none; box-shadow: none; transition: background 0.2s;" title="Add to Favorites" aria-label="Favorite">
+          <svg class="star-svg" width="14" height="14" viewBox="0 0 24 24" fill="${starFill}" stroke="${starStroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s; display: block; margin: 0; padding: 0; pointer-events: none;">
              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
        </button>
@@ -296,16 +314,33 @@ function createCardElement(item, index) {
             });
             updateStatusBar();
         }
+        
+        const selectedItems = [];
+        window.selectedIndices.forEach(idx => {
+            const si = window.displayedItems[idx];
+            if (si) selectedItems.push(si);
+        });
+        const isMulti = selectedItems.length > 1;
+
         const hasClip = !!(window._clipboard && window._clipboard.paths.length > 0);
         const isStarred = !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.includes(item.path));
         const action = await window.electronAPI.showContextMenu({
             ...item,
             _hasClipboard: hasClip,
-            isFavorite: isStarred
+            isFavorite: isStarred,
+            isMultiSelect: isMulti,
+            selectedItems: selectedItems
         });
         console.log('[ctx-menu] action:', action, 'item:', item.name);
         if (action === 'toggle-favorite') {
-            window.toggleFavorite(item.path);
+            if (isMulti) {
+                selectedItems.forEach(si => {
+                    if (si && si.path) window.toggleFavorite(si.path, null, true);
+                });
+                window.showToast('Favorites updated for selection', 'success');
+            } else {
+                window.toggleFavorite(item.path);
+            }
         } else if (action === 'generate-webm') {
 
             const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
@@ -332,213 +367,242 @@ function createCardElement(item, index) {
             });
         } else if (action === 'normalize-audio' || action === 'normalize-audio-transcribe') {
             const transcribe = (action === 'normalize-audio-transcribe');
-            window.showToast(transcribe ? 'Vocal isolation, normalization & AI transcription started' : 'Vocal isolation & normalization started in background', 'success');
-            const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-            const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                .find(c => normPath(c.dataset.path) === normPath(item.path));
-            let overlay = null;
-            if (cardElement) {
-                overlay = cardElement.querySelector('.webm-loading-overlay');
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.className = 'webm-loading-overlay';
-                    overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Initializing...</div>`;
-                    const thumbCont = cardElement.querySelector('.thumbnail-container');
-                    if (thumbCont) thumbCont.appendChild(overlay);
-                }
-            }
-
-            const progressHandler = (eventData) => {
-                if (normPath(eventData.videoPath) === normPath(item.path)) {
-                    if (overlay) {
-                        const pctEl = overlay.querySelector('.webm-percent');
-                        if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                        const lblEl = overlay.querySelector('.normalize-lbl');
-                        if (lblEl) lblEl.innerText = eventData.label || 'Processing...';
-                    }
-                }
-            };
-
-            window.electronAPI.onNormalizeProgress(progressHandler);
-
-            window.electronAPI.normalizeAudio(item.path, window.currentRealPath, transcribe).then(res => {
-                window.electronAPI.offNormalizeProgress();
-                if (overlay) overlay.remove();
-
-                if (res.status === 'SUCCESS' || res.status === 'EXISTS') {
-                    window.showToast(transcribe ? 'Audio normalization & AI transcription complete!' : 'Audio normalization complete!', 'success');
-                } else {
-                    window.showToast('Audio processing failed: ' + (res.error || 'Unknown error'), 'error');
-                }
-            });
-        } else if (action === 'upscale-video') {
-            window.showToast('AI Video Upscaling started in background', 'success');
-            const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-            const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                .find(c => normPath(c.dataset.path) === normPath(item.path));
-            let overlay = null;
-            if (cardElement) {
-                overlay = cardElement.querySelector('.webm-loading-overlay');
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.className = 'webm-loading-overlay';
-                    overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Upscaling...</div>`;
-                    const thumbCont = cardElement.querySelector('.thumbnail-container');
-                    if (thumbCont) thumbCont.appendChild(overlay);
-                }
-            }
-
-            const upscaleProgressHandler = (eventData) => {
-                if (normPath(eventData.videoPath) === normPath(item.path)) {
-                    if (overlay) {
-                        const pctEl = overlay.querySelector('.webm-percent');
-                        if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                        const lblEl = overlay.querySelector('.normalize-lbl');
-                        if (lblEl) lblEl.innerText = eventData.label || 'Upscaling...';
-                    }
-                }
-            };
-
-            window.electronAPI.onUpscaleProgress(upscaleProgressHandler);
-
-            window.electronAPI.upscaleVideo(item.path).then(res => {
-                window.electronAPI.offUpscaleProgress();
-                if (overlay) overlay.remove();
-                if (res.success) {
-                    window.showToast('AI Video Upscaling complete!', 'success');
-                    loadDirectory(window.currentNavPath, window.currentRealPath, false);
-                } else {
-                    window.showToast('Upscale failed: ' + (res.error || 'Unknown'), 'error');
-                }
-            });
-        } else if (action === 'revert-enhancements') {
-            if (await window.showConfirmDialog(`Are you sure you want to revert all enhancements for "${item.name}"? This will delete the enhanced copy.`, 'Revert Video Enhancements')) {
-                const res = await window.electronAPI.revertEnhancements(item.path);
-                if (res.success) {
-                    window.showToast('Enhancements reverted successfully!', 'success');
-                    loadDirectory(window.currentNavPath, window.currentRealPath, true);
-                } else {
-                    window.showToast('Failed to revert: ' + res.error, 'error');
-                }
-            }
-        } else if (action === 'generate-subtitles-prompt') {
-            const langs = await window.showLanguageModal('Generate Subtitles', true, []);
-            if (langs && langs.length > 0) {
-                window.showToast(`Generating subtitles for: ${langs.join(', ').toUpperCase()}`, 'success');
+            const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
+            if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
+            
+            window.showToast(transcribe 
+                ? `Vocal isolation, normalization & AI transcription started for ${targetItems.length} video(s)...`
+                : `Vocal isolation & normalization started in background for ${targetItems.length} video(s)...`, 'success');
+                
+            targetItems.forEach(targetItem => {
                 const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
                 const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                    .find(c => normPath(c.dataset.path) === normPath(item.path));
+                    .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
                 let overlay = null;
                 if (cardElement) {
                     overlay = cardElement.querySelector('.webm-loading-overlay');
                     if (!overlay) {
                         overlay = document.createElement('div');
                         overlay.className = 'webm-loading-overlay';
-                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Subs: Init...</div>`;
+                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Initializing...</div>`;
                         const thumbCont = cardElement.querySelector('.thumbnail-container');
                         if (thumbCont) thumbCont.appendChild(overlay);
                     }
                 }
+
                 const progressHandler = (eventData) => {
-                    if (normPath(eventData.videoPath) === normPath(item.path)) {
+                    if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
                         if (overlay) {
                             const pctEl = overlay.querySelector('.webm-percent');
                             if (pctEl) pctEl.innerText = `${eventData.percent}%`;
                             const lblEl = overlay.querySelector('.normalize-lbl');
-                            if (lblEl) lblEl.innerText = `Subs: ${eventData.label || 'Processing...'}`;
+                            if (lblEl) lblEl.innerText = eventData.label || 'Processing...';
                         }
                     }
                 };
+
                 window.electronAPI.onNormalizeProgress(progressHandler);
-                window.electronAPI.normalizeAudio(item.path, window.currentRealPath, true).then(res => {
-                    window.electronAPI.offNormalizeProgress();
+
+                window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, transcribe).then(res => {
                     if (overlay) overlay.remove();
-                    if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
-                        window.showToast('Subtitles generated successfully!', 'success');
-                        loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                    if (res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                        window.showToast(`${targetItem.name}: Isolated successfully!`, 'success');
                     } else {
-                        window.showToast('Subtitles generation failed: ' + (res.error || 'Unknown'), 'error');
+                        window.showToast(`${targetItem.name}: Isolation failed: ` + (res.error || 'Unknown error'), 'error');
                     }
+                });
+            });
+        } else if (action === 'upscale-video') {
+            const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
+            if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
+            
+            window.showToast(`AI Video Upscaling started in background for ${targetItems.length} video(s)...`, 'success');
+            
+            targetItems.forEach(targetItem => {
+                const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                    .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
+                let overlay = null;
+                if (cardElement) {
+                    overlay = cardElement.querySelector('.webm-loading-overlay');
+                    if (!overlay) {
+                        overlay = document.createElement('div');
+                        overlay.className = 'webm-loading-overlay';
+                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Upscaling...</div>`;
+                        const thumbCont = cardElement.querySelector('.thumbnail-container');
+                        if (thumbCont) thumbCont.appendChild(overlay);
+                    }
+                }
+
+                const upscaleProgressHandler = (eventData) => {
+                    if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
+                        if (overlay) {
+                            const pctEl = overlay.querySelector('.webm-percent');
+                            if (pctEl) pctEl.innerText = `${eventData.percent}%`;
+                            const lblEl = overlay.querySelector('.normalize-lbl');
+                            if (lblEl) lblEl.innerText = eventData.label || 'Upscaling...';
+                        }
+                    }
+                };
+
+                window.electronAPI.onUpscaleProgress(upscaleProgressHandler);
+
+                window.electronAPI.upscaleVideo(targetItem.path).then(res => {
+                    if (overlay) overlay.remove();
+                    if (res.success) {
+                        window.showToast(`${targetItem.name}: Upscaling complete!`, 'success');
+                        loadDirectory(window.currentNavPath, window.currentRealPath, false);
+                    } else {
+                        window.showToast(`${targetItem.name}: Upscale failed: ` + (res.error || 'Unknown'), 'error');
+                    }
+                });
+            });
+        } else if (action === 'revert-enhancements') {
+            const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
+            if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
+            
+            const confirmMsg = targetItems.length > 1
+                ? `Are you sure you want to revert all enhancements for the ${targetItems.length} selected video(s)? This will delete their enhanced copies.`
+                : `Are you sure you want to revert all enhancements for "${item.name}"? This will delete the enhanced copy.`;
+            if (await window.showConfirmDialog(confirmMsg, 'Revert Video Enhancements')) {
+                let count = 0;
+                for (const targetItem of targetItems) {
+                    const res = await window.electronAPI.revertEnhancements(targetItem.path);
+                    if (res.success) count++;
+                }
+                window.showToast(`Reverted enhancements for ${count}/${targetItems.length} video(s)`, 'success');
+                loadDirectory(window.currentNavPath, window.currentRealPath, true);
+            }
+        } else if (action === 'generate-subtitles-prompt') {
+            const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
+            if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
+            
+            const langs = await window.showLanguageModal('Generate Subtitles', true, []);
+            if (langs && langs.length > 0) {
+                window.showToast(`Generating subtitles for ${targetItems.length} video(s): ${langs.join(', ').toUpperCase()}`, 'success');
+                targetItems.forEach(targetItem => {
+                    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                    const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                        .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
+                    let overlay = null;
+                    if (cardElement) {
+                        overlay = cardElement.querySelector('.webm-loading-overlay');
+                        if (!overlay) {
+                            overlay = document.createElement('div');
+                            overlay.className = 'webm-loading-overlay';
+                            overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Subs: Init...</div>`;
+                            const thumbCont = cardElement.querySelector('.thumbnail-container');
+                            if (thumbCont) thumbCont.appendChild(overlay);
+                        }
+                    }
+                    const progressHandler = (eventData) => {
+                        if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
+                            if (overlay) {
+                                const pctEl = overlay.querySelector('.webm-percent');
+                                if (pctEl) pctEl.innerText = `${eventData.percent}%`;
+                                const lblEl = overlay.querySelector('.normalize-lbl');
+                                if (lblEl) lblEl.innerText = `Subs: ${eventData.label || 'Processing...'}`;
+                            }
+                        }
+                    };
+                    window.electronAPI.onNormalizeProgress(progressHandler);
+                    window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, true).then(res => {
+                        if (overlay) overlay.remove();
+                        if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                            window.showToast(`${targetItem.name}: Subtitles generated successfully!`, 'success');
+                            loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                        } else {
+                            window.showToast(`${targetItem.name}: Subtitles failed: ` + (res.error || 'Unknown'), 'error');
+                        }
+                    });
                 });
             }
         } else if (action === 'translate-video-prompt') {
+            const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
+            if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
+            
             const lang = await window.showLanguageModal('Translate Video Track', false, []);
             if (lang && lang.length > 0) {
-                window.showToast(`Synthesizing translation to ${lang[0].toUpperCase()} in background...`, 'success');
-                const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-                const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                    .find(c => normPath(c.dataset.path) === normPath(item.path));
-                let overlay = null;
-                if (cardElement) {
-                    overlay = cardElement.querySelector('.webm-loading-overlay');
-                    if (!overlay) {
-                        overlay = document.createElement('div');
-                        overlay.className = 'webm-loading-overlay';
-                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Trans: Init...</div>`;
-                        const thumbCont = cardElement.querySelector('.thumbnail-container');
-                        if (thumbCont) thumbCont.appendChild(overlay);
-                    }
-                }
-                const progressHandler = (eventData) => {
-                    if (normPath(eventData.videoPath) === normPath(item.path)) {
-                        if (overlay) {
-                            const pctEl = overlay.querySelector('.webm-percent');
-                            if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                            const lblEl = overlay.querySelector('.normalize-lbl');
-                            if (lblEl) lblEl.innerText = `Trans: ${eventData.label || 'Processing...'}`;
+                window.showToast(`Synthesizing translation to ${lang[0].toUpperCase()} for ${targetItems.length} video(s)...`, 'success');
+                targetItems.forEach(targetItem => {
+                    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                    const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                        .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
+                    let overlay = null;
+                    if (cardElement) {
+                        overlay = cardElement.querySelector('.webm-loading-overlay');
+                        if (!overlay) {
+                            overlay = document.createElement('div');
+                            overlay.className = 'webm-loading-overlay';
+                            overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Trans: Init...</div>`;
+                            const thumbCont = cardElement.querySelector('.thumbnail-container');
+                            if (thumbCont) thumbCont.appendChild(overlay);
                         }
                     }
-                };
-                window.electronAPI.onNormalizeProgress(progressHandler);
-                window.electronAPI.normalizeAudio(item.path, window.currentRealPath, false, lang[0]).then(res => {
-                    window.electronAPI.offNormalizeProgress();
-                    if (overlay) overlay.remove();
-                    if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
-                        window.showToast('Translation synthesized successfully!', 'success');
-                        loadDirectory(window.currentNavPath, window.currentRealPath, true);
-                    } else {
-                        window.showToast('Translation synthesis failed: ' + (res.error || 'Unknown'), 'error');
-                    }
+                    const progressHandler = (eventData) => {
+                        if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
+                            if (overlay) {
+                                const pctEl = overlay.querySelector('.webm-percent');
+                                if (pctEl) pctEl.innerText = `${eventData.percent}%`;
+                                const lblEl = overlay.querySelector('.normalize-lbl');
+                                if (lblEl) lblEl.innerText = `Trans: ${eventData.label || 'Processing...'}`;
+                            }
+                        }
+                    };
+                    window.electronAPI.onNormalizeProgress(progressHandler);
+                    window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, false, lang[0]).then(res => {
+                        if (overlay) overlay.remove();
+                        if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                            window.showToast(`${targetItem.name}: Translation complete!`, 'success');
+                            loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                        } else {
+                            window.showToast(`${targetItem.name}: Translation failed: ` + (res.error || 'Unknown'), 'error');
+                        }
+                    });
                 });
             }
         } else if (action === 'enhance-video-prompt') {
-            const config = await window.showVideoEnhancementDialog(item);
+            const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
+            if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
+            
+            const config = await window.showVideoEnhancementDialog(targetItems[0]);
             if (config && config.execute) {
-                window.showToast('AI Video Optimization Center started pipeline...', 'success');
-                const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-                const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                    .find(c => normPath(c.dataset.path) === normPath(item.path));
-                let overlay = null;
-                if (cardElement) {
-                    overlay = cardElement.querySelector('.webm-loading-overlay');
-                    if (!overlay) {
-                        overlay = document.createElement('div');
-                        overlay.className = 'webm-loading-overlay';
-                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">VSR: Init...</div>`;
-                        const thumbCont = cardElement.querySelector('.thumbnail-container');
-                        if (thumbCont) thumbCont.appendChild(overlay);
-                    }
-                }
-                const progressHandler = (eventData) => {
-                    if (normPath(eventData.videoPath) === normPath(item.path)) {
-                        if (overlay) {
-                            const pctEl = overlay.querySelector('.webm-percent');
-                            if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                            const lblEl = overlay.querySelector('.normalize-lbl');
-                            if (lblEl) lblEl.innerText = `VSR: ${eventData.label || 'Processing...'}`;
+                window.showToast(`AI Video Optimization pipeline started for ${targetItems.length} video(s)...`, 'success');
+                targetItems.forEach(targetItem => {
+                    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                    const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                        .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
+                    let overlay = null;
+                    if (cardElement) {
+                        overlay = cardElement.querySelector('.webm-loading-overlay');
+                        if (!overlay) {
+                            overlay = document.createElement('div');
+                            overlay.className = 'webm-loading-overlay';
+                            overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">VSR: Init...</div>`;
+                            const thumbCont = cardElement.querySelector('.thumbnail-container');
+                            if (thumbCont) thumbCont.appendChild(overlay);
                         }
                     }
-                };
-                window.electronAPI.onUpscaleProgress(progressHandler);
-                window.electronAPI.upscaleVideo(item.path).then(res => {
-                    window.electronAPI.offUpscaleProgress();
-                    if (overlay) overlay.remove();
-                    if (res.success) {
-                        window.showToast('AI Video Upscaling & Super-Resolution complete!', 'success');
-                        loadDirectory(window.currentNavPath, window.currentRealPath, true);
-                    } else {
-                        window.showToast('Upscale pipeline failed: ' + (res.error || 'Unknown'), 'error');
-                    }
+                    const progressHandler = (eventData) => {
+                        if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
+                            if (overlay) {
+                                const pctEl = overlay.querySelector('.webm-percent');
+                                if (pctEl) pctEl.innerText = `${eventData.percent}%`;
+                                const lblEl = overlay.querySelector('.normalize-lbl');
+                                if (lblEl) lblEl.innerText = `VSR: ${eventData.label || 'Processing...'}`;
+                            }
+                        }
+                    };
+                    window.electronAPI.onUpscaleProgress(progressHandler);
+                    window.electronAPI.upscaleVideo(targetItem.path).then(res => {
+                        if (overlay) overlay.remove();
+                        if (res.success) {
+                            window.showToast(`${targetItem.name}: Super-Resolution complete!`, 'success');
+                            loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                        } else {
+                            window.showToast(`${targetItem.name}: Super-Resolution failed: ` + (res.error || 'Unknown'), 'error');
+                        }
+                    });
                 });
             }
         } else if (action === 'encrypt-prompt' || action === 'decrypt-prompt') {
@@ -581,15 +645,27 @@ function createCardElement(item, index) {
                 loadDirectory(window.currentNavPath, window.currentRealPath, true);
             }
         } else if (action === 'delete-item') {
-            if (await window.showConfirmDialog(`Delete "${item.name}"?`, 'Confirm File Deletion')) {
-                console.log('[delete] deleting:', item.path);
-                const res = await window.electronAPI.deleteItem(item.path);
-                if (res.success) {
-                    window.showToast('Deleted: ' + item.name, 'success');
-                    window.allItems = window.allItems.filter(i => i.path !== item.path);
+            const targetItems = isMulti ? selectedItems : [item];
+            if (targetItems.length === 0) { window.showToast('No items selected', 'error'); return; }
+            
+            const confirmMsg = targetItems.length > 1
+                ? `Are you sure you want to delete the ${targetItems.length} selected item(s)?`
+                : `Delete "${item.name}"?`;
+            if (await window.showConfirmDialog(confirmMsg, 'Confirm Deletion')) {
+                let deletedCount = 0;
+                for (const targetItem of targetItems) {
+                    console.log('[delete] deleting:', targetItem.path);
+                    const res = await window.electronAPI.deleteItem(targetItem.path);
+                    if (res.success) {
+                        deletedCount++;
+                        window.allItems = window.allItems.filter(i => i.path !== targetItem.path);
+                    }
+                }
+                if (deletedCount > 0) {
+                    window.showToast(targetItems.length > 1 ? `Deleted ${deletedCount} item(s)` : `Deleted: ${item.name}`, 'success');
                     applyFilters();
                 } else {
-                    window.showToast('Delete failed: ' + res.error, 'error');
+                    window.showToast('Delete failed', 'error');
                 }
             }
         } else if (action === 'rename') {
@@ -783,9 +859,24 @@ function applyFilters() {
         updateStatusBar();
     } else {
         el('file-grid').innerHTML = '';
-        window.selectedIndices.clear(); window.lastSelectedIndex = -1; window.currentlyRendered = 0;
+        window.selectedIndices.clear(); window.lastSelectedIndex = -1;
+        
+        let countToRender = window.PAGE_SIZE;
+        if (window.restoringVaultTab && window.vaultCurrentlyRendered) {
+            countToRender = window.vaultCurrentlyRendered;
+            window.restoringVaultTab = false;
+            window.vaultCurrentlyRendered = null;
+        } else {
+            window.vaultCurrentlyRendered = null;
+            window.restoringVaultTab = false;
+        }
+        
+        window.currentlyRendered = 0;
         updateStatusBar();
-        renderMore();
+        
+        const nextBatch = window.displayedItems.slice(0, countToRender);
+        nextBatch.forEach((item, i) => { el('file-grid').appendChild(createCardElement(item, i)); });
+        window.currentlyRendered = nextBatch.length;
     }
 }
 
@@ -805,8 +896,27 @@ async function loadDirectory(navPath, realPath, useCache = false) {
     window.electronAPI.saveSettings(window.appSettings);
 
     el('loading').style.display = 'flex';
-    if (!useCache) window.allItems = await window.electronAPI.scanDirectory(realPath);
-    el('loading').style.display = 'none';
+    
+    // Setup a loading bypass safety timeout (appears if scanning takes > 1.5s)
+    const bypassBtn = el('btn-bypass-loading');
+    let bypassTimeout = null;
+    if (bypassBtn) {
+        bypassBtn.style.display = 'none';
+        bypassTimeout = setTimeout(() => {
+            bypassBtn.style.display = 'inline-block';
+        }, 1500);
+    }
+
+    try {
+        if (!useCache) window.allItems = await window.electronAPI.scanDirectory(realPath);
+    } catch (err) {
+        console.error('[loadDirectory] Directory scan failed:', err);
+        window.allItems = [];
+    } finally {
+        if (bypassTimeout) clearTimeout(bypassTimeout);
+        if (bypassBtn) bypassBtn.style.display = 'none';
+        el('loading').style.display = 'none';
+    }
 
     applyFilters();
 
@@ -891,6 +1001,11 @@ async function navigateTo(navPath, realPath) {
 
 function initNavigationListeners() {
     el('main-area').addEventListener('scroll', () => {
+        if (window.currentTab && window.currentTab !== 'vault') {
+            window.tabScrollPositions = window.tabScrollPositions || {};
+            window.tabScrollPositions[window.currentTab] = el('main-area').scrollTop;
+            return;
+        }
         window.scrollPositions[window.currentNavPath] = el('main-area').scrollTop;
         window.appSettings.scrollPositions = window.scrollPositions;
         window.electronAPI.saveSettings(window.appSettings);
@@ -925,8 +1040,17 @@ function initNavigationListeners() {
         const latest = await window.electronAPI.scanDirectory(window.currentRealPath);
         el('loading').style.display = 'none'; el('loading-text').innerText = 'Scanning directory... this may take a moment.';
 
-        const existingPaths = new Set(window.allItems.map(i => i.path));
         let hasUpdates = false;
+        const latestPaths = new Set(latest.map(i => i.path));
+        
+        // Remove files that no longer exist
+        const oldLength = window.allItems.length;
+        window.allItems = window.allItems.filter(item => latestPaths.has(item.path));
+        if (window.allItems.length !== oldLength) {
+            hasUpdates = true;
+        }
+
+        const existingPaths = new Set(window.allItems.map(i => i.path));
         latest.forEach(item => {
             if (!existingPaths.has(item.path)) { window.allItems.push(item); hasUpdates = true; }
             else {
@@ -962,6 +1086,7 @@ function initNavigationListeners() {
     let isDragging = false, startX, startY;
 
     area.addEventListener('mousedown', (e) => {
+        if (window.currentTab !== 'vault') return;
         if (e.target.closest('.file-card') || e.target.closest('.toolbar') || e.target.closest('button') || e.target.closest('input')) return;
         isDragging = true; const rect = area.getBoundingClientRect();
         startX = e.clientX - rect.left + area.scrollLeft; startY = e.clientY - rect.top + area.scrollTop;
@@ -973,7 +1098,7 @@ function initNavigationListeners() {
         }
     });
     area.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
+        if (!isDragging || window.currentTab !== 'vault') return;
         const rect = area.getBoundingClientRect();
         const curX = e.clientX - rect.left + area.scrollLeft; const curY = e.clientY - rect.top + area.scrollTop;
         const x = Math.min(startX, curX), y = Math.min(startY, curY), w = Math.abs(curX - startX), h = Math.abs(curY - startY);
@@ -1139,7 +1264,7 @@ window.showLanguageModal = function(title, allowMultiple = true, selectedLanguag
             box-shadow: 0 20px 50px rgba(0,0,0,0.3);
             border-radius: 8px;
             color: var(--vault-text);
-            background: var(--vault-warm-raised);
+            background: var(--vault-card-bg);
         `;
         
         const header = document.createElement('h3');
@@ -1164,12 +1289,35 @@ window.showLanguageModal = function(title, allowMultiple = true, selectedLanguag
         modal.appendChild(desc);
         
         const listContainer = document.createElement('div');
-        listContainer.style = 'display:flex; flex-direction:column; gap:10px; margin-bottom:20px;';
+        listContainer.style = 'display:flex; flex-direction:column; gap:8px; margin-bottom:20px; max-height:260px; overflow-y:auto; padding-right:6px;';
         
         const languages = [
             { code: 'en', name: 'English (EN)' },
-            { code: 'fr', name: 'Québécois / French (FR)' },
-            { code: 'es', name: 'Spanish (ES)' }
+            { code: 'fr', name: 'French / Québécois (FR)' },
+            { code: 'es', name: 'Spanish (ES)' },
+            { code: 'de', name: 'German (DE)' },
+            { code: 'it', name: 'Italian (IT)' },
+            { code: 'pt', name: 'Portuguese (PT)' },
+            { code: 'nl', name: 'Dutch (NL)' },
+            { code: 'ru', name: 'Russian (RU)' },
+            { code: 'zh', name: 'Chinese (ZH)' },
+            { code: 'ja', name: 'Japanese (JA)' },
+            { code: 'ko', name: 'Korean (KO)' },
+            { code: 'ar', name: 'Arabic (AR)' },
+            { code: 'hi', name: 'Hindi (HI)' },
+            { code: 'bn', name: 'Bengali (BN)' },
+            { code: 'tr', name: 'Turkish (TR)' },
+            { code: 'pl', name: 'Polish (PL)' },
+            { code: 'sv', name: 'Swedish (SV)' },
+            { code: 'no', name: 'Norwegian (NO)' },
+            { code: 'da', name: 'Danish (DA)' },
+            { code: 'fi', name: 'Finnish (FI)' },
+            { code: 'cs', name: 'Czech (CS)' },
+            { code: 'el', name: 'Greek (EL)' },
+            { code: 'he', name: 'Hebrew (HE)' },
+            { code: 'id', name: 'Indonesian (ID)' },
+            { code: 'vi', name: 'Vietnamese (VI)' },
+            { code: 'uk', name: 'Ukrainian (UK)' }
         ];
         
         const selections = new Set(selectedLanguages);
@@ -1234,7 +1382,7 @@ window.showLanguageModal = function(title, allowMultiple = true, selectedLanguag
         const confirmBtn = document.createElement('button');
         confirmBtn.style = `
             background: var(--vault-accent);
-            color: var(--vt-primary);
+            color: var(--vault-accent-text);
             border: none;
             padding: 8px 16px;
             border-radius: 6px;
@@ -1291,7 +1439,7 @@ window.showVideoEnhancementDialog = function(item) {
             box-shadow: 0 25px 60px rgba(0,0,0,0.35);
             border-radius: 8px;
             color: var(--vault-text);
-            background: var(--vault-warm-raised);
+            background: var(--vault-card-bg);
         `;
         
         const header = document.createElement('h3');
@@ -1428,7 +1576,7 @@ window.showVideoEnhancementDialog = function(item) {
         const confirmBtn = document.createElement('button');
         confirmBtn.style = `
             background: var(--vault-accent);
-            color: var(--vt-primary);
+            color: var(--vault-accent-text);
             border: none;
             padding: 8px 16px;
             border-radius: 6px;

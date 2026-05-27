@@ -102,6 +102,56 @@ class PriorityQueue {
     }
 }
 
+function getRobustPythonExe() {
+    const fs = require('fs');
+    const path = require('path');
+    
+    let pythonExe = 'python';
+    const searchBases = [];
+    
+    // 1. vaultwares-media-processing venv first (has PyTorch + NeMo + Parakeet)
+    searchBases.push('C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv');
+    
+    // 2. Relative paths based on sibling structures
+    let baseDir = __dirname;
+    searchBases.push(path.join(baseDir, '..', '..', 'vaultwares-media-processing', '.venv'));
+
+    // 3. Fallback to local venvs
+    searchBases.push('C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer\\.venv');
+    searchBases.push('C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer\\venv');
+    searchBases.push(path.join(baseDir, '..', '.venv'));
+    searchBases.push(path.join(baseDir, '..', 'venv'));
+    searchBases.push(path.join(baseDir, '..', '..', '.venv'));
+    
+    if (baseDir.includes('app.asar')) {
+        const cleanBase = baseDir.substring(0, baseDir.indexOf('app.asar'));
+        searchBases.push(path.join(cleanBase, '..', 'vaultwares-media-processing', '.venv'));
+        searchBases.push(path.join(cleanBase, '.venv'));
+        searchBases.push(path.join(cleanBase, 'venv'));
+        searchBases.push(path.join(cleanBase, '..', '.venv'));
+        searchBases.push(path.join(cleanBase, '..', 'venv'));
+        searchBases.push(path.join(cleanBase, '..', '..', '.venv'));
+        searchBases.push(path.join(cleanBase, '..', '..', 'venv'));
+    }
+    
+    // 4. Search and return the first match
+    for (const vPath of searchBases) {
+        if (process.platform === 'win32') {
+            const winPath = path.join(vPath, 'Scripts', 'python.exe');
+            if (fs.existsSync(winPath)) {
+                return winPath;
+            }
+        } else {
+            const unixPath = path.join(vPath, 'bin', 'python');
+            if (fs.existsSync(unixPath)) {
+                return unixPath;
+            }
+        }
+    }
+    
+    return pythonExe;
+}
+
 module.exports = {
     activeSubprocesses,
     killAllActiveSubprocesses,
@@ -109,5 +159,6 @@ module.exports = {
     getVideoDuration,
     checkAudioStream,
     formatBytes,
-    PriorityQueue
+    PriorityQueue,
+    getRobustPythonExe
 };

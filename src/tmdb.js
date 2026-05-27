@@ -39,19 +39,28 @@ const GENRE_MAP = {
 };
 
 function registerTmdbHandlers(ipcMain) {
-    ipcMain.handle('search-tmdb', async (event, query) => {
+    ipcMain.handle('search-tmdb', async (event, arg) => {
         try {
             if (!TMDB_BEARER_TOKEN) {
                 console.warn('[TMDB] No Bearer Token configured in .env');
                 return { success: false, error: 'No Bearer Token configured in .env' };
             }
 
+            let query = '';
+            let page = 1;
+            if (arg && typeof arg === 'object') {
+                query = arg.query || '';
+                page = arg.page || 1;
+            } else if (typeof arg === 'string') {
+                query = arg;
+            }
+
             let url;
             if (!query) {
                 // Fetch trending movies and TV shows for the day by default
-                url = 'https://api.themoviedb.org/3/trending/all/day?language=en-US';
+                url = `https://api.themoviedb.org/3/trending/all/day?language=en-US&page=${page}`;
             } else {
-                url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=1`;
+                url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=${page}`;
             }
 
             console.log(`[TMDB] Fetching API: ${url}`);
@@ -105,7 +114,368 @@ function registerTmdbHandlers(ipcMain) {
             return { success: false, error: err.message };
         }
     });
+
+    ipcMain.handle('get-tmdb-movie', async (event, id) => {
+        try {
+            if (!TMDB_BEARER_TOKEN) {
+                return {
+                    success: true,
+                    data: {
+                        id,
+                        title: "Dune: Part Two (Offline)",
+                        overview: "Follow the mythic journey of Paul Atreides as he unites with Chani and the Fremen while on a path of revenge against the conspirators who destroyed his family.",
+                        release_date: "2024-03-01",
+                        vote_average: 8.3,
+                        genres: [{ name: "Sci-Fi" }, { name: "Adventure" }],
+                        videos: {
+                            results: [
+                                {
+                                    key: "Way9DexNy3w",
+                                    site: "YouTube",
+                                    type: "Trailer"
+                                }
+                            ]
+                        }
+                    }
+                };
+            }
+
+            const url = `https://api.themoviedb.org/3/movie/${id}?append_to_response=videos&language=en-US`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    accept: 'application/json',
+                    Authorization: `Bearer ${TMDB_BEARER_TOKEN}`
+                }
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+
+            // Kinocheck fallback if no YouTube trailer is returned by TMDB
+            if (!data.videos || !data.videos.results || data.videos.results.length === 0) {
+                try {
+                    console.log(`[TMDB] No YouTube trailer found in TMDB. Querying Kinocheck fallback for TMDB ID: ${id}`);
+                    const kcUrl = `https://api.kinocheck.de/movies?tmdb_id=${id}`;
+                    const kcRes = await fetch(kcUrl);
+                    if (kcRes.ok) {
+                        const kcData = await kcRes.json();
+                        if (kcData && kcData.trailer && kcData.trailer.youtube_video_id) {
+                            if (!data.videos) data.videos = { results: [] };
+                            if (!data.videos.results) data.videos.results = [];
+                            data.videos.results.push({
+                                key: kcData.trailer.youtube_video_id,
+                                site: 'YouTube',
+                                type: 'Trailer'
+                            });
+                            console.log('[TMDB] Kinocheck fallback succeeded: found YouTube video ID:', kcData.trailer.youtube_video_id);
+                        }
+                    }
+                } catch (kcErr) {
+                    console.error('[TMDB] Kinocheck fallback fetch failed:', kcErr);
+                }
+            }
+
+            return { success: true, data };
+        } catch (e) {
+            console.error('[TMDB] get-tmdb-movie failed, returning offline fallback:', e);
+            return {
+                success: true,
+                data: {
+                    id,
+                    title: "Movie Title (Offline Fallback)",
+                    overview: "A premium offline cinematic presentation. Please check your internet connection and .env file credentials for live data.",
+                    release_date: "2026",
+                    vote_average: 8.0,
+                    genres: [{ name: "Drama" }],
+                    videos: { results: [] }
+                }
+            };
+        }
+    });
+
+    ipcMain.handle('get-tmdb-tv', async (event, id) => {
+        try {
+            if (!TMDB_BEARER_TOKEN) {
+                return {
+                    success: true,
+                    data: {
+                        id,
+                        name: "Breaking Bad (Offline)",
+                        overview: "A high school chemistry teacher diagnosed with inoperable lung cancer turns to manufacturing and selling methamphetamine with a former student in order to secure his family's future.",
+                        first_air_date: "2008-01-20",
+                        vote_average: 9.5,
+                        genres: [{ name: "Drama" }, { name: "Crime" }],
+                        seasons: [
+                            { season_number: 1, name: "Season 1", episode_count: 7 },
+                            { season_number: 2, name: "Season 2", episode_count: 13 }
+                        ]
+                    }
+                };
+            }
+
+            const url = `https://api.themoviedb.org/3/tv/${id}?language=en-US`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    accept: 'application/json',
+                    Authorization: `Bearer ${TMDB_BEARER_TOKEN}`
+                }
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            return { success: true, data };
+        } catch (e) {
+            console.error('[TMDB] get-tmdb-tv failed, returning offline fallback:', e);
+            return {
+                success: true,
+                data: {
+                    id,
+                    name: "Series Title (Offline Fallback)",
+                    overview: "An elite offline episodic selection. Set up your TMDB key in .env to pull seasons and episodes in real time.",
+                    first_air_date: "2026",
+                    vote_average: 8.5,
+                    genres: [{ name: "Adventure" }],
+                    seasons: [
+                        { season_number: 1, name: "Season 1", episode_count: 5 }
+                    ]
+                }
+            };
+        }
+    });
+
+    ipcMain.handle('get-tmdb-tv-season', async (event, { id, seasonNumber }) => {
+        try {
+            if (!TMDB_BEARER_TOKEN) {
+                return {
+                    success: true,
+                    data: {
+                        episodes: [
+                            { episode_number: 1, name: "Pilot", overview: "Chemistry teacher Walter White learns he has terminal cancer." },
+                            { episode_number: 2, name: "Cat's in the Bag...", overview: "Walt and Jesse clean up the chemical mess." }
+                        ]
+                    }
+                };
+            }
+
+            const url = `https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=en-US`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    accept: 'application/json',
+                    Authorization: `Bearer ${TMDB_BEARER_TOKEN}`
+                }
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            return { success: true, data };
+        } catch (e) {
+            console.error('[TMDB] get-tmdb-tv-season failed, returning offline fallback:', e);
+            return {
+                success: true,
+                data: {
+                    episodes: [
+                        { episode_number: 1, name: "Episode 1 (Offline)", overview: "An engaging episodic installment. Ensure your network is active." },
+                        { episode_number: 2, name: "Episode 2 (Offline)", overview: "The narrative deepens. Check your internet connection." }
+                    ]
+                }
+            };
+        }
+    });
+
+    ipcMain.handle('discover-tmdb', async (event, { providerId, mediaType, page = 1 }) => {
+        try {
+            const type = mediaType === 'tv' ? 'tv' : 'movie';
+            
+            if (!TMDB_BEARER_TOKEN) {
+                // Mock provider listings for offline/unconfigured usage
+                let mockList = [];
+                const netflixMock = [
+                    { id: 201, media_type: type, title: "Stranger Things", year: "2016", rating: "8.6", genres: "Sci-Fi, Drama", poster: "oppenheimer_poster.png", overview: "When a young boy vanishes, a small town uncovers a mystery involving secret experiments and terrifying supernatural forces." },
+                    { id: 202, media_type: type, title: "Squid Game", year: "2021", rating: "8.1", genres: "Action, Thriller", poster: "dune_poster.png", overview: "Hundreds of cash-strapped players accept a strange invitation to compete in children's games. Inside, a tempting prize awaits with deadly high stakes." }
+                ];
+                const disneyMock = [
+                    { id: 301, media_type: type, title: "The Mandalorian", year: "2019", rating: "8.4", genres: "Action, Sci-Fi", poster: "dune_poster.png", overview: "The travels of a lone bounty hunter in the outer reaches of the galaxy, far from the authority of the New Republic." },
+                    { id: 302, media_type: type, title: "Loki", year: "2021", rating: "8.2", genres: "Sci-Fi, Adventure", poster: "oppenheimer_poster.png", overview: "The mercurial villain Loki resumes his role as the God of Mischief in a new series that takes place after the events of Avengers: Endgame." }
+                ];
+                const appleMock = [
+                    { id: 401, media_type: type, title: "Ted Lasso", year: "2020", rating: "8.5", genres: "Comedy, Drama", poster: "oppenheimer_poster.png", overview: "US American football coach Ted Lasso heads to the UK to manage a struggling London football team in the top flight of English football." },
+                    { id: 402, media_type: type, title: "Severance", year: "2022", rating: "8.7", genres: "Sci-Fi, Drama", poster: "dune_poster.png", overview: "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives." }
+                ];
+                const primeMock = [
+                    { id: 501, media_type: type, title: "The Boys", year: "2019", rating: "8.7", genres: "Sci-Fi, Action", poster: "oppenheimer_poster.png", overview: "A group of vigilantes set out to take down corrupt superheroes who abuse their superpowers." },
+                    { id: 502, media_type: type, title: "Reacher", year: "2022", rating: "8.1", genres: "Action, Crime", poster: "dune_poster.png", overview: "Jack Reacher, a veteran military police investigator, is falsely accused of murder and finds himself in the middle of a deadly conspiracy." }
+                ];
+
+                if (providerId === '8' || providerId === '213') {
+                    mockList = netflixMock;
+                } else if (providerId === '337') {
+                    mockList = disneyMock;
+                } else if (providerId === '350') {
+                    mockList = appleMock;
+                } else if (providerId === '9') {
+                    mockList = primeMock;
+                } else {
+                    mockList = [...netflixMock, ...disneyMock, ...appleMock, ...primeMock];
+                }
+                return { success: true, results: mockList };
+            }
+
+            let url;
+            if (providerId === 'all') {
+                url = `https://api.themoviedb.org/3/discover/${type}?sort_by=popularity.desc&language=en-US&with_original_language=en|fr|ja|ko&page=${page}`;
+            } else {
+                url = `https://api.themoviedb.org/3/discover/${type}?with_watch_providers=${providerId}&watch_region=CA&with_watch_monetization_types=flatrate&sort_by=popularity.desc&language=en-US&with_original_language=en|fr|ja|ko&page=${page}`;
+            }
+            console.log(`[TMDB] Discovering streaming provider items: ${url}`);
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    accept: 'application/json',
+                    Authorization: `Bearer ${TMDB_BEARER_TOKEN}`
+                }
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            
+            const results = (data.results || []).map(item => {
+                const title = item.title || item.name || 'Untitled';
+                const dateStr = item.release_date || item.first_air_date || '';
+                const year = dateStr ? dateStr.substring(0, 4) : '—';
+                const rating = item.vote_average ? item.vote_average.toFixed(1) : '—';
+                
+                const genres = (item.genre_ids || [])
+                    .map(id => GENRE_MAP[id])
+                    .filter(Boolean)
+                    .slice(0, 3)
+                    .join(', ') || 'General';
+
+                const poster = item.poster_path 
+                    ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                    : 'oppenheimer_poster.png';
+
+                return {
+                    id: item.id,
+                    media_type: type,
+                    title,
+                    year,
+                    rating,
+                    genres,
+                    poster,
+                    overview: item.overview || 'No description available.'
+                };
+            });
+
+            return { success: true, results };
+        } catch (e) {
+            console.error('[TMDB] discover-tmdb failed:', e);
+            return { success: false, error: e.message };
+        }
+    });
+
+    // ── OMDb API Support ──────────────────────────────────────────────────────
+    const OMDB_API_KEY = '219a7856';
+
+    ipcMain.handle('search-omdb', async (event, { query, page = 1 }) => {
+        try {
+            if (!query) return { success: true, results: [] };
+            
+            const url = `http://www.omdbapi.com/?s=${encodeURIComponent(query)}&page=${page}&apikey=${OMDB_API_KEY}`;
+            console.log(`[OMDb] Searching: ${url}`);
+            
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            if (data.Response === 'False') {
+                return { success: true, results: [], totalResults: 0 };
+            }
+            
+            const results = (data.Search || []).map(item => {
+                // Determine high-resolution OMDb poster API URL
+                let poster = 'oppenheimer_poster.png';
+                if (item.Poster && item.Poster !== 'N/A') {
+                    // Use OMDb Poster API endpoint directly
+                    poster = `http://img.omdbapi.com/?i=${item.imdbID}&h=600&apikey=${OMDB_API_KEY}`;
+                }
+                
+                return {
+                    id: item.imdbID,
+                    imdb_id: item.imdbID,
+                    media_type: item.Type === 'series' ? 'tv' : 'movie',
+                    title: item.Title || 'Untitled',
+                    year: item.Year || '—',
+                    rating: '—',
+                    genres: item.Type ? item.Type.toUpperCase() : 'General',
+                    poster: poster,
+                    overview: `IMDb ID: ${item.imdbID}. Use standard RD stream search to look up this title.`
+                };
+            });
+            
+            return { success: true, results, totalResults: parseInt(data.totalResults) || results.length };
+        } catch (err) {
+            console.error('[OMDb] Search error:', err);
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('get-omdb-details', async (event, { imdbId, title, year }) => {
+        try {
+            let url = `http://www.omdbapi.com/?apikey=${OMDB_API_KEY}&plot=full`;
+            if (imdbId) {
+                url += `&i=${imdbId}`;
+            } else if (title) {
+                url += `&t=${encodeURIComponent(title)}`;
+                if (year) url += `&y=${year}`;
+            } else {
+                return { success: false, error: 'Either imdbId or title must be provided' };
+            }
+            
+            console.log(`[OMDb] Fetching details: ${url}`);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            if (data.Response === 'False') {
+                throw new Error(data.Error || 'Movie not found in OMDb');
+            }
+            
+            // Format to match standard TMDB details structure for frontend parity
+            let poster = 'oppenheimer_poster.png';
+            if (data.imdbID) {
+                poster = `http://img.omdbapi.com/?i=${data.imdbID}&h=600&apikey=${OMDB_API_KEY}`;
+            } else if (data.Poster && data.Poster !== 'N/A') {
+                poster = data.Poster;
+            }
+            
+            const formatted = {
+                id: data.imdbID || null,
+                imdb_id: data.imdbID || null,
+                title: data.Title || 'Untitled',
+                year: data.Year || '—',
+                rating: data.imdbRating || '—',
+                genres: data.Genre || 'General',
+                poster: poster,
+                overview: data.Plot || 'No plot available.',
+                director: data.Director || '—',
+                writer: data.Writer || '—',
+                actors: data.Actors || '—',
+                awards: data.Awards || '—',
+                runtime: data.Runtime || '—'
+            };
+            
+            return { success: true, data: formatted };
+        } catch (err) {
+            console.error('[OMDb] Get details error:', err);
+            return { success: false, error: err.message };
+        }
+    });
 }
+
 
 module.exports = {
     registerTmdbHandlers

@@ -178,3 +178,96 @@ Executed on local hardware via Playwright automated pipeline validation.
 | 2026-05-24T11:03:12.437Z | 1 Alejandra Millan Alejamillan11 X.mp4 | 2.64 MB | 13.4s | 95ms | 2154ms | SUCCESS |
 | 2026-05-24T13:58:45.137Z | Flirt4Free cam clips of Girls Next Door with Talhia.mp4 | 2.34 GB | 9723.3s | 233ms | 3076ms | SUCCESS |
 | 2026-05-24T13:59:56.946Z | foxyy_sophi (@foxyy_sophi) TikTok Watch foxyy_sophi's Newest(7).mp4 | 616.28 KB | 6.8s | 193ms | 710ms | SUCCESS |
+| 2026-05-25T21:37:18.116Z | taylorstiles payluciarae pov bj.mp4 | 1.74 GB | 2423.1s | 291ms | 5452ms | SUCCESS |
+| 2026-05-25T21:54:23.848Z | Gertrude Losheks Live Asian College Girls Bisexual Chat Room.mp4 | 12.4 MB | 78.0s | 198ms | 6654ms | SUCCESS |
+| 2026-05-25T21:54:42.104Z | Watch Artemis_020 live on Chaturbate.mp4 | 366.24 MB | 1460.8s | 71ms | 1912ms | SUCCESS |
+
+---
+
+### **Benchmark Run: 2026-05-25 20:29:18**
+
+### **VaultWares ASR Performance Benchmarks**
+
+| Metric | Measured Performance Value | Description |
+| :--- | :--- | :--- |
+| **ASR Model Mode** | `SIMULATED FALLBACK` | Model engine implementation mode |
+| **Execution Hardware** | `CUDA` | Target GPU/CPU computation device |
+| **ASR Initialization Latency** | `1.5003 seconds` | Time to warm-load ASR weights onto RAM/VRAM |
+| **Inference Latency (10s audio)** | `0.3072 seconds` | Time spent transcribing isolated vocals track |
+| **Real-Time Factor (RTF)** | `0.0307` | Processing throughput factor (Speed Ratio) |
+| **Native Translation Latency** | `0.1721 seconds` | Time to decode speech with translation to French |
+| **Translation Throughput RTF** | `0.0172` | Real-time factor for translated decoding |
+| **PyTorch VRAM Allocated** | `0.00 MB` | Active VRAM footprint utilized by model weights |
+| **PyTorch VRAM Reserved** | `2.00 MB` | Peak GPU caching pool |
+
+| 2026-05-26T01:10:24.367Z | Watch Artemis_020 live on Chaturbate.mp4 | 366.24 MB | 1460.8s | 188ms | 19142ms | SUCCESS |
+| 2026-05-26T01:25:00.676Z | Watch Artemis_020 live on Chaturbate.mp4 | 366.24 MB | 1460.8s | 172ms | 2347ms | SUCCESS |
+| 2026-05-26T01:25:35.015Z | 12min count Watch Emmiep live on Chaturbate.mp4 | 379.31 MB | 963.2s | 82ms | 3343ms | SUCCESS |
+| 2026-05-26T01:26:11.828Z | 12min count Watch Emmiep live on Chaturbate.mp4 | 379.31 MB | 963.2s | 77ms | 3270ms | SUCCESS |
+
+---
+
+### **Benchmark Run: 2026-05-25 23:24:13**
+
+### **VaultWares ASR Performance Benchmarks**
+
+| Metric | Measured Performance Value | Description |
+| :--- | :--- | :--- |
+| **ASR Model Mode** | `SIMULATED FALLBACK` | Model engine implementation mode |
+| **Execution Hardware** | `CUDA` | Target GPU/CPU computation device |
+| **ASR Initialization Latency** | `1.5004 seconds` | Time to warm-load ASR weights onto RAM/VRAM |
+| **Inference Latency (10s audio)** | `0.2684 seconds` | Time spent transcribing isolated vocals track |
+| **Real-Time Factor (RTF)** | `0.0268` | Processing throughput factor (Speed Ratio) |
+| **Native Translation Latency** | `0.1720 seconds` | Time to decode speech with translation to French |
+| **Translation Throughput RTF** | `0.0172` | Real-time factor for translated decoding |
+| **PyTorch VRAM Allocated** | `0.00 MB` | Active VRAM footprint utilized by model weights |
+| **PyTorch VRAM Reserved** | `2.00 MB` | Peak GPU caching pool |
+
+
+---
+
+### **Benchmark Run: 2026-05-25 23:24:55**
+
+### **VaultWares ASR Performance Benchmarks**
+
+| Metric | Measured Performance Value | Description |
+| :--- | :--- | :--- |
+| **ASR Model Mode** | `SIMULATED FALLBACK` | Model engine implementation mode |
+| **Execution Hardware** | `CPU` | Target GPU/CPU computation device |
+| **ASR Initialization Latency** | `1.5005 seconds` | Time to warm-load ASR weights onto RAM/VRAM |
+| **Inference Latency (10s audio)** | `0.1706 seconds` | Time spent transcribing isolated vocals track |
+| **Real-Time Factor (RTF)** | `0.0171` | Processing throughput factor (Speed Ratio) |
+| **Native Translation Latency** | `0.1709 seconds` | Time to decode speech with translation to French |
+| **Translation Throughput RTF** | `0.0171` | Real-time factor for translated decoding |
+| **PyTorch VRAM Allocated** | `0.00 MB` | Active VRAM footprint utilized by model weights |
+| **PyTorch VRAM Reserved** | `0.00 MB` | Peak GPU caching pool |
+
+| 2026-05-26T06:13:03.717Z | Watch Martina17x live on Chaturbate.mp4 | 43.76 MB | 220.8s | 180ms | 3181ms | SUCCESS |
+| 2026-05-26T06:13:15.483Z | Anto Pierces Live Anal Girls Next Door Foot Fetish Chat Room (2).mp4 | 10.35 MB | 42.2s | 91ms | 4562ms | SUCCESS |
+| 2026-05-26T06:15:32.338Z | test Watch B3cky_ live on Chaturbate.mp4 | 132.62 MB | 542.4s | 64ms | 18089ms | SUCCESS |
+| 2026-05-26T06:17:05.525Z | maysweetshot dickrating 1min.mp4 | 44.47 MB | 60.0s | 97ms | 5686ms | SUCCESS |
+| 2026-05-26T06:19:00.259Z | maysweetshot bundle 1.mp4 | 103.11 MB | 139.6s | 90ms | 2192ms | SUCCESS |
+| 2026-05-26T06:19:11.268Z | maysweetshot bundle 2.mp4 | 62.61 MB | 84.4s | 90ms | 9395ms | SUCCESS |
+| 2026-05-26T06:19:16.429Z | maysweetshot bundle bj.mp4 | 44.47 MB | 60.0s | 163ms | 9267ms | SUCCESS |
+| 2026-05-26T06:19:17.016Z | maysweetshot bundle 4.mp4 | 67.88 MB | 91.6s | 107ms | 12794ms | SUCCESS |
+| 2026-05-26T06:19:31.806Z | maysweetshot custom 1min.mp4 | 64.08 MB | 86.2s | 339ms | 21464ms | SUCCESS |
+| 2026-05-26T06:20:25.427Z | laureljeunegif.mp4 | 6.62 MB | 8.3s | 200ms | 990ms | SUCCESS |
+| 2026-05-26T06:20:25.550Z | laureljeune custom vid 4min dildo.mp4 | 178.22 MB | 241.8s | 156ms | 3583ms | SUCCESS |
+| 2026-05-26T06:20:26.299Z | laureljeune dickrating.mp4 | 42.39 MB | 57.1s | 92ms | 6659ms | SUCCESS |
+| 2026-05-26T06:20:29.856Z | 0h0niwvkznck1daw79jcy_720p.mp4 | 21.83 MB | 29.2s | 99ms | 3605ms | SUCCESS |
+| 2026-05-26T06:20:38.275Z | amymarieukof.mp4 | 41.59 MB | 56.0s | 107ms | 9609ms | SUCCESS |
+| 2026-05-26T06:20:42.632Z | amyamryukof.mp4 | 44.52 MB | 60.1s | 367ms | 12223ms | SUCCESS |
+| 2026-05-26T06:20:44.615Z | indiscreethotandfit party tease 2.mp4 | 21.83 MB | 29.2s | 738ms | 6351ms | SUCCESS |
+| 2026-05-26T06:20:48.227Z | indicreethotandfit party tease.mp4 | 50.64 MB | 68.3s | 286ms | 13452ms | SUCCESS |
+| 2026-05-26T06:20:50.536Z | indiscreethotandfit masturbating in secret.mp4 | 69.76 MB | 94.4s | 164ms | 17353ms | SUCCESS |
+| 2026-05-26T06:21:04.818Z | Watch Ingridblondy94 live on Chaturbate (3).mp4 | 94.9 MB | 400.0s | 71ms | 2176ms | SUCCESS |
+| 2026-05-26T06:21:23.632Z | Watch Alexa_thaylor_ live on Chaturbate.mp4 | 31.43 MB | 328.0s | 66ms | 1233ms | SUCCESS |
+| 2026-05-26T06:21:32.676Z | Watch Yourwishisme_val live on Chaturbate (2).mp4 | 73.01 MB | 291.2s | 70ms | 2793ms | SUCCESS |
+| 2026-05-26T06:21:49.853Z | Watch Wekeepyoursecret live on Chaturbate.mp4 | 48.83 MB | 422.4s | 142ms | 2599ms | SUCCESS |
+| 2026-05-26T06:22:22.244Z | 1 good-girl (1good-girl) Nude on Cam. Free Live Sex Chat Roo.mp4 | 31.78 MB | 450.0s | 78ms | 2969ms | SUCCESS |
+| 2026-05-26T06:22:24.205Z | Alice Hower's Live Chat Room-2.mp4 | 70.76 MB | 859.0s | 76ms | 1681ms | SUCCESS |
+| 2026-05-26T06:24:00.237Z | Watch Yourwishisme_val live on Chaturbate.mp4 | 158.38 MB | 1406.0s | 101ms | 2402ms | SUCCESS |
+| 2026-05-26T06:24:03.580Z | Watch Yourwishisme_val live on Chaturbate(2).mp4 | 93.47 MB | 372.8s | 67ms | 2217ms | SUCCESS |
+| 2026-05-26T06:26:39.446Z | Watch Scarleett_jones live on Chaturbate (2).mp4 | 648.24 MB | 2585.6s | 74ms | 2319ms | SUCCESS |
+| 2026-05-26T07:20:34.446Z | 31 minute long College Girls movie from Hellen Cruz.mp4 | 506.19 MB | 1899.6s | 154ms | 3869ms | SUCCESS |
+| 2026-05-26T19:01:13.852Z | taylorstiles payluciarae pov bj.mp4 | 1.74 GB | 2423.1s | 165ms | 5392ms | SUCCESS |

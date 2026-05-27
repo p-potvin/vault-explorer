@@ -79,13 +79,36 @@ function updateVolumeIconUI(vol) {
     btnVol.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; display:block;">${pathContent}</svg>`;
 }
 
-function selectSubtitleTrack(trackIdx) {
+async function selectSubtitleTrack(trackIdx) {
     if (!vp) return;
     for (let i = 0; i < vp.textTracks.length; i++) {
         vp.textTracks[i].mode = 'disabled';
     }
     
     if (trackIdx >= 0 && vp.textTracks[trackIdx]) {
+        const trackEl = vp.querySelectorAll('track')[trackIdx];
+        if (trackEl && trackEl.dataset.opensubtitles === "true" && trackEl.dataset.downloaded === "false") {
+            window.showToast(window.currentLang === 'fr' ? 'Téléchargement des sous-titres...' : 'Downloading subtitles...', 'success');
+            try {
+                const fileId = trackEl.dataset.fileId;
+                const lang = trackEl.dataset.lang;
+                const videoPath = trackEl.dataset.videoPath;
+                
+                const localPath = await window.electronAPI.downloadSubtitleTrack({ fileId, lang, videoPath });
+                if (localPath) {
+                    trackEl.src = window.sanitizePath(localPath);
+                    trackEl.dataset.downloaded = "true";
+                    window.showToast(window.currentLang === 'fr' ? 'Sous-titres prêts' : 'Subtitles ready', 'success');
+                } else {
+                    throw new Error("Empty path");
+                }
+            } catch (err) {
+                console.error("OpenSubtitles download failed:", err);
+                window.showToast(window.currentLang === 'fr' ? 'Échec du téléchargement' : 'Download failed', 'error');
+                return;
+            }
+        }
+        
         vp.textTracks[trackIdx].mode = 'showing';
         el('btn-subtitles').classList.add('active');
         el('btn-subtitles').textContent = `${vp.textTracks[trackIdx].label.replace('Subtitles (', '').replace(')', '')} ▾`;
@@ -154,6 +177,15 @@ async function playItem(idx) {
     const endedOverlay = el('video-ended-overlay');
     if (endedOverlay) endedOverlay.style.display = 'none';
 
+    const prevBtn = el('btn-prev');
+    const nextBtn = el('btn-next');
+    if (prevBtn) prevBtn.style.display = 'block';
+    if (nextBtn) nextBtn.style.display = 'block';
+    const pipPrevBtn = el('pip-btn-prev');
+    const pipNextBtn = el('pip-btn-next');
+    if (pipPrevBtn) pipPrevBtn.style.display = 'flex';
+    if (pipNextBtn) pipNextBtn.style.display = 'flex';
+
     if (idx < 0 || idx >= window.displayedItems.length) return;
     const itm = window.displayedItems[idx];
     if (itm.type !== 'video') return;
@@ -164,6 +196,7 @@ async function playItem(idx) {
     const activePath = itm.enhancedPath || itm.path;
     const newSrc = window.sanitizePath(activePath);
     vp.src = newSrc;
+    vp.muted = false;
     if (lastScrubSrc !== newSrc) {
         scrubVideo.src = newSrc;
         lastScrubSrc = newSrc;
@@ -185,20 +218,39 @@ async function playItem(idx) {
             subs.forEach((sub, i) => {
                 const track = document.createElement('track');
                 track.kind = 'subtitles';
-                track.label = sub.label === 'Default' ? 'Default Track' : `Subtitles (${sub.label})`;
+                track.label = sub.isOpenSubtitles ? sub.label : (sub.label === 'Original' ? 'original' : `Subtitles (${sub.label})`);
                 track.srclang = sub.lang;
-                track.src = window.sanitizePath(sub.path);
+                if (sub.isOpenSubtitles) {
+                    track.dataset.opensubtitles = "true";
+                    track.dataset.fileId = sub.fileId;
+                    track.dataset.lang = sub.lang;
+                    track.dataset.videoPath = itm.path;
+                    track.dataset.downloaded = "false";
+                    track.src = "";
+                } else {
+                    track.src = window.sanitizePath(sub.path);
+                }
                 vp.appendChild(track);
             });
             
             refreshSubtitlesList();
             
-            const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'und';
             let preferredTrackIdx = -1;
-            if (prefLang !== 'und') {
+            const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
+            
+            if (prefLang === 'original') {
+                for (let i = 0; i < vp.textTracks.length; i++) {
+                    const lbl = vp.textTracks[i].label || '';
+                    if (lbl.toLowerCase() === 'original') {
+                        preferredTrackIdx = i;
+                        break;
+                    }
+                }
+            } else if (prefLang !== 'und') {
                 for (let i = 0; i < vp.textTracks.length; i++) {
                     const tl = vp.textTracks[i].language || '';
-                    if (tl.toLowerCase().startsWith(prefLang.toLowerCase())) {
+                    const lbl = vp.textTracks[i].label || '';
+                    if (tl.toLowerCase().startsWith(prefLang.toLowerCase()) || lbl.toLowerCase().includes(`(${prefLang.toLowerCase()})`)) {
                         preferredTrackIdx = i;
                         break;
                     }
@@ -478,18 +530,61 @@ function initPlayer() {
         if (el('titlebar-video-title')) el('titlebar-video-title').style.display = 'none';
         if (window.autoplayTimer) { clearInterval(window.autoplayTimer); window.autoplayTimer = null; }
         
-        if (window.appSettings && window.appSettings.rememberPosition !== false && window.currentPlayingIndex !== -1) {
-            const closingItm = window.displayedItems[window.currentPlayingIndex];
-            if (closingItm && closingItm.path && vp.duration > 0) {
-                window.appSettings.playbackPositions = window.appSettings.playbackPositions || {};
-                if (vp.currentTime >= vp.duration - 3) {
-                    delete window.appSettings.playbackPositions[closingItm.path];
+        // Final position save to persistent Watch History
+        if (vp.duration > 0) {
+            if (window.activeStreamingMedia) {
+                const completed = vp.currentTime >= vp.duration - 15; // 15 seconds from end counts as finished
+                if (completed) {
+                    window.electronAPI.markWatched({
+                        mediaType: window.activeStreamingMedia.mediaType,
+                        tmdbId: window.activeStreamingMedia.tmdbId,
+                        title: window.activeStreamingMedia.title,
+                        season: window.activeStreamingMedia.season,
+                        episode: window.activeStreamingMedia.episode,
+                        poster: window.activeStreamingMedia.poster,
+                        year: window.activeStreamingMedia.year
+                    });
                 } else {
-                    window.appSettings.playbackPositions[closingItm.path] = vp.currentTime;
+                    window.electronAPI.setWatchProgress({
+                        mediaType: window.activeStreamingMedia.mediaType,
+                        tmdbId: window.activeStreamingMedia.tmdbId,
+                        title: window.activeStreamingMedia.title,
+                        season: window.activeStreamingMedia.season,
+                        episode: window.activeStreamingMedia.episode,
+                        positionSec: vp.currentTime,
+                        durationSec: vp.duration,
+                        poster: window.activeStreamingMedia.poster,
+                        year: window.activeStreamingMedia.year
+                    });
                 }
-                window.electronAPI.saveSettings(window.appSettings);
+            } else if (window.currentPlayingIndex !== -1) {
+                const closingItm = window.displayedItems[window.currentPlayingIndex];
+                if (closingItm && closingItm.path) {
+                    window.appSettings.playbackPositions = window.appSettings.playbackPositions || {};
+                    const completed = vp.currentTime >= vp.duration - 15;
+                    if (completed) {
+                        delete window.appSettings.playbackPositions[closingItm.path];
+                        window.electronAPI.markWatched({
+                            mediaType: 'local',
+                            title: closingItm.name
+                        });
+                    } else {
+                        window.appSettings.playbackPositions[closingItm.path] = vp.currentTime;
+                        window.electronAPI.setWatchProgress({
+                            mediaType: 'local',
+                            title: closingItm.name,
+                            positionSec: vp.currentTime,
+                            durationSec: vp.duration
+                        });
+                    }
+                    window.electronAPI.saveSettings(window.appSettings);
+                }
             }
         }
+        
+        // Reset active streaming media cache
+        window.activeStreamingMedia = null;
+
         vp.pause(); vp.src = '';
         if (window.currentPlayingIndex !== -1) {
             const card = document.querySelector(`.file-card[data-index="${window.currentPlayingIndex}"]`);
@@ -537,6 +632,7 @@ function initPlayer() {
         saveAndSetVolume(parseFloat(e.target.value));
     });
 
+    let lastHistoryUpdate = 0;
     vp.addEventListener('timeupdate', () => {
         if (!vp.duration) return;
         const pct = vp.currentTime / vp.duration;
@@ -546,6 +642,50 @@ function initPlayer() {
         el('time-display').innerText = cur + ' / ' + tot;
         const elEl = el('time-elapsed'); if (elEl) elEl.innerText = cur;
         const totEl = el('time-total'); if (totEl) totEl.innerText = tot;
+
+        // Periodic Watch History Progress Saving (Every 5 seconds)
+        const now = Date.now();
+        if (now - lastHistoryUpdate > 5000) {
+            lastHistoryUpdate = now;
+            if (window.activeStreamingMedia) {
+                window.electronAPI.setWatchProgress({
+                    mediaType: window.activeStreamingMedia.mediaType,
+                    tmdbId: window.activeStreamingMedia.tmdbId,
+                    title: window.activeStreamingMedia.title,
+                    season: window.activeStreamingMedia.season,
+                    episode: window.activeStreamingMedia.episode,
+                    positionSec: vp.currentTime,
+                    durationSec: vp.duration,
+                    poster: window.activeStreamingMedia.poster,
+                    year: window.activeStreamingMedia.year
+                });
+            } else if (window.currentPlayingIndex !== -1) {
+                const itm = window.displayedItems[window.currentPlayingIndex];
+                if (itm && itm.path) {
+                    window.electronAPI.setWatchProgress({
+                        mediaType: 'local',
+                        title: itm.name,
+                        positionSec: vp.currentTime,
+                        durationSec: vp.duration
+                    });
+                }
+            }
+        }
+    });
+
+    vp.addEventListener('error', (e) => {
+        const err = vp.error;
+        let errMsg = 'Unknown playback error.';
+        if (err) {
+            switch (err.code) {
+                case 1: errMsg = 'Playback aborted by user.'; break;
+                case 2: errMsg = 'Network error occurred while loading video.'; break;
+                case 3: errMsg = 'Video decoding failed or format is not supported.'; break;
+                case 4: errMsg = 'Video source could not be loaded (invalid or expired link).'; break;
+            }
+        }
+        console.error('[Video Player Error]', err || e);
+        window.showToast(`Playback Error: ${errMsg}`, 'error');
     });
 
     vp.addEventListener('loadedmetadata', () => {
@@ -560,6 +700,27 @@ function initPlayer() {
     });
 
     vp.addEventListener('ended', () => {
+        // Mark as completed on ended
+        if (window.activeStreamingMedia) {
+            window.electronAPI.markWatched({
+                mediaType: window.activeStreamingMedia.mediaType,
+                tmdbId: window.activeStreamingMedia.tmdbId,
+                title: window.activeStreamingMedia.title,
+                season: window.activeStreamingMedia.season,
+                episode: window.activeStreamingMedia.episode,
+                poster: window.activeStreamingMedia.poster,
+                year: window.activeStreamingMedia.year
+            });
+        } else if (window.currentPlayingIndex !== -1) {
+            const itm = window.displayedItems[window.currentPlayingIndex];
+            if (itm && itm.path) {
+                window.electronAPI.markWatched({
+                    mediaType: 'local',
+                    title: itm.name
+                });
+            }
+        }
+
         let currentIdx = parseInt(window.currentPlayingIndex, 10);
         let nextIdx = currentIdx + 1;
         while (nextIdx < window.displayedItems.length && window.displayedItems[nextIdx].type !== 'video') nextIdx++;
@@ -875,6 +1036,13 @@ function initPlayer() {
             el('close-modal').click();
         }
     });
+
+    // Auto-hide controls when cursor hovers the app titlebar (above the player)
+    const titlebarEl = document.querySelector('.titlebar');
+    if (titlebarEl) {
+        titlebarEl.addEventListener('mouseenter', () => document.body.classList.add('titlebar-hovered'));
+        titlebarEl.addEventListener('mouseleave', () => document.body.classList.remove('titlebar-hovered'));
+    }
 }
 
 // Bind player APIs globally
@@ -882,7 +1050,7 @@ window.playItem = playItem;
 window.initPlayer = initPlayer;
 window.stopUpscaleMode = stopUpscaleMode;
 
-window.playStream = function(url, title) {
+window.playStream = async function(url, title) {
     if (window.autoplayTimer) {
         clearInterval(window.autoplayTimer);
         window.autoplayTimer = null;
@@ -890,10 +1058,20 @@ window.playStream = function(url, title) {
     const endedOverlay = el('video-ended-overlay');
     if (endedOverlay) endedOverlay.style.display = 'none';
 
+    const prevBtn = el('btn-prev');
+    const nextBtn = el('btn-next');
+    if (prevBtn) prevBtn.style.display = 'none';
+    if (nextBtn) nextBtn.style.display = 'none';
+    const pipPrevBtn = el('pip-btn-prev');
+    const pipNextBtn = el('pip-btn-next');
+    if (pipPrevBtn) pipPrevBtn.style.display = 'none';
+    if (pipNextBtn) pipNextBtn.style.display = 'none';
+
     window.currentPlayingIndex = -1;
     trickFrames = [];
     vp.dataset.trickplay = '';
     vp.src = url;
+    vp.muted = false;
     
     const titleEl = el('player-title');
     if (titleEl) titleEl.textContent = `⚡ RD Stream: ${title}`;
@@ -904,9 +1082,89 @@ window.playStream = function(url, title) {
     }
     
     vp.querySelectorAll('track').forEach(t => t.remove());
-    refreshSubtitlesList();
-    selectSubtitleTrack(-1);
+    try {
+        const subs = await window.electronAPI.findSubtitles(url, title);
+        if (subs && subs.length > 0) {
+            subs.forEach((sub) => {
+                const track = document.createElement('track');
+                track.kind = 'subtitles';
+                track.label = sub.isOpenSubtitles ? sub.label : (sub.label === 'Original' ? 'original' : `Subtitles (${sub.label})`);
+                track.srclang = sub.lang;
+                if (sub.isOpenSubtitles) {
+                    track.dataset.opensubtitles = "true";
+                    track.dataset.fileId = sub.fileId;
+                    track.dataset.lang = sub.lang;
+                    track.dataset.videoPath = url;
+                    track.dataset.downloaded = "false";
+                    track.src = "";
+                } else {
+                    track.src = window.sanitizePath(sub.path);
+                }
+                vp.appendChild(track);
+            });
+            
+            refreshSubtitlesList();
+            
+            let preferredTrackIdx = -1;
+            const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
+            
+            if (prefLang === 'original') {
+                for (let i = 0; i < vp.textTracks.length; i++) {
+                    const lbl = vp.textTracks[i].label || '';
+                    if (lbl.toLowerCase() === 'original') {
+                        preferredTrackIdx = i;
+                        break;
+                    }
+                }
+            } else if (prefLang !== 'und') {
+                for (let i = 0; i < vp.textTracks.length; i++) {
+                    const tl = vp.textTracks[i].language || '';
+                    const lbl = vp.textTracks[i].label || '';
+                    if (tl.toLowerCase().startsWith(prefLang.toLowerCase()) || lbl.toLowerCase().includes(`(${prefLang.toLowerCase()})`)) {
+                        preferredTrackIdx = i;
+                        break;
+                    }
+                }
+            }
+            selectSubtitleTrack(preferredTrackIdx);
+            if (preferredTrackIdx >= 0) {
+                window.showToast(`Loaded ${subs.length} subtitle track(s) — ${vp.textTracks[preferredTrackIdx].label}`, 'success');
+            } else {
+                window.showToast(`Loaded ${subs.length} subtitle track(s)`, 'success');
+            }
+        } else {
+            refreshSubtitlesList();
+            selectSubtitleTrack(-1);
+        }
+    } catch (err) {
+        console.error("Auto subtitle loading error:", err);
+    }
     
+    // Fetch and restore stream playback progress
+    if (window.activeStreamingMedia) {
+        try {
+            const prog = await window.electronAPI.getWatchProgress({
+                mediaType: window.activeStreamingMedia.mediaType,
+                tmdbId: window.activeStreamingMedia.tmdbId,
+                title: window.activeStreamingMedia.title,
+                season: window.activeStreamingMedia.season,
+                episode: window.activeStreamingMedia.episode
+            });
+            if (prog && prog.positionSec > 0 && prog.durationSec > 0 && !prog.completed) {
+                const restoreOnce = () => {
+                    if (prog.positionSec < vp.duration - 15) {
+                        vp.currentTime = prog.positionSec;
+                        window.showToast(`Resumed from ${window.formatDuration(prog.positionSec)}`, 'success');
+                    }
+                    vp.removeEventListener('loadedmetadata', restoreOnce);
+                };
+                vp.addEventListener('loadedmetadata', restoreOnce);
+            }
+        } catch (e) {
+            console.error('[Player] Failed to fetch watch progress:', e);
+        }
+    }
+
     el('video-modal').classList.remove('minimized');
     btnPlay.innerHTML = PAUSE_ICON_SVG;
     el('video-modal').style.display = 'flex';
