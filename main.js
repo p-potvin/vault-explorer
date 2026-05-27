@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, Tray } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, Tray, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
@@ -13,6 +13,8 @@ const normalizationHandlers = require('./src/normalization');
 const scannerHandlers = require('./src/scanner');
 const tmdbHandlers = require('./src/tmdb');
 const realDebridHandlers = require('./src/realdebrid');
+const livestreamHandlers = require('./src/livestream');
+const watchHistoryHandlers = require('./src/watch-history');
 
 let mainWindow;
 let tray = null;
@@ -52,8 +54,18 @@ function createWindow() {
         titleBarOverlay: { color: '#2f3241', symbolColor: '#B07CFF' }
     });
     mainWindow.maximize();
+
+    // YouTube Referer & Origin overrides to fix Error 153 (domain embedding restrictions)
+    session.defaultSession.webRequest.onBeforeSendHeaders(
+        { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+        (details, callback) => {
+            details.requestHeaders['Referer'] = 'https://www.youtube.com/';
+            details.requestHeaders['Origin'] = 'https://www.youtube.com';
+            callback({ cancel: false, requestHeaders: details.requestHeaders });
+        }
+    );
+
     mainWindow.loadFile('index.html');
-    mainWindow.webContents.openDevTools();
 
     mainWindow.on('close', (e) => {
         if (!isQuitting) {
@@ -110,6 +122,8 @@ normalizationHandlers.registerNormalizationHandlers(ipcMain);
 scannerHandlers.registerScannerHandlers(ipcMain);
 tmdbHandlers.registerTmdbHandlers(ipcMain);
 realDebridHandlers.registerRealDebridHandlers(ipcMain);
+livestreamHandlers.registerLivestreamHandlers(ipcMain);
+watchHistoryHandlers.registerWatchHistoryHandlers(ipcMain, app);
 
 // Open Directory Dialog
 ipcMain.handle('dialog:openDirectory', async () => {
@@ -307,14 +321,47 @@ async function calculateDirectorySizeRecursive(dir) {
                 } catch (e) { }
             }
             if (isDir) {
-                if (entry.name !== '.thumbs' && entry.name !== '.git') {
+                const nameLower = entry.name.toLowerCase();
+                const isSystemDir = [
+                    '.thumbs', '.git', '.normalized', '.trickplay', 'node_modules', 'bower_components', 
+                    'jspm_packages', 'web_modules', '.venv', 'venv', 'env', 'virtualenv', '.conda',
+                    '.gitmodules', '.gitattributes', '.gitignore', '.github', '.svn', '.hg',
+                    '.npm', '.yarn', '.pnpm-store', '.cache', '.sass-cache', '.eslintcache', 
+                    '__pycache__', '.parcel-cache', '.next', '.nuxt', 'dist', 'build', 'out', 
+                    'target', 'tmp', 'temp', '$recycle.bin', 'recycler', '.trashes', 
+                    'system volume information', 'appdata', 'local settings'
+                ].includes(nameLower) || 
+                nameLower.startsWith('.') || 
+                nameLower.startsWith('$') ||
+                nameLower.includes('google drive') ||
+                nameLower.includes('onedrive') ||
+                nameLower.includes('dropbox') ||
+                nameLower.includes('proton drive') ||
+                nameLower.includes('icloud photos') ||
+                nameLower.includes('icloud drive') ||
+                nameLower.includes('mega') ||
+                nameLower.includes('nextcloud') ||
+                nameLower.includes('pcloud') ||
+                nameLower.includes('yandex disk') ||
+                nameLower.includes('yandexdisk');
+
+                if (!isSystemDir) {
                     size += await calculateDirectorySizeRecursive(fullPath);
                 }
             } else {
-                try {
-                    const stats = fs.statSync(fullPath);
-                    size += stats.size;
-                } catch (e) { }
+                const nameLower = entry.name.toLowerCase();
+                const isSystemFile = [
+                    '.ds_store', 'thumbs.db', 'desktop.ini', 'ehthumbs.db',
+                    'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb',
+                    'ntuser.dat', '.gitignore', '.gitmodules', '.gitattributes'
+                ].includes(nameLower);
+
+                if (!isSystemFile) {
+                    try {
+                        const stats = fs.statSync(fullPath);
+                        size += stats.size;
+                    } catch (e) { }
+                }
             }
         }
     } catch (e) { }
@@ -461,13 +508,78 @@ ipcMain.handle('show-context-menu', async (event, item) => {
         let resolved = false;
         const once = (val) => { if (!resolved) { resolved = true; resolve(val); } };
         let templ = [];
-        if (item.type === 'video' || item.type === 'image' || item.type === 'other' || item.type === 'encrypted') {
+        
+        if (item.isMultiSelect) {
+            const selected = item.selectedItems || [];
+            const hasVideo = selected.some(s => s.type === 'video');
+            const hasEncrypted = selected.some(s => s.path && s.path.toLowerCase().endsWith('.enc'));
+            const hasNonEncrypted = selected.some(s => s.path && !s.path.toLowerCase().endsWith('.enc'));
+            const hasEnhanced = selected.some(s => s.enhancedPath || (s.enhancements && (s.enhancements.audio || s.enhancements.video || s.enhancements.subtitles || s.enhancements.translation)));
+
+            const aiSubmenu = [];
+            if (hasVideo) {
+                aiSubmenu.push(
+                    { label: 'Enhance Audio for Selection 🪄', click: () => once('normalize-audio') },
+                    { label: 'Generate Subtitles for Selection', click: () => once('generate-subtitles-prompt') },
+                    { label: 'Translate Selection Video Tracks', click: () => once('translate-video-prompt') },
+                    { label: 'Enhance Selection Videos 🪄', click: () => once('enhance-video-prompt') }
+                );
+                if (hasEnhanced) {
+                    aiSubmenu.push(
+                        { type: 'separator' },
+                        { label: '    Revert Enhancements', click: () => once('revert-enhancements') }
+                    );
+                }
+            }
+
+            templ = [
+                { label: 'Toggle Favorites for Selection', click: () => once('toggle-favorite') },
+                { type: 'separator' },
+                { label: 'Cut Selection', click: () => once('cut') },
+                { label: 'Copy Selection', click: () => once('copy') },
+            ];
+
+            if (aiSubmenu.length > 0) {
+                templ.push({ type: 'separator' });
+                templ.push({ label: 'AI Enhancements 🪄', submenu: aiSubmenu });
+            }
+
+            templ.push({ type: 'separator' });
+
+            if (hasNonEncrypted) {
+                templ.push({ label: 'Encrypt Selection', click: () => once('encrypt-prompt') });
+            }
+            if (hasEncrypted) {
+                templ.push({ label: 'Decrypt Selection', click: () => once('decrypt-prompt') });
+            }
+
+            templ.push(
+                { label: 'Zip Selection', click: () => once('zip-selection') },
+                { label: 'Delete Selection', click: () => once('delete-item') }
+            );
+        } else if (item.type === 'video' || item.type === 'image' || item.type === 'other' || item.type === 'encrypted') {
             const isEnc = typeof item.path === 'string' && item.path.toLowerCase().endsWith('.enc');
             const hasEnhanced = item.enhancedPath;
             const hasAudioEnh = item.enhancements && item.enhancements.audio;
             const hasVideoEnh = item.enhancements && item.enhancements.video;
             const hasSubs = item.enhancements && item.enhancements.subtitles && item.enhancements.subtitles.length > 0;
             const hasTrans = item.enhancements && item.enhancements.translation && item.enhancements.translation.length > 0;
+
+            const aiSubmenu = [];
+            if (item.type === 'video' || (item.type === 'encrypted' && !isEnc)) {
+                aiSubmenu.push(
+                    { label: 'Enhance Audio 🪄', type: 'checkbox', checked: !!hasAudioEnh, click: () => once('normalize-audio') },
+                    { label: 'Generate Subtitles', type: 'checkbox', checked: !!hasSubs, click: () => once('generate-subtitles-prompt') },
+                    { label: 'Translate this video', type: 'checkbox', checked: !!hasTrans, click: () => once('translate-video-prompt') },
+                    { label: 'Enhance Video 🪄', type: 'checkbox', checked: !!hasVideoEnh, click: () => once('enhance-video-prompt') }
+                );
+                if (hasEnhanced) {
+                    aiSubmenu.push(
+                        { type: 'separator' },
+                        { label: '    Revert Enhancements', click: () => once('revert-enhancements') }
+                    );
+                }
+            }
 
             templ = [
                 {
@@ -478,45 +590,32 @@ ipcMain.handle('show-context-menu', async (event, item) => {
                     }
                 },
                 { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); once('show'); } },
-                { type: 'separator' },
-                { 
-                    label: item.isFavorite ? '★ Remove from Favorites' : '☆ Add to Favorites', 
-                    click: () => once('toggle-favorite') 
-                },
+                { label: item.isFavorite ? 'Remove from Favorites' : 'Add to Favorites', click: () => once('toggle-favorite') },
                 { type: 'separator' },
                 { label: 'Copy Path', click: () => { clipboard.writeText(item.path); once('copied'); } },
-                { type: 'separator' },
                 { label: 'Cut', click: () => once('cut') },
                 { label: 'Copy', click: () => once('copy') },
-                { label: 'Rename', click: () => once('rename') },
-                { type: 'separator' },
-                isEnc ? { label: 'Decrypt File', click: () => once('decrypt-prompt') }
-                    : { label: 'Encrypt File', click: () => once('encrypt-prompt') },
-                { type: 'separator' }
+                { label: 'Rename', click: () => once('rename') }
             ];
 
-            if (item.type === 'video' || (item.type === 'encrypted' && !isEnc)) {
-                templ.push(
-                    { label: 'Generate Preview', click: () => once('generate-webm') },
-                    { type: 'separator' },
-                    { label: 'Enhance Audio 🪄', type: 'checkbox', checked: !!hasAudioEnh, click: () => once('normalize-audio') },
-                    { label: 'Generate Subtitles', type: 'checkbox', checked: !!hasSubs, click: () => once('generate-subtitles-prompt') },
-                    { label: 'Translate this video', type: 'checkbox', checked: !!hasTrans, click: () => once('translate-video-prompt') },
-                    { label: 'Enhance Video 🪄', type: 'checkbox', checked: !!hasVideoEnh, click: () => once('enhance-video-prompt') }
-                );
-                if (hasEnhanced) {
-                    templ.push(
-                        { type: 'separator' },
-                        { label: 'Revert Enhancements', click: () => once('revert-enhancements') }
-                    );
-                }
+            const hasAiOrPreview = (aiSubmenu.length > 0) || (item.type === 'video' || (item.type === 'encrypted' && !isEnc));
+            if (hasAiOrPreview) {
                 templ.push({ type: 'separator' });
+                if (aiSubmenu.length > 0) {
+                    templ.push({ label: 'AI Enhancements 🪄', submenu: aiSubmenu });
+                }
+                if (item.type === 'video' || (item.type === 'encrypted' && !isEnc)) {
+                    templ.push({ label: 'Generate Preview', click: () => once('generate-webm') });
+                }
             }
 
             templ.push(
-                { label: 'Zip Selection', click: () => once('zip-selection') },
                 { type: 'separator' },
+                isEnc ? { label: 'Decrypt File', click: () => once('decrypt-prompt') }
+                    : { label: 'Encrypt File', click: () => once('encrypt-prompt') },
+                { label: 'Zip Selection', click: () => once('zip-selection') },
                 { label: 'Delete', click: () => once('delete-item') },
+                { type: 'separator' },
                 { label: 'Properties', click: () => once('properties') }
             );
         } else if (item.type === 'fakeFolder') {
@@ -702,3 +801,13 @@ ipcMain.handle('revert-enhancements', async (_event, filePath) => {
         return { success: false, error: err.message };
     }
 });
+
+ipcMain.handle('open-external-url', async (_event, url) => {
+    if (typeof url === 'string') {
+        const { shell } = require('electron');
+        await shell.openExternal(url);
+        return { success: true };
+    }
+    return { success: false, error: 'Invalid URL' };
+});
+

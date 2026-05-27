@@ -30,7 +30,7 @@ const TMDB_BEARER_TOKEN = process.env.TMDB_BEARER_TOKEN || envConfig.TMDB_BEARER
 
 function registerRealDebridHandlers(ipcMain) {
     // 1. Search torrents using Torrentio (scrapes all top indexes) with YTS fallback
-    ipcMain.handle('search-torrents', async (event, { movieTitle, tmdbId, mediaType }) => {
+    ipcMain.handle('search-torrents', async (event, { movieTitle, tmdbId, mediaType, season, episode }) => {
         try {
             let imdbId = null;
             const itemMediaType = mediaType || 'movie';
@@ -56,67 +56,172 @@ function registerRealDebridHandlers(ipcMain) {
             }
 
             // If we have an IMDB ID, query Torrentio
+            // NOTE: We query Torrentio's public API WITHOUT the debrid prefix. This is 10X more stable
+            // because it bypasses Torrentio's overloaded debrid proxy server, and we resolve/unrestrict
+            // the cached torrent privately on the client side using the Real-Debrid API anyway.
+            const cleanTitle = movieTitle.replace(/[.]/g, '').trim();
+
             if (imdbId) {
                 const streamType = itemMediaType === 'tv' || itemMediaType === 'series' ? 'series' : 'movie';
-                const idParam = itemMediaType === 'tv' || itemMediaType === 'series' ? `${imdbId}:1:1` : imdbId;
-                const torrentioUrl = `https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentproject,torrentgalaxy,magnetdl,horriblesubs,nyaasi,tokyotosho,anidex|limit=6/stream/${streamType}/${idParam}.json`;
-
-                console.log(`[Real-Debrid] Fetching Torrentio streams: ${torrentioUrl}`);
-                const response = await fetch(torrentioUrl);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.streams && data.streams.length > 0) {
-                        console.log(`[Real-Debrid] Found ${data.streams.length} Torrentio streams`);
-                        const torrentList = data.streams.map(t => {
-                            const nameStr = t.name || '';
-                            const titleStr = t.title || '';
-
-                            // Parse Quality (e.g. 1080p, 4k, 720p)
-                            const qualMatch = nameStr.match(/(4[Kk]|2160[Pp]|1080[Pp]|720[Pp]|HDR|HDR10|DV)/i) || titleStr.match(/(4[Kk]|2160[Pp]|1080[Pp]|720[Pp]|HDR|HDR10|DV)/i);
-                            const quality = qualMatch ? qualMatch[0] : 'HD';
-
-                            // Parse Size (e.g. Size: 2.5 GB or 2.5GB)
-                            const sizeMatch = titleStr.match(/Size:\s*([0-9.]+\s*[GgMm][Bb])/i) || titleStr.match(/([0-9.]+\s*[GgMm][Bb])/i);
-                            const size = sizeMatch ? sizeMatch[1] : 'Unknown Size';
-
-                            // Parse Seeders and Leechers (e.g. S: 142 L: 12)
-                            const seedsMatch = titleStr.match(/S:\s*([0-9]+)/i) || titleStr.match(/👤\s*([0-9]+)/i);
-                            const seeds = seedsMatch ? seedsMatch[1] : '—';
-                            const peersMatch = titleStr.match(/L:\s*([0-9]+)/i) || titleStr.match(/📥\s*([0-9]+)/i);
-                            const peers = peersMatch ? peersMatch[1] : '—';
-
-                            // Generate clean title/description from the stream details
-                            const desc = titleStr.split('\n')[0] || nameStr;
-
-                            const magnet = `magnet:?xt=urn:btih:${t.infoHash}&dn=${encodeURIComponent(movieTitle)}&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://9.rarbg.to:2710/announce&tr=udp://tracker.opentrackr.org:1337/announce`;
-
-                            return {
-                                quality,
-                                type: nameStr.replace('\n', ' ').trim(),
-                                size,
-                                seeds,
-                                peers,
-                                hash: t.infoHash,
-                                magnet,
-                                desc
-                            };
-                        });
-
-                        return { success: true, title: movieTitle, torrents: torrentList };
+                const s = season || 1;
+                const e = episode || 1;
+                const idParam = (itemMediaType === 'tv' || itemMediaType === 'series') ? `${imdbId}:${s}:${e}` : imdbId;
+                const torrentioDefaultUrl = `https://torrentio.strem.fun/stream/${streamType}/${idParam}.json`;
+                const torrentioCustomUrl = `https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,thepiratebay,kickasstorrents,torrentproject,torrentgalaxy,magnetdl,horriblesubs,nyaasi,tokyotosho,anidex|limit=20/stream/${streamType}/${idParam}.json`;
+                
+                console.log(`[Real-Debrid] Fetching Torrentio streams for ${streamType} ${idParam}`);
+                let response = null;
+                let data = null;
+                
+                try {
+                    console.log(`[Real-Debrid] Trying cached Torrentio endpoint: ${torrentioDefaultUrl}`);
+                    const res = await fetch(torrentioDefaultUrl, { signal: AbortSignal.timeout(3000) });
+                    if (res.ok) {
+                        const temp = await res.json();
+                        if (temp && temp.streams && temp.streams.length > 0) {
+                            response = res;
+                            data = temp;
+                            console.log(`[Real-Debrid] Successfully hit cached Torrentio endpoint`);
+                        }
                     }
+                } catch (err) {
+                    console.warn('[Real-Debrid] Cached Torrentio query skipped/timed out:', err.message);
+                }
+                
+                if (!data) {
+                    try {
+                        console.log(`[Real-Debrid] Falling back to custom providers query: ${torrentioCustomUrl}`);
+                        const res = await fetch(torrentioCustomUrl, { signal: AbortSignal.timeout(5000) });
+                        if (res.ok) {
+                            const temp = await res.json();
+                            if (temp && temp.streams && temp.streams.length > 0) {
+                                response = res;
+                                data = temp;
+                                console.log(`[Real-Debrid] Successfully fetched streams from custom providers list`);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[Real-Debrid] Custom providers query failed/timed out:', err.message);
+                    }
+                }
+
+                if (data && data.streams && data.streams.length > 0) {
+                    console.log(`[Real-Debrid] Found ${data.streams.length} Torrentio streams`);
+                    const torrentList = data.streams.map(t => {
+                                const nameStr = t.name || '';
+                                const titleStr = t.title || '';
+
+                                // Parse Quality (e.g. 1080p, 4k, 720p)
+                                const qualMatch = nameStr.match(/(4[Kk]|2160[Pp]|1080[Pp]|720[Pp]|HDR|HDR10|DV)/i) || titleStr.match(/(4[Kk]|2160[Pp]|1080[Pp]|720[Pp]|HDR|HDR10|DV)/i);
+                                const quality = qualMatch ? qualMatch[0] : 'HD';
+
+                                // Parse Size (e.g. Size: 2.5 GB or 2.5GB)
+                                const sizeMatch = titleStr.match(/Size:\s*([0-9.]+\s*[GgMm][Bb])/i) || titleStr.match(/([0-9.]+\s*[GgMm][Bb])/i);
+                                const size = sizeMatch ? sizeMatch[1] : 'Unknown Size';
+
+                                // Parse Seeders and Leechers (e.g. S: 142 L: 12)
+                                const seedsMatch = titleStr.match(/S:\s*([0-9]+)/i) || titleStr.match(/👤\s*([0-9]+)/i);
+                                const seeds = seedsMatch ? seedsMatch[1] : '—';
+                                const peersMatch = titleStr.match(/L:\s*([0-9]+)/i) || titleStr.match(/📥\s*([0-9]+)/i);
+                                const peers = peersMatch ? peersMatch[1] : '—';
+
+                                // Generate clean title/description from the stream details
+                                const desc = titleStr.split('\n')[0] || nameStr;
+
+                                const magnet = `magnet:?xt=urn:btih:${t.infoHash}&dn=${encodeURIComponent(cleanTitle)}&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://9.rarbg.to:2710/announce&tr=udp://tracker.opentrackr.org:1337/announce`;
+
+                                return {
+                                    quality,
+                                    type: nameStr.replace('\n', ' ').trim(),
+                                    size,
+                                    seeds,
+                                    peers,
+                                    hash: t.infoHash,
+                                    magnet,
+                                    desc,
+                                    url: t.url || null
+                                };
+                            });
+
+                            return { success: true, title: cleanTitle, torrents: torrentList };
+                        }
+                    }
+
+            // Fallback to EZTV for TV series/shows
+            if (itemMediaType === 'tv' || itemMediaType === 'series') {
+                console.log(`[Real-Debrid] Torrentio unavailable or not found. Falling back to EZTV for series: ${cleanTitle}`);
+                const eztvDomains = ['eztv.re', 'eztv.wf', 'eztv.tf', 'eztv.yt'];
+                let eztvData = null;
+                const imdbNumber = imdbId ? imdbId.replace('tt', '') : '';
+                
+                for (const domain of eztvDomains) {
+                    try {
+                        const url = imdbNumber 
+                            ? `https://${domain}/api/get-torrents?imdb_id=${imdbNumber}`
+                            : `https://${domain}/api/get-torrents?limit=10&query=${encodeURIComponent(cleanTitle)}`;
+                        console.log(`[Real-Debrid] Trying EZTV mirror: ${url}`);
+                        const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data && data.torrents && data.torrents.length > 0) {
+                                eztvData = data.torrents;
+                                console.log(`[Real-Debrid] Successfully resolved torrent listings from EZTV mirror: ${domain}`);
+                                break;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`[Real-Debrid] EZTV mirror ${domain} failed:`, err.message);
+                    }
+                }
+                
+                if (eztvData && eztvData.length > 0) {
+                    const torrentList = eztvData.map(t => {
+                        const magnet = t.magnet_url || `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(t.title)}&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://9.rarbg.to:2710/announce&tr=udp://tracker.opentrackr.org:1337/announce`;
+                        return {
+                            quality: t.title.includes('1080p') ? '1080p' : (t.title.includes('720p') ? '720p' : 'SD'),
+                            type: 'EZTV',
+                            size: t.size || 'Unknown Size',
+                            seeds: t.seeds || '—',
+                            peers: t.peers || '—',
+                            hash: t.hash || t.magnet_url.match(/btih:([a-fA-F0-9]+)/)?.[1] || '',
+                            magnet,
+                            desc: t.title
+                        };
+                    });
+                    return { success: true, title: cleanTitle, torrents: torrentList };
                 }
             }
 
-            // Fallback to YTS
-            console.log(`[Real-Debrid] Torrentio unavailable or not found. Falling back to YTS for: ${movieTitle}`);
-            const response = await fetch(`https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(movieTitle)}`);
-            if (!response.ok) {
-                return { success: false, error: 'Failed to search torrent index' };
-            }
-            const data = await response.json();
-            const movies = data.data && data.data.movies ? data.data.movies : [];
+            // Fallback to YTS with Multi-Domain ISP Bypass Rotation
+            console.log(`[Real-Debrid] Torrentio unavailable or not found. Falling back to YTS for: ${cleanTitle}`);
             
-            const match = movies.find(m => m.title.toLowerCase().includes(movieTitle.toLowerCase())) || movies[0];
+            const ytsDomains = ['yts.lt', 'yts.pm', 'yts.ae', 'yts.mx'];
+            let ytsData = null;
+            
+            for (const domain of ytsDomains) {
+                try {
+                    const url = `https://${domain}/api/v2/list_movies.json?query_term=${encodeURIComponent(cleanTitle)}`;
+                    console.log(`[Real-Debrid] Trying YTS mirror: ${url}`);
+                    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && data.data && data.data.movies && data.data.movies.length > 0) {
+                            ytsData = data.data.movies;
+                            console.log(`[Real-Debrid] Successfully resolved torrent listings from mirror: ${domain}`);
+                            break;
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[Real-Debrid] YTS mirror ${domain} failed:`, err.message);
+                }
+            }
+
+            const movies = ytsData || [];
+            if (movies.length === 0) {
+                return { success: false, error: 'No torrent matches found on any mirror.' };
+            }
+
+            const match = movies.find(m => m.title.toLowerCase().includes(cleanTitle.toLowerCase())) || movies[0];
             if (!match || !match.torrents || match.torrents.length === 0) {
                 return { success: false, error: 'No torrent matches found' };
             }
@@ -143,10 +248,29 @@ function registerRealDebridHandlers(ipcMain) {
     });
 
     // 2. Real-Debrid unrestrict stream workflow
-    ipcMain.handle('rd-stream-torrent', async (event, { magnet, hash }) => {
+    ipcMain.handle('rd-stream-torrent', async (event, { magnet, hash, url }) => {
         try {
             if (!RD_TOKEN) {
                 return { success: false, error: 'Real-Debrid API token is not configured in .env' };
+            }
+
+            // Quick bypass: If a pre-resolved Torrentio Real-Debrid link is available, resolve it directly!
+            if (url) {
+                console.log(`[Real-Debrid] Resolving pre-debrided stream redirect: ${url}`);
+                try {
+                    const redirectRes = await fetch(url, { method: 'HEAD', redirect: 'manual' });
+                    const location = redirectRes.headers.get('location');
+                    if (location) {
+                        console.log(`[Real-Debrid] Pre-debrided redirect resolved successfully: ${location}`);
+                        return {
+                            success: true,
+                            streamUrl: location,
+                            filename: location.split('/').pop() || 'stream.mp4'
+                        };
+                    }
+                } catch (e) {
+                    console.error('[Real-Debrid] Failed to follow Torrentio redirect, falling back to magnet flow:', e);
+                }
             }
 
             console.log('[Real-Debrid] Adding magnet...');
@@ -162,6 +286,13 @@ function registerRealDebridHandlers(ipcMain) {
 
             if (!addRes.ok) {
                 const errText = await addRes.text();
+                let parsedError = null;
+                try {
+                    parsedError = JSON.parse(errText);
+                } catch(e) {}
+                if (parsedError && parsedError.error) {
+                    return { success: false, error: parsedError.error, errorCode: parsedError.error_code, rawError: errText };
+                }
                 return { success: false, error: `Failed to add magnet: ${errText}` };
             }
 
@@ -210,20 +341,40 @@ function registerRealDebridHandlers(ipcMain) {
             console.log('[Real-Debrid] Polling torrent details for direct links...');
             let links = [];
             let attempts = 0;
-            while (attempts < 10) {
+            let finalInfo = null;
+            while (attempts < 6) {
                 const checkRes = await fetch(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
                     headers: { Authorization: `Bearer ${RD_TOKEN}` }
                 });
-                const checkData = await checkRes.json();
-                if (checkData.links && checkData.links.length > 0) {
-                    links = checkData.links;
-                    break;
+                if (checkRes.ok) {
+                    const checkData = await checkRes.json();
+                    finalInfo = checkData;
+                    if (checkData.links && checkData.links.length > 0) {
+                        links = checkData.links;
+                        break;
+                    }
+                    // If it is dead or failed, stop polling early
+                    if (checkData.status === 'dead' || checkData.status === 'error' || checkData.status === 'magnet_error') {
+                        break;
+                    }
                 }
                 attempts++;
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
 
             if (links.length === 0) {
+                if (finalInfo && (finalInfo.status === 'downloading' || finalInfo.status === 'queued' || finalInfo.status === 'waiting_files_selection' || finalInfo.status === 'magnet_conversion')) {
+                    console.log(`[Real-Debrid] Torrent is not yet cached but is downloading. Progress: ${finalInfo.progress}%, Speed: ${finalInfo.speed} B/s`);
+                    return {
+                        success: true,
+                        downloading: true,
+                        torrentId: torrentId,
+                        status: finalInfo.status,
+                        progress: finalInfo.progress || 0,
+                        speed: finalInfo.speed || 0,
+                        seeders: finalInfo.seeders || 0
+                    };
+                }
                 return { success: false, error: 'Torrent link selection is currently downloading (not cached on Real-Debrid).' };
             }
 
@@ -240,6 +391,13 @@ function registerRealDebridHandlers(ipcMain) {
 
             if (!unrestrictRes.ok) {
                 const errText = await unrestrictRes.text();
+                let parsedError = null;
+                try {
+                    parsedError = JSON.parse(errText);
+                } catch(e) {}
+                if (parsedError && parsedError.error) {
+                    return { success: false, error: parsedError.error, errorCode: parsedError.error_code, rawError: errText };
+                }
                 return { success: false, error: `Failed to unrestrict link: ${errText}` };
             }
 
@@ -254,6 +412,30 @@ function registerRealDebridHandlers(ipcMain) {
         } catch (e) {
             console.error('[Real-Debrid] Workflow Error:', e);
             return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('rd-torrent-status', async (event, torrentId) => {
+        try {
+            if (!RD_TOKEN) {
+                return { success: false, error: 'Real-Debrid API token is not configured in .env' };
+            }
+            const res = await fetch(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
+                headers: { Authorization: `Bearer ${RD_TOKEN}` }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            return {
+                success: true,
+                status: data.status,
+                progress: data.progress || 0,
+                speed: data.speed || 0,
+                seeders: data.seeders || 0,
+                links: data.links || []
+            };
+        } catch (err) {
+            console.error('[Real-Debrid] Status fetch failed:', err);
+            return { success: false, error: err.message };
         }
     });
 
@@ -274,6 +456,13 @@ function registerRealDebridHandlers(ipcMain) {
 
                 if (!addRes.ok) {
                     const errText = await addRes.text();
+                    let parsedError = null;
+                    try {
+                        parsedError = JSON.parse(errText);
+                    } catch(e) {}
+                    if (parsedError && parsedError.error) {
+                        return { success: false, error: parsedError.error, errorCode: parsedError.error_code, rawError: errText };
+                    }
                     return { success: false, error: `Failed to add magnet: ${errText}` };
                 }
 
@@ -332,6 +521,13 @@ function registerRealDebridHandlers(ipcMain) {
 
                 if (!unrestrictRes.ok) {
                     const errText = await unrestrictRes.text();
+                    let parsedError = null;
+                    try {
+                        parsedError = JSON.parse(errText);
+                    } catch(e) {}
+                    if (parsedError && parsedError.error) {
+                        return { success: false, error: parsedError.error, errorCode: parsedError.error_code, rawError: errText };
+                    }
                     return { success: false, error: `Failed to unrestrict link: ${errText}` };
                 }
 
@@ -354,6 +550,13 @@ function registerRealDebridHandlers(ipcMain) {
 
             if (!unrestrictRes.ok) {
                 const errText = await unrestrictRes.text();
+                let parsedError = null;
+                try {
+                    parsedError = JSON.parse(errText);
+                } catch(e) {}
+                if (parsedError && parsedError.error) {
+                    return { success: false, error: parsedError.error, errorCode: parsedError.error_code, rawError: errText };
+                }
                 return { success: false, error: `Failed to unrestrict link: ${errText}` };
             }
 

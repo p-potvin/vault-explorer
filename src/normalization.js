@@ -2,6 +2,23 @@ const path = require('path');
 const child_process = require('child_process');
 const { spawn } = child_process;
 const fs = require('fs');
+const utils = require('./utils');
+
+/**
+ * Resolves the Python executable from the vaultwares-media-processing venv,
+ * which carries NeMo, Demucs, and the heavy ASR dependencies.
+ * Falls back to getRobustPythonExe() if not found.
+ */
+function getMediaProcessingPythonExe() {
+    const candidates = [
+        'C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv\\Scripts\\python.exe',
+        path.join(__dirname, '..', '..', 'vaultwares-media-processing', '.venv', 'Scripts', 'python.exe'),
+    ];
+    for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+    }
+    return utils.getRobustPythonExe();
+}
 
 function registerNormalizationHandlers(ipcMain) {
     ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe, translateTo }) => {
@@ -9,30 +26,9 @@ function registerNormalizationHandlers(ipcMain) {
         return new Promise((resolve) => {
             const pythonScript = path.join(__dirname, '..', 'python-scripts', 'audio_normalize.py');
             
-            // Find venv python interpreter, prioritizing the fully-equipped media processing environment
-            let pythonExe = 'python';
-            const mediaProcessingVenv = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv';
-            const localVenv = path.join(__dirname, '..', '.venv');
-            const legacyVenv = path.join(__dirname, '..', 'venv');
-            
-            const searchPaths = [mediaProcessingVenv, localVenv, legacyVenv];
-            for (const vPath of searchPaths) {
-                if (process.platform === 'win32') {
-                    const winPath = path.join(vPath, 'Scripts', 'python.exe');
-                    if (fs.existsSync(winPath)) {
-                        pythonExe = winPath;
-                        break;
-                    }
-                } else {
-                    const unixPath = path.join(vPath, 'bin', 'python');
-                    if (fs.existsSync(unixPath)) {
-                        pythonExe = unixPath;
-                        break;
-                    }
-                }
-            }
+            const pythonExe = getMediaProcessingPythonExe();
 
-            const args = [pythonScript, videoPath];
+            const args = ['-u', pythonScript, videoPath];
             if (vaultRoot) {
                 args.push(vaultRoot);
             }
@@ -124,30 +120,9 @@ function registerNormalizationHandlers(ipcMain) {
         return new Promise((resolve) => {
             const pythonScript = path.join(__dirname, '..', 'python-scripts', 'benchmark_asr.py');
             
-            // Find venv python interpreter
-            let pythonExe = 'python';
-            const mediaProcessingVenv = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv';
-            const localVenv = path.join(__dirname, '..', '.venv');
-            const legacyVenv = path.join(__dirname, '..', 'venv');
-            
-            const searchPaths = [mediaProcessingVenv, localVenv, legacyVenv];
-            for (const vPath of searchPaths) {
-                if (process.platform === 'win32') {
-                    const winPath = path.join(vPath, 'Scripts', 'python.exe');
-                    if (fs.existsSync(winPath)) {
-                        pythonExe = winPath;
-                        break;
-                    }
-                } else {
-                    const unixPath = path.join(vPath, 'bin', 'python');
-                    if (fs.existsSync(unixPath)) {
-                        pythonExe = unixPath;
-                        break;
-                    }
-                }
-            }
+            const pythonExe = getMediaProcessingPythonExe();
 
-            const args = [pythonScript];
+            const args = ['-u', pythonScript];
             if (forceSimulation) {
                 args.push('--force-simulation');
             } else {

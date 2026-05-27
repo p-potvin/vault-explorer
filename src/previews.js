@@ -21,7 +21,7 @@ function writeBenchmark(entry) {
     fs.appendFileSync(benchmarkPath, row, 'utf8');
 }
 
-async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null) {
+async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false) {
     const activeWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
     const finalSender = sender || (activeWindow ? activeWindow.webContents : null);
     
@@ -37,7 +37,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     const hasAudio = await utils.checkAudioStream(videoPath);
     
     const bothExist = fs.existsSync(thumbPath) && fs.existsSync(hoverWebmPath);
-    if (bothExist) {
+    if (bothExist && !force) {
         console.log(`[main:preview] Skipping: both thumbnail and preview exist for ${videoPath}`);
         if (finalSender && !finalSender.isDestroyed()) {
             finalSender.send('generate-webm-progress', {
@@ -131,6 +131,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                         '-c:v', 'libvpx',
                         '-b:v', '1M',
                         '-speed', '4',
+                        '-ac', '2',
                         '-c:a', 'libvorbis',
                         '-b:a', '64k',
                         hoverWebmPath,
@@ -166,28 +167,57 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 });
             }
 
-            const args = ['-y'];
-            let filterStr = '';
-            for (let i = 0; i < numClips; i++) {
-                const seekTime = interval * i;
-                args.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
-                filterStr += `[${i}:v]`;
+            let success = false;
+            if (hasAudio) {
+                try {
+                    const audioArgs = ['-y'];
+                    let filterStr = '';
+                    for (let i = 0; i < numClips; i++) {
+                        const seekTime = interval * i;
+                        audioArgs.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
+                        filterStr += `[${i}:v][${i}:a]`;
+                    }
+                    filterStr += `concat=n=${numClips}:v=1:a=1[outv][outa]`;
+                    audioArgs.push('-filter_complex', filterStr);
+                    audioArgs.push('-map', '[outv]', '-map', '[outa]');
+                    audioArgs.push(
+                        '-c:v', 'libvpx',
+                        '-b:v', '1M',
+                        '-speed', '4',
+                        '-ac', '2',
+                        '-c:a', 'libvorbis',
+                        '-b:a', '64k'
+                    );
+                    audioArgs.push(hoverWebmPath, '-loglevel', 'error');
+                    
+                    await runFfmpegPromise(audioArgs);
+                    success = true;
+                } catch (e) {
+                    console.warn(`[main:webm-preview] Multi-clip with Vorbis audio failed, falling back to silent VP8:`, e.message);
+                }
             }
-            
-            filterStr += `concat=n=${numClips}:v=1:a=0[outv]`;
-            
-            args.push('-filter_complex', filterStr);
-            args.push('-map', '[outv]');
-            
-            args.push(
-                '-c:v', 'libvpx',
-                '-b:v', '1M',
-                '-speed', '4',
-                '-an'
-            );
-            args.push(hoverWebmPath, '-loglevel', 'error');
-            
-            await runFfmpegPromise(args);
+
+            if (!success) {
+                const silentArgs = ['-y'];
+                let filterStr = '';
+                for (let i = 0; i < numClips; i++) {
+                    const seekTime = interval * i;
+                    silentArgs.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
+                    filterStr += `[${i}:v]`;
+                }
+                filterStr += `concat=n=${numClips}:v=1:a=0[outv]`;
+                silentArgs.push('-filter_complex', filterStr);
+                silentArgs.push('-map', '[outv]');
+                silentArgs.push(
+                    '-c:v', 'libvpx',
+                    '-b:v', '1M',
+                    '-speed', '4',
+                    '-an'
+                );
+                silentArgs.push(hoverWebmPath, '-loglevel', 'error');
+                
+                await runFfmpegPromise(silentArgs);
+            }
         }
         
         webmTimeMs = Date.now() - webmStart;
@@ -329,7 +359,7 @@ function registerPreviewHandlers(ipcMain) {
         
         console.log(`[main:generate-webm] Manual extraction requested for: ${base}`);
         try {
-            await generateThumbAndPreview(videoPath, thumbPath, webmPath, event.sender);
+            await generateThumbAndPreview(videoPath, thumbPath, webmPath, event.sender, true);
             const success = fs.existsSync(thumbPath) && fs.existsSync(webmPath);
             if (success) {
                 return { success: true, thumbnail: thumbPath, hoverWebm: webmPath };
@@ -342,23 +372,41 @@ function registerPreviewHandlers(ipcMain) {
     });
 
     ipcMain.handle('schedule-idle-previews', (event, items) => {
+        if (!items || items.length === 0) return false;
+        
+        // Skip automatic preview scheduling for cloud-backed directories to prevent freezing and crashes
+        const firstPath = (items[0] && items[0].path) ? items[0].path.toLowerCase() : '';
+        if (firstPath.includes('icloud photos') || firstPath.includes('onedrive') || 
+            firstPath.includes('icloud drive') || firstPath.includes('dropbox') || 
+            firstPath.includes('google drive') || firstPath.includes('creative cloud')) {
+            console.log(`[main:previews] Skipping background preview scheduling for cloud-backed folder: ${path.dirname(items[0].path)}`);
+            return false;
+        }
+
+        // Limit the active processing batch size to prevent locking the main thread or exhausting process limits
+        const candidateItems = items.slice(0, 80);
         let added = 0;
-        for (const item of items) {
-            if (item.type === 'video') {
-                const ext = path.extname(item.path);
-                const base = path.basename(item.path, ext);
-                const thumbsDir = path.join(path.dirname(item.path), '.thumbs');
-                if (!fs.existsSync(thumbsDir)) {
-                    try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch(e) {}
-                }
-                const thumbPath = path.join(thumbsDir, `${base}.jpg`);
-                const webmPath = path.join(thumbsDir, `${base}.webm`);
-                if (!fs.existsSync(thumbPath) || !fs.existsSync(webmPath)) {
-                    if (!activeQueuePaths.has(item.path)) {
-                        added++;
-                        schedulePreviewGeneration(item.path, thumbPath, webmPath);
+        
+        for (const item of candidateItems) {
+            try {
+                if (item.type === 'video') {
+                    const ext = path.extname(item.path);
+                    const base = path.basename(item.path, ext);
+                    const thumbsDir = path.join(path.dirname(item.path), '.thumbs');
+                    if (!fs.existsSync(thumbsDir)) {
+                        try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch(e) {}
+                    }
+                    const thumbPath = path.join(thumbsDir, `${base}.jpg`);
+                    const webmPath = path.join(thumbsDir, `${base}.webm`);
+                    if (!fs.existsSync(thumbPath) || !fs.existsSync(webmPath)) {
+                        if (!activeQueuePaths.has(item.path)) {
+                            added++;
+                            schedulePreviewGeneration(item.path, thumbPath, webmPath);
+                        }
                     }
                 }
+            } catch (e) {
+                console.error('[main:previews] Failed to schedule item preview:', item.path, e.message);
             }
         }
         if (added > 0) {

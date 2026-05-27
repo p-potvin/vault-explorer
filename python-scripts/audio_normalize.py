@@ -15,6 +15,21 @@ project_root = os.path.abspath(os.path.join(script_dir, ".."))
 media_processing_root = os.path.abspath(os.path.join(project_root, "..", "vaultwares-media-processing"))
 sys.path.insert(0, media_processing_root)
 
+# ── httpx compatibility patch ───────────────────────────────────────────────
+try:
+    import httpx
+    if not hasattr(httpx, 'RequestError'):
+        httpx.RequestError = httpx.HTTPStatusError
+    if not hasattr(httpx, 'ConnectError'):
+        from httpx._exceptions import ConnectError
+        httpx.ConnectError = ConnectError
+    if not hasattr(httpx, 'TimeoutException'):
+        from httpx._exceptions import TimeoutException
+        httpx.TimeoutException = TimeoutException
+except Exception:
+    pass
+# ────────────────────────────────────────────────────────────────────────────
+
 # Import/Warm-load Parakeet as requested (off by default, but imported and available)
 try:
     from vaultwares_media_processing.parakeet_wrapper import ParakeetV3Wrapper
@@ -92,47 +107,75 @@ def check_streams(path):
         return False, False
 
 def create_synthesized_audio_track(segments, duration, output_path, target_lang):
+    import numpy as np
     import wave
-    
-    # Determine the SAPI voice keyword to filter by
-    voice_keyword = None
-    if target_lang == 'fr' or target_lang == 'qc':
-        voice_keyword = 'french'
-    elif target_lang == 'es':
-        voice_keyword = 'spanish'
-    else:
-        voice_keyword = 'english'
+    from huggingface_hub import hf_hub_download
+    from kokoro_onnx import Kokoro
+    try:
+        import sounddevice as sd
+    except Exception as sd_err:
+        print(f"[translation] sounddevice import error: {sd_err}")
+        sd = None
 
-    sample_rate = 16000
+    print("[translation] Initializing Kokoro Text-to-Speech Engine...")
+    try:
+        try:
+            model_path = hf_hub_download(repo_id="fastrtc/kokoro-onnx", filename="kokoro-v1.0.onnx", local_files_only=True)
+            voices_path = hf_hub_download(repo_id="fastrtc/kokoro-onnx", filename="voices-v1.0.bin", local_files_only=True)
+        except Exception:
+            print("[translation] Local cached models not found. Downloading from Hugging Face...")
+            model_path = hf_hub_download(repo_id="fastrtc/kokoro-onnx", filename="kokoro-v1.0.onnx", local_files_only=False)
+            voices_path = hf_hub_download(repo_id="fastrtc/kokoro-onnx", filename="voices-v1.0.bin", local_files_only=False)
+        kokoro = Kokoro(model_path, voices_path)
+    except Exception as load_err:
+        print(f"[translation] Kokoro initialization failed: {load_err}")
+        return False
+
+    # Choose default Kokoro voice and language
+    voice_name = "af_bella"
+    lang_code = "en-us"
+
+    # Try to load voice name and language code from the global settings file
+    try:
+        appdata_dir = os.path.join(os.environ.get('APPDATA', ''), 'vault-explorer')
+        settings_file = os.path.join(appdata_dir, 'vault-settings.json')
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r', encoding='utf-8') as sf:
+                app_settings = json.load(sf)
+                voice_name = app_settings.get('livestreamVoice', 'af_bella')
+                lang_code = app_settings.get('livestreamLang', 'en-us')
+                print(f"[translation] Loaded custom settings - voice: {voice_name}, lang: {lang_code}")
+    except Exception as settings_err:
+        print(f"[translation] Custom settings load failed: {settings_err}. Using defaults.")
+
+    # Map target language to Kokoro supported codes
+    # Supported: en-us (a), en-gb (b), es (e), fr (f), hi (h), it (i), pt-br (p), zh (z), ja (j)
+    lang_map = {
+        'en': ('en-us', 'af_bella'),
+        'fr': ('fr-fr', 'ff_siwis'),
+        'qc': ('fr-fr', 'ff_siwis'),
+        'es': ('es-es', 'af_bella'),
+        'ja': ('ja', 'jf_alpha'),
+        'zh': ('zh', 'zf_xiaobei'),
+        'it': ('it-it', 'if_sara'),
+        'pt': ('pt-br', 'pf_dora')
+    }
+
+    if target_lang in lang_map:
+        lang_code, voice_name = lang_map[target_lang]
+    else:
+        available_voices = kokoro.get_voices()
+        if voice_name not in available_voices:
+            voice_name = available_voices[0] if available_voices else "af_bella"
+
+    print(f"[translation] Target Language: '{target_lang}' -> Kokoro Voice: '{voice_name}', Language Code: '{lang_code}'")
+
+    sample_rate = 24000
     num_channels = 1
     bytes_per_sample = 2
     
     total_samples = int(duration * sample_rate)
-    pcm_buffer = bytearray(total_samples * bytes_per_sample) # silent PCM
-
-    import win32com.client
-
-    try:
-        speaker = win32com.client.Dispatch("SAPI.SpVoice")
-        filestream = win32com.client.Dispatch("SAPI.SpFileStream")
-    except Exception as e:
-        print(f"[translation] Windows SAPI/WinRT Speech Synthesis not available: {e}")
-        return False
-
-    # Select target voice
-    selected_voice = None
-    try:
-        for v in speaker.GetVoices():
-            desc = v.GetDescription().lower()
-            if voice_keyword and voice_keyword in desc:
-                selected_voice = v
-                break
-        if selected_voice:
-            speaker.Voice = selected_voice
-    except Exception as e:
-        print(f"[translation] Error selecting voice: {e}")
-
-    print(f"[translation] Selected Voice: {speaker.Voice.GetDescription() if speaker.Voice else 'Default'}")
+    pcm_array = np.zeros(total_samples, dtype=np.int16)
 
     for idx, seg in enumerate(segments):
         text = seg.get('text', '')
@@ -141,44 +184,39 @@ def create_synthesized_audio_track(segments, duration, output_path, target_lang)
         if not text.strip():
             continue
 
-        temp_seg_path = os.path.join(tempfile.gettempdir(), f"seg_{idx}.wav")
+        print(f"[translation] Synthesizing sentence [{start:.2f}s]: '{text}'")
         try:
-            filestream.Format.Type = 14 # SAFT16kHz16BitMono
-            filestream.Open(temp_seg_path, 3, False)
-            speaker.AudioOutputStream = filestream
-            speaker.Speak(text)
-            filestream.Close()
+            # Generate speech as numpy float32 array
+            samples, sr = kokoro.create(text, voice=voice_name, speed=1.0, lang=lang_code)
+            
+            # Convert float32 to 16-bit signed integer PCM
+            pcm_data = (samples * 32767.0).astype(np.int16)
 
-            # Read raw PCM from the synthesized wave file
-            if os.path.exists(temp_seg_path):
-                with wave.open(temp_seg_path, 'rb') as w_in:
-                    raw_pcm = w_in.readframes(w_in.getnframes())
+            # Play directly to the user's default windows audio output
+            if sd is not None:
+                try:
+                    print(f"[translation] Playing segment {idx} to default sound device (32-bit float)...")
+                    sd.play(samples, sr)
+                    sd.wait() # wait until playback is completed
+                except Exception as play_err:
+                    print(f"[translation] Speaker playback failed: {play_err}")
 
-                # Insert raw PCM into our buffer at correct sample offset
-                start_sample = int(start * sample_rate)
-                start_byte = start_sample * bytes_per_sample
+            # Map the audio into the master PCM array at the correct offset
+            start_sample = int(start * sample_rate)
+            if start_sample < len(pcm_array):
+                fit_len = min(len(pcm_data), len(pcm_array) - start_sample)
+                pcm_array[start_sample : start_sample + fit_len] = pcm_data[:fit_len]
                 
-                data_len = len(raw_pcm)
-                if start_byte + data_len <= len(pcm_buffer):
-                    pcm_buffer[start_byte : start_byte + data_len] = raw_pcm
-                else:
-                    trunc_len = len(pcm_buffer) - start_byte
-                    if trunc_len > 0:
-                        pcm_buffer[start_byte : start_byte + trunc_len] = raw_pcm[:trunc_len]
         except Exception as seg_err:
             print(f"[translation] Segment {idx} synthesis failed: {seg_err}")
-        finally:
-            if os.path.exists(temp_seg_path):
-                try: os.remove(temp_seg_path)
-                except Exception: pass
 
-    # Write the mixed buffer to wav
+    # Write the master 24kHz synthesized audio track wav file
     try:
         with wave.open(output_path, 'wb') as w_out:
             w_out.setnchannels(num_channels)
             w_out.setsampwidth(bytes_per_sample)
             w_out.setframerate(sample_rate)
-            w_out.writeframes(pcm_buffer)
+            w_out.writeframes(pcm_array.tobytes())
         return True
     except Exception as wav_err:
         print(f"[translation] Wave writing failed: {wav_err}")
@@ -278,14 +316,13 @@ def main():
         if args.transcribe or args.translate_to:
             report_progress(88, "Gathering speech segments...")
             try:
-                # Force high-fidelity fallback parser for automated sandbox stability
-                raise RuntimeError("Forced fallback for sandbox stability")
                 model = ParakeetV3Wrapper()
                 all_segments = model.transcribe_file(vocals_path)
                 if all_segments:
                     original_segments = [{"start": seg.start, "end": seg.end, "text": seg.text} for seg in all_segments]
             except Exception as asr_err:
-                print(f"[ASR] Falling back to high-fidelity segment parser: {asr_err}")
+                print(f"[ASR] Parakeet isolation failed: {asr_err}")
+                print(f"[ASR] Falling back to high-fidelity segment parser...")
                 
         if args.translate_to:
             report_progress(90, f"Synthesizing {args.translate_to.upper()} translation spoken track...")

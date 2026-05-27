@@ -7,11 +7,41 @@ import math
 import json
 import socket
 
+# Reconfigure console output to UTF-8 on Windows
+if sys.platform.startswith('win'):
+    try:
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
+# Try to import torch and track availability
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+
 # Ensure media processing repo path is in sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(script_dir, ".."))
 media_processing_root = os.path.abspath(os.path.join(project_root, "..", "vaultwares-media-processing"))
 sys.path.insert(0, media_processing_root)
+
+# ── httpx compatibility patch ───────────────────────────────────────────────
+try:
+    import httpx
+    if not hasattr(httpx, 'RequestError'):
+        httpx.RequestError = httpx.HTTPStatusError
+    if not hasattr(httpx, 'ConnectError'):
+        from httpx._exceptions import ConnectError
+        httpx.ConnectError = ConnectError
+    if not hasattr(httpx, 'TimeoutException'):
+        from httpx._exceptions import TimeoutException
+        httpx.TimeoutException = TimeoutException
+except Exception:
+    pass
+# ────────────────────────────────────────────────────────────────────────────
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=3):
     """Checks if there is an active internet connection to download ASR weights."""
@@ -48,42 +78,49 @@ class SimulatedSegment:
 class SimulatedParakeetV3Wrapper:
     """High-fidelity simulated ASR Parakeet engine for offline/fallback benchmarks."""
     def __init__(self):
-        import torch
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if TORCH_AVAILABLE:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = "cpu"
         print(f"[Simulated Engine] Initializing simulated Parakeet V3 engine on {self.device.upper()}...")
         # Simulate loading weights latency (e.g. loading 0.6B params)
         time.sleep(1.5)
         print("[Simulated Engine] Loaded simulated weights successfully.")
 
     def transcribe_file(self, wav_path: str, language: str = "en", target_language: str = None) -> list:
-        import torch
-        import soundfile as sf
-        import numpy as np
-        
-        data, samplerate = sf.read(wav_path)
-        if len(data.shape) > 1:
-            data = np.mean(data, axis=1)
-        
-        duration = len(data) / samplerate
         chunk_duration = 5.0
-        samples_per_chunk = int(chunk_duration * samplerate)
-        
         segments = []
         seg_id = 1
         
+        try:
+            import soundfile as sf
+            import numpy as np
+            data, samplerate = sf.read(wav_path)
+            if len(data.shape) > 1:
+                data = np.mean(data, axis=1)
+            duration = len(data) / samplerate
+            has_soundfile = True
+        except ImportError:
+            duration = 10.0
+            samplerate = 16000
+            has_soundfile = False
+
         print(f"[Simulated Engine] Processing ASR chunks (language: {language}, target: {target_language or 'none'})...")
         
-        for start_sample in range(0, len(data), samples_per_chunk):
-            end_sample = min(start_sample + samples_per_chunk, len(data))
-            chunk_data = data[start_sample:end_sample]
-            if len(chunk_data) < samplerate * 0.5:
-                continue
-                
-            start_time = start_sample / samplerate
-            end_time = end_sample / samplerate
+        total_chunks = int(duration / chunk_duration)
+        for chunk_idx in range(total_chunks):
+            start_time = chunk_idx * chunk_duration
+            end_time = start_time + chunk_duration
             
-            # Simulate PyTorch tensor forwarding onto CUDA/CPU
-            audio_tensor = torch.from_numpy(chunk_data.astype(np.float32)).unsqueeze(0).to(self.device)
+            if has_soundfile and TORCH_AVAILABLE:
+                try:
+                    start_sample = int(start_time * samplerate)
+                    end_sample = int(end_time * samplerate)
+                    chunk_data = data[start_sample:end_sample]
+                    audio_tensor = torch.from_numpy(chunk_data.astype(np.float32)).unsqueeze(0).to(self.device)
+                except Exception:
+                    pass
+            
             # Emulate forward pass matrix computations latency (approx 85ms per chunk)
             time.sleep(0.085)
             
@@ -110,8 +147,10 @@ def run_benchmark():
 
     # Pre-flight Check to avoid native C++ crashes during offline run
     print("[Pre-flight Check] Checking system capabilities...")
-    import torch
-    cuda_available = torch.cuda.is_available()
+    if TORCH_AVAILABLE:
+        cuda_available = torch.cuda.is_available()
+    else:
+        cuda_available = False
     online = check_internet_connection()
     
     print(f"  -> CUDA GPU hardware acceleration: {'AVAILABLE' if cuda_available else 'NOT AVAILABLE'}")
@@ -212,7 +251,7 @@ def run_benchmark():
 
     # Benchmark Step 4: Hardware Profiling
     print("\n[Benchmark Step 4] Gathering Hardware Profiling telemetry...")
-    if torch.cuda.is_available():
+    if TORCH_AVAILABLE and torch.cuda.is_available():
         allocated = torch.cuda.memory_allocated() / (1024 * 1024)
         reserved = torch.cuda.memory_reserved() / (1024 * 1024)
         metrics['vram_allocated_mb'] = allocated

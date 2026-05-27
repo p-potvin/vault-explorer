@@ -115,21 +115,40 @@ function initSettingsListeners() {
         e.stopPropagation();
         const panel = el('settings-panel');
         const isOpening = panel.style.display === 'none';
-        panel.style.display = isOpening ? 'block' : 'none';
+        panel.style.display = isOpening ? 'flex' : 'none';
         if (isOpening) {
             pillTagLoad(window.appSettings.globExclusions || []);
             el('settings-default-folder').value = window.appSettings.defaultFolder || '';
             el('settings-default-theme').value = window.appSettings.defaultTheme || 'vaultwares-revisited-console';
             el('settings-default-lang').value = window.appSettings.defaultLang || 'en';
-            el('settings-default-sub-lang').value = window.appSettings.defaultSubLang || 'und';
+            el('settings-default-sub-lang').value = window.appSettings.defaultSubLang || 'original';
             el('settings-sub-font-size').value = window.appSettings.subFontSize || '20px';
             el('settings-remember-position').checked = window.appSettings.rememberPosition !== false;
             el('settings-minimize-to-tray').checked = window.appSettings.minimizeToTray === true;
+            if (el('settings-opensubtitles-key')) {
+                el('settings-opensubtitles-key').value = window.appSettings.openSubtitlesKey || '';
+            }
+            if (el('settings-default-home-tab')) {
+                el('settings-default-home-tab').value = window.appSettings.defaultHomeTab || 'vault';
+            }
+            el('settings-stream-auto-select').checked = window.appSettings.streamAutoSelect !== false;
+            el('settings-stream-quality').value = window.appSettings.streamQuality || '1080p';
+            el('settings-stream-lang').value = window.appSettings.streamLang || 'en';
             el('debrid-proxy-enable').checked = window.appSettings.debridProxyEnable === true;
             el('debrid-proxy-address-input').value = window.appSettings.debridProxyAddress || '';
             document.getElementById('pill-tag-input-glob').focus();
         }
     });
+  }
+
+  const btnBrowseFolder = el('settings-btn-browse-folder');
+  if (btnBrowseFolder) {
+      btnBrowseFolder.addEventListener('click', async () => {
+          const folderPath = await window.electronAPI.openDirectory();
+          if (folderPath) {
+              el('settings-default-folder').value = folderPath;
+          }
+      });
   }
 
   const themeTrigger = el('theme-trigger');
@@ -167,22 +186,31 @@ function initSettingsListeners() {
         
         window.appSettings.rememberPosition = el('settings-remember-position').checked;
         window.appSettings.minimizeToTray = el('settings-minimize-to-tray').checked;
+        if (el('settings-opensubtitles-key')) {
+            window.appSettings.openSubtitlesKey = el('settings-opensubtitles-key').value.trim();
+        }
+        if (el('settings-default-home-tab')) {
+            window.appSettings.defaultHomeTab = el('settings-default-home-tab').value;
+        }
+        window.appSettings.streamAutoSelect = el('settings-stream-auto-select').checked;
+        window.appSettings.streamQuality = el('settings-stream-quality').value;
+        window.appSettings.streamLang = el('settings-stream-lang').value;
         window.appSettings.debridProxyEnable = el('debrid-proxy-enable').checked;
         window.appSettings.debridProxyAddress = el('debrid-proxy-address-input').value.trim();
         await window.electronAPI.saveSettings(window.appSettings);
         showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
         el('settings-panel').style.display = 'none';
         
-        if (window.currentRealPath) window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+        if (window.appSettings.defaultFolder) {
+            window.loadDirectory('root/' + window.appSettings.defaultFolder.split(/[\\/]/).pop(), window.appSettings.defaultFolder, false);
+        } else if (window.currentRealPath) {
+            window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+        }
     });
   }
 
   // Dismiss settings panels
   document.addEventListener('click', (e) => {
-      if (!e.target.closest('#settings-panel') && !e.target.closest('#settings-trigger')) {
-          const panel = el('settings-panel');
-          if (panel) panel.style.display = 'none';
-      }
       if ((!el('theme-panel') || !e.target.closest('#theme-panel')) && (!el('theme-trigger') || !e.target.closest('#theme-trigger'))) {
         const panel = el('theme-panel');
         if (panel && panel.style.display === 'block') {
@@ -609,13 +637,31 @@ function initSettingsListeners() {
                 
                 showToast(window.currentLang === 'fr' ? 'Lien débridé avec succès' : 'Link successfully unrestricted', 'success');
             } else {
-                throw new Error(res ? res.error : 'Unknown API response error');
+                let errMsg = 'Unknown API response error';
+                if (res && res.error) {
+                    if (res.error === 'infringing_file') {
+                        errMsg = window.currentLang === 'fr' 
+                            ? "Ce fichier a été supprimé suite à une plainte pour atteinte aux droits d'auteur (DMCA)."
+                            : "This file has been removed due to a copyright infringement complaint (DMCA).";
+                    } else if (res.error === 'bad_token') {
+                        errMsg = window.currentLang === 'fr'
+                            ? "Clé API Real-Debrid non configurée, invalide ou expirée."
+                            : "Real-Debrid API key is unconfigured, invalid, or expired.";
+                    } else if (res.error === 'link_not_allowed') {
+                        errMsg = window.currentLang === 'fr'
+                            ? "Ce lien ou hébergeur n'est pas autorisé par Real-Debrid."
+                            : "This hoster link is not allowed by Real-Debrid.";
+                    } else {
+                        errMsg = res.error;
+                    }
+                }
+                throw new Error(errMsg);
             }
         } catch (err) {
             console.error('[Debrid Downloader] Unrestricting failed:', err);
             el('debrid-dl-output-loading').style.display = 'none';
             el('debrid-dl-output-placeholder').style.display = 'block';
-            showToast((window.currentLang === 'fr' ? 'Échec du débridage: ' : 'Unrestricting failed: ') + err.message, 'error');
+            showToast((window.currentLang === 'fr' ? 'Échec du débridage : ' : 'Unrestricting failed: ') + err.message, 'error');
         }
     });
   }

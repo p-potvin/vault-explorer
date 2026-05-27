@@ -46,6 +46,7 @@
   --vault-border: var(--vault-warm-border-subtle);
   --vault-text: #161320;
   --vault-accent: var(--vault-console-gold);
+  --vault-accent-text: #161320;
   --vault-hover: var(--vault-warm-muted);
   --vault-selected: var(--vault-warm-muted);
   --vault-card-bg: var(--vault-warm-raised);
@@ -69,6 +70,7 @@
   --vault-border: var(--vault-console-border-subtle);
   --vault-text: #fff;
   --vault-accent: var(--vault-console-violet);
+  --vault-accent-text: #0b0813;
   --vault-hover: var(--vault-console-raised);
   --vault-selected: var(--vault-console-active);
   --vault-card-bg: var(--vault-console-raised);
@@ -102,6 +104,7 @@
   --vault-border: var(--vault-warm-border-subtle);
   --vault-text: #161320;
   --vault-accent: var(--vault-console-gold);
+  --vault-accent-text: #161320;
   --vault-hover: var(--vault-warm-muted);
   --vault-selected: var(--vault-warm-muted);
   --vault-card-bg: var(--vault-warm-raised);
@@ -126,9 +129,10 @@
 }
 
 .vw-warm-card {
-  border: 1px solid var(--vault-warm-border-subtle) !important;
-  background: var(--vault-warm-raised) !important;
+  border: 1px solid var(--vault-card-border) !important;
+  background: var(--vault-card-bg) !important;
   border-radius: 28px !important;
+  color: var(--vault-text) !important;
 }
 
 /* Animation Primitives */
@@ -357,6 +361,11 @@ select option {
   animation-fill-mode: both;
 }
 
+.file-card.in-library {
+  border: 1.5px solid var(--vault-console-gold) !important;
+  box-shadow: 0 0 12px rgba(214, 164, 65, 0.35) !important;
+}
+
 .file-card:nth-child(n) {
   animation-delay: calc(var(--index, 0) * 20ms);
 }
@@ -384,16 +393,7 @@ select option {
 }
 
 .file-checkbox {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 5;
-  opacity: 0;
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--vault-accent);
-  transition: opacity 0.2s;
+  display: none !important;
 }
 
 .file-card:hover .file-checkbox,
@@ -562,7 +562,7 @@ select option {
 #video-modal {
   display: none;
   position: fixed;
-  top: 32px;
+  top: 31px;
   left: 0;
   right: 0;
   bottom: 0;
@@ -637,7 +637,7 @@ select option {
 .video-wrapper {
   position: relative;
   width: 100vw;
-  height: calc(100vh - 32px);
+  height: calc(100vh - 31px);
   overflow: hidden;
   background: transparent;
   display: flex;
@@ -744,11 +744,18 @@ select option {
   }
 }
 
-.video-wrapper:hover #custom-controls,
-.video-wrapper:focus-within #custom-controls,
-.video-wrapper:hover #player-topbar,
-.video-wrapper:focus-within #player-topbar {
+#video-modal:hover #custom-controls,
+#video-modal:focus-within #custom-controls,
+#video-modal:hover #player-topbar,
+#video-modal:focus-within #player-topbar {
   opacity: 1;
+}
+
+/* Hide player controls when cursor hovers over the app titlebar (above the modal) */
+body.titlebar-hovered #video-modal #custom-controls,
+body.titlebar-hovered #video-modal #player-topbar {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .volume-container:hover .volume-slider-wrapper,
@@ -1347,4 +1354,127 @@ video::cue {
 .sort-option:hover,
 .sort-order-option:hover {
   background: var(--vault-hover) !important;
+}
+
+/* Movies/Series Tab Smaller Cards & Premium Netflix-Style Hover */
+.tmdb-grid {
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+  gap: 16px !important;
+  padding: 10px 0 !important;
+}
+
+.tmdb-movie-card {
+  position: relative;
+  transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.45s ease, border-color 0.45s ease, background-color 0.45s ease !important;
+  padding: 0 !important;
+  display: block !important;
+  border-radius: 6px !important;
+  overflow: visible !important;
+}
+
+.tmdb-movie-card:hover {
+  transform: scale(1.15) translateY(-8px) !important;
+  z-index: 50;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6) !important;
+  background-color: var(--vault-hover) !important;
+  border-color: var(--vault-accent) !important;
+}
+
+.tmdb-movie-card .overview-text {
+  display: none;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: 0;
+  transition: opacity 0.45s ease;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--vault-slate);
+}
+
+.tmdb-movie-card:hover .overview-text {
+  display: -webkit-box;
+  opacity: 0.9;
+  margin-top: 8px;
+  line-clamp: 4;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.settings-led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--vault-accent, #B07CFF);
+  box-shadow: 0 0 8px var(--vault-accent, #B07CFF);
+  animation: led-blink 3.5s infinite alternate;
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+@keyframes led-blink {
+  0% {
+    opacity: 0.3;
+    box-shadow: 0 0 2px var(--vault-accent, #B07CFF);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 8px var(--vault-accent, #B07CFF), 0 0 12px var(--vault-accent, #B07CFF);
+  }
+}
+
+/* Animated Switch Toggle */
+.switch input:checked + .slider {
+  background-color: var(--vault-accent) !important;
+  border-color: var(--vault-accent) !important;
+}
+
+.switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #fff;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(14px);
+}
+
+/* ==========================================================================
+   Vault Premium Interactive Hover Preview Cards Styling
+   ========================================================================== */
+
+.premium-hover-popup {
+  opacity: 0;
+  transform: scale(0.95);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.85) !important;
+  border-color: var(--vault-accent) !important;
+  background: var(--vault-console-bg, #0b0813) !important;
+  transition: opacity 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  outline: none;
+}
+
+.premium-hover-popup.active {
+  opacity: 1;
+  transform: scale(1);
+  box-shadow: 0 25px 60px rgba(0,0,0,0.9), 0 0 20px rgba(214, 164, 65, 0.2) !important;
+  border-color: var(--vault-gold, #D6A441) !important;
+}
+
+.premium-hover-popup .btn-hover-play:hover {
+  background: #fff !important;
+  color: #000 !important;
+  transform: scale(1.04);
+}
+
+.premium-hover-popup .btn-hover-library:hover,
+.premium-hover-popup .btn-hover-details:hover {
+  background: rgba(255,255,255,0.18) !important;
+  border-color: rgba(255,255,255,0.3) !important;
+  transform: scale(1.08);
 }
