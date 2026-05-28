@@ -1,5 +1,5 @@
 window.translationsQc = {
-  browseVault: "Explorer la voûte",
+  browseVault: "Parcourir",
   videos: "Vidéos",
   images: "Images",
   allFiles: "Tous les fichiers",
@@ -16,7 +16,7 @@ window.translationsQc = {
   descending: "Décroissant ↓",
   scanning: "Analyse de la voûte en cours... un instant.",
   vaultEmpty: "Votre voûte est vide",
-  clickBrowse: "Cliquez sur « Explorer la voûte » ci-dessus pour sélectionner un dossier et commencer à explorer.",
+  clickBrowse: "Cliquez sur « Parcourir » ci-dessus pour sélectionner un dossier et commencer à explorer.",
   zeroItems: "0 élément",
   theme: "Thème",
   enterFolderName: "Entrez le nom du dossier :",

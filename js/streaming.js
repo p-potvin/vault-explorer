@@ -2,6 +2,83 @@
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function _populateExternalBadges(title, tmdbId, mediaType, trailerKey = null) {
+    const badgesContainer = el('external-links-badges');
+    if (!badgesContainer) return;
+    badgesContainer.innerHTML = '';
+
+    const badgeStyle = 'background: rgba(255,255,255,0.06); border: 1px solid var(--vault-border); border-radius: 4px; padding: 5px 9px; color: var(--vault-text); font-family: var(--font-mono); font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.2s; outline: none; outline-offset: -1px;';
+
+    // 1. YouTube Trailer (if trailerKey is present)
+    if (trailerKey) {
+        const btnYT = document.createElement('button');
+        btnYT.style.cssText = badgeStyle;
+        btnYT.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:inline-block; vertical-align:middle; color:var(--vault-accent);"><polygon points="5 3 19 12 5 21 5 3"/></svg> Watch Trailer (YouTube)';
+        btnYT.onclick = () => {
+            if (window.electronAPI && window.electronAPI.openExternalURL) {
+                window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailerKey}`);
+            }
+        };
+        btnYT.onmouseenter = () => { btnYT.style.borderColor = 'var(--vault-accent)'; btnYT.style.background = 'rgba(245,185,41,0.1)'; };
+        btnYT.onmouseleave = () => { btnYT.style.borderColor = 'var(--vault-border)'; btnYT.style.background = 'rgba(255,255,255,0.06)'; };
+        badgesContainer.appendChild(btnYT);
+    }
+
+    // 2. IMDb Page (if imdb_id is available)
+    if (typeof _currentModalImdbId !== 'undefined' && _currentModalImdbId) {
+        const btnIMDb = document.createElement('button');
+        btnIMDb.style.cssText = badgeStyle;
+        btnIMDb.innerHTML = '<img src="imdb_favicon.png" style="width:12px; height:12px; vertical-align:middle;" /> IMDb Rating';
+        btnIMDb.onclick = () => {
+            if (window.electronAPI && window.electronAPI.openExternalURL) {
+                window.electronAPI.openExternalURL(`https://www.imdb.com/title/${_currentModalImdbId}/`);
+            }
+        };
+        btnIMDb.onmouseenter = () => { btnIMDb.style.borderColor = 'var(--vault-gold)'; btnIMDb.style.background = 'rgba(245,185,41,0.1)'; };
+        btnIMDb.onmouseleave = () => { btnIMDb.style.borderColor = 'var(--vault-border)'; btnIMDb.style.background = 'rgba(255,255,255,0.06)'; };
+        badgesContainer.appendChild(btnIMDb);
+    }
+
+    // 3. Apple TV Search
+    const btnApple = document.createElement('button');
+    btnApple.style.cssText = badgeStyle;
+    btnApple.innerHTML = '<img src="appletv_favicon.png" style="width:12px; height:12px; vertical-align:middle;" /> Apple TV';
+    btnApple.onclick = () => {
+        if (window.electronAPI && window.electronAPI.openExternalURL) {
+            window.electronAPI.openExternalURL(`https://tv.apple.com/search?term=${encodeURIComponent(title)}`);
+        }
+    };
+    btnApple.onmouseenter = () => { btnApple.style.borderColor = '#fff'; btnApple.style.background = 'rgba(255,255,255,0.15)'; };
+    btnApple.onmouseleave = () => { btnApple.style.borderColor = 'var(--vault-border)'; btnApple.style.background = 'rgba(255,255,255,0.06)'; };
+    badgesContainer.appendChild(btnApple);
+
+    // 4. JustWatch Search
+    const btnJW = document.createElement('button');
+    btnJW.style.cssText = badgeStyle;
+    btnJW.innerHTML = '<img src="justwatch_favicon.png" style="width:12px; height:12px; vertical-align:middle;" /> JustWatch';
+    btnJW.onclick = () => {
+        if (window.electronAPI && window.electronAPI.openExternalURL) {
+            window.electronAPI.openExternalURL(`https://www.justwatch.com/us/search?q=${encodeURIComponent(title)}`);
+        }
+    };
+    btnJW.onmouseenter = () => { btnJW.style.borderColor = '#00e5ff'; btnJW.style.background = 'rgba(0,229,255,0.1)'; };
+    btnJW.onmouseleave = () => { btnJW.style.borderColor = 'var(--vault-border)'; btnJW.style.background = 'rgba(255,255,255,0.06)'; };
+    badgesContainer.appendChild(btnJW);
+
+    // 5. TMDB Page
+    const btnTMDB = document.createElement('button');
+    btnTMDB.style.cssText = badgeStyle;
+    btnTMDB.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:inline-block; vertical-align:middle;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> TMDB';
+    btnTMDB.onclick = () => {
+        if (window.electronAPI && window.electronAPI.openExternalURL) {
+            window.electronAPI.openExternalURL(`https://www.themoviedb.org/${mediaType}/${tmdbId}`);
+        }
+    };
+    btnTMDB.onmouseenter = () => { btnTMDB.style.borderColor = '#01b4e4'; btnTMDB.style.background = 'rgba(1,180,228,0.1)'; };
+    btnTMDB.onmouseleave = () => { btnTMDB.style.borderColor = 'var(--vault-border)'; btnTMDB.style.background = 'rgba(255,255,255,0.06)'; };
+    badgesContainer.appendChild(btnTMDB);
+}
+
 
 /**
  * Read the user's stream quality preference from settings.
@@ -114,12 +191,16 @@ window.showMediaDetails = async function(movie) {
     setTimeout(() => { window._detailsModalJustOpened = false; }, 100);
 
     _currentModalTvId = movie.id;
-    _currentModalImdbId = null;
+    _currentModalImdbId = movie.imdb_id || null;
     _currentModalTitle = movie.title;
     _currentModalMediaType = movie.media_type;
+    window._currentTrailerKey = null;
 
     // Show modal immediately with available data
     modal.style.display = 'flex';
+    
+    // Draw initial badges
+    _populateExternalBadges(movie.title, movie.id, movie.media_type);
 
     // Reset modal state
     el('streaming-details-header-title').textContent = movie.title;
@@ -219,7 +300,7 @@ window.showMediaDetails = async function(movie) {
     _fetchAndInjectTrailer(movie.id, movie.media_type);
 };
 
-function _setupMovieModal(movie) {
+async function _setupMovieModal(movie) {
     const movieActions = el('movie-actions-container');
     if (!movieActions) return;
     movieActions.style.display = 'flex';
@@ -231,6 +312,16 @@ function _setupMovieModal(movie) {
             el('movie-trailer-iframe').src = '';
             window.triggerRDStream(movie.title, movie.id, 'movie');
         };
+    }
+
+    try {
+        const movieRes = await window.electronAPI.getTMDBMovie(movie.id);
+        if (movieRes && movieRes.success && movieRes.data) {
+            _currentModalImdbId = movieRes.data.imdb_id;
+            _populateExternalBadges(movie.title, movie.id, 'movie', window._currentTrailerKey);
+        }
+    } catch (e) {
+        console.warn('[streaming] Failed to fetch movie details for badges:', e);
     }
 }
 
@@ -296,6 +387,7 @@ async function _setupTVModal(movie) {
         // Cache IMDB ID if available
         if (tvData.external_ids && tvData.external_ids.imdb_id) {
             _currentModalImdbId = tvData.external_ids.imdb_id;
+            _populateExternalBadges(movie.title, movie.id, 'tv', window._currentTrailerKey);
         }
 
         // Update overview with full version if richer
@@ -406,36 +498,70 @@ window._streamEpisode = function(tvId, seasonNumber, episodeNumber) {
 
 async function _fetchAndInjectTrailer(tmdbId, mediaType) {
     try {
-        const type = mediaType === 'tv' ? 'tv' : 'movie';
-        const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/videos?language=en-US`;
-        const TMDB_BEARER_TOKEN = await _getTMDBToken();
-        if (!TMDB_BEARER_TOKEN) return;
+        let trailerKey = null;
 
-        const res = await fetch(url, {
-            headers: { accept: 'application/json', Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
-        });
-        if (!res.ok) return;
+        // 1. Try KinoCheck Premium API handler first
+        if (window.electronAPI && window.electronAPI.getKinoCheckTrailer) {
+            console.log(`[streaming] Attempting KinoCheck Premium for TMDB ID: ${tmdbId}`);
+            const kcResult = await window.electronAPI.getKinoCheckTrailer({ tmdbId, mediaType });
+            if (kcResult && kcResult.success && kcResult.key) {
+                console.log(`[streaming] KinoCheck successfully resolved trailer key:`, kcResult.key);
+                trailerKey = kcResult.key;
+            } else {
+                console.warn(`[streaming] KinoCheck premium lookup skipped or empty:`, kcResult ? kcResult.error : 'No response');
+            }
+        }
 
-        const data = await res.json();
-        const trailer = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube') || data.results?.[0];
-        if (!trailer) return;
+        // 2. Fallback to TMDB videos endpoint if KinoCheck didn't resolve a key
+        if (!trailerKey) {
+            console.log(`[streaming] Falling back to TMDB video lookup for TMDB ID: ${tmdbId}`);
+            const type = mediaType === 'tv' ? 'tv' : 'movie';
+            const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/videos?language=en-US`;
+            const TMDB_BEARER_TOKEN = await _getTMDBToken();
+            if (TMDB_BEARER_TOKEN) {
+                const res = await fetch(url, {
+                    headers: { accept: 'application/json', Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const trailer = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube') || data.results?.[0];
+                    if (trailer && trailer.key) {
+                        trailerKey = trailer.key;
+                    }
+                }
+            }
+        }
+
+        if (!trailerKey) {
+            console.warn('[streaming] No trailer could be resolved from KinoCheck or TMDB fallback.');
+            return;
+        }
+
+        window._currentTrailerKey = trailerKey;
 
         const iframeWrapper = el('movie-trailer-wrapper');
         const iframe = el('movie-trailer-iframe');
         const btnTrailer = el('btn-watch-trailer-browser');
 
         if (iframeWrapper && iframe) {
-            iframe.src = `https://www.youtube-nocookie.com/embed/${trailer.key}?autoplay=0&rel=0`;
+            // Apply referrerpolicy for strict origin to eliminate Error 152/153 verification blocks
+            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+            iframe.src = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=0&rel=0`;
             iframeWrapper.style.display = 'block';
         }
         if (btnTrailer) {
             btnTrailer.style.display = 'flex';
             btnTrailer.onclick = () => {
                 if (window.electronAPI && window.electronAPI.openExternalURL) {
-                    window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailer.key}`);
+                    window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailerKey}`);
                 }
             };
         }
+
+        // Re-draw badges with the newly active trailer key
+        const titleEl = el('streaming-details-title');
+        const title = titleEl ? titleEl.textContent : '';
+        _populateExternalBadges(title, tmdbId, mediaType, trailerKey);
     } catch (e) {
         // Trailers are optional — fail silently
         console.warn('[streaming] Failed to fetch trailer:', e.message);
@@ -497,7 +623,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
 
     const isTV = mediaType === 'tv';
     const epLabel = isTV && season != null ? ` S${String(season).padStart(2,'0')}E${String(episode || 1).padStart(2,'0')}` : '';
-    statusText.innerHTML = `🔍 Scraping Torrentio index for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
+    statusText.innerHTML = `<svg class="tab-icon spinner-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Scraping Torrentio index for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
 
     const preferredQuality = getPreferredQuality();
     const preferredLang = getPreferredLang();
@@ -542,7 +668,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
 
         if (!response || !response.success || !response.torrents || response.torrents.length === 0) {
             loadingStatus.querySelector('.spinner').style.display = 'none';
-            statusText.innerHTML = `❌ No torrent sources found for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>.`;
+            statusText.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No torrent sources found for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>.`;
             return;
         }
 
@@ -634,3 +760,214 @@ document.addEventListener('click', (e) => {
         }
     }
 });
+
+// Keyboard controls (Esc key to close modals)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const detailsModal = document.getElementById('streaming-details-modal');
+        if (detailsModal && detailsModal.style.display === 'flex') {
+            detailsModal.style.display = 'none';
+            const trailer = document.getElementById('movie-trailer-iframe');
+            if (trailer) trailer.src = '';
+        }
+
+        const rdDialog = document.getElementById('rd-stream-dialog');
+        if (rdDialog && rdDialog.style.display === 'flex') {
+            rdDialog.style.display = 'none';
+            const backdrop = document.getElementById('rd-stream-backdrop');
+            if (backdrop) backdrop.style.display = 'none';
+        }
+    }
+});
+
+window.startRDDebridFlow = async function(torrent, movieTitle, index = 0) {
+    const loadingStatus = el('rd-loading-status');
+    const statusText = el('rd-status-text');
+    const torrentsList = el('rd-torrents-list');
+    
+    torrentsList.style.display = 'none';
+    loadingStatus.style.display = 'block';
+    loadingStatus.querySelector('.spinner').style.display = 'block';
+    statusText.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Unrestricting cached torrent on Real-Debrid servers...<br><span style="font-size:10px; color:var(--vault-slate);">Checking availability & generating direct stream link</span>`;
+
+    const chooseManuallyBtn = el('btn-rd-choose-manually');
+    if (chooseManuallyBtn) {
+        chooseManuallyBtn.style.display = 'block';
+        chooseManuallyBtn.onclick = () => {
+            window.activeRDFlowId = null;
+            loadingStatus.style.display = 'none';
+            torrentsList.style.display = 'flex';
+            chooseManuallyBtn.style.display = 'none';
+            window.showToast(window.currentLang === 'fr' ? 'Sélection manuelle activée' : 'Manual selection active', 'info');
+        };
+    }
+    
+    // Generate unique flow ID to handle cancel/overlapping flows gracefully
+    const currentFlowId = Math.random();
+    window.activeRDFlowId = currentFlowId;
+
+    try {
+        let response = await window.electronAPI.streamRDTorrent({ magnet: torrent.magnet, hash: torrent.hash, url: torrent.url });
+        
+        if (window.activeRDFlowId !== currentFlowId) {
+            console.log('[Real-Debrid] Flow cancelled post initial streamRDTorrent.');
+            return;
+        }
+
+        if (response && response.success && response.downloading) {
+            // Live downloading / caching progress tracking workflow!
+            let progress = response.progress || 0;
+            let status = response.status || 'downloading';
+            let speed = response.speed || 0;
+            let seeders = response.seeders || 0;
+            const torrentId = response.torrentId;
+
+            const formatSpeed = (bytesPerSec) => {
+                if (!bytesPerSec) return '0 KB/s';
+                const kb = bytesPerSec / 1024;
+                if (kb < 1024) return kb.toFixed(1) + ' KB/s';
+                const mb = kb / 1024;
+                return mb.toFixed(1) + ' MB/s';
+            };
+
+            while (status !== 'downloaded') {
+                // Respect if the user cancelled (by closing the dialog) or clicked another stream
+                if (window.activeRDFlowId !== currentFlowId || el('rd-stream-dialog').style.display === 'none') {
+                    console.log('[Real-Debrid] Caching flow aborted due to dialog close or newer active flow.');
+                    return;
+                }
+
+                statusText.innerHTML = `
+                    <div style="text-align: center; width: 100%;">
+                        <span style="font-size: 13px; font-weight: 700; color: var(--vault-accent, #F5B929); display: block; margin-bottom: 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Caching Torrent to Cloud...</span>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin: 12px 0;">
+                            <div style="width: ${progress}%; height: 100%; background: linear-gradient(90deg, var(--vault-accent, #F5B929), #FF6B7A); border-radius: 4px; transition: width 0.4s ease;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #fff; margin-bottom: 6px; font-family: var(--font-mono);">
+                            <span>Progress: <strong>${progress}%</strong></span>
+                            <span>Speed: <strong>${formatSpeed(speed)}</strong></span>
+                        </div>
+                        <div style="font-size: 10.5px; color: var(--vault-slate); text-align: left; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 6px; margin-top: 6px;">
+                            Status: <strong style="color: #fff; text-transform: uppercase;">${status.replace('_', ' ')}</strong> | Seeders: <strong style="color: #fff;">${seeders}</strong>
+                        </div>
+                    </div>
+                `;
+
+                // Increased polling interval to 3500ms to completely prevent rate limits
+                await new Promise(r => setTimeout(r, 3500));
+                
+                // Re-verify cancellation check immediately after sleep
+                if (window.activeRDFlowId !== currentFlowId || el('rd-stream-dialog').style.display === 'none') {
+                    console.log('[Real-Debrid] Caching flow aborted post-sleep.');
+                    return;
+                }
+
+                const poll = await window.electronAPI.getTorrentStatus(torrentId);
+                if (window.activeRDFlowId !== currentFlowId) {
+                    console.log('[Real-Debrid] Flow cancelled post getTorrentStatus.');
+                    return;
+                }
+
+                if (!poll || !poll.success) {
+                    throw new Error(poll ? poll.error : 'Polling failed');
+                }
+                
+                status = poll.status;
+                progress = poll.progress || 0;
+                speed = poll.speed || 0;
+                seeders = poll.seeders || 0;
+                
+                if (status === 'downloaded' || (poll.links && poll.links.length > 0)) {
+                    statusText.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span style="color:var(--vault-accent);">Caching finished!</span> Unrestricting final stream...`;
+                    const finalRes = await window.electronAPI.streamRDTorrent({ magnet: torrent.magnet, hash: torrent.hash, url: torrent.url });
+                    if (window.activeRDFlowId !== currentFlowId) {
+                        console.log('[Real-Debrid] Flow cancelled post final streamRDTorrent.');
+                        return;
+                    }
+                    if (finalRes && finalRes.success) {
+                        response = finalRes;
+                        break;
+                    } else {
+                        throw new Error(finalRes ? finalRes.error : 'Failed to unrestrict finished link');
+                    }
+                } else if (status === 'dead' || status === 'error' || status === 'magnet_error') {
+                    throw new Error(`Torrent download failed on Real-Debrid with status: ${status}`);
+                }
+            }
+        }
+
+        if (window.activeRDFlowId !== currentFlowId) {
+            return;
+        }
+
+        if (!response || !response.success) {
+            // Check if this was a copyright infringement failure
+            const isDMCA = response && (response.error === 'infringing_file' || response.errorCode === 35);
+            if (isDMCA) {
+                window.showToast(window.currentLang === 'fr' 
+                    ? "Ce flux a été bloqué pour atteinte aux droits d'auteur (DMCA)." 
+                    : "This stream was blocked due to a copyright complaint (DMCA).", 'error');
+                
+                // Return immediately to the torrent list modal (manual selection)
+                window.activeRDFlowId = null;
+                loadingStatus.style.display = 'none';
+                torrentsList.style.display = 'flex';
+                if (chooseManuallyBtn) chooseManuallyBtn.style.display = 'none';
+                return;
+            }
+            
+            loadingStatus.querySelector('.spinner').style.display = 'none';
+            
+            let errMsg = 'Failed to unrestrict torrent.';
+            if (response) {
+                if (response.error === 'infringing_file') {
+                    errMsg = window.currentLang === 'fr' 
+                        ? "Ce fichier a été supprimé suite à une plainte pour atteinte aux droits d'auteur (DMCA)."
+                        : "This file has been removed due to a copyright infringement complaint (DMCA).";
+                } else if (response.error === 'bad_token') {
+                    errMsg = window.currentLang === 'fr'
+                        ? "Clé API Real-Debrid non configurée, invalide ou expirée."
+                        : "Real-Debrid API key is unconfigured, invalid, or expired.";
+                } else if (response.error === 'link_not_allowed') {
+                    errMsg = window.currentLang === 'fr'
+                        ? "Ce lien ou hébergeur n'est pas autorisé par Real-Debrid."
+                        : "This hoster link is not allowed by Real-Debrid.";
+                } else if (response.error) {
+                    errMsg = response.error;
+                }
+            }
+            
+            statusText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Real-Debrid Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(errMsg)}</strong>`;
+            
+            const retryBtn = document.createElement('button');
+            retryBtn.innerText = window.currentLang === 'fr' ? 'Retour aux Flux' : 'Back to Streams';
+            retryBtn.style.cssText = 'margin-top: 15px; background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;';
+            retryBtn.addEventListener('click', () => {
+                loadingStatus.style.display = 'none';
+                torrentsList.style.display = 'flex';
+            });
+            statusText.appendChild(retryBtn);
+            return;
+        }
+        
+        // Hide modal & Play
+        el('rd-stream-dialog').style.display = 'none';
+        const bd = el('rd-stream-backdrop');
+        if (bd) bd.style.display = 'none';
+        window.playStream(response.streamUrl, movieTitle);
+        window.showToast('Direct high-speed RD stream loaded successfully!', 'success');
+    } catch (e) {
+        console.error('Real-Debrid streaming workflow failed:', e);
+        loadingStatus.querySelector('.spinner').style.display = 'none';
+        statusText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Real-Debrid Workflow Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(e.message || e)}</strong>`;
+        
+        const retryBtn = document.createElement('button');
+        retryBtn.innerText = window.currentLang === 'fr' ? 'Retour aux Flux' : 'Back to Streams';
+        retryBtn.style.cssText = 'margin-top: 15px; background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;';
+        retryBtn.addEventListener('click', () => {
+            loadingStatus.style.display = 'none';
+            torrentsList.style.display = 'flex';
+        });
+        statusText.appendChild(retryBtn);
+    }
+};
