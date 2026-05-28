@@ -12,6 +12,8 @@ window.premiumHoverState = {
 
 window.attachPremiumHoverCard = function(card, movie) {
     card.addEventListener('mouseenter', (e) => {
+        if (window.premiumHoverState.cooldown) return;
+        
         if (window.premiumHoverState.closeTimeout) {
             clearTimeout(window.premiumHoverState.closeTimeout);
             window.premiumHoverState.closeTimeout = null;
@@ -272,5 +274,14 @@ window.hidePremiumHoverCard = function() {
             window.premiumHoverState.activeCard.style.visibility = 'visible';
             window.premiumHoverState.activeCard = null;
         }
+
+        // Add 200ms cooldown to ignore instant enter events on backdrop cards
+        window.premiumHoverState.cooldown = true;
+        if (window.premiumHoverState.cooldownTimeout) {
+            clearTimeout(window.premiumHoverState.cooldownTimeout);
+        }
+        window.premiumHoverState.cooldownTimeout = setTimeout(() => {
+            window.premiumHoverState.cooldown = false;
+        }, 200);
     }
 };

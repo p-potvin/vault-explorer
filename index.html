@@ -13,13 +13,22 @@
   <script src="js/translations.js" defer></script>
   <script src="js/utils.js" defer></script>
   <script src="js/settings.js" defer></script>
-  <script src="js/navigation.js" defer></script>
-  <script src="js/player.js" defer></script>
+  <script src="js/navigation/filters.js" defer></script>
+  <script src="js/navigation/properties.js" defer></script>
+  <script src="js/navigation/card-events.js" defer></script>
+  <script src="js/navigation/card.js" defer></script>
+  <script src="js/navigation/directory.js" defer></script>
+  <script src="js/player/subtitles.js" defer></script>
+  <script src="js/player/upscale.js" defer></script>
+  <script src="js/player/player.js" defer></script>
   <script src="js/progress.js" defer></script>
   <script src="js/streaming.js" defer></script>
   <script src="js/hover-card.js" defer></script>
   <script src="js/favorites.js" defer></script>
   <script src="js/tmdb.js" defer></script>
+  <script src="js/navigation/tabs.js" defer></script>
+  <script src="js/navigation/keybindings.js" defer></script>
+  <script src="js/livestream.js" defer></script>
   <script src="js/app.js" defer></script>
 </head>
 <body class="vw-console-shell">
@@ -152,7 +161,7 @@
       <div id="tmdb-container" style="display:none; padding: 24px; color: var(--vault-text); font-family: var(--font-sans); width: 100%; height: 100%; overflow-y: auto;">
          <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--vault-warm-border-subtle); padding-bottom: 15px;">
             <h2 id="streaming-title-header" style="font-size: 16px; font-weight: 700; text-transform: uppercase; color: var(--vault-accent); margin: 0; font-family: var(--font-mono); letter-spacing: 0.05em; display:flex; align-items:center; gap:8px;">
-               🎬 Streaming
+               <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; display:inline-block; vertical-align:middle; color:var(--vault-accent);"><polygon points="5 3 19 12 5 21 5 3"/></svg>Streaming
             </h2>
             <div style="margin-left: auto; display: flex; gap: 8px;">
                <input type="text" id="tmdb-search-input" class="search-box" placeholder="Search Movies & TV Shows..." style="width: 280px; padding: 6px 12px; height: 32px; font-size: 13px; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); outline:none; border-radius:4px;" />
@@ -457,12 +466,10 @@
 
   <!-- Real-Debrid Torrent Streaming Dialog Backdrop -->
   <div id="rd-stream-backdrop" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px); z-index:3300;"></div>
-
-  <!-- Real-Debrid Torrent Streaming Dialog Modal -->
   <div id="rd-stream-dialog" class="vw-console-shell" role="dialog" aria-modal="true" aria-label="Real-Debrid Streaming Streamer" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:24px; border:1px solid var(--vault-border); background: var(--vault-warm-bg, #1a1a24); color: var(--vault-text); z-index: 3350; box-shadow: 0 30px 100px rgba(0,0,0,0.85); font-family: var(--font-sans); width: 500px; border-radius: 8px; max-height: 80vh; flex-direction: column;">
     <div style="font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; color: var(--vault-accent); margin-bottom: 16px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vault-border); padding-bottom: 10px; user-select: none;">
       <div style="display: flex; align-items: center; gap: 8px;">
-         ⚡ Real-Debrid Streaming Client
+         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Real-Debrid Streaming Client
       </div>
       <button id="btn-close-rd" onclick="document.getElementById('rd-stream-dialog').style.display = 'none'; const bd = document.getElementById('rd-stream-backdrop'); if(bd) bd.style.display = 'none';" style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 16px;">✕</button>
     </div>
@@ -472,7 +479,7 @@
           <div class="spinner" style="margin: 0 auto 12px;"></div>
           <div id="rd-status-text" style="font-size: 13px; color: var(--vault-slate); margin-bottom: 12px;">Searching cached torrent files...</div>
           <button id="btn-rd-choose-manually" style="display: none; margin: 16px auto 0; background: rgba(255,255,255,0.06); color: var(--vault-accent, #B07CFF); border: 1px solid var(--vault-border); padding: 8px 16px; border-radius: 6px; font-weight: 600; font-family: var(--font-body); cursor: pointer; font-size: 11px; transition: all 0.2s;" type="button">
-             📋 Show All Streams
+             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4.5px;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Show All Streams
           </button>
        </div>
        <div id="rd-torrents-list" style="display: none; flex-direction: column; gap: 10px;">
@@ -485,7 +492,7 @@
   <div id="streaming-details-modal" class="vw-console-shell" role="dialog" aria-modal="true" aria-label="Streaming Details" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:24px; border:1px solid var(--vault-border); background: var(--vault-warm-bg, #1a1a24); color: var(--vault-text); z-index: 3340; box-shadow: 0 30px 100px rgba(0,0,0,0.85); font-family: var(--font-sans); width: 720px; border-radius: 8px; max-height: 85vh; flex-direction: column; overflow-y: auto;">
     <div style="font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; color: var(--vault-accent); margin-bottom: 16px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vault-border); padding-bottom: 10px; user-select: none;">
       <div style="display: flex; align-items: center; gap: 8px;">
-         🎬 <span id="streaming-details-header-title">Title Details</span>
+         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent);"><polygon points="5 3 19 12 5 21 5 3"/></svg><span id="streaming-details-header-title">Title Details</span>
       </div>
       <button onclick="document.getElementById('streaming-details-modal').style.display = 'none'; document.getElementById('movie-trailer-iframe').src='';" style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 16px;">✕</button>
     </div>
@@ -501,19 +508,19 @@
         <!-- Modal Actions: Library & Follow -->
         <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
           <button id="btn-modal-library" style="background: rgba(255,255,255,0.06); color: var(--vault-text); border: 1px solid var(--vault-border); padding: 6px 12px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; font-family: var(--font-body); width: 100%;">
-             <span>➕ Add to Library</span>
+             <span>Add to Library</span>
           </button>
           <button id="btn-modal-follow" style="background: rgba(255,255,255,0.06); color: var(--vault-text); border: 1px solid var(--vault-border); padding: 6px 12px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 11px; display: none; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; font-family: var(--font-body); width: 100%;">
-             <span>➕ Follow Show</span>
+             <span>Follow Show</span>
           </button>
           
           <!-- Movie Actions Container inside Left Column -->
           <div id="movie-actions-container" style="display: none; flex-direction: column; gap: 8px; width: 100%;">
             <button id="btn-stream-movie" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 8px 12px; border-radius: 4px; font-weight: 800; cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; width: 100%;">
-              ⚡ Play Movie
+              <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4.5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Play Movie
             </button>
             <button id="btn-watch-trailer-browser" style="background: transparent; border: 1px solid var(--vault-accent); color: var(--vault-accent); padding: 8px 12px; border-radius: 4px; font-weight: 800; cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; display: none; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; width: 100%;">
-              🌐 Watch Trailer on YouTube
+              <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4.5px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Watch Trailer on YouTube
             </button>
           </div>
         </div>
@@ -529,6 +536,15 @@
             <span id="streaming-details-rating" style="color: var(--vault-gold); font-weight: 700;">★ 8.5</span>
           </div>
           <p id="streaming-details-overview" style="margin: 0 0 12px 0; font-size: 12px; line-height: 1.45; color: #ccc; font-family: var(--font-body); display:-webkit-box; -webkit-line-clamp:4; line-clamp: 4; -webkit-box-orient:vertical; overflow:hidden;"></p>
+          <!-- Watch Options & External Links Container -->
+          <div id="streaming-external-links" style="margin-top: 14px; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; color: var(--vault-slate); font-weight: bold;">
+              <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:11px; height:11px; display:inline-block; vertical-align:middle; margin-right:4.5px; color:var(--vault-slate);"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>External Watch & Trailer Links
+            </div>
+            <div id="external-links-badges" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <!-- Badges will be dynamically populated here -->
+            </div>
+          </div>
         </div>
 
         <!-- Embed YouTube Trailer at bottom of Right Column, size-restricted -->
@@ -962,7 +978,7 @@
                     </div>
                  </div>
                  
-                 <button id="btn-upscale" class="ctrl-btn-sm" title="Real-Time Upscaling (ESRGAN)" aria-label="Toggle upscaling" style="display:inline-flex; align-items:center; gap:6px;">
+                 <button id="btn-upscale" class="ctrl-btn-sm" style="display:inline-flex; align-items:center; gap:6px; opacity: 0.5; cursor: not-allowed;" disabled>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block;">
                        <path d="M 12 20 V 14" /><path d="M 12 10 V 4" /><path d="M 7 9 L 12 4 L 17 9" /><path d="M 18 14 L 19 16 L 21 17 L 19 18 L 18 20 L 17 18 L 15 17 L 17 16 Z" />
                     </svg>

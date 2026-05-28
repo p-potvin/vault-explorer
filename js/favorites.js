@@ -115,3 +115,37 @@ window.renderFavorites = async function() {
         grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-signal-alert, #FF6B7A); padding: 40px 0;">Error loading favorites/library.</div>';
     }
 };
+
+window.toggleFavorite = function(filePath, btnEl) {
+    window.appSettings.favorites = window.appSettings.favorites || [];
+    const idx = window.appSettings.favorites.indexOf(filePath);
+    let isNowStarred = false;
+    
+    if (idx !== -1) {
+        window.appSettings.favorites.splice(idx, 1);
+        window.showToast('Removed from Favorites', 'success');
+    } else {
+        window.appSettings.favorites.push(filePath);
+        window.showToast('Added to Favorites', 'success');
+        isNowStarred = true;
+    }
+    
+    // Save settings persistently
+    window.electronAPI.saveSettings(window.appSettings);
+    
+    // Update SVG icon in any matching card elements
+    const escapedPath = filePath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    document.querySelectorAll(`.file-card[data-path="${escapedPath}"]`).forEach(c => {
+        const svg = c.querySelector('.star-svg');
+        if (svg) {
+            svg.setAttribute('fill', isNowStarred ? '#E5A93B' : 'none');
+            svg.setAttribute('stroke', isNowStarred ? '#E5A93B' : '#ffffff');
+            svg.style.transform = 'scale(1.3)';
+            setTimeout(() => { svg.style.transform = 'scale(1.0)'; }, 200);
+        }
+    });
+
+    if (window.currentTab === 'favorites') {
+        window.renderFavorites();
+    }
+};
