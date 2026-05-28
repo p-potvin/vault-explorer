@@ -2,7 +2,7 @@
    Vault Explorer — Keyboard Hotkeys & Virtual Folder Dialog
    ========================================================================== */
 
-window.initNavigationListeners = function() {
+window.initKeybindingsAndFolderListeners = function() {
     console.log('[navigation] Initializing hotkeys and folder dialog setup listeners...');
 
     // Language switcher trigger click listener
@@ -62,6 +62,11 @@ window.initNavigationListeners = function() {
             const name = inputFolderName.value.trim();
             if (name) {
                 window.appSettings.folders = window.appSettings.folders || [];
+                const exists = window.appSettings.folders.some(f => f.name.toLowerCase() === name.toLowerCase() && f.parent === window.currentNavPath);
+                if (exists) {
+                    window.showToast('A virtual folder with this name already exists in this location', 'error');
+                    return;
+                }
                 window.appSettings.folders.push({ name: name, parent: window.currentNavPath, items: [] });
                 window.electronAPI.saveSettings(window.appSettings);
                 folderDialog.style.display = 'none';

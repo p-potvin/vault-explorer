@@ -498,35 +498,62 @@ window._streamEpisode = function(tvId, seasonNumber, episodeNumber) {
 
 async function _fetchAndInjectTrailer(tmdbId, mediaType) {
     try {
-        const type = mediaType === 'tv' ? 'tv' : 'movie';
-        const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/videos?language=en-US`;
-        const TMDB_BEARER_TOKEN = await _getTMDBToken();
-        if (!TMDB_BEARER_TOKEN) return;
+        let trailerKey = null;
 
-        const res = await fetch(url, {
-            headers: { accept: 'application/json', Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
-        });
-        if (!res.ok) return;
+        // 1. Try KinoCheck Premium API handler first
+        if (window.electronAPI && window.electronAPI.getKinoCheckTrailer) {
+            console.log(`[streaming] Attempting KinoCheck Premium for TMDB ID: ${tmdbId}`);
+            const kcResult = await window.electronAPI.getKinoCheckTrailer({ tmdbId, mediaType });
+            if (kcResult && kcResult.success && kcResult.key) {
+                console.log(`[streaming] KinoCheck successfully resolved trailer key:`, kcResult.key);
+                trailerKey = kcResult.key;
+            } else {
+                console.warn(`[streaming] KinoCheck premium lookup skipped or empty:`, kcResult ? kcResult.error : 'No response');
+            }
+        }
 
-        const data = await res.json();
-        const trailer = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube') || data.results?.[0];
-        if (!trailer) return;
+        // 2. Fallback to TMDB videos endpoint if KinoCheck didn't resolve a key
+        if (!trailerKey) {
+            console.log(`[streaming] Falling back to TMDB video lookup for TMDB ID: ${tmdbId}`);
+            const type = mediaType === 'tv' ? 'tv' : 'movie';
+            const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/videos?language=en-US`;
+            const TMDB_BEARER_TOKEN = await _getTMDBToken();
+            if (TMDB_BEARER_TOKEN) {
+                const res = await fetch(url, {
+                    headers: { accept: 'application/json', Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const trailer = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube') || data.results?.[0];
+                    if (trailer && trailer.key) {
+                        trailerKey = trailer.key;
+                    }
+                }
+            }
+        }
 
-        window._currentTrailerKey = trailer.key;
+        if (!trailerKey) {
+            console.warn('[streaming] No trailer could be resolved from KinoCheck or TMDB fallback.');
+            return;
+        }
+
+        window._currentTrailerKey = trailerKey;
 
         const iframeWrapper = el('movie-trailer-wrapper');
         const iframe = el('movie-trailer-iframe');
         const btnTrailer = el('btn-watch-trailer-browser');
 
         if (iframeWrapper && iframe) {
-            iframe.src = `https://www.youtube-nocookie.com/embed/${trailer.key}?autoplay=0&rel=0`;
+            // Apply referrerpolicy for strict origin to eliminate Error 152/153 verification blocks
+            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+            iframe.src = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=0&rel=0`;
             iframeWrapper.style.display = 'block';
         }
         if (btnTrailer) {
             btnTrailer.style.display = 'flex';
             btnTrailer.onclick = () => {
                 if (window.electronAPI && window.electronAPI.openExternalURL) {
-                    window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailer.key}`);
+                    window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailerKey}`);
                 }
             };
         }
@@ -534,7 +561,7 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
         // Re-draw badges with the newly active trailer key
         const titleEl = el('streaming-details-title');
         const title = titleEl ? titleEl.textContent : '';
-        _populateExternalBadges(title, tmdbId, mediaType, trailer.key);
+        _populateExternalBadges(title, tmdbId, mediaType, trailerKey);
     } catch (e) {
         // Trailers are optional — fail silently
         console.warn('[streaming] Failed to fetch trailer:', e.message);

@@ -45,13 +45,20 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
             const once = (val) => { if (!resolved) { resolved = true; resolve(val); } };
             let templ = [];
             
+            const folderSubmenu = (item.folders && item.folders.length > 0)
+                ? item.folders.map(f => ({
+                    label: f.name,
+                    click: () => once(`add-to-folder:${f.name}`)
+                  }))
+                : [{ label: 'No virtual folders created', enabled: false }];
+            
             if (item.isMultiSelect) {
                 const selected = item.selectedItems || [];
                 const hasVideo = selected.some(s => s.type === 'video');
                 const hasEncrypted = selected.some(s => s.path && s.path.toLowerCase().endsWith('.enc'));
                 const hasNonEncrypted = selected.some(s => s.path && !s.path.toLowerCase().endsWith('.enc'));
                 const hasEnhanced = selected.some(s => s.enhancedPath || (s.enhancements && (s.enhancements.audio || s.enhancements.video || s.enhancements.subtitles || s.enhancements.translation)));
-
+ 
                 const aiSubmenu = [];
                 if (hasVideo) {
                     aiSubmenu.push(
@@ -67,9 +74,10 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                         );
                     }
                 }
-
+ 
                 templ = [
-                    { label: 'Toggle Favorites for Selection', click: () => once('toggle-favorite') },
+                    { label: 'Add to Favorites', click: () => once('toggle-favorite') },
+                    { label: 'Add Selection to Virtual Folder', submenu: folderSubmenu },
                     { type: 'separator' },
                     { label: 'Cut Selection', click: () => once('cut') },
                     { label: 'Copy Selection', click: () => once('copy') },
@@ -127,6 +135,7 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                     },
                     { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); once('show'); } },
                     { label: item.isFavorite ? 'Remove from Favorites' : 'Add to Favorites', click: () => once('toggle-favorite') },
+                    { label: 'Add to Virtual Folder', submenu: folderSubmenu },
                     { type: 'separator' },
                     { label: 'Copy Path', click: () => { clipboard.writeText(item.path); once('copied'); } },
                     { label: 'Cut', click: () => once('cut') },

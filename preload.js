@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpscaleChunk: () => ipcRenderer.removeAllListeners('upscale-chunk'),
   onUpscaleStatus: (cb) => ipcRenderer.on('upscale-status', (_, data) => cb(data)),
   offUpscaleStatus: () => ipcRenderer.removeAllListeners('upscale-status'),
-  findSubtitles: (videoPath, queryTitle) => ipcRenderer.invoke('find-subtitles', videoPath, queryTitle),
+  findSubtitles: (videoPath, queryTitle, skipOpenSubtitles) => ipcRenderer.invoke('find-subtitles', videoPath, queryTitle, skipOpenSubtitles),
   downloadSubtitleTrack: (data) => ipcRenderer.invoke('download-subtitle-track', data),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
@@ -44,11 +44,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpscaleProgress: () => ipcRenderer.removeAllListeners('upscale-progress'),
   runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation }),
   revertEnhancements: (p) => ipcRenderer.invoke('revert-enhancements', p),
+  
+  // TMDB / KinoCheck API
   searchTMDB: (query, page = 1) => ipcRenderer.invoke('search-tmdb', { query, page }),
   discoverTMDB: (providerId, mediaType, page = 1) => ipcRenderer.invoke('discover-tmdb', { providerId, mediaType, page }),
   getTMDBMovie: (id) => ipcRenderer.invoke('get-tmdb-movie', id),
   getTMDBTV: (id) => ipcRenderer.invoke('get-tmdb-tv', id),
   getTMDBTVSeason: (id, seasonNumber) => ipcRenderer.invoke('get-tmdb-tv-season', { id, seasonNumber }),
+  getKinoCheckTrailer: (data) => ipcRenderer.invoke('get-kinocheck-trailer', data),
+
   searchOMDb: (query, page = 1) => ipcRenderer.invoke('search-omdb', { query, page }),
   getOMDbDetails: (data) => ipcRenderer.invoke('get-omdb-details', data),
   searchTorrents: (movieTitle) => ipcRenderer.invoke('search-torrents', movieTitle),

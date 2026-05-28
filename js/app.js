@@ -8,7 +8,7 @@ function setLanguage(lang) {
   el('lang-text').innerText = (lang === 'en') ? 'EN' : 'FR';
   console.log('[i18n] Language set to:', lang);
   
-  el('btn-select').innerText = window.translations[lang].browseVault;
+  el('btn-select').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:inline-block;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> <span>${window.translations[lang].browseVault}</span>`;
   
   const filterType = el('filter-type');
   filterType.options[0].text = window.translations[lang].videos;
@@ -164,6 +164,7 @@ async function initApp() {
     window.initSettingsListeners();
     window.initTabListeners();
     window.initNavigationListeners();
+    window.initKeybindingsAndFolderListeners();
     window.initTMDBListeners();
     window.initLivestreamListeners();
 

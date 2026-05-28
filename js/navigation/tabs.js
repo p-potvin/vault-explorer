@@ -12,23 +12,26 @@ window.switchTab = function(tabName) {
     }
     
     // --- FORCE CLEANUP OF ACTIVE MEDIA PROCESSES & SOUNDS ---
-    const vp = el('video-player');
-    if (vp) {
-        try { vp.pause(); } catch(e) {}
-    }
     const vm = el('video-modal');
-    if (vm) {
-        vm.style.display = 'none';
-        vm.classList.remove('minimized');
+    const isMinimized = vm && vm.classList.contains('minimized');
+    
+    if (!isMinimized) {
+        const vp = el('video-player');
+        if (vp) {
+            try { vp.pause(); } catch(e) {}
+        }
+        if (vm) {
+            vm.style.display = 'none';
+        }
+        if (window.autoplayTimer) {
+            clearInterval(window.autoplayTimer);
+            window.autoplayTimer = null;
+        }
+        const endedOverlay = el('video-ended-overlay');
+        if (endedOverlay) endedOverlay.style.display = 'none';
+        const tbTitle = el('titlebar-video-title');
+        if (tbTitle) tbTitle.style.display = 'none';
     }
-    if (window.autoplayTimer) {
-        clearInterval(window.autoplayTimer);
-        window.autoplayTimer = null;
-    }
-    const endedOverlay = el('video-ended-overlay');
-    if (endedOverlay) endedOverlay.style.display = 'none';
-    const tbTitle = el('titlebar-video-title');
-    if (tbTitle) tbTitle.style.display = 'none';
     
     if (window.killAllHoverVideos) {
         window.killAllHoverVideos();
