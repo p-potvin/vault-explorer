@@ -113,7 +113,7 @@ async function playItem(idx) {
     
     vp.querySelectorAll('track').forEach(t => t.remove());
     try {
-        const subs = await window.electronAPI.findSubtitles(itm.path);
+        const subs = await window.electronAPI.findSubtitles(itm.path, null, true);
         if (subs && subs.length > 0) {
             subs.forEach((sub, i) => {
                 const track = document.createElement('track');
@@ -187,6 +187,14 @@ async function playItem(idx) {
     btnPlay.innerHTML = PAUSE_ICON_SVG;
     el('video-modal').style.display = 'flex';
     el('video-modal').focus();
+
+    // Enable AI upscale for local vault files
+    const btnUpscale = el('btn-upscale');
+    if (btnUpscale) {
+        btnUpscale.disabled = false;
+        btnUpscale.style.opacity = '1';
+        btnUpscale.style.cursor = 'pointer';
+    }
 
     vp.play().catch(e => console.log("Playback start prevented or failed:", e));
 }
@@ -310,6 +318,23 @@ function initPlayer() {
         el('video-ended-overlay').style.display = 'none';
         if (el('titlebar-video-title')) el('titlebar-video-title').style.display = 'none';
         if (window.autoplayTimer) { clearInterval(window.autoplayTimer); window.autoplayTimer = null; }
+        
+        // Remove all track elements from video element and clear subtitle list
+        vp.querySelectorAll('track').forEach(t => t.remove());
+        const trackList = el('subtitle-tracks-list');
+        if (trackList) trackList.innerHTML = '';
+        const btnSubs = el('btn-subtitles');
+        if (btnSubs) {
+            btnSubs.classList.remove('active');
+            btnSubs.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;"><path d="M 21 9 L 21 17 C 21 18.1 20.1 19 19 19 L 5 19 C 3.9 19 3 18.1 3 17 L 3 7 C 3 5.9 3.9 5 5 5 L 15 5" /><line x1="18" y1="5" x2="19" y2="5" /><path d="M 7 10 L 13 10" /><path d="M 7 14 L 17 14" /></svg><span>CC</span> ▾`;
+        }
+        // Re-disable AI button
+        const btnUpscale = el('btn-upscale');
+        if (btnUpscale) {
+            btnUpscale.disabled = true;
+            btnUpscale.style.opacity = '0.5';
+            btnUpscale.style.cursor = 'not-allowed';
+        }
         
         // Final position save to persistent Watch History
         if (vp.duration > 0) {

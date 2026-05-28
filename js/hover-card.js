@@ -231,14 +231,25 @@ window.showPremiumHoverCard = function(card, movie) {
         let trailerKey = '';
         if (movie.id) {
             try {
-                const res = movie.media_type === 'tv'
-                    ? await window.electronAPI.getTMDBTV(movie.id)
-                    : await window.electronAPI.getTMDBMovie(movie.id);
-                if (res && res.success && res.data) {
-                    const videos = res.data.videos ? res.data.videos.results : [];
-                    const trailer = (Array.isArray(videos) ? videos : []).find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser' || v.type === 'Clip'));
-                    if (trailer) {
-                        trailerKey = trailer.key;
+                // Try KinoCheck first
+                if (window.electronAPI && window.electronAPI.getKinoCheckTrailer) {
+                    const kc = await window.electronAPI.getKinoCheckTrailer({ tmdbId: movie.id, mediaType: movie.media_type });
+                    if (kc && kc.success && kc.key) {
+                        trailerKey = kc.key;
+                    }
+                }
+                
+                // Fallback to TMDB
+                if (!trailerKey) {
+                    const res = movie.media_type === 'tv'
+                        ? await window.electronAPI.getTMDBTV(movie.id)
+                        : await window.electronAPI.getTMDBMovie(movie.id);
+                    if (res && res.success && res.data) {
+                        const videos = res.data.videos ? res.data.videos.results : [];
+                        const trailer = (Array.isArray(videos) ? videos : []).find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser' || v.type === 'Clip'));
+                        if (trailer) {
+                            trailerKey = trailer.key;
+                        }
                     }
                 }
             } catch (e) {

@@ -230,7 +230,12 @@ function createCardElement(item, index) {
     });
 
     // Context menu — delegated to card-events.js
-    card.addEventListener('contextmenu', () => window.handleCardContextMenu(card, item, index));
+    card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        window.handleCardContextMenu(card, item, index);
+    });
 
     return card;
 }

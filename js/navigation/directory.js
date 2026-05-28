@@ -18,7 +18,7 @@ async function updateStatusBar() {
         el('status-size').innerText = '';
         return;
     }
-    
+
     if (window.currentTab === 'livestream') {
         el('status-items').innerText = '';
         el('status-selected').innerText = '';
@@ -51,23 +51,40 @@ async function updateStatusBar() {
     }
 }
 
+function getDisplayPath(navPath) {
+    if (!navPath) return '';
+    const rootName = window.currentRealPath ? window.currentRealPath.split(/[\\/]/).pop() : 'Vault';
+    return navPath.replace(/^root/, rootName);
+}
+
+function clearSearchBox() {
+    const sb = el('search-box');
+    if (sb) sb.value = '';
+    const cb = el('search-clear-btn');
+    if (cb) cb.style.display = 'none';
+}
+
 async function loadDirectory(navPath, realPath, useCache = false) {
     if (!realPath) return;
     window.currentNavPath = navPath; window.currentRealPath = realPath;
-    el('path-display').innerText = navPath === 'root' ? realPath : navPath;
+    el('path-display').innerText = navPath === 'root' ? realPath : getDisplayPath(navPath);
 
-    if (el('btn-new-folder')) el('btn-new-folder').disabled = false;
+    if (el('btn-new-folder')) { el('btn-new-folder').disabled = false; el('btn-new-folder').style.display = 'inline-flex'; }
     if (el('btn-new-folder')) el('btn-new-folder').title = "Create virtual folder";
     el('btn-refresh').disabled = false;
     el('btn-refresh').title = "Refresh directory";
     el('btn-back').disabled = true;
+    el('btn-back').style.display = 'none';
     el('btn-back').title = "Already at root vault level";
+
+    clearSearchBox();
+    el('main-area').scrollTop = 0;
 
     window.appSettings.lastPath = { navPath, realPath };
     window.electronAPI.saveSettings(window.appSettings);
 
     el('loading').style.display = 'flex';
-    
+
     // Setup a loading bypass safety timeout (appears if scanning takes > 1.5s)
     const bypassBtn = el('btn-bypass-loading');
     let bypassTimeout = null;
@@ -79,7 +96,12 @@ async function loadDirectory(navPath, realPath, useCache = false) {
     }
 
     try {
-        if (!useCache) window.allItems = await window.electronAPI.scanDirectory(realPath);
+        if (navPath === 'root' && window._rootItemsCache && useCache) {
+            window.allItems = window._rootItemsCache;
+        } else if (!useCache) {
+            window.allItems = await window.electronAPI.scanDirectory(realPath);
+            if (navPath === 'root') window._rootItemsCache = window.allItems;
+        }
     } catch (err) {
         console.error('[loadDirectory] Directory scan failed:', err);
         window.allItems = [];
@@ -116,7 +138,7 @@ async function loadDirectory(navPath, realPath, useCache = false) {
                             item.hasVideo = res.properties.hasVideo || null;
                             item.enhancements = res.properties.enhancements || null;
                             item.enhancedPath = res.properties.enhancedPath || null;
-                            
+
                             const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
                             const cardElement = Array.from(document.querySelectorAll('.file-card'))
                                 .find(c => normPath(c.dataset.path) === normPath(item.path));
@@ -139,24 +161,31 @@ async function loadDirectory(navPath, realPath, useCache = false) {
         el('status-size').innerText = '';
     }
 
-    setTimeout(() => {
-        if (window.scrollPositions[window.currentNavPath]) {
-            el('main-area').scrollTop = window.scrollPositions[window.currentNavPath];
-        }
-    }, 50);
 }
 
 async function navigateTo(navPath, realPath) {
-    if (navPath === 'root') loadDirectory('root', realPath, false);
-    else {
-        window.currentNavPath = navPath; el('path-display').innerText = navPath;
+    window.currentNavPath = 'root';
+    window.currentRealPath = realPath;
+    el('path-display').innerText = getDisplayPath(navPath);
+    clearSearchBox();
+    el('main-area').scrollTop = 0;
 
+    if (navPath === 'root') {
+        el('btn-back').style.display = 'none';
+        el('btn-back').disabled = true;
+
+        if (window._rootItemsCache) {
+            window.allItems = window._rootItemsCache;
+            el('loading').style.display = 'none';
+        } else {
+            el('loading').style.display = 'flex';
+            try { window.allItems = await window.electronAPI.scanDirectory(realPath); window._rootItemsCache = window.allItems; }
+            catch (e) { window.allItems = []; }
+            el('loading').style.display = 'none';
+        }
+    } else {
+        el('btn-back').style.display = 'inline-flex';
         el('btn-back').disabled = false;
-        el('btn-back').title = "Go back";
-        if (el('btn-new-folder')) el('btn-new-folder').disabled = false;
-        if (el('btn-new-folder')) el('btn-new-folder').title = "Create virtual folder";
-        el('btn-refresh').disabled = true;
-        el('btn-refresh').title = "Refresh unavailable in virtual folders";
 
         const targetFolder = window.getTargetFolder(navPath);
         if (targetFolder && targetFolder.items.length > 0) {
@@ -166,9 +195,13 @@ async function navigateTo(navPath, realPath) {
         } else {
             window.allItems = [];
         }
-        window.applyFilters();
     }
+
+    window.applyFilters();
 }
+
+// Invalidate root cache when files are modified
+window.invalidateRootCache = function () { window._rootItemsCache = null; };
 
 function initNavigationListeners() {
     el('main-area').addEventListener('scroll', () => {
@@ -188,7 +221,32 @@ function initNavigationListeners() {
 
     el('filter-type').addEventListener('change', window.applyFilters);
     el('sort-by').addEventListener('change', window.applyFilters);
-    el('search-box').addEventListener('input', window.applyFilters);
+
+    let searchDebounceTimeout = null;
+    el('search-box').addEventListener('input', (e) => {
+        const clearBtn = el('search-clear-btn');
+        if (clearBtn) {
+            clearBtn.style.display = e.target.value ? 'flex' : 'none';
+        }
+
+        clearTimeout(searchDebounceTimeout);
+        searchDebounceTimeout = setTimeout(() => {
+            window.applyFilters();
+        }, 250);
+    });
+
+    const clearBtn = el('search-clear-btn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            const sb = el('search-box');
+            if (sb) {
+                sb.value = '';
+                sb.focus();
+            }
+            clearBtn.style.display = 'none';
+            window.applyFilters();
+        });
+    }
 
     el('btn-sort-order').addEventListener('click', () => {
         const btn = el('btn-sort-order');
@@ -213,7 +271,7 @@ function initNavigationListeners() {
 
         let hasUpdates = false;
         const latestPaths = new Set(latest.map(i => i.path));
-        
+
         // Remove files that no longer exist
         const oldLength = window.allItems.length;
         window.allItems = window.allItems.filter(item => latestPaths.has(item.path));
@@ -257,7 +315,7 @@ function initNavigationListeners() {
     let isDragging = false, startX, startY;
 
     area.addEventListener('mousedown', (e) => {
-        if (window.currentTab !== 'vault') return;
+        if (window.currentTab !== 'vault' && window.currentTab !== 'favorites') return;
         if (e.target.closest('.file-card') || e.target.closest('.toolbar') || e.target.closest('button') || e.target.closest('input')) return;
         isDragging = true; const rect = area.getBoundingClientRect();
         startX = e.clientX - rect.left + area.scrollLeft; startY = e.clientY - rect.top + area.scrollTop;
@@ -269,7 +327,7 @@ function initNavigationListeners() {
         }
     });
     area.addEventListener('mousemove', (e) => {
-        if (!isDragging || window.currentTab !== 'vault') return;
+        if (!isDragging || (window.currentTab !== 'vault' && window.currentTab !== 'favorites')) return;
         const rect = area.getBoundingClientRect();
         const curX = e.clientX - rect.left + area.scrollLeft; const curY = e.clientY - rect.top + area.scrollTop;
         const x = Math.min(startX, curX), y = Math.min(startY, curY), w = Math.abs(curX - startX), h = Math.abs(curY - startY);
@@ -290,8 +348,20 @@ function initNavigationListeners() {
 
     // Background context menu
     area.addEventListener('contextmenu', async (e) => {
-        if (e.target.closest('.file-card')) return;
-        if (!window.currentRealPath) return;
+        if (e.target.closest('.file-card') || e.target.closest('.toolbar') || e.target.closest('button') || e.target.closest('input')) return;
+        e.preventDefault();
+
+        // Deselect all items if not holding ctrl/shift
+        if (!e.ctrlKey && !e.shiftKey) {
+            window.selectedIndices.clear();
+            document.querySelectorAll('.file-card').forEach(c => {
+                c.classList.remove('selected');
+                const chk = c.querySelector('.file-checkbox');
+                if (chk) chk.checked = false;
+            });
+            updateStatusBar();
+        }
+
         const hasClip = !!(window._clipboard && window._clipboard.paths.length > 0);
         const action = await window.electronAPI.showContextMenu({
             type: 'background', _hasClipboard: hasClip
@@ -328,6 +398,11 @@ function initNavigationListeners() {
         } else if (action === 'bg-new-folder') {
             const btn = document.getElementById('btn-new-folder');
             if (btn && !btn.disabled) btn.click();
+        } else if (action === 'bg-generate-previews') {
+            if (window.allItems && window.allItems.length > 0) {
+                window.electronAPI.scheduleIdlePreviews(window.allItems);
+                window.showToast('Background preview generation scheduled for folder', 'success');
+            }
         }
     });
 }

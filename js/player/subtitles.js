@@ -41,10 +41,12 @@ async function selectSubtitleTrack(trackIdx) {
         
         vp.textTracks[trackIdx].mode = 'showing';
         el('btn-subtitles').classList.add('active');
-        el('btn-subtitles').textContent = `${vp.textTracks[trackIdx].label.replace('Subtitles (', '').replace(')', '')} ▾`;
+        // Show only 2-letter language code in button
+        const langCode = (vp.textTracks[trackIdx].language || vp.textTracks[trackIdx].label || 'CC').substring(0, 2).toUpperCase();
+        el('btn-subtitles').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;"><path d="M 21 9 L 21 17 C 21 18.1 20.1 19 19 19 L 5 19 C 3.9 19 3 18.1 3 17 L 3 7 C 3 5.9 3.9 5 5 5 L 15 5" /><line x1="18" y1="5" x2="19" y2="5" /><path d="M 7 10 L 13 10" /><path d="M 7 14 L 17 14" /></svg><span>${langCode}</span> ▾`;
     } else {
         el('btn-subtitles').classList.remove('active');
-        el('btn-subtitles').textContent = 'CC ▾';
+        el('btn-subtitles').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;"><path d="M 21 9 L 21 17 C 21 18.1 20.1 19 19 19 L 5 19 C 3.9 19 3 18.1 3 17 L 3 7 C 3 5.9 3.9 5 5 5 L 15 5" /><line x1="18" y1="5" x2="19" y2="5" /><path d="M 7 10 L 13 10" /><path d="M 7 14 L 17 14" /></svg><span>CC</span> ▾`;
     }
 
     const options = el('subtitles-menu').querySelectorAll('.subtitle-option');

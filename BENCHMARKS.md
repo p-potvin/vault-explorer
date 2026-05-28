@@ -271,3 +271,18 @@ Executed on local hardware via Playwright automated pipeline validation.
 | 2026-05-26T06:26:39.446Z | Watch Scarleett_jones live on Chaturbate (2).mp4 | 648.24 MB | 2585.6s | 74ms | 2319ms | SUCCESS |
 | 2026-05-26T07:20:34.446Z | 31 minute long College Girls movie from Hellen Cruz.mp4 | 506.19 MB | 1899.6s | 154ms | 3869ms | SUCCESS |
 | 2026-05-26T19:01:13.852Z | taylorstiles payluciarae pov bj.mp4 | 1.74 GB | 2423.1s | 165ms | 5392ms | SUCCESS |
+| 2026-05-28T04:59:33.635Z | Watch Alexxisrae live on Chaturbate.mp4 | 52.95 MB | 211.2s | 265ms | 2390ms | SUCCESS |
+| 2026-05-28T04:59:51.779Z | Ambar Coles Live Strippers Roleplay Alternative Chat Room.mp4 | 12.08 MB | 76.0s | 88ms | 13100ms | SUCCESS |
+| 2026-05-28T04:59:52.293Z | Daphne Millerrs Live Foot Fetish European Girls Alternative Chat.mp4 | 175.59 MB | 712.4s | 262ms | 7064ms | SUCCESS |
+| 2026-05-28T04:59:53.677Z | Watch Tinacb live on Chaturbate.mp4 | 87.45 MB | 348.8s | 528ms | 4944ms | SUCCESS |
+| 2026-05-28T04:59:53.991Z | Watch Issa_garcia live on Chaturbate.mp4 | 164.63 MB | 268.8s | 180ms | 12412ms | SUCCESS |
+| 2026-05-28T04:59:54.845Z | Watch Maryjane3_14 live on Chaturbate(2).mp4 | 411.42 MB | 483.2s | 98ms | 18537ms | SUCCESS |
+| 2026-05-28T06:16:18.201Z | Mind Under Master Haley Spades Hime Marie Jazmin Luv ASMR SPA Hy.mp4 | 420.04 MB | 1853.8s | 221ms | 6525ms | SUCCESS |
+| 2026-05-28T06:18:29.785Z | ScreenRecording_07-26-2025 00-45-40_1.MP4 | 216.5 MB | 634.3s | 91ms | 2824ms | SUCCESS |
+| 2026-05-28T06:18:34.119Z | ScreenRecording_08-11-2025 21-49-02_1.MP4 | 93.35 MB | 295.1s | 93ms | 2517ms | SUCCESS |
+| 2026-05-28T06:18:38.732Z | ScreenRecording_09-16-2025 20-05-06_1.MP4 | 113.09 MB | 355.6s | 90ms | 3193ms | SUCCESS |
+| 2026-05-28T06:18:40.519Z | ScreenRecording_10-06-2025 11-10-18_1.MP4 | 202.48 MB | 594.1s | 112ms | 3469ms | SUCCESS |
+| 2026-05-28T06:18:42.547Z | ScreenRecording_10-15-2025 04-54-50_1.MP4 | 371.98 MB | 1078.8s | 109ms | 3430ms | SUCCESS |
+| 2026-05-28T06:18:44.845Z | ScreenRecording_10-15-2025 05-56-13_1.MP4 | 504.33 MB | 1482.3s | 111ms | 3176ms | SUCCESS |
+| 2026-05-28T06:57:22.202Z | Taylor Vidal Private Webcam Show.mp4 | 210.69 MB | 1142.0s | 184ms | 5977ms | SUCCESS |
+| 2026-05-28T06:57:25.760Z | Mia Diamod Private Webcam Show.mp4 | 118.58 MB | 575.3s | 87ms | 3144ms | SUCCESS |

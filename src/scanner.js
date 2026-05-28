@@ -287,7 +287,7 @@ function registerScannerHandlers(ipcMain) {
         return _processFileNodes(pathsArray, fileSet, null);
     });
 
-    ipcMain.handle('find-subtitles', async (event, videoPath, queryTitle) => {
+    ipcMain.handle('find-subtitles', async (event, videoPath, queryTitle, skipOpenSubtitles) => {
         let base = '';
         const results = [];
         if (videoPath && !videoPath.startsWith('http://') && !videoPath.startsWith('https://')) {
@@ -339,7 +339,7 @@ function registerScannerHandlers(ipcMain) {
         }
 
         const searchQuery = queryTitle || base;
-        if (!searchQuery) {
+        if (!searchQuery || skipOpenSubtitles) {
             return results;
         }
 

@@ -19,24 +19,47 @@ window.getTargetFolder = function(navPath) {
     return window.appSettings.folders.find(f => f.name === leafName && (f.parent === parentPath || ((!f.parent || f.parent === 'root') && parentPath === 'root')));
 };
 
+window.renderingMore = false;
 function renderMore() {
+    if (window.renderingMore) return;
+    window.renderingMore = true;
     const nextBatch = window.displayedItems.slice(window.currentlyRendered, window.currentlyRendered + window.PAGE_SIZE);
-    nextBatch.forEach((item, i) => { el('file-grid').appendChild(window.createCardElement(item, window.currentlyRendered + i)); });
+    if (nextBatch.length === 0) {
+        window.renderingMore = false;
+        return;
+    }
+    const fragment = document.createDocumentFragment();
+    nextBatch.forEach((item, i) => {
+        fragment.appendChild(window.createCardElement(item, window.currentlyRendered + i));
+    });
+    el('file-grid').appendChild(fragment);
     window.currentlyRendered += nextBatch.length;
+    window.renderingMore = false;
 }
 
 function applyFilters() {
+    if (window.currentTab === 'favorites') {
+        if (typeof window.renderFavorites === 'function') {
+            window.renderFavorites(true);
+        }
+        return;
+    }
     const term = el('search-box').value.toLowerCase();
     const filterAttr = el('filter-type').value;
 
     const fakeFolders = window.appSettings.folders.filter(f => f.parent === window.currentNavPath).map(f => ({ type: 'fakeFolder', name: f.name }));
 
-    const allHiddenItems = new Set();
-    window.appSettings.folders.forEach(f => f.items.forEach(p => allHiddenItems.add(p)));
+    const pathVirtualFolderMap = new Map();
+    window.appSettings.folders.forEach(f => {
+        f.items.forEach(p => {
+            pathVirtualFolderMap.set(p, f.name);
+        });
+    });
 
     const displayableFiles = window.allItems.filter(v => {
-        if (window.currentNavPath === 'root' || !window.currentNavPath.includes('/')) {
-            if (allHiddenItems.has(v.path)) return false;
+        v.virtualFolder = pathVirtualFolderMap.get(v.path) || '';
+        if (window.currentNavPath === 'root') {
+            if (v.virtualFolder !== '') return false;
         }
         return true;
     });

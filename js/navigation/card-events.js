@@ -26,9 +26,32 @@ async function handleCardContextMenu(card, item, index) {
         _hasClipboard: hasClip,
         isFavorite: isStarred,
         isMultiSelect: isMulti,
-        selectedItems: selectedItems
+        selectedItems: selectedItems,
+        folders: window.appSettings.folders || []
     });
     console.log('[ctx-menu] action:', action, 'item:', item.name);
+
+    if (action && action.startsWith('add-to-folder:')) {
+        const folderName = action.substring('add-to-folder:'.length);
+        const targetFolder = window.appSettings.folders.find(f => f.name === folderName);
+        if (targetFolder) {
+            let added = 0;
+            selectedItems.forEach(si => {
+                if (si && si.path && !targetFolder.items.includes(si.path)) {
+                    targetFolder.items.push(si.path);
+                    added++;
+                }
+            });
+            if (added > 0) {
+                window.electronAPI.saveSettings(window.appSettings);
+                window.showToast(`Added ${added} item(s) to folder "${folderName}"`, 'success');
+                window.applyFilters();
+            } else {
+                window.showToast('Selected item(s) already in this folder', 'info');
+            }
+        }
+        return;
+    }
 
     if (action === 'toggle-favorite') {
         if (isMulti) {
@@ -316,24 +339,19 @@ async function handleCardContextMenu(card, item, index) {
             window.showToast('Virtual folder not found', 'error');
             return;
         }
-        const res = await window.electronAPI.pasteFiles({
-            paths: window._clipboard.paths,
-            mode: window._clipboard.mode,
-            destination: window.currentRealPath
-        });
-        if (res.success) {
-            window.showToast(`Pasted ${res.count} file(s) into folder "${item.name}"`, 'success');
-            if (Array.isArray(res.pastedPaths)) {
-                res.pastedPaths.forEach(p => {
-                    if (!targetFolder.items.includes(p)) targetFolder.items.push(p);
-                });
+        let added = 0;
+        window._clipboard.paths.forEach(p => {
+            if (!targetFolder.items.includes(p)) {
+                targetFolder.items.push(p);
+                added++;
             }
-            if (window._clipboard.mode === 'cut') window._clipboard = { paths: [], mode: 'copy' };
-            window.electronAPI.saveSettings(window.appSettings);
-            window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
-        } else {
-            window.showToast('Paste failed: ' + res.error, 'error');
+        });
+        window.showToast(`Pasted ${added} file(s) into virtual folder "${item.name}"`, 'success');
+        if (window._clipboard.mode === 'cut') {
+            window._clipboard = { paths: [], mode: 'copy' };
         }
+        window.electronAPI.saveSettings(window.appSettings);
+        window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
     } else if (action === 'remove-folder') {
         if (await window.showConfirmDialog(`Remove folder "${item.name}"?`, 'Confirm Folder Removal')) {
             window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));

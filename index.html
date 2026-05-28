@@ -42,10 +42,11 @@
     
     <!-- Top-level navigation tabs -->
     <div class="top-tabs" style="display: flex; gap: 4px; align-items: center; -webkit-app-region: no-drag; margin-left: 12px; margin-right: auto;">
-       <button id="tab-vault" class="top-tab active" style="background: var(--vault-accent); color: var(--vt-primary); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; margin-right:4.5px; vertical-align:middle; display:inline-block;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Vault</button>
-       <button id="tab-favorites" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; margin-right:4.5px; vertical-align:middle; display:inline-block;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Library</button>
-       <button id="tab-tmdb" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; margin-right:4.5px; vertical-align:middle; display:inline-block;"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>Movies/Series</button>
-       <button id="tab-livestream" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; margin-right:4.5px; vertical-align:middle; display:inline-block;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Livestream</button>
+       <button id="tab-vault" class="top-tab active" style="background: var(--vault-accent); color: var(--vt-primary); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; gap:4px;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Vault</button>
+       <button id="tab-favorites" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; gap:4px;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Favorites</button>
+       <button id="tab-library" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; gap:4px;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Library</button>
+       <button id="tab-tmdb" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; gap:4px;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>Movies/Series</button>
+       <button id="tab-livestream" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; gap:4px;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Livestream</button>
     </div>
 
     <span id="task-badge" style="display:none; font-size:10px; font-weight:700; color:var(--vt-primary); background:var(--vault-accent); padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.05em; align-items:center; gap:5px; margin-left: 10px; animation: fadeInScale 0.2s ease; vertical-align: middle;">
@@ -72,26 +73,43 @@
       </div>
     </div>
   </div>
-  <div class="glass-container">
     <div class="toolbar" style="display:flex; gap:12px; align-items:center; padding:12px 24px;">
-      <button id="btn-back" title="No folder selected" aria-label="Back" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;" disabled>&#8592;</button>
-      <button id="btn-select" style="flex-shrink:0;">Browse Vault</button>
-      <button id="btn-new-folder" style="display:none;"></button>
+      <button id="btn-back" title="No folder selected" aria-label="Back" style="width:32px; height:32px; padding:0; display:none; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;" disabled>&#8592;</button>
+      <div id="path-display" class="path-display" style="cursor:pointer; max-width: 150px; font-size: 11px; padding: 6px 12px; flex-shrink:0;" title="Click to browse for a folder">No folder selected...</div>
+      
+      <button id="btn-select" style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:inline-block;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        <span>Browse</span>
+      </button>
+
+      <button id="btn-new-folder" style="display:none; align-items:center; gap:4px; flex-shrink:0; font-family:var(--font-mono); font-size:11px; font-weight:800; padding:6px 12px; border-radius:4px; border:1px solid var(--vault-accent); background:transparent; color:var(--vault-accent); cursor:pointer; transition:all 0.2s;" title="Create Virtual Folder">
+        <span style="font-size:13px; font-weight:800; margin-top:-1px;">+</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      </button>
+
       <button id="btn-refresh" style="width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;" title="No folder selected" disabled>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"></polyline>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
         </svg>
       </button>
-      <div id="path-display" class="path-display" style="cursor:pointer; max-width: 150px; font-size: 11px; padding: 6px 12px; flex-shrink:0;" title="Click to browse for a folder">No folder selected...</div>
       
-      <input type="text" id="search-box" class="search-box" placeholder="Search files... (Ctrl/Cmd+F)" aria-label="Search files" style="flex: 1; min-width: 150px; padding: 6px 12px; height: 32px; font-size: 13px; margin: 0 4px;">
+      <div class="search-wrapper" style="display:flex; align-items:center; background:var(--vt-primary); border:1px solid var(--vault-border); border-radius:4px; height:32px; flex:1; min-width:150px; margin:0 4px; position:relative; overflow:hidden;">
+        <div class="search-icon-container" style="display:flex; align-items:center; justify-content:center; padding:0 8px; color:var(--vault-slate); border-right:1px solid var(--vault-border); height:100%;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </div>
+        <input type="text" id="search-box" class="search-box" placeholder="Search files... (Ctrl/Cmd+F)" aria-label="Search files" style="flex:1; border:none !important; background:transparent !important; color:var(--vault-text); outline:none; font-size:13px; padding:0 30px 0 8px; height:100%; margin:0;">
+        <button id="search-clear-btn" style="position:absolute; right:8px; background:transparent; border:none; color:var(--vault-slate); cursor:pointer; font-size:12px; display:none; align-items:center; justify-content:center; padding:0; width:16px; height:16px;" title="Clear Search">✕</button>
+      </div>
       
-      <select id="filter-type" aria-label="Filter files by type" style="flex-shrink:0; height:32px; padding:6px 24px 6px 12px !important;">
-        <option value="video">Videos</option>
-        <option value="image">Images</option>
-        <option value="all">All Files</option>
-      </select>
+      <div style="display:inline-flex; align-items:center; background:var(--vault-card-bg); border:1px solid var(--vault-border); border-radius:4px; height:32px; padding:0 8px; gap:6px; flex-shrink:0;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--vault-slate); flex-shrink:0;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        <select id="filter-type" aria-label="Filter files by type" style="height:100%; padding:0; border:none; background:transparent; color:var(--vault-text); outline:none; font-size:12px; cursor:pointer;">
+          <option value="video">Videos</option>
+          <option value="image">Images</option>
+          <option value="all">All Files</option>
+        </select>
+      </div>
 
       <!-- Hidden Legacy Sorting Inputs to preserve full compatibility with other JS files -->
       <select id="sort-by" style="display:none;">
@@ -154,6 +172,17 @@
            </svg>
            <h3>No Favorites Yet</h3>
            <p>Click the star icon on any video or image in your Vault to save it here for fast access.</p>
+        </div>
+      </div>
+
+      <!-- Persistent Library Tab Grid (streaming + watchlist) -->
+      <div id="library-grid" class="file-grid" style="display:none;">
+        <div class="empty-state">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px; color: var(--vault-gold);">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+           </svg>
+           <h3>Your Library is Empty</h3>
+           <p>Add films or series to your library from the Movies/Series tab.</p>
         </div>
       </div>
 

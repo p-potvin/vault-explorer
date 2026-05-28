@@ -28,6 +28,19 @@ try {
 const TMDB_BEARER_TOKEN = process.env.TMDB_BEARER_TOKEN || envConfig.TMDB_BEARER_TOKEN;
 const TMDB_API_TOKEN = process.env.TMDB_API_TOKEN || envConfig.TMDB_API_TOKEN;
 
+let KINOCHECK_API_KEY = '';
+try {
+    const keyPath = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\.access\\kinocheck_api.txt';
+    if (fs.existsSync(keyPath)) {
+        KINOCHECK_API_KEY = fs.readFileSync(keyPath, 'utf8').trim();
+        console.log('[KinoCheck] Successfully loaded premium API key.');
+    } else {
+        console.warn('[KinoCheck] API key not found at:', keyPath);
+    }
+} catch (e) {
+    console.error('[KinoCheck] Failed to load API key:', e);
+}
+
 // Map TMDB genre IDs to human-readable strings
 const GENRE_MAP = {
     28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
@@ -285,6 +298,68 @@ function registerTmdbHandlers(ipcMain) {
         }
     });
 
+    // ── KinoCheck Premium API Handler ────────────────────────────────────────
+    ipcMain.handle('get-kinocheck-trailer', async (event, { tmdbId, mediaType }) => {
+        try {
+            if (!KINOCHECK_API_KEY) {
+                console.warn('[KinoCheck] No API key loaded.');
+                return { success: false, error: 'No API key loaded.' };
+            }
+            const type = mediaType === 'tv' ? 'shows' : 'movies';
+            const url = `https://api.kinocheck.com/${type}?tmdb_id=${tmdbId}&language=en`;
+            console.log(`[KinoCheck] Fetching premium trailer: ${url}`);
+            
+            const response = await fetch(url, {
+                headers: {
+                    'X-Api-Key': KINOCHECK_API_KEY,
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP status ${response.status}`);
+            }
+            
+            const data = await response.json();
+            if (data && data.trailer && data.trailer.youtube_video_id) {
+                return {
+                    success: true,
+                    key: data.trailer.youtube_video_id,
+                    title: data.trailer.title,
+                    thumbnail: data.trailer.youtube_thumbnail
+                };
+            }
+            
+            // Fallback to the videos array if main trailer object is missing
+            if (data && Array.isArray(data.videos)) {
+                const trailerVideo = data.videos.find(v => v.categories && v.categories.includes('Trailer') && v.youtube_video_id);
+                if (trailerVideo) {
+                    return {
+                        success: true,
+                        key: trailerVideo.youtube_video_id,
+                        title: trailerVideo.title,
+                        thumbnail: trailerVideo.youtube_thumbnail
+                    };
+                }
+                
+                // Final fallback: first available video
+                if (data.videos.length > 0 && data.videos[0].youtube_video_id) {
+                    return {
+                        success: true,
+                        key: data.videos[0].youtube_video_id,
+                        title: data.videos[0].title,
+                        thumbnail: data.videos[0].youtube_thumbnail
+                    };
+                }
+            }
+            
+            return { success: false, error: 'No trailer found in KinoCheck response' };
+        } catch (err) {
+            console.error('[KinoCheck] Error fetching premium trailer:', err);
+            return { success: false, error: err.message };
+        }
+    });
+
     ipcMain.handle('discover-tmdb', async (event, { providerId, mediaType, page = 1 }) => {
         try {
             const type = mediaType === 'tv' ? 'tv' : 'movie';
@@ -475,7 +550,6 @@ function registerTmdbHandlers(ipcMain) {
         }
     });
 }
-
 
 module.exports = {
     registerTmdbHandlers
