@@ -296,15 +296,40 @@ function registerScannerHandlers(ipcMain) {
                 const ext = path.extname(videoPath);
                 base = path.basename(videoPath, ext);
                 const files = fs.readdirSync(dir);
+                const addedLabels = new Set();
                 for (const f of files) {
-                    if (f.toLowerCase().startsWith(base.toLowerCase()) && f.toLowerCase().endsWith('.srt')) {
+                    if (f.toLowerCase().startsWith(base.toLowerCase()) && (f.toLowerCase().endsWith('.srt') || f.toLowerCase().endsWith('.vtt'))) {
+                        const isSrt = f.toLowerCase().endsWith('.srt');
                         const parts = f.substring(base.length).split('.');
                         let label = 'Original';
                         if (parts.length >= 3) {
                             label = parts[parts.length - 2].toUpperCase();
                         }
+                        
+                        if (addedLabels.has(label)) continue;
+                        addedLabels.add(label);
+                        
+                        let finalPath = path.join(dir, f);
+                        if (isSrt) {
+                            try {
+                                const subDir = path.join(dir, '.subtitles');
+                                if (!fs.existsSync(subDir)) {
+                                    fs.mkdirSync(subDir, { recursive: true });
+                                }
+                                const vttPath = path.join(subDir, f.replace(/\.srt$/i, '.vtt'));
+                                if (!fs.existsSync(vttPath)) {
+                                    const srtText = fs.readFileSync(finalPath, 'utf8');
+                                    const vttText = 'WEBVTT\n\n' + srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+                                    fs.writeFileSync(vttPath, vttText, 'utf8');
+                                }
+                                finalPath = vttPath;
+                            } catch (convErr) {
+                                console.error("[Subtitles] Local conversion failed:", convErr);
+                            }
+                        }
+                        
                         results.push({
-                            path: path.join(dir, f),
+                            path: finalPath,
                             label,
                             lang: label.toLowerCase() === 'original' ? 'und' : label.toLowerCase()
                         });
@@ -419,6 +444,7 @@ function registerScannerHandlers(ipcMain) {
             throw new Error(`Failed to fetch subtitle file: ${subFileRes.status}`);
         }
         const srtContent = await subFileRes.text();
+        const vttContent = 'WEBVTT\n\n' + srtContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
 
         let finalSubPath;
         if (videoPath.startsWith('http://') || videoPath.startsWith('https://')) {
@@ -427,7 +453,7 @@ function registerScannerHandlers(ipcMain) {
             if (!fs.existsSync(subDir)) {
                 fs.mkdirSync(subDir, { recursive: true });
             }
-            finalSubPath = path.join(subDir, `${fileId}.${lang}.srt`);
+            finalSubPath = path.join(subDir, `${fileId}.${lang}.vtt`);
         } else {
             const dir = path.dirname(videoPath);
             const subDir = path.join(dir, '.subtitles');
@@ -436,11 +462,11 @@ function registerScannerHandlers(ipcMain) {
             }
             const ext = path.extname(videoPath);
             const base = path.basename(videoPath, ext);
-            finalSubPath = path.join(subDir, `${base}.${lang}.srt`);
+            finalSubPath = path.join(subDir, `${base}.${lang}.vtt`);
         }
         
-        fs.writeFileSync(finalSubPath, srtContent, 'utf8');
-        console.log(`[OpenSubtitles] Saved subtitle track to: ${finalSubPath}`);
+        fs.writeFileSync(finalSubPath, vttContent, 'utf8');
+        console.log(`[OpenSubtitles] Saved subtitle track to WebVTT: ${finalSubPath}`);
         return finalSubPath;
     });
 }

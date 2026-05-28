@@ -37,20 +37,6 @@ import sounddevice as sd
 from huggingface_hub import hf_hub_download
 from kokoro_onnx import Kokoro
 from deep_translator import GoogleTranslator
-
-import sys
-import time
-import tempfile
-import wave
-import subprocess
-import threading
-import queue
-import argparse
-import numpy as np
-import sounddevice as sd
-from huggingface_hub import hf_hub_download
-from kokoro_onnx import Kokoro
-from deep_translator import GoogleTranslator
 from pycaw.pycaw import AudioUtilities
 
 # Ensure media processing project paths are in sys.path
@@ -253,7 +239,7 @@ def main():
 
     print("\n=========================================================", flush=True)
     print("      VAULT EXPLORER HTTPS STREAM SPOKEN TRANSLATOR      ", flush=True)
-    print("=========================================================\n", flush=True)
+    print("================================================*********\n", flush=True)
     print(f"[Config] Voice: {args.voice} | Lang: {args.lang} | Volume: {args.volume}\n", flush=True)
 
     # Initialize benchmark logger
@@ -324,13 +310,33 @@ def main():
     print("[Status] Press Ctrl+C at any time to terminate safely.\n", flush=True)
 
     consecutive_flushes = 0
+    max_retries = 3
+    retry_count = 0
     try:
         while True:
             # Read 2.5 seconds of raw PCM audio
             pcm_data = process.stdout.read(chunk_bytes_limit)
             if not pcm_data:
+                retry_count += 1
+                if retry_count <= max_retries:
+                    print(f"\n[Warning] Stream connection lost. Reconnecting... (Attempt {retry_count} of {max_retries})\n", flush=True)
+                    try:
+                        process.terminate()
+                        process.wait(timeout=2)
+                    except Exception:
+                        pass
+                    time.sleep(3.0)
+                    try:
+                        process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        continue
+                    except Exception as spawn_err:
+                        print(f"[Error] Reconnection attempt failed to spawn FFmpeg: {spawn_err}\n", flush=True)
+                
                 print("\n[Info] Stream ended or connection lost.\n", flush=True)
                 break
+            
+            # Reset retry count if we successfully read data
+            retry_count = 0
 
             # Save chunk to temp WAV file for NeMo Parakeet processing
             t_save = time.perf_counter()

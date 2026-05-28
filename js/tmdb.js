@@ -238,3 +238,72 @@ window.renderTMDB = async function(query = '', append = false) {
         if (loadMoreContainer) loadMoreContainer.style.display = 'none';
     }
 };
+
+window.initTMDBListeners = function() {
+    console.log('[tmdb] Initializing TMDB listeners...');
+    
+    // Initialize global TMDB streaming state
+    window.tmdbCurrentProvider = 'all';
+    window.tmdbCurrentMediaType = 'movie';
+    window.tmdbCurrentPage = 1;
+    window.tmdbCurrentQuery = '';
+
+    // TMDB Search listeners
+    const tmdbSearchBtn = el('tmdb-search-btn');
+    const tmdbSearchInput = el('tmdb-search-input');
+    if (tmdbSearchBtn) {
+        tmdbSearchBtn.addEventListener('click', () => {
+            const query = tmdbSearchInput ? tmdbSearchInput.value.trim() : '';
+            window.renderTMDB(query);
+        });
+    }
+    if (tmdbSearchInput) {
+        tmdbSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                window.renderTMDB(tmdbSearchInput.value.trim());
+            }
+        });
+    }
+
+    // TMDB Subtabs (Movies / Series) click handlers
+    const subtabMovies = el('subtab-movies');
+    const subtabSeries = el('subtab-series');
+    if (subtabMovies) {
+        subtabMovies.addEventListener('click', () => {
+            if (tmdbSearchInput) tmdbSearchInput.value = '';
+            window.tmdbCurrentQuery = '';
+            window.tmdbCurrentMediaType = 'movie';
+            window.tmdbCurrentPage = 1;
+            window.renderTMDB();
+        });
+    }
+    if (subtabSeries) {
+        subtabSeries.addEventListener('click', () => {
+            if (tmdbSearchInput) tmdbSearchInput.value = '';
+            window.tmdbCurrentQuery = '';
+            window.tmdbCurrentMediaType = 'tv';
+            window.tmdbCurrentPage = 1;
+            window.renderTMDB();
+        });
+    }
+
+    // TMDB Watch Providers click handlers
+    document.querySelectorAll('.provider-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (tmdbSearchInput) tmdbSearchInput.value = '';
+            window.tmdbCurrentQuery = '';
+            window.tmdbCurrentProvider = btn.dataset.provider;
+            window.tmdbCurrentPage = 1;
+            window.renderTMDB();
+        });
+    });
+
+    // TMDB Load More pagination click handler
+    const tmdbLoadMoreBtn = el('tmdb-load-more-btn');
+    if (tmdbLoadMoreBtn) {
+        tmdbLoadMoreBtn.addEventListener('click', () => {
+            window.tmdbCurrentPage++;
+            window.renderTMDB(window.tmdbCurrentQuery, true);
+        });
+    }
+};
