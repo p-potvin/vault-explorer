@@ -1,5 +1,5 @@
 window.translationsEn = {
-  browseVault: "Browse Vault",
+  browseVault: "Browse",
   videos: "Videos",
   images: "Images",
   allFiles: "All Files",
@@ -16,7 +16,7 @@ window.translationsEn = {
   descending: "Descending ↓",
   scanning: "Scanning directory... this may take a moment.",
   vaultEmpty: "Your Vault is Empty",
-  clickBrowse: "Click \"Browse Vault\" above to select a folder and start exploring.",
+  clickBrowse: "Click \"Browse\" above to select a folder and start exploring.",
   zeroItems: "0 items",
   theme: "Theme",
   enterFolderName: "Enter Folder Name:",

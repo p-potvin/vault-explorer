@@ -1,4 +1,4 @@
-const el = id => document.getElementById(id);
+var el = id => document.getElementById(id);
 
 function escapeHtml(unsafe) {
   if (typeof unsafe !== 'string') return unsafe;

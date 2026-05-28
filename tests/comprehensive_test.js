@@ -50,10 +50,13 @@ async function runTests() {
     window.on('pageerror', err => {
         console.error(`[Browser Page ERROR] ${err.stack || err.message}`);
         errors.push(`Page Exception: ${err.message}`);
-    });
-
-    console.log('[Test Setup] Waiting for application load and mock assets...');
+    });    console.log('[Test Setup] Waiting for application load and mock assets...');
     await window.waitForTimeout(4000);
+
+    // Switch to Vault tab to make toolbar elements visible
+    console.log('[Test Setup] Switching to Vault tab to ensure elements are visible...');
+    await window.locator('#tab-vault').click();
+    await window.waitForTimeout(1000);
 
     // Assert base elements are visible in DOM
     console.log('[Test Step 1] Verifying core UI layout elements are in DOM...');
@@ -69,19 +72,17 @@ async function runTests() {
     assert.ok(fileGridExists, 'File Grid is missing or not visible');
     assert.ok(statusBarExists, 'Status Bar is missing or not visible');
     console.log('  -> Core UI layout elements verified successfully.');
-
     // Language Toggle Test
     console.log('[Test Step 2] Executing Language Toggle i18n Workflow...');
     const initialLangText = (await window.locator('#lang-text').innerText()).toUpperCase();
     console.log(`  -> Initial Lang Button Text: "${initialLangText}"`);
-    
     const initialBrowseText = (await window.locator('#btn-select').innerText()).toLowerCase();
     console.log(`  -> Initial Browse Vault Text: "${initialBrowseText}"`);
 
     if (initialLangText.includes('EN')) {
         assert.equal(initialBrowseText, 'browse vault', 'Initial English button text mismatch');
     } else {
-        assert.equal(initialBrowseText, 'parcourir le coffre', 'Initial Quebecois button text mismatch');
+        assert.equal(initialBrowseText, 'explorer la voûte', 'Initial Quebecois button text mismatch');
     }
 
     // Click to toggle language to the opposite
@@ -93,7 +94,7 @@ async function runTests() {
     console.log(`  -> Toggled Browse Vault Text: "${toggledBrowseText}"`);
     
     if (initialLangText.includes('EN')) {
-        assert.equal(toggledBrowseText, 'parcourir le coffre', 'Quebecois translation failed to apply on #btn-select');
+        assert.equal(toggledBrowseText, 'explorer la voûte', 'Quebecois translation failed to apply on #btn-select');
     } else {
         assert.equal(toggledBrowseText, 'browse vault', 'English translation failed to apply on #btn-select');
     }
@@ -109,7 +110,7 @@ async function runTests() {
     if (initialLangText.includes('EN')) {
         assert.equal(restoredBrowseText, 'browse vault', 'Failed to restore English state');
     } else {
-        assert.equal(restoredBrowseText, 'parcourir le coffre', 'Failed to restore Quebecois state');
+        assert.equal(restoredBrowseText, 'explorer la voûte', 'Failed to restore Quebecois state');
     }
     console.log('  -> Language Toggle i18n verified successfully.');
 
