@@ -115,6 +115,12 @@ const QUALITY_RANK = { '2160p': 4, '4k': 4, '1080p': 3, '720p': 2, '480p': 1, 's
  */
 function scoreTorrent(torrent, preferredQuality, preferredLang) {
     let score = 0;
+
+    // ── Real-Debrid cached status bonus (HIGHEST PRIORITY) ───────────────────
+    if (torrent.cached) {
+        score += 1000;
+    }
+
     const q = (torrent.quality || '').toLowerCase();
     const d = (torrent.desc || '').toLowerCase();
     const t = (torrent.type || '').toLowerCase();
@@ -263,8 +269,10 @@ window.showMediaDetails = async function(movie) {
             window.electronAPI.saveSettings(window.appSettings);
             
             // Live refresh of the library view if open
-            if (typeof window.renderFavorites === 'function') {
+            if (window.currentTab === 'favorites' && typeof window.renderFavorites === 'function') {
                 window.renderFavorites();
+            } else if (window.currentTab === 'library' && typeof window.renderLibrary === 'function') {
+                window.renderLibrary();
             }
             
             // Live refresh of the catalog results to update golden border/glow instantly
@@ -315,7 +323,7 @@ async function _setupMovieModal(movie) {
     }
 
     try {
-        const movieRes = await window.electronAPI.getTMDBMovie(movie.id);
+        const movieRes = await window.electronAPI.getTMDBMovie({ id: movie.id, language: window.currentLang === 'fr' ? 'fr-FR' : 'en-US' });
         if (movieRes && movieRes.success && movieRes.data) {
             _currentModalImdbId = movieRes.data.imdb_id;
             _populateExternalBadges(movie.title, movie.id, 'movie', window._currentTrailerKey);
@@ -376,7 +384,7 @@ async function _setupTVModal(movie) {
     episodesList.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--vault-slate); padding:20px;">Loading...</td></tr>';
 
     try {
-        const tvRes = await window.electronAPI.getTMDBTV(movie.id);
+        const tvRes = await window.electronAPI.getTMDBTV({ id: movie.id, language: window.currentLang === 'fr' ? 'fr-FR' : 'en-US' });
         if (!tvRes || !tvRes.success || !tvRes.data) {
             seasonSelect.innerHTML = '<option value="">No seasons found</option>';
             return;
@@ -431,7 +439,7 @@ async function _loadSeasonEpisodes(tvId, seasonNumber) {
     if (!episodesList) return;
 
     try {
-        const seasonRes = await window.electronAPI.getTMDBTVSeason(tvId, seasonNumber);
+        const seasonRes = await window.electronAPI.getTMDBTVSeason({ id: tvId, seasonNumber, language: window.currentLang === 'fr' ? 'fr-FR' : 'en-US' });
         if (!seasonRes || !seasonRes.success || !seasonRes.data) {
             episodesList.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--vault-slate);padding:16px;">No episodes found.</td></tr>';
             return;

@@ -28,6 +28,41 @@ try {
 const RD_TOKEN = process.env.REAL_DEBRID_API_TOKEN || envConfig.REAL_DEBRID_API_TOKEN;
 const TMDB_BEARER_TOKEN = process.env.TMDB_BEARER_TOKEN || envConfig.TMDB_BEARER_TOKEN;
 
+async function checkRealDebridCache(torrentList) {
+    if (!RD_TOKEN || !torrentList || torrentList.length === 0) return torrentList;
+    try {
+        const hashes = torrentList.map(t => t.hash).filter(Boolean);
+        if (hashes.length === 0) return torrentList;
+        
+        const chunkSize = 40;
+        let cachedMap = {};
+        for (let i = 0; i < hashes.length; i += chunkSize) {
+            const chunk = hashes.slice(i, i + chunkSize);
+            const cacheUrl = `https://api.real-debrid.com/rest/1.0/torrents/instantAvailability/${chunk.join('/')}`;
+            const cacheRes = await fetch(cacheUrl, {
+                headers: { Authorization: `Bearer ${RD_TOKEN}` }
+            });
+            if (cacheRes.ok) {
+                const data = await cacheRes.json();
+                cachedMap = { ...cachedMap, ...data };
+            }
+        }
+        
+        torrentList.forEach(t => {
+            if (!t.hash) return;
+            const key = t.hash.toLowerCase();
+            const isCached = !!(cachedMap[key] && cachedMap[key].rd && cachedMap[key].rd.length > 0);
+            t.cached = isCached;
+            if (isCached) {
+                t.type = `⚡ [RD+] ${t.type}`;
+            }
+        });
+    } catch (e) {
+        console.error('[Real-Debrid] Cache check failed:', e);
+    }
+    return torrentList;
+}
+
 function registerRealDebridHandlers(ipcMain) {
     // 1. Search torrents using Torrentio (scrapes all top indexes) with YTS fallback
     ipcMain.handle('search-torrents', async (event, { movieTitle, tmdbId, mediaType, season, episode }) => {
@@ -143,7 +178,8 @@ function registerRealDebridHandlers(ipcMain) {
                                 };
                             });
 
-                            return { success: true, title: cleanTitle, torrents: torrentList };
+                            const checkedList = await checkRealDebridCache(torrentList);
+                            return { success: true, title: cleanTitle, torrents: checkedList };
                         }
                     }
 
@@ -188,7 +224,8 @@ function registerRealDebridHandlers(ipcMain) {
                             desc: t.title
                         };
                     });
-                    return { success: true, title: cleanTitle, torrents: torrentList };
+                    const checkedList = await checkRealDebridCache(torrentList);
+                    return { success: true, title: cleanTitle, torrents: checkedList };
                 }
             }
 
@@ -240,7 +277,8 @@ function registerRealDebridHandlers(ipcMain) {
                 };
             });
 
-            return { success: true, title: match.title, torrents: torrentList };
+            const checkedList = await checkRealDebridCache(torrentList);
+            return { success: true, title: match.title, torrents: checkedList };
         } catch (e) {
             console.error('[Real-Debrid] Search error:', e);
             return { success: false, error: e.message };

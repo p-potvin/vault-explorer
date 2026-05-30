@@ -286,3 +286,9 @@ Executed on local hardware via Playwright automated pipeline validation.
 | 2026-05-28T06:18:44.845Z | ScreenRecording_10-15-2025 05-56-13_1.MP4 | 504.33 MB | 1482.3s | 111ms | 3176ms | SUCCESS |
 | 2026-05-28T06:57:22.202Z | Taylor Vidal Private Webcam Show.mp4 | 210.69 MB | 1142.0s | 184ms | 5977ms | SUCCESS |
 | 2026-05-28T06:57:25.760Z | Mia Diamod Private Webcam Show.mp4 | 118.58 MB | 575.3s | 87ms | 3144ms | SUCCESS |
+| 2026-05-28T10:36:32.357Z | Zendaya Jays Live Big Boobs College Girls Girls Next Door Chat R.mp4 | 286.38 MB | 1166.0s | 273ms | 6139ms | SUCCESS |
+| 2026-05-28T10:36:33.553Z | Zendaya Jay's webcam clips - Flirt4Free Videos.mp4 | 1.36 GB | 6880.7s | 185ms | 4120ms | SUCCESS |
+| 2026-05-28T10:36:37.203Z | 70 minute long Big Boobs movie from Zendaya Jay.mp4 | 1010 MB | 4240.0s | 195ms | 3648ms | SUCCESS |
+| 2026-05-28T10:37:28.564Z | 70 minute long Big Boobs movie from Zendaya Jay.mp4 | 1010 MB | 4240.0s | 143ms | 3570ms | SUCCESS |
+| 2026-05-29T05:58:18.922Z | Watch Maryjane3_14 live on Chaturbate.mp4 | 148.45 MB | 604.8s | 197ms | 10454ms | SUCCESS |
+| 2026-05-29T06:22:18.814Z | Watch Margoviento live on Chaturbate.mp4 | 496.75 MB | 820.8s | 103ms | 82774ms | SUCCESS |

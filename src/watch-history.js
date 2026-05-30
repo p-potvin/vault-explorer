@@ -49,13 +49,15 @@ function registerWatchHistoryHandlers(ipcMain, app) {
     _app = app;
 
     // ── Mark progress (called periodically during playback) ─────────────────
-    ipcMain.handle('watch-history:set-progress', (_e, { mediaType, tmdbId, title, season, episode, positionSec, durationSec, poster, year }) => {
+    ipcMain.handle('watch-history:set-progress', (_e, data) => {
+        const { mediaType, tmdbId, title, season, episode, positionSec, durationSec, poster, year } = data;
         const history = loadHistory();
         const key = makeKey(mediaType, tmdbId, title, season, episode);
 
         const existing = history.items[key] || {};
         history.items[key] = {
             ...existing,
+            ...data,
             key,
             mediaType: mediaType || 'movie',
             tmdbId: tmdbId || null,

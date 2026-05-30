@@ -47,10 +47,8 @@ function showToast(message, type = 'success') {
   toast.className = `toast ${type}`;
   
   let icon = '';
-  if (type === 'success') {
-      icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vt-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
-  } else {
-      icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vt-error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+  if (window.icons) {
+    icon = type === 'success' ? window.icons.success() : window.icons.error();
   }
   
   toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
@@ -101,7 +99,7 @@ function killAllHoverVideos() {
   });
 }
 
-function showConfirmDialog(message, title = 'System Action Required') {
+function showConfirmDialog(message, title) {
   return new Promise((resolve) => {
     const dialog = document.getElementById('custom-confirm-dialog');
     const msgEl = document.getElementById('confirm-message');
@@ -114,7 +112,7 @@ function showConfirmDialog(message, title = 'System Action Required') {
       return;
     }
     
-    titleEl.textContent = title;
+    titleEl.textContent = title || (window.currentLang === 'fr' ? 'Action système requise' : 'System Action Required');
     msgEl.textContent = message;
     dialog.style.display = 'block';
     

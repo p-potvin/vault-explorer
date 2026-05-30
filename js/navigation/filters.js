@@ -44,10 +44,14 @@ function applyFilters() {
         }
         return;
     }
+    if (window.currentTab === 'library') {
+        if (typeof window.renderLibrary === 'function') {
+            window.renderLibrary(true);
+        }
+        return;
+    }
     const term = el('search-box').value.toLowerCase();
     const filterAttr = el('filter-type').value;
-
-    const fakeFolders = window.appSettings.folders.filter(f => f.parent === window.currentNavPath).map(f => ({ type: 'fakeFolder', name: f.name }));
 
     const pathVirtualFolderMap = new Map();
     window.appSettings.folders.forEach(f => {
@@ -56,15 +60,37 @@ function applyFilters() {
         });
     });
 
-    const displayableFiles = window.allItems.filter(v => {
-        v.virtualFolder = pathVirtualFolderMap.get(v.path) || '';
-        if (window.currentNavPath === 'root') {
-            if (v.virtualFolder !== '') return false;
-        }
-        return true;
-    });
-
-    const pool = [...fakeFolders, ...displayableFiles];
+    let pool = [];
+    if (term) {
+        // Global search: search across all files in the vault and all virtual folders
+        const allVaultFiles = window._rootItemsCache || window.allItems || [];
+        allVaultFiles.forEach(v => {
+            v.virtualFolder = pathVirtualFolderMap.get(v.path) || '';
+        });
+        const allFakeFolders = window.appSettings.folders.map(f => ({
+            type: 'fakeFolder',
+            name: f.name,
+            parent: f.parent || 'root',
+            path: 'virtual://' + (f.parent || 'root') + '/' + f.name
+        }));
+        pool = [...allFakeFolders, ...allVaultFiles];
+    } else {
+        // Standard view: filter by the current navigation directory
+        const fakeFolders = window.appSettings.folders.filter(f => f.parent === window.currentNavPath).map(f => ({
+            type: 'fakeFolder',
+            name: f.name,
+            parent: f.parent || 'root',
+            path: 'virtual://' + (f.parent || 'root') + '/' + f.name
+        }));
+        const displayableFiles = window.allItems.filter(v => {
+            v.virtualFolder = pathVirtualFolderMap.get(v.path) || '';
+            if (window.currentNavPath === 'root') {
+                if (v.virtualFolder !== '') return false;
+            }
+            return true;
+        });
+        pool = [...fakeFolders, ...displayableFiles];
+    }
 
     let filteredItems = pool.filter(v => {
         if (term && !v.name.toLowerCase().includes(term)) return false;

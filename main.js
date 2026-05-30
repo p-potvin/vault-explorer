@@ -22,7 +22,7 @@ let isQuitting = false;
 
 function createTray() {
     if (tray) return;
-    const trayIconPath = path.join(__dirname, 'vaultwares_logo.png');
+    const trayIconPath = path.join(__dirname, 'public', 'vaultwares_logo.png');
     if (fs.existsSync(trayIconPath)) {
         tray = new Tray(trayIconPath);
         const contextMenu = Menu.buildFromTemplate([
@@ -41,7 +41,7 @@ function createTray() {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200, height: 800,
-        icon: path.join(__dirname, 'vaultwares_logo.png'),
+        icon: path.join(__dirname, 'public', 'vaultwares_logo.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -63,6 +63,19 @@ function createWindow() {
             details.requestHeaders['Origin'] = 'https://www.youtube.com';
             details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
             callback({ cancel: false, requestHeaders: details.requestHeaders });
+        }
+    );
+
+    // Bypass frame blocking restrictions on YouTube trailer embedding
+    session.defaultSession.webRequest.onHeadersReceived(
+        { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+        (details, callback) => {
+            const responseHeaders = { ...details.responseHeaders };
+            delete responseHeaders['x-frame-options'];
+            delete responseHeaders['X-Frame-Options'];
+            delete responseHeaders['content-security-policy'];
+            delete responseHeaders['Content-Security-Policy'];
+            callback({ cancel: false, responseHeaders });
         }
     );
 
