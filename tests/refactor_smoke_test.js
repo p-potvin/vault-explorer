@@ -7,7 +7,7 @@ const GLOBALS = [
     'triggerCryptoPrompt', 'showLanguageModal', 'showVideoEnhancementDialog',
     'playItem', 'initPlayer', 'stopUpscaleMode', 'playStream',
     'setLanguage', 'updateSortOrderButtonUI', 'switchTab', 'toggleFavorite',
-    'startRDDebridFlow', 'initSettingsListeners', 'renderFavorites',
+    'startRDDebridFlow', 'initSettingsListeners', 'renderFavorites', 'renderLibrary',
     'renderTMDB', 'showToast', 'formatBytes', 'formatDuration',
     'escapeHtml', 'sanitizePath', 'killAllHoverVideos', 'attachHoverWebmToCard',
     'electronAPI', 'appSettings', 'allItems', 'displayedItems',

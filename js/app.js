@@ -48,6 +48,7 @@ function setLanguage(lang) {
   // Translate top-level application navigation tabs
   if (el('tab-vault')) el('tab-vault').innerHTML = window.translations[lang].tabVault;
   if (el('tab-favorites')) el('tab-favorites').innerHTML = window.translations[lang].tabFavorites;
+  if (el('tab-library')) el('tab-library').innerHTML = window.translations[lang].tabLibrary;
   if (el('tab-tmdb')) el('tab-tmdb').innerHTML = window.translations[lang].tabMoviesSeries;
   if (el('tab-livestream')) el('tab-livestream').innerHTML = window.translations[lang].tabLivestream;
 
@@ -170,58 +171,79 @@ async function initApp() {
 
     // ── WebM Real-time Progress Tracking ─────────────────────────────────────
     window.electronAPI.onWebmProgress((data) => {
-        if (!data || !data.videoPath) return;
-        const { videoPath, percent } = data;
-        
-        const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-        const card = Array.from(document.querySelectorAll('.file-card'))
-            .find(c => normPath(c.dataset.path) === normPath(videoPath));
-            
-        if (card) {
-            let overlay = card.querySelector('.webm-loading-overlay');
-            if (percent < 100) {
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.className = 'webm-loading-overlay';
-                    overlay.innerHTML = `<div class="spinner-small"></div><div class="webm-percent" style="margin-top:4px; font-size:10px;">0%</div>`;
-                    const thumbCont = card.querySelector('.thumbnail-container');
-                    if (thumbCont) thumbCont.appendChild(overlay);
-                }
-                const pctText = overlay.querySelector('.webm-percent');
-                if (pctText) pctText.innerText = `${percent}%`;
-            } else {
-                if (overlay) overlay.remove();
-                if (data.hoverWebm) {
-                    card.dataset.hasWebm = "true";
-                    const idx = parseInt(card.dataset.index);
-                    if (window.displayedItems[idx]) {
-                        window.displayedItems[idx].hoverWebm = data.hoverWebm;
-                    }
-                    window.attachHoverWebmToCard(card, data.hoverWebm);
-                }
-                if (data.thumbnail) {
-                    card.dataset.hasThumb = "true";
-                    const idx = parseInt(card.dataset.index);
-                    if (window.displayedItems[idx]) {
-                        window.displayedItems[idx].thumbnail = data.thumbnail;
-                    }
-                    const imgEl = card.querySelector('img.thumbnail');
-                    if (imgEl) {
-                        imgEl.src = window.sanitizePath(data.thumbnail);
-                    }
-                }
-                window.showToast('Preview generated and loaded!', 'success');
-            }
-        }
-        
+        if (!data) return;
+
         const badge = el('task-badge');
-        if (badge) {
-            if (percent < 100) {
+        const pctText = el('task-percent');
+
+        // Handle Batch Preview Generation Progress
+        if (data.isBatchStart || data.isBatchProgress) {
+            if (badge) {
                 badge.style.display = 'inline-flex';
-                const pctText = el('task-percent');
-                if (pctText) pctText.innerText = `${percent}%`;
-            } else {
-                badge.style.display = 'none';
+                const total = data.total || 0;
+                const completed = data.completed || 0;
+                const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                if (pctText) {
+                    pctText.innerText = `${completed}/${total} (${pct}%)`;
+                }
+                if (completed >= total && total > 0) {
+                    setTimeout(() => { badge.style.display = 'none'; }, 3000);
+                }
+            }
+            return;
+        }
+
+        // Handle Single Video Preview Generation
+        if (data.videoPath) {
+            const { videoPath, percent } = data;
+            const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+            const card = Array.from(document.querySelectorAll('.file-card'))
+                .find(c => normPath(c.dataset.path) === normPath(videoPath));
+                
+            if (card) {
+                let overlay = card.querySelector('.webm-loading-overlay');
+                if (percent < 100) {
+                    if (!overlay) {
+                        overlay = document.createElement('div');
+                        overlay.className = 'webm-loading-overlay';
+                        overlay.innerHTML = `<div class="spinner-small"></div><div class="webm-percent" style="margin-top:4px; font-size:10px;">0%</div>`;
+                        const thumbCont = card.querySelector('.thumbnail-container');
+                        if (thumbCont) thumbCont.appendChild(overlay);
+                    }
+                    const overlayPctText = overlay.querySelector('.webm-percent');
+                    if (overlayPctText) overlayPctText.innerText = `${percent}%`;
+                } else {
+                    if (overlay) overlay.remove();
+                    if (data.hoverWebm) {
+                        card.dataset.hasWebm = "true";
+                        const idx = parseInt(card.dataset.index);
+                        if (window.displayedItems[idx]) {
+                            window.displayedItems[idx].hoverWebm = data.hoverWebm;
+                        }
+                        window.attachHoverWebmToCard(card, data.hoverWebm);
+                    }
+                    if (data.thumbnail) {
+                        card.dataset.hasThumb = "true";
+                        const idx = parseInt(card.dataset.index);
+                        if (window.displayedItems[idx]) {
+                            window.displayedItems[idx].thumbnail = data.thumbnail;
+                        }
+                        const imgEl = card.querySelector('img.thumbnail');
+                        if (imgEl) {
+                            imgEl.src = window.sanitizePath(data.thumbnail);
+                        }
+                    }
+                    window.showToast('Preview generated and loaded!', 'success');
+                }
+            }
+
+            if (badge) {
+                if (percent < 100) {
+                    badge.style.display = 'inline-flex';
+                    if (pctText) pctText.innerText = `${percent}%`;
+                } else {
+                    badge.style.display = 'none';
+                }
             }
         }
     });

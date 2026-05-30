@@ -63,28 +63,45 @@ async function handleCardContextMenu(card, item, index) {
             window.toggleFavorite(item.path);
         }
     } else if (action === 'generate-webm') {
-        const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-        const cardElement = Array.from(document.querySelectorAll('.file-card'))
-            .find(c => normPath(c.dataset.path) === normPath(item.path));
-        if (cardElement) {
-            let overlay = cardElement.querySelector('.webm-loading-overlay');
-            if (!overlay) {
-                overlay = document.createElement('div');
-                overlay.className = 'webm-loading-overlay';
-                overlay.innerHTML = `<div class="spinner-small"></div><div class="webm-percent" style="margin-top:4px; font-size:10px;">0%</div>`;
-                const thumbCont = cardElement.querySelector('.thumbnail-container');
-                if (thumbCont) thumbCont.appendChild(overlay);
-            }
+        const targetVideos = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
+        if (targetVideos.length === 0) {
+            window.showToast('No videos selected', 'error');
+            return;
         }
-        window.electronAPI.generateWebm(item.path, window.currentRealPath).then(res => {
+
+        targetVideos.forEach(v => {
+            const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+            const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                .find(c => normPath(c.dataset.path) === normPath(v.path));
             if (cardElement) {
-                const overlay = cardElement.querySelector('.webm-loading-overlay');
-                if (overlay) overlay.remove();
-            }
-            if (!res.success) {
-                window.showToast('Preview failed: ' + res.error, 'error');
+                let overlay = cardElement.querySelector('.webm-loading-overlay');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.className = 'webm-loading-overlay';
+                    overlay.innerHTML = `<div class="spinner-small"></div><div class="webm-percent" style="margin-top:4px; font-size:10px;">Queue...</div>`;
+                    const thumbCont = cardElement.querySelector('.thumbnail-container');
+                    if (thumbCont) thumbCont.appendChild(overlay);
+                }
             }
         });
+
+        if (isMulti) {
+            window.showToast(`Queued ${targetVideos.length} previews for background generation`, 'success');
+            window.electronAPI.scheduleIdlePreviews(targetVideos);
+        } else {
+            window.electronAPI.generateWebm(item.path, window.currentRealPath).then(res => {
+                const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                    .find(c => normPath(c.dataset.path) === normPath(item.path));
+                if (cardElement) {
+                    const overlay = cardElement.querySelector('.webm-loading-overlay');
+                    if (overlay) overlay.remove();
+                }
+                if (!res.success) {
+                    window.showToast('Preview failed: ' + res.error, 'error');
+                }
+            });
+        }
     } else if (action === 'normalize-audio' || action === 'normalize-audio-transcribe') {
         const transcribe = (action === 'normalize-audio-transcribe');
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];

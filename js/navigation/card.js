@@ -49,9 +49,9 @@ function createCardElement(item, index) {
 
     let thumbHtml = '';
     if (item.type === 'fakeFolder') {
-        thumbHtml = '<svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
+        thumbHtml = window.icons ? window.icons.folder('', 'width:50px; height:50px; stroke:#fff; stroke-width:2;') : '';
     } else if (item.type === 'encrypted') {
-        thumbHtml = '<svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="var(--vault-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: auto;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
+        thumbHtml = window.icons ? window.icons.lock('', 'width:50px; height:50px; stroke:var(--vault-accent); stroke-width:2; margin: auto;') : '';
     } else {
         const thumbSrc = window.sanitizePath(item.thumbnail) || 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle">NO THUMB</text></svg>';
         thumbHtml = `<img class="thumbnail" loading="lazy" src='${thumbSrc}' alt="${window.escapeHtml(item.name)} thumbnail"><img class="trickplay" alt="">
@@ -77,14 +77,14 @@ function createCardElement(item, index) {
     const isStarred = !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.includes(item.path));
     const starFill = isStarred ? '#E5A93B' : 'none';
     const starStroke = isStarred ? '#E5A93B' : '#ffffff';
+    const starSvg = window.icons ? window.icons.star('star-svg', 'transition: transform 0.2s; display: block; margin: 0; padding: 0; pointer-events: none; width: 14px; height: 14px;', starFill, starStroke) : '';
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
 
     card.innerHTML = `
     <input type="checkbox" class="file-checkbox" aria-label="Select ${window.escapeHtml(item.name)}">
     <div class="thumbnail-container" style="position:relative;">
-       <button class="favorite-star-btn" style="position: absolute; top: 6px; left: 6px; border: none; background: rgba(0,0,0,0.65); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 9999 !important; pointer-events: auto !important; padding: 0; margin: 0; outline: none; box-shadow: none; transition: background 0.2s;" title="Add to Favorites" aria-label="Favorite">
-          <svg class="star-svg" width="14" height="14" viewBox="0 0 24 24" fill="${starFill}" stroke="${starStroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s; display: block; margin: 0; padding: 0; pointer-events: none;">
-             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-          </svg>
+       <button class="favorite-star-btn" style="position: absolute; top: 6px; left: 6px; border: none; background: rgba(0,0,0,0.65); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 9999 !important; pointer-events: auto !important; padding: 0; margin: 0; outline: none; box-shadow: none; transition: background 0.2s;" title="${t.addToFavorites || 'Add to Favorites'}" aria-label="Favorite">
+          ${starSvg}
        </button>
        ${thumbHtml}
        ${sizeBadgeHtml}
@@ -145,8 +145,9 @@ function createCardElement(item, index) {
         input.style.display = 'none'; filename.style.display = 'block';
         if (input.value && input.value !== item.name) {
             const res = await window.electronAPI.renameFile(item.path, input.value);
+            const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
             if (res.success) {
-                window.showToast(`Renamed to "${input.value}"`, 'success');
+                window.showToast((t.renamedTo || 'Renamed to ') + `"${input.value}"`, 'success');
                 const oldPath = item.path;
                 const newPath = res.newPath || (item.path.substring(0, item.path.lastIndexOf('\\') + 1) + input.value);
                 const oldDotIdx = item.name.lastIndexOf('.');
@@ -161,7 +162,7 @@ function createCardElement(item, index) {
                 card.dataset.path = newPath;
             } else {
                 input.value = item.name;
-                window.showToast('Rename failed: ' + res.error, 'error');
+                window.showToast((t.renameFailed || 'Rename failed: ') + res.error, 'error');
             }
         }
     };

@@ -216,12 +216,14 @@ window.showVideoEnhancementDialog = function(item) {
             display: flex; align-items: center; gap: 8px;
             border-bottom: 1px solid var(--vault-warm-border-subtle); padding-bottom: 10px;
         `;
-        header.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--vault-gold); margin-right:4px;"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>AI Video Optimization Center 🪄</span>`;
+        const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+        const svgIcon = window.icons ? window.icons.magic('', 'color:var(--vault-gold); margin-right:4px; width:16px; height:16px;') : '';
+        header.innerHTML = `${svgIcon}<span>${t.aiVideoCenter || 'AI Video Optimization Center 🪄'}</span>`;
         modal.appendChild(header);
 
         const desc = document.createElement('p');
         desc.style = 'font-size:12px; opacity:0.8; margin-bottom:16px; line-height:1.4;';
-        desc.innerText = 'Deploy high-performance ML models for super-resolution, denosing, and temporal reconstruction:';
+        desc.innerText = t.aiVideoCenterDesc || 'Deploy high-performance ML models for super-resolution, denoising, and temporal reconstruction:';
         modal.appendChild(desc);
 
         const optionsContainer = document.createElement('div');

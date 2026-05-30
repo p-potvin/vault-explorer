@@ -46,11 +46,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   revertEnhancements: (p) => ipcRenderer.invoke('revert-enhancements', p),
   
   // TMDB / KinoCheck API
-  searchTMDB: (query, page = 1) => ipcRenderer.invoke('search-tmdb', { query, page }),
-  discoverTMDB: (providerId, mediaType, page = 1) => ipcRenderer.invoke('discover-tmdb', { providerId, mediaType, page }),
-  getTMDBMovie: (id) => ipcRenderer.invoke('get-tmdb-movie', id),
-  getTMDBTV: (id) => ipcRenderer.invoke('get-tmdb-tv', id),
-  getTMDBTVSeason: (id, seasonNumber) => ipcRenderer.invoke('get-tmdb-tv-season', { id, seasonNumber }),
+  searchTMDB: (query, page = 1, language = 'en-US') => ipcRenderer.invoke('search-tmdb', { query, page, language }),
+  discoverTMDB: (providerId, mediaType, page = 1, language = 'en-US') => ipcRenderer.invoke('discover-tmdb', { providerId, mediaType, page, language }),
+  getTMDBMovie: (data) => ipcRenderer.invoke('get-tmdb-movie', data),
+  getTMDBTV: (data) => ipcRenderer.invoke('get-tmdb-tv', data),
+  getTMDBTVSeason: (data) => ipcRenderer.invoke('get-tmdb-tv-season', data),
   getKinoCheckTrailer: (data) => ipcRenderer.invoke('get-kinocheck-trailer', data),
 
   searchOMDb: (query, page = 1) => ipcRenderer.invoke('search-omdb', { query, page }),

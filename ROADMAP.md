@@ -2,57 +2,45 @@
 
 > [!NOTE]
 > **Strategic Pivot: Transitioning towards a Unified Home Media Server**
-> We are expanding Vault Explorer from a desktop media vault and local AI workstation into a hybrid, decentralized Home Media Server. Our objective is to bridge powerful local hardware AI workflows (Whisper/NeMo transcription, ESRGAN upscaling, custom search indexing) with frictionless, cross-platform streaming access across phones, TVs, and web browsers.
+> We are expanding Vault Explorer from a desktop media vault and local AI workstation into a hybrid, decentralized Home Media Server. Our objective is to bridge powerful local hardware AI workflows (Parakeet transcription, ESRGAN upscaling, custom search indexing) with frictionless, cross-platform streaming access across phones, TVs, and web browsers.
 
----
+## 1. Vault Tab (Windows File Explorer)
 
-## Milestone 1: Core Vault Modernization (COMPLETED)
+- [x] Context menus (Open Folder, Remove Folder, Zip/Delete/Properties)
+- [x] Paste-files and zip-selection IPC handlers
+- [x] Popover menu for sorting
+- [x] Keyboard shortcuts (F5, Ctrl+A/V, F2, Delete, Ctrl+N)
+- [x] Properties modal (frontend)
+- [ ] Implement missing backend IPC handler: `get-file-properties`
+- [ ] Implement missing backend IPC handler: `get-folder-size-smart`
+- [ ] Implement missing backend IPC handler: `schedule-idle-previews`
+- [ ] FFMPEG idle timer (60s) in renderer for previews
+- [ ] Arrow key grid navigation
+- [ ] Escape key back navigation
+- [ ] Clipboard notification pill (green upward fade)
 
-- [x] **UI Styling & Theme Parity**: Standardized shadcn and Tailscale-inspired flat console-raised themes across Warm and Console configurations.
-- [x] **Video Preview Pipeline**: Dynamic, multi-segment FFmpeg-based WebM preview generation (10x2s concat) with thumbnail integration.
-- [x] **Diagnostic Telemetry**: Integrated the dynamic GPU ASR/Translation benchmark dashboard with live SVG waveform visualization.
-- [x] **Localization**: Persistent English/Quebecois bilingual support across all panels and toast structures.
+## 2. Favorites Tab
 
----
+- [ ] Fix virtual folder interaction bugs (path-based favorite toggling)
+- [ ] Separate Tab Architecture: Decouple Library and Favorites into distinct tabs
+- [ ] Ensure resumed media maintains exact state (stream, position, subs, language)
 
-## Milestone 2: Transitioning to a Local Home Media Server (In Progress)
+## 3. Streaming Tab
 
-To make local library sharing as effortless as possible, we are building a lightweight embedded media streaming node directly within the application:
+- [ ] Real-Debrid API Client integration for high-speed cloud streams
+- [ ] Torrent selection logic audit for consistent streaming quality
+- [ ] Unified Virtual Storage Model (merge local paths with active cloud torrent links)
 
-1. **Embedded HLS/DASH Streaming Server**:
-   - Embed an lightweight Express-based streaming service running in the Electron background process.
-   - On-the-fly dynamic transcoding using local FFmpeg instances to downscale and segment high-bitrate video streams into standard HLS streams for mobile and browser compatibility.
-2. **Simplified Peer Authentication & Quick-Pair**:
-   - Direct local network device pairing using a unique 6-digit PIN or generated QR Code.
-   - Lightweight browser-based web player (`vault-web-client`) optimized for Safari iOS and Chrome Android, removing the need to install native apps.
-3. **Database Model Upgrade (SQLite Integration)**:
-   - Transition from the current in-memory JS array system to a persistent SQLite database using `better-sqlite3`.
-   - Maintain tables for `media_items`, `watch_history`, `user_accounts`, and `indexing_metadata` to support multi-user playheads and resume status.
+## 4. Library Tab
 
----
+- [ ] Metadata Scraper Agents (TMDB & TVDB APIs)
+- [ ] Plex/Jellyfin/Kodi NFO Interoperability (read existing libraries without altering them)
+- [ ] Dynamic TV/Movie Library Tabs with nested views (Seasons, Episodes)
+- [ ] Enable bilingual TMDB metadata integration
 
-## Milestone 3: TV/Movie Scrapers & Plex/Jellyfin Plugin Interoperability
+## 5. Livestreams Tab
 
-Making metadata rich, beautiful, and fully aligned with industry standard media centers:
-
-1. **Metadata Scraper Agents (TMDB & TVDB)**:
-   - Automated detection of standard show/movie naming conventions (e.g. `Show.S01E02.1080p`).
-   - Scrape metadata from TheMovieDB (TMDB) and TVDB APIs to pull rich cover arts, backdrops, episode plot lines, and casting info.
-2. **Plex/Jellyfin/Kodi NFO Interoperability**:
-   - Parse and write `.nfo` XML files and standard directory poster tags (`poster.jpg`, `fanart.jpg`).
-   - Allow Vault Explorer to read existing Plex/Jellyfin libraries without altering or corrupting existing directories.
-3. **Dynamic TV/Movie Library Tabs**:
-   - Add native TV Shows and Movies dashboard sections in Vault Explorer, allowing nested views (Seasons, Episodes) and dedicated library categories.
-
----
-
-## Milestone 4: Hybrid Cloud Integration via Real-Debrid
-
-Enabling serverless high-speed cloud streams alongside local home media collections:
-
-1. **Real-Debrid API Client**:
-   - Provide an integrated configurations tab to securely store user-provided Real-Debrid API keys.
-   - Query cached torrent search indexes and directly stream high-speed unrestricted premium hoster links directly into the unified video player.
-2. **Unified Virtual Storage Model**:
-   - Merge local storage paths with active Real-Debrid cloud torrent links into a single, cohesive navigation interface.
-   - Automatically offload AI resource tasks (like generating localized subtitle tracks or performing upscaling) by queuing cloud-cached links to local processing pipelines.
+- [ ] Livestream translation integration
+- [ ] Persistent mini-player "Picture-in-Picture" mode
+- [ ] Strip response headers for embedded YouTube iframes
+- [ ] Localize KinoCheck fallbacks for trailer playback

@@ -127,7 +127,9 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 try {
                     await runFfmpegPromise([
                         '-y',
+                        '-threads', '2',
                         '-i', videoPath,
+                        '-vf', 'scale=320:-2',
                         '-c:v', 'libvpx',
                         '-b:v', '1M',
                         '-speed', '4',
@@ -145,7 +147,9 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             if (!success) {
                 await runFfmpegPromise([
                     '-y',
+                    '-threads', '2',
                     '-i', videoPath,
+                    '-vf', 'scale=320:-2',
                     '-c:v', 'libvpx',
                     '-b:v', '1M',
                     '-speed', '4',
@@ -170,16 +174,16 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             let success = false;
             if (hasAudio) {
                 try {
-                    const audioArgs = ['-y'];
+                    const audioArgs = ['-y', '-threads', '2'];
                     let filterStr = '';
                     for (let i = 0; i < numClips; i++) {
                         const seekTime = interval * i;
                         audioArgs.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
                         filterStr += `[${i}:v][${i}:a]`;
                     }
-                    filterStr += `concat=n=${numClips}:v=1:a=1[outv][outa]`;
+                    filterStr += `concat=n=${numClips}:v=1:a=1[outv][outa];[outv]scale=320:-2[outv_scaled]`;
                     audioArgs.push('-filter_complex', filterStr);
-                    audioArgs.push('-map', '[outv]', '-map', '[outa]');
+                    audioArgs.push('-map', '[outv_scaled]', '-map', '[outa]');
                     audioArgs.push(
                         '-c:v', 'libvpx',
                         '-b:v', '1M',
@@ -198,16 +202,16 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             }
 
             if (!success) {
-                const silentArgs = ['-y'];
+                const silentArgs = ['-y', '-threads', '2'];
                 let filterStr = '';
                 for (let i = 0; i < numClips; i++) {
                     const seekTime = interval * i;
                     silentArgs.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
                     filterStr += `[${i}:v]`;
                 }
-                filterStr += `concat=n=${numClips}:v=1:a=0[outv]`;
+                filterStr += `concat=n=${numClips}:v=1:a=0[outv];[outv]scale=320:-2[outv_scaled]`;
                 silentArgs.push('-filter_complex', filterStr);
-                silentArgs.push('-map', '[outv]');
+                silentArgs.push('-map', '[outv_scaled]');
                 silentArgs.push(
                     '-c:v', 'libvpx',
                     '-b:v', '1M',

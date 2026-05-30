@@ -77,6 +77,7 @@ window.switchTab = function(tabName) {
     const tabs = {
         'vault': el('tab-vault'),
         'favorites': el('tab-favorites'),
+        'library': el('tab-library'),
         'tmdb': el('tab-tmdb'),
         'livestream': el('tab-livestream')
     };
@@ -88,13 +89,15 @@ window.switchTab = function(tabName) {
             btn.classList.add('active');
             btn.style.background = 'var(--vault-accent)';
             btn.style.color = 'var(--vt-primary)';
-            btn.style.border = 'none';
+            btn.style.border = '1px solid transparent';
+            btn.style.padding = '4.5px 10px';
             btn.style.opacity = '1';
         } else {
             btn.classList.remove('active');
             btn.style.background = 'transparent';
             btn.style.color = 'var(--vault-text)';
             btn.style.border = '1px solid var(--vault-border)';
+            btn.style.padding = '4.5px 10px';
             btn.style.opacity = '0.8';
         }
     });
@@ -102,23 +105,29 @@ window.switchTab = function(tabName) {
     // Toggle view elements
     const fileGrid = el('file-grid');
     const favGrid = el('favorites-grid');
+    const libGrid = el('library-grid');
     const tmdbContainer = el('tmdb-container');
     const livestreamContainer = el('livestream-container');
     const toolbar = document.querySelector('.toolbar');
     
     if (fileGrid) fileGrid.style.display = (tabName === 'vault') ? 'grid' : 'none';
     if (favGrid) favGrid.style.display = (tabName === 'favorites') ? 'grid' : 'none';
+    if (libGrid) libGrid.style.display = (tabName === 'library') ? 'grid' : 'none';
     if (tmdbContainer) tmdbContainer.style.display = (tabName === 'tmdb') ? 'block' : 'none';
     if (livestreamContainer) livestreamContainer.style.display = (tabName === 'livestream') ? 'block' : 'none';
     
     // Manage toolbar elements visibility
     if (toolbar) {
-        // Hide standard toolbar search/browse buttons for non-vault/non-favorites tabs
-        toolbar.style.display = (tabName === 'vault' || tabName === 'favorites') ? 'flex' : 'none';
+        // Hide standard toolbar search/browse buttons for non-vault/non-favorites/non-library tabs
+        toolbar.style.display = (tabName === 'vault' || tabName === 'favorites' || tabName === 'library') ? 'flex' : 'none';
     }
 
     if (tabName === 'favorites') {
         window.renderFavorites();
+    } else if (tabName === 'library') {
+        if (typeof window.renderLibrary === 'function') {
+            window.renderLibrary();
+        }
     } else if (tabName === 'tmdb') {
         window.renderTMDB();
     } else if (tabName === 'vault') {
@@ -140,11 +149,13 @@ window.initTabListeners = function() {
     console.log('[tabs] Initializing top navigation tab click listeners...');
     const tabVault = el('tab-vault');
     const tabFavorites = el('tab-favorites');
+    const tabLibrary = el('tab-library');
     const tabTmdb = el('tab-tmdb');
     const tabLivestream = el('tab-livestream');
 
     if (tabVault) tabVault.addEventListener('click', () => window.switchTab('vault'));
     if (tabFavorites) tabFavorites.addEventListener('click', () => window.switchTab('favorites'));
+    if (tabLibrary) tabLibrary.addEventListener('click', () => window.switchTab('library'));
     if (tabTmdb) tabTmdb.addEventListener('click', () => window.switchTab('tmdb'));
     if (tabLivestream) tabLivestream.addEventListener('click', () => window.switchTab('livestream'));
 };
