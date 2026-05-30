@@ -1,5 +1,7 @@
 # 📂 Vault Explorer / L'Explorateur de Voûte
 
+> (Test PR) Gemini Code Assist review smoke-test. Please close without merging.
+
 Welcome to Vault Explorer! To maintain clean and high-fidelity bilingual resources, the documentation is divided into distinct, comprehensive resource files.
 
 Bienvenue dans l'Explorateur de Voûte! Afin de maintenir des ressources bilingues claires et fidèles, la documentation est divisée en fichiers de ressources distincts.
