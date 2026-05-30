@@ -352,15 +352,9 @@ function initPlayer() {
                     });
                 } else {
                     window.electronAPI.setWatchProgress({
-                        mediaType: window.activeStreamingMedia.mediaType,
-                        tmdbId: window.activeStreamingMedia.tmdbId,
-                        title: window.activeStreamingMedia.title,
-                        season: window.activeStreamingMedia.season,
-                        episode: window.activeStreamingMedia.episode,
+                        ...window.activeStreamingMedia,
                         positionSec: vp.currentTime,
-                        durationSec: vp.duration,
-                        poster: window.activeStreamingMedia.poster,
-                        year: window.activeStreamingMedia.year
+                        durationSec: vp.duration
                     });
                 }
             } else if (window.currentPlayingIndex !== -1) {
@@ -455,15 +449,9 @@ function initPlayer() {
             lastHistoryUpdate = now;
             if (window.activeStreamingMedia) {
                 window.electronAPI.setWatchProgress({
-                    mediaType: window.activeStreamingMedia.mediaType,
-                    tmdbId: window.activeStreamingMedia.tmdbId,
-                    title: window.activeStreamingMedia.title,
-                    season: window.activeStreamingMedia.season,
-                    episode: window.activeStreamingMedia.episode,
+                    ...window.activeStreamingMedia,
                     positionSec: vp.currentTime,
-                    durationSec: vp.duration,
-                    poster: window.activeStreamingMedia.poster,
-                    year: window.activeStreamingMedia.year
+                    durationSec: vp.duration
                 });
             } else if (window.currentPlayingIndex !== -1) {
                 const itm = window.displayedItems[window.currentPlayingIndex];
@@ -843,6 +831,27 @@ async function playStream(url, title) {
         tbTitle.textContent = `·  RD Streaming: ${title}`;
         tbTitle.style.display = 'inline-block';
     }
+
+    if (window.activeStreamingMedia) {
+        window.activeStreamingMedia.streamUrl = url;
+        window.activeStreamingMedia.streamTitle = title;
+    }
+
+    // Fetch watch progress early
+    let prog = null;
+    if (window.activeStreamingMedia) {
+        try {
+            prog = await window.electronAPI.getWatchProgress({
+                mediaType: window.activeStreamingMedia.mediaType,
+                tmdbId: window.activeStreamingMedia.tmdbId,
+                title: window.activeStreamingMedia.title,
+                season: window.activeStreamingMedia.season,
+                episode: window.activeStreamingMedia.episode
+            });
+        } catch (e) {
+            console.error('[Player] Failed to fetch watch progress:', e);
+        }
+    }
     
     vp.querySelectorAll('track').forEach(t => t.remove());
     try {
@@ -869,26 +878,53 @@ async function playStream(url, title) {
             window.refreshSubtitlesList();
             
             let preferredTrackIdx = -1;
-            const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
-            
-            if (prefLang === 'original') {
-                for (let i = 0; i < vp.textTracks.length; i++) {
-                    const lbl = vp.textTracks[i].label || '';
-                    if (lbl.toLowerCase() === 'original') {
-                        preferredTrackIdx = i;
-                        break;
+
+            if (prog && prog.selectedSubtitleTrackIdx !== undefined) {
+                let trackIdx = -1;
+                if (prog.selectedSubtitleLabel) {
+                    for (let i = 0; i < vp.textTracks.length; i++) {
+                        if (vp.textTracks[i].label === prog.selectedSubtitleLabel) {
+                            trackIdx = i;
+                            break;
+                        }
                     }
                 }
-            } else if (prefLang !== 'und') {
-                for (let i = 0; i < vp.textTracks.length; i++) {
-                    const tl = vp.textTracks[i].language || '';
-                    const lbl = vp.textTracks[i].label || '';
-                    if (tl.toLowerCase().startsWith(prefLang.toLowerCase()) || lbl.toLowerCase().includes(`(${prefLang.toLowerCase()})`)) {
-                        preferredTrackIdx = i;
-                        break;
+                if (trackIdx === -1 && prog.selectedSubtitleLang) {
+                    for (let i = 0; i < vp.textTracks.length; i++) {
+                        if (vp.textTracks[i].language === prog.selectedSubtitleLang) {
+                            trackIdx = i;
+                            break;
+                        }
+                    }
+                }
+                if (trackIdx === -1) {
+                    trackIdx = prog.selectedSubtitleTrackIdx;
+                }
+                if (trackIdx >= 0 && trackIdx < vp.textTracks.length) {
+                    preferredTrackIdx = trackIdx;
+                }
+            } else {
+                const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
+                if (prefLang === 'original') {
+                    for (let i = 0; i < vp.textTracks.length; i++) {
+                        const lbl = vp.textTracks[i].label || '';
+                        if (lbl.toLowerCase() === 'original') {
+                            preferredTrackIdx = i;
+                            break;
+                        }
+                    }
+                } else if (prefLang !== 'und') {
+                    for (let i = 0; i < vp.textTracks.length; i++) {
+                        const tl = vp.textTracks[i].language || '';
+                        const lbl = vp.textTracks[i].label || '';
+                        if (tl.toLowerCase().startsWith(prefLang.toLowerCase()) || lbl.toLowerCase().includes(`(${prefLang.toLowerCase()})`)) {
+                            preferredTrackIdx = i;
+                            break;
+                        }
                     }
                 }
             }
+
             window.selectSubtitleTrack(preferredTrackIdx);
             if (preferredTrackIdx >= 0) {
                 window.showToast(`Loaded ${subs.length} subtitle track(s) — ${vp.textTracks[preferredTrackIdx].label}`, 'success');
@@ -903,29 +939,16 @@ async function playStream(url, title) {
         console.error("Auto subtitle loading error:", err);
     }
     
-    // Fetch and restore stream playback progress
-    if (window.activeStreamingMedia) {
-        try {
-            const prog = await window.electronAPI.getWatchProgress({
-                mediaType: window.activeStreamingMedia.mediaType,
-                tmdbId: window.activeStreamingMedia.tmdbId,
-                title: window.activeStreamingMedia.title,
-                season: window.activeStreamingMedia.season,
-                episode: window.activeStreamingMedia.episode
-            });
-            if (prog && prog.positionSec > 0 && prog.durationSec > 0 && !prog.completed) {
-                const restoreOnce = () => {
-                    if (prog.positionSec < vp.duration - 15) {
-                        vp.currentTime = prog.positionSec;
-                        window.showToast(`Resumed from ${window.formatDuration(prog.positionSec)}`, 'success');
-                    }
-                    vp.removeEventListener('loadedmetadata', restoreOnce);
-                };
-                vp.addEventListener('loadedmetadata', restoreOnce);
+    // Restore stream playback progress
+    if (prog && prog.positionSec > 0 && prog.durationSec > 0 && !prog.completed) {
+        const restoreOnce = () => {
+            if (prog.positionSec < vp.duration - 15) {
+                vp.currentTime = prog.positionSec;
+                window.showToast(`Resumed from ${window.formatDuration(prog.positionSec)}`, 'success');
             }
-        } catch (e) {
-            console.error('[Player] Failed to fetch watch progress:', e);
-        }
+            vp.removeEventListener('loadedmetadata', restoreOnce);
+        };
+        vp.addEventListener('loadedmetadata', restoreOnce);
     }
 
     el('video-modal').classList.remove('minimized');

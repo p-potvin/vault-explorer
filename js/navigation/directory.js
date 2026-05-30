@@ -164,7 +164,7 @@ async function loadDirectory(navPath, realPath, useCache = false) {
 }
 
 async function navigateTo(navPath, realPath) {
-    window.currentNavPath = 'root';
+    window.currentNavPath = navPath;
     window.currentRealPath = realPath;
     el('path-display').innerText = getDisplayPath(navPath);
     clearSearchBox();
@@ -267,6 +267,7 @@ function initNavigationListeners() {
         if (!window.currentRealPath) return;
         el('loading-text').innerText = 'Refreshing Views...'; el('loading').style.display = 'flex';
         const latest = await window.electronAPI.scanDirectory(window.currentRealPath);
+        window._rootItemsCache = latest;
         el('loading').style.display = 'none'; el('loading-text').innerText = 'Scanning directory... this may take a moment.';
 
         let hasUpdates = false;

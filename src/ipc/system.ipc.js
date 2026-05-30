@@ -83,6 +83,10 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                     { label: 'Copy Selection', click: () => once('copy') },
                 ];
 
+                if (hasVideo) {
+                    templ.push({ label: 'Generate Previews', click: () => once('generate-webm') });
+                }
+
                 if (aiSubmenu.length > 0) {
                     templ.push({ type: 'separator' });
                     templ.push({ label: 'AI Enhancements 🪄', submenu: aiSubmenu });

@@ -3,25 +3,38 @@
 async function selectSubtitleTrack(trackIdx) {
     const vp = el('video-player');
     if (!vp) return;
+
+    if (window.activeStreamingMedia) {
+        window.activeStreamingMedia.selectedSubtitleTrackIdx = trackIdx;
+        if (trackIdx >= 0 && vp.textTracks[trackIdx]) {
+            window.activeStreamingMedia.selectedSubtitleLabel = vp.textTracks[trackIdx].label || '';
+            window.activeStreamingMedia.selectedSubtitleLang = vp.textTracks[trackIdx].language || '';
+        } else {
+            window.activeStreamingMedia.selectedSubtitleLabel = '';
+            window.activeStreamingMedia.selectedSubtitleLang = '';
+        }
+    }
+
     for (let i = 0; i < vp.textTracks.length; i++) {
         vp.textTracks[i].mode = 'disabled';
     }
-    
+
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
     if (trackIdx >= 0 && vp.textTracks[trackIdx]) {
         const trackEl = vp.querySelectorAll('track')[trackIdx];
         if (trackEl && trackEl.dataset.opensubtitles === "true" && trackEl.dataset.downloaded === "false") {
-            window.showToast(window.currentLang === 'fr' ? 'Téléchargement des sous-titres...' : 'Downloading subtitles...', 'success');
+            window.showToast(t.downloadingSubtitles || 'Downloading subtitles...', 'success');
             try {
                 const fileId = trackEl.dataset.fileId;
                 const lang = trackEl.dataset.lang;
                 const videoPath = trackEl.dataset.videoPath;
-                
+
                 const localPath = await window.electronAPI.downloadSubtitleTrack({ fileId, lang, videoPath });
                 if (localPath) {
                     trackEl.src = window.sanitizePath(localPath);
                     trackEl.dataset.downloaded = "true";
-                    window.showToast(window.currentLang === 'fr' ? 'Sous-titres prêts' : 'Subtitles ready', 'success');
-                    
+                    window.showToast(t.subtitlesReady || 'Subtitles ready', 'success');
+
                     vp.textTracks[trackIdx].mode = 'disabled';
                     setTimeout(() => {
                         const vpReal = el('video-player');
@@ -34,19 +47,24 @@ async function selectSubtitleTrack(trackIdx) {
                 }
             } catch (err) {
                 console.error("OpenSubtitles download failed:", err);
-                window.showToast(window.currentLang === 'fr' ? 'Échec du téléchargement' : 'Download failed', 'error');
+                window.showToast(t.downloadFailed || 'Download failed', 'error');
                 return;
             }
         }
-        
+
         vp.textTracks[trackIdx].mode = 'showing';
-        el('btn-subtitles').classList.add('active');
+    }
+
+    const btn = el('btn-subtitles');
+    if (btn) {
+        btn.classList.toggle('active', trackIdx >= 0);
         // Show only 2-letter language code in button
-        const langCode = (vp.textTracks[trackIdx].language || vp.textTracks[trackIdx].label || 'CC').substring(0, 2).toUpperCase();
-        el('btn-subtitles').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;"><path d="M 21 9 L 21 17 C 21 18.1 20.1 19 19 19 L 5 19 C 3.9 19 3 18.1 3 17 L 3 7 C 3 5.9 3.9 5 5 5 L 15 5" /><line x1="18" y1="5" x2="19" y2="5" /><path d="M 7 10 L 13 10" /><path d="M 7 14 L 17 14" /></svg><span>${langCode}</span> ▾`;
-    } else {
-        el('btn-subtitles').classList.remove('active');
-        el('btn-subtitles').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;"><path d="M 21 9 L 21 17 C 21 18.1 20.1 19 19 19 L 5 19 C 3.9 19 3 18.1 3 17 L 3 7 C 3 5.9 3.9 5 5 5 L 15 5" /><line x1="18" y1="5" x2="19" y2="5" /><path d="M 7 10 L 13 10" /><path d="M 7 14 L 17 14" /></svg><span>CC</span> ▾`;
+        const rawLang = (trackIdx >= 0 && vp.textTracks[trackIdx]) 
+            ? (vp.textTracks[trackIdx].language || vp.textTracks[trackIdx].label || 'CC')
+            : 'CC';
+        const ccText = rawLang.substring(0, 2).toUpperCase();
+        const svgIcon = window.icons ? window.icons.subtitles('', 'width:14px; height:14px; display:block; flex-shrink:0;') : '';
+        btn.innerHTML = `${svgIcon}<span>${ccText}</span>`;
     }
 
     const options = el('subtitles-menu').querySelectorAll('.subtitle-option');
@@ -70,7 +88,7 @@ function refreshSubtitlesList() {
     const listContainer = el('subtitle-tracks-list');
     if (!listContainer) return;
     listContainer.innerHTML = '';
-    
+
     for (let i = 0; i < vp.textTracks.length; i++) {
         const track = vp.textTracks[i];
         const opt = document.createElement('div');
@@ -78,13 +96,13 @@ function refreshSubtitlesList() {
         opt.dataset.idx = i;
         opt.style.cssText = 'padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;';
         opt.textContent = track.label || `Track ${i + 1}`;
-        
+
         if (track.mode === 'showing') {
             opt.classList.add('active');
             opt.style.color = 'var(--vault-accent)';
             opt.style.fontWeight = '600';
         }
-        
+
         opt.addEventListener('click', (e) => {
             e.stopPropagation();
             selectSubtitleTrack(i);
@@ -92,7 +110,7 @@ function refreshSubtitlesList() {
         });
         listContainer.appendChild(opt);
     }
-    
+
     const offOption = el('subtitles-menu').querySelector('.subtitle-option[data-idx="-1"]');
     if (offOption) {
         offOption.onclick = (e) => {
@@ -105,7 +123,7 @@ function refreshSubtitlesList() {
 
 function initSubtitleListeners() {
     const vp = el('video-player');
-    
+
     // Subtitles Dropdown Triggers
     el('btn-subtitles').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -124,20 +142,21 @@ function initSubtitleListeners() {
     el('subtitle-file-input').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         const track = document.createElement('track');
         track.kind = 'subtitles';
         track.label = file.name;
         track.srclang = 'und';
         track.src = URL.createObjectURL(file);
-        
+
         vp.appendChild(track);
         refreshSubtitlesList();
-        
+
         const trackIdx = vp.textTracks.length - 1;
         selectSubtitleTrack(trackIdx);
-        
-        window.showToast('Subtitles loaded: ' + file.name, 'success');
+
+        const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+        window.showToast((t.subtitlesLoaded || 'Subtitles loaded: ') + file.name, 'success');
         e.target.value = '';
     });
 }

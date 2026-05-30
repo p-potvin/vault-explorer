@@ -95,17 +95,18 @@ window.showPremiumHoverCard = function(card, movie) {
         window.premiumHoverState.trailerTimeout = null;
     }
     
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
     const isTV = movie.media_type === 'tv';
     const title = movie.title || movie.name || 'Unknown Title';
     const rating = movie.rating || movie.vote_average || '0.0';
-    const overview = movie.overview || 'No description available.';
+    const overview = movie.overview || t.noDesc || 'No description available.';
     const year = movie.year || (movie.release_date ? movie.release_date.substring(0,4) : (movie.first_air_date ? movie.first_air_date.substring(0,4) : ''));
     const genres = movie.genres || '';
     
     const isSaved = (window.appSettings.library || []).some(item => item.id === movie.id && item.media_type === movie.media_type);
     const libraryIcon = isSaved ? 
-        `<svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px;"><polyline points="20 6 9 17 4 12"></polyline></svg>` : 
-        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></svg>`;
+        (window.icons ? window.icons.checkmark('', 'width:14px; height:14px; stroke:var(--vault-gold);') : '') : 
+        (window.icons ? window.icons.plus('', 'width:14px; height:14px;') : '');
         
     popup.innerHTML = `
       <div class="media-container" style="position:relative; width:100%; height:180px; background:#111; overflow:hidden;">
@@ -122,14 +123,14 @@ window.showPremiumHoverCard = function(card, movie) {
         
         <div class="actions-row" style="display:flex; gap:6px; margin-top:10px; align-items:center;">
           <button class="btn-hover-play" style="flex:1; background:var(--vault-accent); color:var(--vt-primary); border:none; padding:6px 10px; border-radius:4px; font-size:10.5px; font-weight:800; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; transition:all 0.2s;">
-            <svg viewBox="0 0 24 24" fill="currentColor" style="width:10px; height:10px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            <span class="btn-text-play">${window.currentLang === 'fr' ? 'DIFFUSER' : 'STREAM'}</span>
+            ${window.icons ? window.icons.play('', 'width:10px; height:10px; fill:currentColor;') : ''}
+            <span class="btn-text-play">${t.streamUpper || 'STREAM'}</span>
           </button>
-          <button class="btn-hover-library" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#fff; width:28px; height:28px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; padding:0;" title="${isSaved ? (window.currentLang === 'fr' ? 'Retirer de la bibliothèque' : 'Remove from Library') : (window.currentLang === 'fr' ? 'Ajouter à la bibliothèque' : 'Add to Library')}">
+          <button class="btn-hover-library" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#fff; width:28px; height:28px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; padding:0;" title="${isSaved ? (t.removeFromLibrary || 'Remove from Library') : (t.addToLibrary || 'Add to Library')}">
             ${libraryIcon}
           </button>
-          <button class="btn-hover-details" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#fff; width:28px; height:28px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; padding:0;" title="${window.currentLang === 'fr' ? 'Plus de détails' : 'More Details'}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <button class="btn-hover-details" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#fff; width:28px; height:28px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; padding:0;" title="${t.moreDetails || 'More Details'}">
+            ${window.icons ? window.icons.info('', 'width:12px; height:12px;') : ''}
           </button>
         </div>
       </div>
@@ -158,17 +159,20 @@ window.showPremiumHoverCard = function(card, movie) {
         e.preventDefault();
         window.appSettings.library = window.appSettings.library || [];
         const idx = window.appSettings.library.findIndex(item => item.id === movie.id && item.media_type === movie.media_type);
+        const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
         if (idx !== -1) {
             window.appSettings.library.splice(idx, 1);
-            window.showToast(window.currentLang === 'fr' ? 'Retiré de la bibliothèque' : 'Removed from Library', 'info');
+            window.showToast(t.removedFromLibrary || 'Removed from Library', 'info');
         } else {
             window.appSettings.library.push(movie);
-            window.showToast(window.currentLang === 'fr' ? 'Ajouté à la bibliothèque' : 'Added to Library', 'success');
+            window.showToast(t.addedToLibrary || 'Added to Library', 'success');
         }
         await window.electronAPI.saveSettings(window.appSettings);
         
-        if (typeof window.renderFavorites === 'function') {
+        if (window.currentTab === 'favorites' && typeof window.renderFavorites === 'function') {
             window.renderFavorites();
+        } else if (window.currentTab === 'library' && typeof window.renderLibrary === 'function') {
+            window.renderLibrary();
         }
         
         const matchedCards = document.querySelectorAll('.tmdb-movie-card');
@@ -188,9 +192,9 @@ window.showPremiumHoverCard = function(card, movie) {
         
         const isSavedNow = window.appSettings.library.some(item => item.id === movie.id && item.media_type === movie.media_type);
         btnLib.innerHTML = isSavedNow ? 
-            `<svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px;"><polyline points="20 6 9 17 4 12"></polyline></svg>` : 
-            `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></svg>`;
-        btnLib.title = isSavedNow ? (window.currentLang === 'fr' ? 'Retirer de la bibliothèque' : 'Remove from Library') : (window.currentLang === 'fr' ? 'Ajouter à la bibliothèque' : 'Add to Library');
+            (window.icons ? window.icons.checkmark('', 'width:14px; height:14px; stroke:var(--vault-gold);') : '') : 
+            (window.icons ? window.icons.plus('', 'width:14px; height:14px;') : '');
+        btnLib.title = isSavedNow ? (t.removeFromLibrary || 'Remove from Library') : (t.addToLibrary || 'Add to Library');
     });
     
     const btnDet = popup.querySelector('.btn-hover-details');
@@ -242,8 +246,8 @@ window.showPremiumHoverCard = function(card, movie) {
                 // Fallback to TMDB
                 if (!trailerKey) {
                     const res = movie.media_type === 'tv'
-                        ? await window.electronAPI.getTMDBTV(movie.id)
-                        : await window.electronAPI.getTMDBMovie(movie.id);
+                        ? await window.electronAPI.getTMDBTV({ id: movie.id, language: window.currentLang === 'fr' ? 'fr-FR' : 'en-US' })
+                        : await window.electronAPI.getTMDBMovie({ id: movie.id, language: window.currentLang === 'fr' ? 'fr-FR' : 'en-US' });
                     if (res && res.success && res.data) {
                         const videos = res.data.videos ? res.data.videos.results : [];
                         const trailer = (Array.isArray(videos) ? videos : []).find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser' || v.type === 'Clip'));

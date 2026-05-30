@@ -61,9 +61,11 @@ function registerTmdbHandlers(ipcMain) {
 
             let query = '';
             let page = 1;
+            let language = 'en-US';
             if (arg && typeof arg === 'object') {
                 query = arg.query || '';
                 page = arg.page || 1;
+                language = arg.language || 'en-US';
             } else if (typeof arg === 'string') {
                 query = arg;
             }
@@ -71,9 +73,9 @@ function registerTmdbHandlers(ipcMain) {
             let url;
             if (!query) {
                 // Fetch trending movies and TV shows for the day by default
-                url = `https://api.themoviedb.org/3/trending/all/day?language=en-US&page=${page}`;
+                url = `https://api.themoviedb.org/3/trending/all/day?language=${language}&page=${page}`;
             } else {
-                url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=${page}`;
+                url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&include_adult=false&language=${language}&page=${page}`;
             }
 
             console.log(`[TMDB] Fetching API: ${url}`);
@@ -107,7 +109,7 @@ function registerTmdbHandlers(ipcMain) {
 
                 const poster = item.poster_path 
                     ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-                    : 'oppenheimer_poster.png'; // Fallback to our premium asset
+                    : 'public/oppenheimer_poster.png'; // Fallback to our premium asset
 
                 return {
                     id: item.id,
@@ -128,8 +130,17 @@ function registerTmdbHandlers(ipcMain) {
         }
     });
 
-    ipcMain.handle('get-tmdb-movie', async (event, id) => {
+    ipcMain.handle('get-tmdb-movie', async (event, arg) => {
         try {
+            let id;
+            let language = 'en-US';
+            if (arg && typeof arg === 'object') {
+                id = arg.id;
+                language = arg.language || 'en-US';
+            } else {
+                id = arg;
+            }
+
             if (!TMDB_BEARER_TOKEN) {
                 return {
                     success: true,
@@ -153,7 +164,7 @@ function registerTmdbHandlers(ipcMain) {
                 };
             }
 
-            const url = `https://api.themoviedb.org/3/movie/${id}?append_to_response=videos&language=en-US`;
+            const url = `https://api.themoviedb.org/3/movie/${id}?append_to_response=videos&language=${language}`;
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -207,8 +218,17 @@ function registerTmdbHandlers(ipcMain) {
         }
     });
 
-    ipcMain.handle('get-tmdb-tv', async (event, id) => {
+    ipcMain.handle('get-tmdb-tv', async (event, arg) => {
         try {
+            let id;
+            let language = 'en-US';
+            if (arg && typeof arg === 'object') {
+                id = arg.id;
+                language = arg.language || 'en-US';
+            } else {
+                id = arg;
+            }
+
             if (!TMDB_BEARER_TOKEN) {
                 return {
                     success: true,
@@ -227,7 +247,7 @@ function registerTmdbHandlers(ipcMain) {
                 };
             }
 
-            const url = `https://api.themoviedb.org/3/tv/${id}?language=en-US`;
+            const url = `https://api.themoviedb.org/3/tv/${id}?language=${language}`;
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -258,8 +278,19 @@ function registerTmdbHandlers(ipcMain) {
         }
     });
 
-    ipcMain.handle('get-tmdb-tv-season', async (event, { id, seasonNumber }) => {
+    ipcMain.handle('get-tmdb-tv-season', async (event, arg) => {
         try {
+            let id;
+            let seasonNumber;
+            let language = 'en-US';
+            if (arg && typeof arg === 'object') {
+                id = arg.id;
+                seasonNumber = arg.seasonNumber;
+                language = arg.language || 'en-US';
+            } else {
+                id = arg;
+            }
+
             if (!TMDB_BEARER_TOKEN) {
                 return {
                     success: true,
@@ -272,7 +303,7 @@ function registerTmdbHandlers(ipcMain) {
                 };
             }
 
-            const url = `https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=en-US`;
+            const url = `https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=${language}`;
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -360,7 +391,7 @@ function registerTmdbHandlers(ipcMain) {
         }
     });
 
-    ipcMain.handle('discover-tmdb', async (event, { providerId, mediaType, page = 1 }) => {
+    ipcMain.handle('discover-tmdb', async (event, { providerId, mediaType, page = 1, language = 'en-US' }) => {
         try {
             const type = mediaType === 'tv' ? 'tv' : 'movie';
             
@@ -368,20 +399,20 @@ function registerTmdbHandlers(ipcMain) {
                 // Mock provider listings for offline/unconfigured usage
                 let mockList = [];
                 const netflixMock = [
-                    { id: 201, media_type: type, title: "Stranger Things", year: "2016", rating: "8.6", genres: "Sci-Fi, Drama", poster: "oppenheimer_poster.png", overview: "When a young boy vanishes, a small town uncovers a mystery involving secret experiments and terrifying supernatural forces." },
-                    { id: 202, media_type: type, title: "Squid Game", year: "2021", rating: "8.1", genres: "Action, Thriller", poster: "dune_poster.png", overview: "Hundreds of cash-strapped players accept a strange invitation to compete in children's games. Inside, a tempting prize awaits with deadly high stakes." }
+                    { id: 201, media_type: type, title: "Stranger Things", year: "2016", rating: "8.6", genres: "Sci-Fi, Drama", poster: "public/oppenheimer_poster.png", overview: "When a young boy vanishes, a small town uncovers a mystery involving secret experiments and terrifying supernatural forces." },
+                    { id: 202, media_type: type, title: "Squid Game", year: "2021", rating: "8.1", genres: "Action, Thriller", poster: "public/dune_poster.png", overview: "Hundreds of cash-strapped players accept a strange invitation to compete in children's games. Inside, a tempting prize awaits with deadly high stakes." }
                 ];
                 const disneyMock = [
-                    { id: 301, media_type: type, title: "The Mandalorian", year: "2019", rating: "8.4", genres: "Action, Sci-Fi", poster: "dune_poster.png", overview: "The travels of a lone bounty hunter in the outer reaches of the galaxy, far from the authority of the New Republic." },
-                    { id: 302, media_type: type, title: "Loki", year: "2021", rating: "8.2", genres: "Sci-Fi, Adventure", poster: "oppenheimer_poster.png", overview: "The mercurial villain Loki resumes his role as the God of Mischief in a new series that takes place after the events of Avengers: Endgame." }
+                    { id: 301, media_type: type, title: "The Mandalorian", year: "2019", rating: "8.4", genres: "Action, Sci-Fi", poster: "public/dune_poster.png", overview: "The travels of a lone bounty hunter in the outer reaches of the galaxy, far from the authority of the New Republic." },
+                    { id: 302, media_type: type, title: "Loki", year: "2021", rating: "8.2", genres: "Sci-Fi, Adventure", poster: "public/oppenheimer_poster.png", overview: "The mercurial villain Loki resumes his role as the God of Mischief in a new series that takes place after the events of Avengers: Endgame." }
                 ];
                 const appleMock = [
-                    { id: 401, media_type: type, title: "Ted Lasso", year: "2020", rating: "8.5", genres: "Comedy, Drama", poster: "oppenheimer_poster.png", overview: "US American football coach Ted Lasso heads to the UK to manage a struggling London football team in the top flight of English football." },
-                    { id: 402, media_type: type, title: "Severance", year: "2022", rating: "8.7", genres: "Sci-Fi, Drama", poster: "dune_poster.png", overview: "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives." }
+                    { id: 401, media_type: type, title: "Ted Lasso", year: "2020", rating: "8.5", genres: "Comedy, Drama", poster: "public/oppenheimer_poster.png", overview: "US American football coach Ted Lasso heads to the UK to manage a struggling London football team in the top flight of English football." },
+                    { id: 402, media_type: type, title: "Severance", year: "2022", rating: "8.7", genres: "Sci-Fi, Drama", poster: "public/dune_poster.png", overview: "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives." }
                 ];
                 const primeMock = [
-                    { id: 501, media_type: type, title: "The Boys", year: "2019", rating: "8.7", genres: "Sci-Fi, Action", poster: "oppenheimer_poster.png", overview: "A group of vigilantes set out to take down corrupt superheroes who abuse their superpowers." },
-                    { id: 502, media_type: type, title: "Reacher", year: "2022", rating: "8.1", genres: "Action, Crime", poster: "dune_poster.png", overview: "Jack Reacher, a veteran military police investigator, is falsely accused of murder and finds himself in the middle of a deadly conspiracy." }
+                    { id: 501, media_type: type, title: "The Boys", year: "2019", rating: "8.7", genres: "Sci-Fi, Action", poster: "public/oppenheimer_poster.png", overview: "A group of vigilantes set out to take down corrupt superheroes who abuse their superpowers." },
+                    { id: 502, media_type: type, title: "Reacher", year: "2022", rating: "8.1", genres: "Action, Crime", poster: "public/dune_poster.png", overview: "Jack Reacher, a veteran military police investigator, is falsely accused of murder and finds himself in the middle of a deadly conspiracy." }
                 ];
 
                 if (providerId === '8' || providerId === '213') {
@@ -400,9 +431,9 @@ function registerTmdbHandlers(ipcMain) {
 
             let url;
             if (providerId === 'all') {
-                url = `https://api.themoviedb.org/3/discover/${type}?sort_by=popularity.desc&language=en-US&with_original_language=en|fr|ja|ko&page=${page}`;
+                url = `https://api.themoviedb.org/3/discover/${type}?sort_by=popularity.desc&language=${language}&with_original_language=en|fr|ja|ko&page=${page}`;
             } else {
-                url = `https://api.themoviedb.org/3/discover/${type}?with_watch_providers=${providerId}&watch_region=CA&with_watch_monetization_types=flatrate&sort_by=popularity.desc&language=en-US&with_original_language=en|fr|ja|ko&page=${page}`;
+                url = `https://api.themoviedb.org/3/discover/${type}?with_watch_providers=${providerId}&watch_region=CA&with_watch_monetization_types=flatrate&sort_by=popularity.desc&language=${language}&with_original_language=en|fr|ja|ko&page=${page}`;
             }
             console.log(`[TMDB] Discovering streaming provider items: ${url}`);
             
@@ -431,7 +462,7 @@ function registerTmdbHandlers(ipcMain) {
 
                 const poster = item.poster_path 
                     ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-                    : 'oppenheimer_poster.png';
+                    : 'public/oppenheimer_poster.png';
 
                 return {
                     id: item.id,
@@ -472,7 +503,7 @@ function registerTmdbHandlers(ipcMain) {
             
             const results = (data.Search || []).map(item => {
                 // Determine high-resolution OMDb poster API URL
-                let poster = 'oppenheimer_poster.png';
+                let poster = 'public/oppenheimer_poster.png';
                 if (item.Poster && item.Poster !== 'N/A') {
                     // Use OMDb Poster API endpoint directly
                     poster = `http://img.omdbapi.com/?i=${item.imdbID}&h=600&apikey=${OMDB_API_KEY}`;
@@ -520,7 +551,7 @@ function registerTmdbHandlers(ipcMain) {
             }
             
             // Format to match standard TMDB details structure for frontend parity
-            let poster = 'oppenheimer_poster.png';
+            let poster = 'public/oppenheimer_poster.png';
             if (data.imdbID) {
                 poster = `http://img.omdbapi.com/?i=${data.imdbID}&h=600&apikey=${OMDB_API_KEY}`;
             } else if (data.Poster && data.Poster !== 'N/A') {
