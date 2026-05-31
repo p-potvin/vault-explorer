@@ -8,12 +8,13 @@ function setLanguage(lang) {
   el('lang-text').innerText = (lang === 'en') ? 'EN' : 'FR';
   console.log('[i18n] Language set to:', lang);
   
-  el('btn-select').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:inline-block;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> <span>${window.translations[lang].browseVault}</span>`;
+  el('btn-select').innerHTML = `${window.icons ? window.icons.folder('', 'width:12px; height:12px; display:inline-block;') : ''} <span>${window.translations[lang].browseVault}</span>`;
   
   const filterType = el('filter-type');
   filterType.options[0].text = window.translations[lang].videos;
   filterType.options[1].text = window.translations[lang].images;
-  filterType.options[2].text = window.translations[lang].allFiles;
+  filterType.options[2].text = window.translations[lang].music;
+  filterType.options[3].text = window.translations[lang].allFiles;
   
   el('search-box').placeholder = window.translations[lang].searchPlaceholder;
   if (el('btn-new-folder')) el('btn-new-folder').title = window.translations[lang].addFolder;
@@ -44,13 +45,15 @@ function setLanguage(lang) {
   if (sHeader) sHeader.innerText = window.translations[lang].settings;
   if (el('glob-exclusions-label')) el('glob-exclusions-label').innerText = window.translations[lang].globExclusionsLabel;
   if (el('settings-btn-save')) el('settings-btn-save').innerText = window.translations[lang].save;
+  if (el('label-mute-previews')) el('label-mute-previews').innerText = window.translations[lang].mutePreviews;
 
   // Translate top-level application navigation tabs
-  if (el('tab-vault')) el('tab-vault').innerHTML = window.translations[lang].tabVault;
-  if (el('tab-favorites')) el('tab-favorites').innerHTML = window.translations[lang].tabFavorites;
-  if (el('tab-library')) el('tab-library').innerHTML = window.translations[lang].tabLibrary;
-  if (el('tab-tmdb')) el('tab-tmdb').innerHTML = window.translations[lang].tabMoviesSeries;
-  if (el('tab-livestream')) el('tab-livestream').innerHTML = window.translations[lang].tabLivestream;
+  const iconStyle = "width:13px; height:13px; flex-shrink:0;";
+  if (el('tab-vault')) el('tab-vault').innerHTML = `${window.icons ? window.icons.folder('tab-icon', iconStyle) : ''}${window.translations[lang].tabVault}`;
+  if (el('tab-favorites')) el('tab-favorites').innerHTML = `${window.icons ? window.icons.star('tab-icon', iconStyle) : ''}${window.translations[lang].tabFavorites}`;
+  if (el('tab-library')) el('tab-library').innerHTML = `${window.icons ? window.icons.library('tab-icon', iconStyle) : ''}${window.translations[lang].tabLibrary}`;
+  if (el('tab-tmdb')) el('tab-tmdb').innerHTML = `${window.icons ? window.icons.filmRoll('tab-icon', iconStyle) : ''}${window.translations[lang].tabMoviesSeries}`;
+  if (el('tab-livestream')) el('tab-livestream').innerHTML = `${window.icons ? window.icons.lightning('tab-icon', iconStyle) : ''}${window.translations[lang].tabLivestream}`;
 
   // Translate TMDB subtabs
   if (el('subtab-movies')) el('subtab-movies').innerText = window.translations[lang].tabMovies;
@@ -75,10 +78,10 @@ function updateSortOrderButtonUI() {
     const order = btn.dataset.order || 'desc';
     const lang = window.currentLang || 'en';
     if (order === 'asc') {
-        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+        btn.innerHTML = window.icons ? window.icons.arrowUp('', 'width:14px; height:14px;') : '';
         btn.title = window.translations[lang].ascending;
     } else {
-        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>`;
+        btn.innerHTML = window.icons ? window.icons.arrowDown('', 'width:14px; height:14px;') : '';
         btn.title = window.translations[lang].descending;
     }
 }
@@ -247,6 +250,37 @@ async function initApp() {
             }
         }
     });
+
+    // 🔊 Audio Normalization Real-time Progress Tracking
+    if (window.electronAPI && typeof window.electronAPI.onNormalizeProgress === 'function') {
+        window.electronAPI.onNormalizeProgress((data) => {
+            if (!data) return;
+            const badge = el('task-badge');
+            const pctText = el('task-percent');
+            if (!badge) return;
+
+            badge.style.display = 'inline-flex';
+            
+            // Get the label span (second child span)
+            const labelSpan = badge.querySelector('span:nth-child(2)');
+            if (labelSpan) {
+                const label = data.label || (window.currentLang === 'fr' ? 'Normalisation' : 'Normalization');
+                labelSpan.innerHTML = `${label}: <span id="task-percent">${data.percent}%</span>`;
+            } else if (pctText) {
+                pctText.innerText = `${data.percent}%`;
+            }
+
+            if (data.percent >= 100) {
+                setTimeout(() => {
+                    badge.style.display = 'none';
+                    // Restore original text just in case
+                    if (labelSpan) {
+                        labelSpan.innerHTML = `Generating Previews: <span id="task-percent">0%</span>`;
+                    }
+                }, 3000);
+            }
+        });
+    }
 
     // Focus Lost (Window Blur) -> Pause hover webms cleanly
     window.addEventListener('blur', () => {

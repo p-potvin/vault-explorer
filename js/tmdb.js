@@ -103,8 +103,17 @@ window.updateProviderButtonsUI = updateProviderButtonsUI;
 window.updateSubtabsUI = updateSubtabsUI;
 
 window.renderTMDB = async function(query = '', append = false) {
+    if (window.tmdbIsFetching && append) {
+        console.log('[TMDB] Fetch already in progress, ignoring duplicate load-more call.');
+        return;
+    }
+    
     const grid = el('tmdb-results-grid');
     if (!grid) return;
+    
+    window.tmdbIsFetching = true;
+    window.tmdbRequestId = (window.tmdbRequestId || 0) + 1;
+    const currentRequestId = window.tmdbRequestId;
     
     const loadMoreContainer = el('tmdb-load-more-container');
     const loadMoreText = el('tmdb-load-more-text');
@@ -114,6 +123,7 @@ window.renderTMDB = async function(query = '', append = false) {
         window.tmdbCurrentPage = 1;
         window.tmdbCurrentQuery = query;
         grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;"><div class="spinner" style="margin: 0 auto 12px;"></div>Searching TMDB...</div>';
+        if (loadMoreContainer) loadMoreContainer.style.display = 'none';
     } else {
         if (loadMoreText) loadMoreText.innerText = 'Loading...';
     }
@@ -131,6 +141,12 @@ window.renderTMDB = async function(query = '', append = false) {
             response = await window.electronAPI.discoverTMDB(window.tmdbCurrentProvider, window.tmdbCurrentMediaType, window.tmdbCurrentPage, langCode);
         }
 
+        // Check if this request is still the latest one
+        if (currentRequestId !== window.tmdbRequestId) {
+            console.log(`[TMDB] Discarding stale request ${currentRequestId} in favor of ${window.tmdbRequestId}`);
+            return;
+        }
+
         if (!append) {
             grid.innerHTML = '';
         } else {
@@ -142,9 +158,7 @@ window.renderTMDB = async function(query = '', append = false) {
             if (!append) {
                 grid.innerHTML = `
                     <div class="empty-state" style="grid-column: 1 / -1; padding: 40px 0;">
-                       <svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert, #FF6B7A)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px;">
-                          <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
-                       </svg>
+                       ${window.icons ? window.icons.error('', 'width: 48px; height: 48px; margin-bottom: 12px; stroke-width: 1.5; stroke: var(--vault-signal-alert, #FF6B7A);') : ''}
                        <h3>TMDB Request Failed</h3>
                        <p>${window.escapeHtml(errMsg)}</p>
                     </div>
@@ -161,9 +175,7 @@ window.renderTMDB = async function(query = '', append = false) {
             if (!append) {
                 grid.innerHTML = `
                     <div class="empty-state" style="grid-column: 1 / -1; padding: 40px 0;">
-                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px; color: var(--vault-accent);">
-                          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                       </svg>
+                       ${window.icons ? window.icons.search('', 'width: 48px; height: 48px; margin-bottom: 12px; stroke-width: 1.5; color: var(--vault-accent);') : ''}
                        <h3>No TMDB Results Found</h3>
                        <p>We couldn't find any movies or TV shows matching your criteria.</p>
                     </div>
@@ -198,8 +210,8 @@ window.renderTMDB = async function(query = '', append = false) {
             const isTV = movie.media_type === 'tv';
             
             // Modernized SVGs for standard badging
-            const tvSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px; height:11px; display:inline-block;"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>`;
-            const movieSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px; height:11px; display:inline-block;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+            const tvSvg = window.icons ? window.icons.tv('', 'width:11px; height:11px; display:inline-block;') : '';
+            const movieSvg = window.icons ? window.icons.movie('', 'width:11px; height:11px; display:inline-block;') : '';
             
             card.innerHTML = `
                 <div class="thumbnail-container" style="position:relative; background:#111; height: 180px; width: 100%; border-top-left-radius: 5px; border-top-right-radius: 5px; overflow: hidden;">
@@ -231,12 +243,17 @@ window.renderTMDB = async function(query = '', append = false) {
         window.updateStatusBar();
     } catch (e) {
         console.error("TMDB render error:", e);
+        if (currentRequestId !== window.tmdbRequestId) return;
         if (!append) {
             grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;">Error loading TMDB results.</div>';
         } else {
             window.showToast('Error loading more items', 'error');
         }
         if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+    } finally {
+        if (currentRequestId === window.tmdbRequestId) {
+            window.tmdbIsFetching = false;
+        }
     }
 };
 
@@ -244,6 +261,8 @@ window.initTMDBListeners = function() {
     console.log('[tmdb] Initializing TMDB listeners...');
     
     // Initialize global TMDB streaming state
+    window.tmdbIsFetching = false;
+    window.tmdbRequestId = 0;
     window.tmdbCurrentProvider = 'all';
     window.tmdbCurrentMediaType = 'movie';
     window.tmdbCurrentPage = 1;

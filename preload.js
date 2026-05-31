@@ -78,5 +78,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWatchHistory: (opts) => ipcRenderer.invoke('watch-history:get-all', opts),
   markWatched: (data) => ipcRenderer.invoke('watch-history:mark-watched', data),
   removeWatchHistory: (data) => ipcRenderer.invoke('watch-history:remove', data),
-  clearWatchHistory: () => ipcRenderer.invoke('watch-history:clear')
+  clearWatchHistory: () => ipcRenderer.invoke('watch-history:clear'),
+  enhanceImageThumbnails: (paths) => ipcRenderer.invoke('enhance-image-thumbnails', paths),
+  onImageEnhanced: (cb) => ipcRenderer.on('image-enhanced', (_, data) => cb(data)),
+  offImageEnhanced: () => ipcRenderer.removeAllListeners('image-enhanced'),
+  onAppHidden: (cb) => ipcRenderer.on('app-hidden', (_, data) => cb(data))
 });

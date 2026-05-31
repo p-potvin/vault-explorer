@@ -65,14 +65,19 @@ function clearSearchBox() {
 }
 
 async function loadDirectory(navPath, realPath, useCache = false) {
-    if (!realPath) return;
-    window.currentNavPath = navPath; window.currentRealPath = realPath;
-    el('path-display').innerText = navPath === 'root' ? realPath : getDisplayPath(navPath);
+    if (!realPath && navPath !== 'root') return;
+    window.currentNavPath = navPath; window.currentRealPath = realPath || '';
+
+    const displayPath = navPath === 'root' 
+        ? (realPath || (window.translations[window.currentLang].noFolderSelected || 'No folder selected...')) 
+        : getDisplayPath(navPath);
+    el('path-display').innerText = displayPath;
+    el('path-display').title = realPath ? "Click to change Vault folder" : "Click to browse for a folder";
 
     if (el('btn-new-folder')) { el('btn-new-folder').disabled = false; el('btn-new-folder').style.display = 'inline-flex'; }
     if (el('btn-new-folder')) el('btn-new-folder').title = "Create virtual folder";
-    el('btn-refresh').disabled = false;
-    el('btn-refresh').title = "Refresh directory";
+    el('btn-refresh').disabled = !realPath;
+    el('btn-refresh').title = realPath ? "Refresh directory" : "No folder selected";
     el('btn-back').disabled = true;
     el('btn-back').style.display = 'none';
     el('btn-back').title = "Already at root vault level";
@@ -80,35 +85,41 @@ async function loadDirectory(navPath, realPath, useCache = false) {
     clearSearchBox();
     el('main-area').scrollTop = 0;
 
-    window.appSettings.lastPath = { navPath, realPath };
-    window.electronAPI.saveSettings(window.appSettings);
-
-    el('loading').style.display = 'flex';
-
-    // Setup a loading bypass safety timeout (appears if scanning takes > 1.5s)
-    const bypassBtn = el('btn-bypass-loading');
-    let bypassTimeout = null;
-    if (bypassBtn) {
-        bypassBtn.style.display = 'none';
-        bypassTimeout = setTimeout(() => {
-            bypassBtn.style.display = 'inline-block';
-        }, 1500);
+    if (realPath) {
+        window.appSettings.lastPath = { navPath, realPath };
+        window.electronAPI.saveSettings(window.appSettings);
     }
 
-    try {
-        if (navPath === 'root' && window._rootItemsCache && useCache) {
-            window.allItems = window._rootItemsCache;
-        } else if (!useCache) {
-            window.allItems = await window.electronAPI.scanDirectory(realPath);
-            if (navPath === 'root') window._rootItemsCache = window.allItems;
+    if (realPath) {
+        el('loading').style.display = 'flex';
+
+        // Setup a loading bypass safety timeout (appears if scanning takes > 1.5s)
+        const bypassBtn = el('btn-bypass-loading');
+        let bypassTimeout = null;
+        if (bypassBtn) {
+            bypassBtn.style.display = 'none';
+            bypassTimeout = setTimeout(() => {
+                bypassBtn.style.display = 'inline-block';
+            }, 1500);
         }
-    } catch (err) {
-        console.error('[loadDirectory] Directory scan failed:', err);
+
+        try {
+            if (navPath === 'root' && window._rootItemsCache && useCache) {
+                window.allItems = window._rootItemsCache;
+            } else {
+                window.allItems = await window.electronAPI.scanDirectory(realPath);
+                if (navPath === 'root') window._rootItemsCache = window.allItems;
+            }
+        } catch (err) {
+            console.error('[loadDirectory] Directory scan failed:', err);
+            window.allItems = [];
+        } finally {
+            if (bypassTimeout) clearTimeout(bypassTimeout);
+            if (bypassBtn) bypassBtn.style.display = 'none';
+            el('loading').style.display = 'none';
+        }
+    } else {
         window.allItems = [];
-    } finally {
-        if (bypassTimeout) clearTimeout(bypassTimeout);
-        if (bypassBtn) bypassBtn.style.display = 'none';
-        el('loading').style.display = 'none';
     }
 
     window.applyFilters();
@@ -190,7 +201,41 @@ async function navigateTo(navPath, realPath) {
         const targetFolder = window.getTargetFolder(navPath);
         if (targetFolder && targetFolder.items.length > 0) {
             el('loading').style.display = 'flex';
-            window.allItems = await window.electronAPI.scanSpecificFiles(targetFolder.items);
+            const localPaths = [];
+            const streamingItems = [];
+            
+            targetFolder.items.forEach(it => {
+                if (typeof it === 'string' && it.startsWith('tmdb://metadata:')) {
+                    try {
+                        const movie = JSON.parse(it.substring('tmdb://metadata:'.length));
+                        streamingItems.push({
+                            name: movie.title || movie.name,
+                            path: it,
+                            type: 'video',
+                            thumbnail: movie.poster,
+                            poster: movie.poster,
+                            rating: movie.rating,
+                            genres: movie.genres,
+                            year: movie.year,
+                            overview: movie.overview,
+                            media_type: movie.media_type,
+                            isStreaming: true,
+                            meta: movie
+                        });
+                    } catch (e) {
+                        console.error('[directory] Failed to parse streaming item metadata:', e);
+                    }
+                } else {
+                    localPaths.push(it);
+                }
+            });
+            
+            let loadedLocal = [];
+            if (localPaths.length > 0) {
+                loadedLocal = await window.electronAPI.scanSpecificFiles(localPaths);
+            }
+            
+            window.allItems = [...streamingItems, ...loadedLocal];
             el('loading').style.display = 'none';
         } else {
             window.allItems = [];
@@ -369,6 +414,10 @@ function initNavigationListeners() {
         });
         if (action === 'paste') {
             if (!window._clipboard || window._clipboard.paths.length === 0) { window.showToast('Nothing to paste', 'error'); return; }
+            if (!window.currentRealPath) { 
+                window.showToast(window.currentLang === 'fr' ? 'Veuillez charger un dossier Vault' : 'Please load a Vault folder first', 'error'); 
+                return; 
+            }
             const res = await window.electronAPI.pasteFiles({ paths: window._clipboard.paths, mode: window._clipboard.mode, destination: window.currentRealPath });
             if (res.success) {
                 window.showToast(`Pasted ${res.count} file(s)`, 'success');

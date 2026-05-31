@@ -43,6 +43,14 @@ window.initKeybindingsAndFolderListeners = function() {
             inputFolderName.value = '';
             btnCreateFolder.disabled = true;
             btnCreateFolder.title = "Folder name cannot be empty";
+            // Pre-select folder type based on the active subtab
+            const typeEl = el('fake-folder-type');
+            if (typeEl) {
+                const sub = window.currentVaultSubtab || 'all';
+                if (sub === 'albums') typeEl.value = 'album';
+                else if (sub === 'playlists') typeEl.value = 'playlist';
+                else typeEl.value = 'collection';
+            }
             inputFolderName.focus();
         });
 
@@ -67,7 +75,9 @@ window.initKeybindingsAndFolderListeners = function() {
                     window.showToast('A virtual folder with this name already exists in this location', 'error');
                     return;
                 }
-                window.appSettings.folders.push({ name: name, parent: window.currentNavPath, items: [] });
+                const typeEl = el('fake-folder-type');
+                const type = typeEl ? typeEl.value : 'collection';
+                window.appSettings.folders.push({ name: name, parent: window.currentNavPath, items: [], type: type });
                 window.electronAPI.saveSettings(window.appSettings);
                 folderDialog.style.display = 'none';
                 inputFolderName.value = '';
@@ -89,9 +99,154 @@ window.initKeybindingsAndFolderListeners = function() {
         }); 
     }
 
+    // Setup add-to-folder dialog cancel/confirm buttons
+    const btnCancelAddToFolder = el('btn-cancel-add-to-folder');
+    const btnConfirmAddToFolder = el('btn-confirm-add-to-folder');
+    const addToFolderDialog = el('add-to-folder-dialog');
+    const selectAddToFolder = el('add-to-folder-select');
+
+    if (btnCancelAddToFolder && btnConfirmAddToFolder && addToFolderDialog && selectAddToFolder) {
+        btnCancelAddToFolder.addEventListener('click', () => {
+            addToFolderDialog.style.display = 'none';
+        });
+        
+        btnConfirmAddToFolder.addEventListener('click', () => {
+            const folderName = selectAddToFolder.value;
+            if (!folderName || !window.itemToAssign) return;
+            
+            const targetFolder = window.appSettings.folders.find(f => f.name === folderName);
+            if (targetFolder) {
+                if (targetFolder.items.includes(window.itemToAssign.path)) {
+                    const alreadyMsg = window.currentLang === 'fr' ? 'Ce fichier est déjà dans ce dossier' : 'This file is already in this folder';
+                    window.showToast(alreadyMsg, 'error');
+                } else {
+                    targetFolder.items.push(window.itemToAssign.path);
+                    window.electronAPI.saveSettings(window.appSettings);
+                    const addedMsg = window.currentLang === 'fr' ? 'Ajouté avec succès' : 'Successfully added to virtual folder';
+                    window.showToast(addedMsg, 'success');
+                    addToFolderDialog.style.display = 'none';
+                    
+                    // If we're inside the target virtual folder, we must reload the folder view
+                    if (window.currentNavPath === `root/${folderName}` || window.currentNavPath.endsWith('/' + folderName)) {
+                        window.navigateTo(window.currentNavPath, window.currentRealPath);
+                    } else {
+                        window.applyFilters();
+                    }
+                }
+            }
+        });
+    }
+
+    window.showAddToFolderDialog = function(item) {
+        const dialog = el('add-to-folder-dialog');
+        const filenameEl = el('add-to-folder-dialog-filename');
+        const selectEl = el('add-to-folder-select');
+        
+        if (!dialog || !selectEl || !filenameEl) return;
+        
+        window.itemToAssign = item;
+        filenameEl.innerText = item.name;
+        
+        // Determine the expected type based on the file type
+        let expectedType = 'collection';
+        if (item.type === 'video' || item.type === 'encrypted') expectedType = 'collection';
+        else if (item.type === 'image') expectedType = 'album';
+        else if (item.type === 'audio') expectedType = 'playlist';
+        
+        // Filter folders by expected type
+        const matchingFolders = (window.appSettings.folders || []).filter(f => (f.type || 'collection') === expectedType);
+        
+        selectEl.innerHTML = '';
+        if (matchingFolders.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            const defaultLabel = expectedType === 'collection' ? 'Create a Collection first' : expectedType === 'album' ? 'Create an Album first' : 'Create a Playlist first';
+            option.innerText = `(${defaultLabel})`;
+            selectEl.appendChild(option);
+            btnConfirmAddToFolder.disabled = true;
+        } else {
+            matchingFolders.forEach(f => {
+                const option = document.createElement('option');
+                option.value = f.name;
+                option.innerText = `${f.name} (${f.type || 'collection'})`;
+                selectEl.appendChild(option);
+            });
+            btnConfirmAddToFolder.disabled = false;
+        }
+        
+        dialog.style.display = 'block';
+    };
+
     // Global shortcut keys (F2 rename, select all, copy, paste, delete, new folder)
     document.addEventListener('keydown', async (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        // Escape Key Back Navigation
+        if (e.key === 'Escape') {
+            const playerOpen = el('video-modal') && el('video-modal').style.display === 'flex';
+            const dialogsOpen = Array.from(document.querySelectorAll('[role="dialog"], .modal')).some(d => d.style.display === 'flex' || d.style.display === 'block');
+            if (!playerOpen && !dialogsOpen) {
+                e.preventDefault();
+                const backBtn = el('btn-back');
+                if (backBtn && !backBtn.disabled) {
+                    backBtn.click();
+                }
+            }
+        }
+
+        // Arrow Keys Grid Navigation
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            const activeGrid = document.querySelector('.file-grid:not([style*="display: none"])') || document.querySelector('#file-grid');
+            if (activeGrid) {
+                const cards = Array.from(activeGrid.querySelectorAll('.file-card'));
+                if (cards.length > 0) {
+                    let nextIdx = -1;
+                    const currentIdx = cards.indexOf(document.activeElement);
+                    
+                    if (currentIdx === -1) {
+                        nextIdx = 0;
+                    } else {
+                        let cols = 0;
+                        const firstCardTop = cards[0].getBoundingClientRect().top;
+                        for (let i = 0; i < cards.length; i++) {
+                            if (Math.abs(cards[i].getBoundingClientRect().top - firstCardTop) > 5) {
+                                cols = i;
+                                break;
+                            }
+                        }
+                        if (cols === 0) cols = cards.length;
+                        
+                        if (e.key === 'ArrowLeft') {
+                            nextIdx = currentIdx - 1;
+                        } else if (e.key === 'ArrowRight') {
+                            nextIdx = currentIdx + 1;
+                        } else if (e.key === 'ArrowUp') {
+                            nextIdx = currentIdx - cols;
+                        } else if (e.key === 'ArrowDown') {
+                            nextIdx = currentIdx + cols;
+                        }
+                    }
+                    
+                    if (nextIdx >= 0 && nextIdx < cards.length) {
+                        e.preventDefault();
+                        cards[nextIdx].focus();
+                        
+                        if (window.selectedIndices) {
+                            window.selectedIndices.clear();
+                            window.selectedIndices.add(nextIdx);
+                            window.lastSelectedIndex = nextIdx;
+                            document.querySelectorAll('.file-card').forEach(c => {
+                                const isSel = window.selectedIndices.has(parseInt(c.dataset.index));
+                                c.classList.toggle('selected', isSel);
+                                const cb = c.querySelector('.file-checkbox');
+                                if (cb) cb.checked = isSel;
+                            });
+                            window.updateStatusBar();
+                        }
+                    }
+                }
+            }
+        }
         
         // Find / Search
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
@@ -185,23 +340,47 @@ window.initKeybindingsAndFolderListeners = function() {
                 const itemsToDelete = Array.from(window.selectedIndices).map(idx => window.displayedItems[idx]).filter(Boolean);
                 if (itemsToDelete.length > 0) {
                     const names = itemsToDelete.map(i => i.name).join(', ');
-                    if (await window.showConfirmDialog(`Delete selected item(s): ${names}?`, 'Confirm Bulk Deletion')) {
+                    const isVirtual = window.currentNavPath !== 'root';
+                    const confirmTitle = isVirtual 
+                        ? (window.currentLang === 'fr' ? 'Confirmer le retrait' : 'Confirm Bulk Removal')
+                        : (window.currentLang === 'fr' ? 'Confirmer la suppression' : 'Confirm Bulk Deletion');
+                    const confirmMsg = isVirtual
+                        ? (window.currentLang === 'fr' ? `Retirer les éléments sélectionnés de ce dossier : ${names} ?` : `Remove selected item(s) from this folder: ${names}?`)
+                        : `Delete selected item(s): ${names}?`;
+                        
+                    if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
                         (async () => {
                             let successCount = 0;
-                            for (const item of itemsToDelete) {
-                                if (item.type === 'fakeFolder') {
-                                    window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
-                                    successCount++;
-                                } else {
-                                    const res = await window.electronAPI.deleteItem(item.path);
-                                    if (res.success) {
-                                        window.allItems = window.allItems.filter(i => i.path !== item.path);
+                            if (isVirtual) {
+                                const targetFolder = window.getTargetFolder(window.currentNavPath);
+                                if (targetFolder) {
+                                    for (const item of itemsToDelete) {
+                                        if (item.type === 'fakeFolder') {
+                                            window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
+                                            successCount++;
+                                        } else {
+                                            targetFolder.items = targetFolder.items.filter(p => p !== item.path);
+                                            window.allItems = window.allItems.filter(i => i.path !== item.path);
+                                            successCount++;
+                                        }
+                                    }
+                                }
+                            } else {
+                                for (const item of itemsToDelete) {
+                                    if (item.type === 'fakeFolder') {
+                                        window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
                                         successCount++;
+                                    } else {
+                                        const res = await window.electronAPI.deleteItem(item.path);
+                                        if (res.success) {
+                                            window.allItems = window.allItems.filter(i => i.path !== item.path);
+                                            successCount++;
+                                        }
                                     }
                                 }
                             }
                             if (successCount > 0) {
-                                window.showToast(`Deleted ${successCount} item(s)`, 'success');
+                                window.showToast(isVirtual ? `Removed ${successCount} item(s)` : `Deleted ${successCount} item(s)`, 'success');
                                 window.electronAPI.saveSettings(window.appSettings);
                                 window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
                             }

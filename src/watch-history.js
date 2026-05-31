@@ -82,6 +82,17 @@ function registerWatchHistoryHandlers(ipcMain, app) {
     // ── Get progress for a specific item ────────────────────────────────────
     ipcMain.handle('watch-history:get-progress', (_e, { mediaType, tmdbId, title, season, episode }) => {
         const history = loadHistory();
+        if (mediaType === 'tv' && (season == null || episode == null)) {
+            const tvItems = Object.values(history.items).filter(item => 
+                item.mediaType === 'tv' && 
+                ((tmdbId != null && item.tmdbId === tmdbId) || (title != null && item.title === title))
+            );
+            if (tvItems.length > 0) {
+                tvItems.sort((a, b) => new Date(b.lastWatched) - new Date(a.lastWatched));
+                return tvItems[0];
+            }
+            return null;
+        }
         const key = makeKey(mediaType, tmdbId, title, season, episode);
         return history.items[key] || null;
     });

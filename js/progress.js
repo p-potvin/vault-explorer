@@ -72,4 +72,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    if (window.electronAPI && typeof window.electronAPI.onNormalizeProgress === 'function') {
+        window.electronAPI.onNormalizeProgress((data) => {
+            if (!delim || !zone || !text) return;
+            showZone();
+            if (barContainer) barContainer.style.display = 'none'; // Normalize uses spinner + text updates
+            
+            if (data.percent < 100) {
+                if (spinner) spinner.style.display = 'inline-block';
+                const baseLabel = data.label || 'Normalizing audio...';
+                text.innerText = `${baseLabel} (${data.percent}%)`;
+            } else {
+                if (spinner) spinner.style.display = 'none';
+                text.innerText = window.currentLang === 'fr' 
+                    ? `Normalisation terminée !`
+                    : `Normalization completed!`;
+                scheduleHide(3000);
+            }
+        });
+    }
 });

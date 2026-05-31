@@ -13,7 +13,7 @@ function _populateExternalBadges(title, tmdbId, mediaType, trailerKey = null) {
     if (trailerKey) {
         const btnYT = document.createElement('button');
         btnYT.style.cssText = badgeStyle;
-        btnYT.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:inline-block; vertical-align:middle; color:var(--vault-accent);"><polygon points="5 3 19 12 5 21 5 3"/></svg> Watch Trailer (YouTube)';
+        btnYT.innerHTML = `${window.icons ? window.icons.play('', 'width:12px; height:12px; display:inline-block; vertical-align:middle; color:var(--vault-accent);') : ''} Watch Trailer (YouTube)`;
         btnYT.onclick = () => {
             if (window.electronAPI && window.electronAPI.openExternalURL) {
                 window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailerKey}`);
@@ -68,7 +68,7 @@ function _populateExternalBadges(title, tmdbId, mediaType, trailerKey = null) {
     // 5. TMDB Page
     const btnTMDB = document.createElement('button');
     btnTMDB.style.cssText = badgeStyle;
-    btnTMDB.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:inline-block; vertical-align:middle;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> TMDB';
+    btnTMDB.innerHTML = `${window.icons ? window.icons.globe('', 'width:12px; height:12px; display:inline-block; vertical-align:middle;') : ''} TMDB`;
     btnTMDB.onclick = () => {
         if (window.electronAPI && window.electronAPI.openExternalURL) {
             window.electronAPI.openExternalURL(`https://www.themoviedb.org/${mediaType}/${tmdbId}`);
@@ -243,8 +243,8 @@ window.showMediaDetails = async function(movie) {
         window.appSettings.library = window.appSettings.library || [];
         const isCurrentlySaved = window.appSettings.library.some(item => item.id === movie.id && item.media_type === movie.media_type);
         
-        const plusSvg = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-        const minusSvg = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;"><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+        const plusSvg = window.icons ? window.icons.plus('tab-icon', 'width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;') : '';
+        const minusSvg = window.icons ? window.icons.minus('tab-icon', 'width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;') : '';
         
         btnLib.innerHTML = isCurrentlySaved 
             ? `${minusSvg}<span>${window.currentLang === 'fr' ? 'Retirer de la bibliothèque' : 'Remove from Library'}</span>` 
@@ -349,8 +349,8 @@ async function _setupTVModal(movie) {
         window.appSettings.followedShows = window.appSettings.followedShows || [];
         const isFollowed = window.appSettings.followedShows.some(id => id === movie.id);
         
-        const plusSvg = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-        const minusSvg = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;"><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+        const plusSvg = window.icons ? window.icons.plus('tab-icon', 'width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;') : '';
+        const minusSvg = window.icons ? window.icons.minus('tab-icon', 'width:12px; height:12px; margin-right:4.5px; display:inline-block; vertical-align:middle;') : '';
         
         btnFollow.innerHTML = isFollowed
             ? `${minusSvg}<span>${window.currentLang === 'fr' ? 'Ne plus suivre' : 'Unfollow Show'}</span>`
@@ -631,7 +631,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
 
     const isTV = mediaType === 'tv';
     const epLabel = isTV && season != null ? ` S${String(season).padStart(2,'0')}E${String(episode || 1).padStart(2,'0')}` : '';
-    statusText.innerHTML = `<svg class="tab-icon spinner-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Scraping Torrentio index for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
+    statusText.innerHTML = `${window.icons ? window.icons.search('tab-icon spinner-inline', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Scraping Torrentio index for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
 
     const preferredQuality = getPreferredQuality();
     const preferredLang = getPreferredLang();
@@ -676,7 +676,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
 
         if (!response || !response.success || !response.torrents || response.torrents.length === 0) {
             loadingStatus.querySelector('.spinner').style.display = 'none';
-            statusText.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No torrent sources found for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>.`;
+            statusText.innerHTML = `${window.icons ? window.icons.close('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px; stroke:var(--vault-signal-alert);') : ''} No torrent sources found for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>.`;
             return;
         }
 
@@ -720,7 +720,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
                 ${isBest ? `<span style="position:absolute; top:6px; right:8px; background:var(--vault-accent); color:var(--vt-primary); font-size:8px; font-weight:800; padding:2px 6px; border-radius:3px; font-family:var(--font-mono); text-transform:uppercase;">Best Match</span>` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; width:100%; padding-right:${isBest ? '80px' : '0'};">
                     <strong style="color:var(--vault-accent); font-family:var(--font-mono); font-size:11px;">${window.escapeHtml(t.quality)} <span style="color:var(--vault-slate); font-weight:400;">(${window.escapeHtml(t.type.substring(0, 30).toUpperCase())})</span></strong>
-                    <span style="font-size:9.5px; color:var(--vault-slate); font-weight:600; display:inline-flex; align-items:center; gap:3.5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:10px; height:10px; display:inline-block; vertical-align:middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${window.escapeHtml(t.size)}</span>
+                    <span style="font-size:9.5px; color:var(--vault-slate); font-weight:600; display:inline-flex; align-items:center; gap:3.5px;">${window.icons ? window.icons.folder('', 'width:10px; height:10px; display:inline-block; vertical-align:middle;') : ''} ${window.escapeHtml(t.size)}</span>
                 </div>
                 <div style="font-size:10px; color:#eee; text-align:left; margin:2px 0; font-weight:500; font-family:var(--font-sans); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;">${window.escapeHtml(t.desc || '')}</div>
                 <div style="display:flex; gap:15px; font-size:9.5px; color:var(--vault-slate); margin-top:2px;">
@@ -796,7 +796,7 @@ window.startRDDebridFlow = async function(torrent, movieTitle, index = 0) {
     torrentsList.style.display = 'none';
     loadingStatus.style.display = 'block';
     loadingStatus.querySelector('.spinner').style.display = 'block';
-    statusText.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Unrestricting cached torrent on Real-Debrid servers...<br><span style="font-size:10px; color:var(--vault-slate);">Checking availability & generating direct stream link</span>`;
+    statusText.innerHTML = `${window.icons ? window.icons.lightning('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Unrestricting cached torrent on Real-Debrid servers...<br><span style="font-size:10px; color:var(--vault-slate);">Checking availability & generating direct stream link</span>`;
 
     const chooseManuallyBtn = el('btn-rd-choose-manually');
     if (chooseManuallyBtn) {
@@ -847,7 +847,7 @@ window.startRDDebridFlow = async function(torrent, movieTitle, index = 0) {
 
                 statusText.innerHTML = `
                     <div style="text-align: center; width: 100%;">
-                        <span style="font-size: 13px; font-weight: 700; color: var(--vault-accent, #F5B929); display: block; margin-bottom: 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Caching Torrent to Cloud...</span>
+                        <span style="font-size: 13px; font-weight: 700; color: var(--vault-accent, #F5B929); display: block; margin-bottom: 8px;">${window.icons ? window.icons.cloud('', 'width:14px; height:14px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Caching Torrent to Cloud...</span>
                         <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin: 12px 0;">
                             <div style="width: ${progress}%; height: 100%; background: linear-gradient(90deg, var(--vault-accent, #F5B929), #FF6B7A); border-radius: 4px; transition: width 0.4s ease;"></div>
                         </div>
@@ -886,7 +886,7 @@ window.startRDDebridFlow = async function(torrent, movieTitle, index = 0) {
                 seeders = poll.seeders || 0;
                 
                 if (status === 'downloaded' || (poll.links && poll.links.length > 0)) {
-                    statusText.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span style="color:var(--vault-accent);">Caching finished!</span> Unrestricting final stream...`;
+                    statusText.innerHTML = `${window.icons ? window.icons.lightning('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} <span style="color:var(--vault-accent);">Caching finished!</span> Unrestricting final stream...`;
                     const finalRes = await window.electronAPI.streamRDTorrent({ magnet: torrent.magnet, hash: torrent.hash, url: torrent.url });
                     if (window.activeRDFlowId !== currentFlowId) {
                         console.log('[Real-Debrid] Flow cancelled post final streamRDTorrent.');
@@ -945,7 +945,7 @@ window.startRDDebridFlow = async function(torrent, movieTitle, index = 0) {
                 }
             }
             
-            statusText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Real-Debrid Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(errMsg)}</strong>`;
+            statusText.innerHTML = `${window.icons ? window.icons.close('', 'width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px; stroke:var(--vault-signal-alert);') : ''} Real-Debrid Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(errMsg)}</strong>`;
             
             const retryBtn = document.createElement('button');
             retryBtn.innerText = window.currentLang === 'fr' ? 'Retour aux Flux' : 'Back to Streams';
@@ -962,12 +962,15 @@ window.startRDDebridFlow = async function(torrent, movieTitle, index = 0) {
         el('rd-stream-dialog').style.display = 'none';
         const bd = el('rd-stream-backdrop');
         if (bd) bd.style.display = 'none';
+        if (window.activeStreamingMedia) {
+            window.activeStreamingMedia.quality = torrent.quality || '';
+        }
         window.playStream(response.streamUrl, movieTitle);
         window.showToast('Direct high-speed RD stream loaded successfully!', 'success');
     } catch (e) {
         console.error('Real-Debrid streaming workflow failed:', e);
         loadingStatus.querySelector('.spinner').style.display = 'none';
-        statusText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--vault-signal-alert)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Real-Debrid Workflow Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(e.message || e)}</strong>`;
+        statusText.innerHTML = `${window.icons ? window.icons.close('', 'width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px; stroke:var(--vault-signal-alert);') : ''} Real-Debrid Workflow Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(e.message || e)}</strong>`;
         
         const retryBtn = document.createElement('button');
         retryBtn.innerText = window.currentLang === 'fr' ? 'Retour aux Flux' : 'Back to Streams';

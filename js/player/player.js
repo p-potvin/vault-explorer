@@ -1,13 +1,14 @@
 // player.js — Custom HTML5 video player core initialization, PiP/countdown widgets, seek/trickplay canvas scrubbers, and history persistence.
 
 window.currentPlayingIndex = -1;
+window.currentPlayingItem = null;
 window.autoplayTimer = null;
 window.autoplayCountdown = 5;
 window.autoplayMode = localStorage.getItem('autoplayMode') || '5s'; // off, instant, 3s, 5s
 window.autoplayEnabled = (window.autoplayMode !== 'off');
 
-const PLAY_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; display:block;"><path d="M 8 5 L 19 12 L 8 19 Z" /></svg>`;
-const PAUSE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; display:block;"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>`;
+const PLAY_ICON_SVG = window.icons ? window.icons.play('', 'width:16px; height:16px; display:block;') : '';
+const PAUSE_ICON_SVG = window.icons ? window.icons.pause('', 'width:16px; height:16px; display:block;') : '';
 
 let vp = null;
 let seekArea = null;
@@ -66,7 +67,7 @@ function updateVolumeIconUI(vol) {
     } else {
         pathContent = `<path d="M 7 11 L 7 9 L 11 9 L 15 5 L 15 19 L 11 15 L 7 15 L 7 13" /><path d="M 18 9 A 3 3 0 0 1 18 15" /><path d="M 21 7 A 6 6 0 0 1 21 17" />`;
     }
-    btnVol.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; display:block;">${pathContent}</svg>`;
+    btnVol.innerHTML = window.icons ? window.icons.volume('', 'width:16px; height:16px; display:block;', pathContent) : '';
 }
 
 async function playItem(idx) {
@@ -91,6 +92,7 @@ async function playItem(idx) {
     if (itm.type !== 'video') return;
     
     window.currentPlayingIndex = idx;
+    window.currentPlayingItem = itm;
     trickFrames = [];
     vp.dataset.trickplay = itm.trickplayFolder || '';
     const activePath = itm.enhancedPath || itm.path;
@@ -104,10 +106,22 @@ async function playItem(idx) {
     
     const baseTitle = itm.name.replace(/\.[^.]+$/, '');
     const titleEl = el('player-title');
-    if (titleEl) titleEl.textContent = itm.enhancedPath ? `${baseTitle} 🪄` : baseTitle;
+    if (titleEl) {
+        if (itm.enhancedPath) {
+            const magicIcon = window.icons ? window.icons.magic('magic-inline-icon', 'width:12px; height:12px; display:inline-block; vertical-align:middle; margin-left:6px; color:var(--vault-gold);') : '';
+            titleEl.innerHTML = `${baseTitle} ${magicIcon}`;
+        } else {
+            titleEl.textContent = baseTitle;
+        }
+    }
     const tbTitle = el('titlebar-video-title');
     if (tbTitle) {
-        tbTitle.textContent = `·  Playing: ${itm.name}${itm.enhancedPath ? ' 🪄 [Enhanced]' : ''}`;
+        if (itm.enhancedPath) {
+            const magicIcon = window.icons ? window.icons.magic('magic-inline-icon', 'width:10px; height:10px; display:inline-block; vertical-align:middle; margin-left:4px; color:var(--vault-gold);') : '';
+            tbTitle.innerHTML = `·  Playing: ${itm.name} ${magicIcon} <span style="font-size:9.5px; opacity:0.8;">[Enhanced]</span>`;
+        } else {
+            tbTitle.textContent = `·  Playing: ${itm.name}`;
+        }
         tbTitle.style.display = 'inline-block';
     }
     
@@ -229,6 +243,25 @@ function saveAndSetVolume(vol) {
 
 function initPlayer() {
     vp = el('video-player');
+    
+    // Close / stop video, trailers, and livestream when app is minimized to tray
+    if (window.electronAPI && typeof window.electronAPI.onAppHidden === 'function') {
+        window.electronAPI.onAppHidden(() => {
+            console.log('[Player] App minimized to tray. Stopping active media players...');
+            const closeModalBtn = el('close-modal');
+            if (closeModalBtn && el('video-modal').style.display === 'flex') {
+                closeModalBtn.click();
+            }
+            const trailerIframe = el('movie-trailer-iframe');
+            if (trailerIframe) {
+                trailerIframe.src = '';
+            }
+            if (window.electronAPI.stopLivestream) {
+                window.electronAPI.stopLivestream().catch(() => {});
+            }
+        });
+    }
+
     seekArea = el('seek-area');
     seekFill = el('seek-fill');
     seekPreview = el('seek-hover-preview');
@@ -326,7 +359,7 @@ function initPlayer() {
         const btnSubs = el('btn-subtitles');
         if (btnSubs) {
             btnSubs.classList.remove('active');
-            btnSubs.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;"><path d="M 21 9 L 21 17 C 21 18.1 20.1 19 19 19 L 5 19 C 3.9 19 3 18.1 3 17 L 3 7 C 3 5.9 3.9 5 5 5 L 15 5" /><line x1="18" y1="5" x2="19" y2="5" /><path d="M 7 10 L 13 10" /><path d="M 7 14 L 17 14" /></svg><span>CC</span> ▾`;
+            btnSubs.innerHTML = `${window.icons ? window.icons.subtitles('', 'width:14px; height:14px; display:block; flex-shrink:0;') : ''}<span>CC</span> ▾`;
         }
         // Re-disable AI button
         const btnUpscale = el('btn-upscale');
@@ -357,6 +390,28 @@ function initPlayer() {
                         durationSec: vp.duration
                     });
                 }
+            } else if (window.currentPlayingItem) {
+                const closingItm = window.currentPlayingItem;
+                if (closingItm && closingItm.path) {
+                    window.appSettings.playbackPositions = window.appSettings.playbackPositions || {};
+                    const completed = vp.currentTime >= vp.duration - 15;
+                    if (completed) {
+                        delete window.appSettings.playbackPositions[closingItm.path];
+                        window.electronAPI.markWatched({
+                            mediaType: 'local',
+                            title: closingItm.name
+                        });
+                    } else {
+                        window.appSettings.playbackPositions[closingItm.path] = vp.currentTime;
+                        window.electronAPI.setWatchProgress({
+                            mediaType: 'local',
+                            title: closingItm.name,
+                            positionSec: vp.currentTime,
+                            durationSec: vp.duration
+                        });
+                    }
+                    window.electronAPI.saveSettings(window.appSettings);
+                }
             } else if (window.currentPlayingIndex !== -1) {
                 const closingItm = window.displayedItems[window.currentPlayingIndex];
                 if (closingItm && closingItm.path) {
@@ -386,6 +441,7 @@ function initPlayer() {
         window.activeStreamingMedia = null;
 
         vp.pause(); vp.src = '';
+        window.currentPlayingItem = null;
         if (window.currentPlayingIndex !== -1) {
             const card = document.querySelector(`.file-card[data-index="${window.currentPlayingIndex}"]`);
             if (card) card.focus();
@@ -453,6 +509,16 @@ function initPlayer() {
                     positionSec: vp.currentTime,
                     durationSec: vp.duration
                 });
+            } else if (window.currentPlayingItem) {
+                const itm = window.currentPlayingItem;
+                if (itm && itm.path) {
+                    window.electronAPI.setWatchProgress({
+                        mediaType: 'local',
+                        title: itm.name,
+                        positionSec: vp.currentTime,
+                        durationSec: vp.duration
+                    });
+                }
             } else if (window.currentPlayingIndex !== -1) {
                 const itm = window.displayedItems[window.currentPlayingIndex];
                 if (itm && itm.path) {
@@ -505,6 +571,14 @@ function initPlayer() {
                 poster: window.activeStreamingMedia.poster,
                 year: window.activeStreamingMedia.year
             });
+        } else if (window.currentPlayingItem) {
+            const itm = window.currentPlayingItem;
+            if (itm && itm.path) {
+                window.electronAPI.markWatched({
+                    mediaType: 'local',
+                    title: itm.name
+                });
+            }
         } else if (window.currentPlayingIndex !== -1) {
             const itm = window.displayedItems[window.currentPlayingIndex];
             if (itm && itm.path) {
@@ -725,6 +799,13 @@ function initPlayer() {
                     if (!document.fullscreenElement) vp.parentElement.requestFullscreen();
                     else document.exitFullscreen();
                     break;
+                case 'escape':
+                    if (e.ctrlKey || e.shiftKey) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        el('video-modal').classList.toggle('minimized');
+                    }
+                    break;
             }
         }
     });
@@ -788,7 +869,7 @@ function initPlayer() {
 
     // Handle ESC to close the video modal
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && el('video-modal').style.display === 'flex') {
+        if (e.key === 'Escape' && !e.shiftKey && !e.ctrlKey && el('video-modal').style.display === 'flex') {
             el('close-modal').click();
         }
     });
@@ -798,6 +879,122 @@ function initPlayer() {
     if (titlebarEl) {
         titlebarEl.addEventListener('mouseenter', () => document.body.classList.add('titlebar-hovered'));
         titlebarEl.addEventListener('mouseleave', () => document.body.classList.remove('titlebar-hovered'));
+    }
+
+    // Enable double-click to rename the active local video while playing
+    const titleEl = el('player-title');
+    if (titleEl) {
+        titleEl.style.cursor = 'pointer';
+        titleEl.addEventListener('dblclick', () => {
+            let itm = null;
+            if (window.currentPlayingItem) {
+                itm = window.currentPlayingItem;
+            } else if (window.currentPlayingIndex !== -1) {
+                itm = window.displayedItems[window.currentPlayingIndex];
+            }
+            if (!itm || !itm.path) return;
+            
+            // Prevent multiple input boxes
+            if (titleEl.querySelector('input')) return;
+            
+            const oldName = itm.name;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = oldName;
+            input.style.background = 'var(--vault-bg)';
+            input.style.color = 'var(--vault-text)';
+            input.style.border = '1px solid var(--vault-accent)';
+            input.style.borderRadius = '4px';
+            input.style.padding = '2px 8px';
+            input.style.fontSize = '14px';
+            input.style.fontFamily = 'var(--font-mono)';
+            input.style.outline = 'none';
+            input.style.width = '350px';
+            input.style.textAlign = 'center';
+            
+            titleEl.textContent = '';
+            titleEl.appendChild(input);
+            input.focus();
+            input.select();
+            
+            const saveRename = async () => {
+                const newName = input.value.trim();
+                if (!newName || newName === oldName) {
+                    const baseTitle = oldName.replace(/\.[^.]+$/, '');
+                    if (itm.enhancedPath) {
+                        const magicIcon = window.icons ? window.icons.magic('magic-inline-icon', 'width:12px; height:12px; display:inline-block; vertical-align:middle; margin-left:6px; color:var(--vault-gold);') : '';
+                        titleEl.innerHTML = `${baseTitle} ${magicIcon}`;
+                    } else {
+                        titleEl.textContent = baseTitle;
+                    }
+                    return;
+                }
+                
+                const res = await window.electronAPI.renameFile(itm.path, newName);
+                if (res.success) {
+                    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+                    window.showToast((t.renamedTo || 'Renamed to ') + `"${newName}"`, 'success');
+                    
+                    const oldPath = itm.path;
+                    const newPath = res.newPath || (itm.path.substring(0, itm.path.lastIndexOf('\\') + 1) + newName);
+                    
+                    itm.name = newName;
+                    itm.path = newPath;
+                    
+                    const baseTitle = newName.replace(/\.[^.]+$/, '');
+                    if (itm.enhancedPath) {
+                        const magicIcon = window.icons ? window.icons.magic('magic-inline-icon', 'width:12px; height:12px; display:inline-block; vertical-align:middle; margin-left:6px; color:var(--vault-gold);') : '';
+                        titleEl.innerHTML = `${baseTitle} ${magicIcon}`;
+                    } else {
+                        titleEl.textContent = baseTitle;
+                    }
+                    
+                    const tbTitle = el('titlebar-video-title');
+                    if (tbTitle) {
+                        if (itm.enhancedPath) {
+                            const magicIcon = window.icons ? window.icons.magic('magic-inline-icon', 'width:10px; height:10px; display:inline-block; vertical-align:middle; margin-left:4px; color:var(--vault-gold);') : '';
+                            tbTitle.innerHTML = `·  Playing: ${newName} ${magicIcon} <span style="font-size:9.5px; opacity:0.8;">[Enhanced]</span>`;
+                        } else {
+                            tbTitle.textContent = `·  Playing: ${newName}`;
+                        }
+                    }
+                    
+                    // Update corresponding card element in layout if open
+                    const card = document.querySelector(`.file-card[data-index="${window.currentPlayingIndex}"]`);
+                    if (card) {
+                        card.dataset.path = newPath;
+                        const fn = card.querySelector('.filename');
+                        if (fn) fn.innerText = newName;
+                        const rInp = card.querySelector('.rename-input');
+                        if (rInp) rInp.value = newName;
+                    }
+                    
+                    // Update items list silently to preserve file-grid integrity
+                    window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                } else {
+                    window.showToast((window.translations[window.currentLang === 'fr' ? 'fr' : 'en'].renameFailed || 'Rename failed: ') + res.error, 'error');
+                    const baseTitle = oldName.replace(/\.[^.]+$/, '');
+                    if (itm.enhancedPath) {
+                        const magicIcon = window.icons ? window.icons.magic('magic-inline-icon', 'width:12px; height:12px; display:inline-block; vertical-align:middle; margin-left:6px; color:var(--vault-gold);') : '';
+                        titleEl.innerHTML = `${baseTitle} ${magicIcon}`;
+                    } else {
+                        titleEl.textContent = baseTitle;
+                    }
+                }
+            };
+            
+            input.addEventListener('blur', saveRename);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    input.blur();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    input.value = oldName;
+                    input.blur();
+                }
+            });
+        });
     }
 }
 
@@ -823,6 +1020,10 @@ async function playStream(url, title) {
     vp.dataset.trickplay = '';
     vp.src = url;
     vp.muted = false;
+    if (lastScrubSrc !== url) {
+        scrubVideo.src = url;
+        lastScrubSrc = url;
+    }
     
     const titleEl = el('player-title');
     if (titleEl) titleEl.textContent = `⚡ RD Stream: ${title}`;

@@ -214,8 +214,13 @@ async function handleCardContextMenu(card, item, index) {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
         
-        const langs = await window.showLanguageModal('Generate Subtitles', true, []);
+        const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
+        const langs = await window.showLanguageModal('Generate Subtitles', true, defaultLangs);
         if (langs && langs.length > 0) {
+            if (!window.appSettings) window.appSettings = {};
+            window.appSettings.preferredASRLangs = langs;
+            window.electronAPI.saveSettings(window.appSettings);
+
             window.showToast(`Generating subtitles for ${targetItems.length} video(s): ${langs.join(', ').toUpperCase()}`, 'success');
             targetItems.forEach(targetItem => {
                 const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
@@ -258,8 +263,13 @@ async function handleCardContextMenu(card, item, index) {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
         
-        const lang = await window.showLanguageModal('Translate Video Track', false, []);
+        const defaultTransLangs = (window.appSettings && window.appSettings.preferredTransLang) ? [window.appSettings.preferredTransLang] : [];
+        const lang = await window.showLanguageModal('Translate Video Track', false, defaultTransLangs);
         if (lang && lang.length > 0) {
+            if (!window.appSettings) window.appSettings = {};
+            window.appSettings.preferredTransLang = lang[0];
+            window.electronAPI.saveSettings(window.appSettings);
+
             window.showToast(`Synthesizing translation to ${lang[0].toUpperCase()} for ${targetItems.length} video(s)...`, 'success');
             targetItems.forEach(targetItem => {
                 const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
@@ -380,24 +390,48 @@ async function handleCardContextMenu(card, item, index) {
         const targetItems = isMulti ? selectedItems : [item];
         if (targetItems.length === 0) { window.showToast('No items selected', 'error'); return; }
         
-        const confirmMsg = targetItems.length > 1
-            ? `Are you sure you want to delete the ${targetItems.length} selected item(s)?`
-            : `Delete "${item.name}"?`;
-        if (await window.showConfirmDialog(confirmMsg, 'Confirm Deletion')) {
-            let deletedCount = 0;
-            for (const targetItem of targetItems) {
-                console.log('[delete] deleting:', targetItem.path);
-                const res = await window.electronAPI.deleteItem(targetItem.path);
-                if (res.success) {
-                    deletedCount++;
-                    window.allItems = window.allItems.filter(i => i.path !== targetItem.path);
+        const isVirtual = window.currentNavPath !== 'root';
+        const confirmTitle = isVirtual 
+            ? (window.currentLang === 'fr' ? 'Confirmer le retrait' : 'Confirm Removal')
+            : (window.currentLang === 'fr' ? 'Confirmer la suppression' : 'Confirm Deletion');
+        const confirmMsg = isVirtual
+            ? (targetItems.length > 1
+                ? (window.currentLang === 'fr' ? `Retirer les ${targetItems.length} éléments sélectionnés de ce dossier ?` : `Remove the ${targetItems.length} selected item(s) from this folder?`)
+                : (window.currentLang === 'fr' ? `Retirer "${item.name}" de ce dossier ?` : `Remove "${item.name}" from this folder?`))
+            : (targetItems.length > 1
+                ? `Are you sure you want to delete the ${targetItems.length} selected item(s)?`
+                : `Delete "${item.name}"?`);
+                
+        if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
+            if (isVirtual) {
+                const targetFolder = window.getTargetFolder(window.currentNavPath);
+                if (targetFolder) {
+                    targetItems.forEach(targetItem => {
+                        targetFolder.items = targetFolder.items.filter(p => p !== targetItem.path);
+                        window.allItems = window.allItems.filter(i => i.path !== targetItem.path);
+                    });
+                    window.electronAPI.saveSettings(window.appSettings);
+                    window.showToast(targetItems.length > 1 
+                        ? (window.currentLang === 'fr' ? `${targetItems.length} éléments retirés` : `${targetItems.length} items removed`)
+                        : (window.currentLang === 'fr' ? `Retiré: ${item.name}` : `Removed: ${item.name}`), 'success');
+                    window.applyFilters();
                 }
-            }
-            if (deletedCount > 0) {
-                window.showToast(targetItems.length > 1 ? `Deleted ${deletedCount} item(s)` : `Deleted: ${item.name}`, 'success');
-                window.applyFilters();
             } else {
-                window.showToast('Delete failed', 'error');
+                let deletedCount = 0;
+                for (const targetItem of targetItems) {
+                    console.log('[delete] deleting:', targetItem.path);
+                    const res = await window.electronAPI.deleteItem(targetItem.path);
+                    if (res.success) {
+                        deletedCount++;
+                        window.allItems = window.allItems.filter(i => i.path !== targetItem.path);
+                    }
+                }
+                if (deletedCount > 0) {
+                    window.showToast(targetItems.length > 1 ? `Deleted ${deletedCount} item(s)` : `Deleted: ${item.name}`, 'success');
+                    window.applyFilters();
+                } else {
+                    window.showToast('Delete failed', 'error');
+                }
             }
         }
     } else if (action === 'rename') {
