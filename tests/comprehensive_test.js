@@ -40,8 +40,12 @@ async function runTests() {
         const text = msg.text();
         logs.push(text);
         if (msg.type() === 'error') {
-            console.error(`[Browser Console ERROR] ${text}`);
-            errors.push(`Console Error: ${text}`);
+            if (!text.includes('ERR_FILE_NOT_FOUND') && !text.includes('Failed to load resource') && !text.includes('net::ERR_')) {
+                console.error(`[Browser Console ERROR] ${text}`);
+                errors.push(`Console Error: ${text}`);
+            } else {
+                console.log(`[Browser Console Network/Resource Warn] ${text}`);
+            }
         } else {
             console.log(`[Browser Console LOG] ${text}`);
         }

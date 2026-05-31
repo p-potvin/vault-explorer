@@ -3,12 +3,15 @@
 function createCardElement(item, index) {
     const card = document.createElement('div');
     card.className = 'file-card';
+    if (item.type === 'audio') card.classList.add('audio-card');
     card.tabIndex = 0;
     card.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            if (item.type === 'video') {
+            if (item.isStreaming) {
+                if (typeof window.showMediaDetails === 'function') window.showMediaDetails(item.meta || item);
+            } else if (item.type === 'video') {
                 if (typeof window.playItem === 'function') window.playItem(index);
             } else if (item.type === 'fakeFolder') {
                 window.navigateTo(window.currentNavPath + '/' + item.name, window.currentRealPath);
@@ -52,8 +55,34 @@ function createCardElement(item, index) {
         thumbHtml = window.icons ? window.icons.folder('', 'width:50px; height:50px; stroke:#fff; stroke-width:2;') : '';
     } else if (item.type === 'encrypted') {
         thumbHtml = window.icons ? window.icons.lock('', 'width:50px; height:50px; stroke:var(--vault-accent); stroke-width:2; margin: auto;') : '';
+    } else if (item.type === 'audio') {
+        // Multi-color dynamic waveform
+        const palette = [
+            ['#b07cff','rgba(176,124,255,0.35)'],
+            ['#9b6ff0','rgba(155,111,240,0.3)'],
+            ['#74b1be','rgba(116,177,190,0.35)'],
+            ['#5ad4e6','rgba(90,212,230,0.35)'],
+            ['#4ecdc4','rgba(78,205,196,0.35)'],
+            ['#74b1be','rgba(116,177,190,0.3)'],
+            ['#D6A441','rgba(214,164,65,0.35)'],
+            ['#f0b94b','rgba(240,185,75,0.3)'],
+            ['#ff9a6c','rgba(255,154,108,0.3)'],
+            ['#ff6b7a','rgba(255,107,122,0.3)'],
+            ['#cc5fa8','rgba(204,95,168,0.35)'],
+            ['#b07cff','rgba(176,124,255,0.3)']
+        ];
+        const bars = Array.from({length: 12}, (_, i) => {
+            const [col, dim] = palette[i % palette.length];
+            const lo  = (0.12 + Math.random() * 0.2).toFixed(2);
+            const hi  = (0.55 + Math.random() * 0.45).toFixed(2);
+            const dur = (0.65 + Math.random() * 0.7).toFixed(2);
+            const del = (i * 0.07).toFixed(2);
+            return `<div class="wv-bar" style="--wv-color:${col};--wv-color-dim:${dim};--wv-lo:${lo};--wv-hi:${hi};--wv-dur:${dur}s;animation-delay:${del}s;"></div>`;
+        }).join('');
+        const noteIcon = window.icons ? window.icons.musicNote('audio-note-icon', 'width:52px;height:52px;stroke:rgba(176,124,255,0.6);stroke-width:1.2;') : '';
+        thumbHtml = `${noteIcon}<div class="audio-waveform">${bars}</div>`;
     } else {
-        const thumbSrc = window.sanitizePath(item.thumbnail) || 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle">NO THUMB</text></svg>';
+        const thumbSrc = item.isStreaming ? item.thumbnail : (window.sanitizePath(item.thumbnail) || 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle">NO THUMB</text></svg>');
         thumbHtml = `<img class="thumbnail" loading="lazy" src='${thumbSrc}' alt="${window.escapeHtml(item.name)} thumbnail"><img class="trickplay" alt="">
                   <div class="duration-badge"></div>`;
     }
@@ -65,12 +94,11 @@ function createCardElement(item, index) {
 
     let metaLineHtml = '';
     if (item.type !== 'fakeFolder') {
-        const extLabel = item.ext ? item.ext.toUpperCase().substring(1) : 'FILE';
+        const extLabel = item.isStreaming ? 'STREAM' : (item.ext ? item.ext.toUpperCase().substring(1) : 'FILE');
         const sizeStr = item.size ? window.formatBytes(item.size) : '';
         metaLineHtml = `<div style="font-size:10px; color:#888; margin-top:2px; display:flex; gap:6px; justify-content:center; align-items:center;">
          <span style="font-weight:600; color:var(--vault-accent);">${extLabel}</span>
-         <span>•</span>
-         <span>${sizeStr}</span>
+         ${sizeStr ? `<span>•</span><span>${sizeStr}</span>` : ''}
       </div>`;
     }
 
@@ -80,12 +108,27 @@ function createCardElement(item, index) {
     const starSvg = window.icons ? window.icons.star('star-svg', 'transition: transform 0.2s; display: block; margin: 0; padding: 0; pointer-events: none; width: 14px; height: 14px;', starFill, starStroke) : '';
     const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
 
+    let plusBtnHtml = '';
+    if (item.type !== 'fakeFolder') {
+        let plusBtnTitle = "Add to Virtual Folder";
+        if (item.type === 'video' || item.type === 'encrypted') plusBtnTitle = window.currentLang === 'fr' ? "Ajouter à la Collection" : "Add to Collection";
+        else if (item.type === 'image') plusBtnTitle = window.currentLang === 'fr' ? "Ajouter à l'Album" : "Add to Album";
+        else if (item.type === 'audio') plusBtnTitle = window.currentLang === 'fr' ? "Ajouter à la Playlist" : "Add to Playlist";
+
+        plusBtnHtml = `
+           <button class="add-to-folder-btn" style="position: absolute; top: 6px; right: 6px; border: none; background: rgba(0,0,0,0.65); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 9999 !important; pointer-events: auto !important; padding: 0; margin: 0; outline: none; box-shadow: none; transition: background 0.2s; color: #ffffff;" title="${plusBtnTitle}" aria-label="Add to Virtual Folder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 13px; height: 13px; pointer-events: none;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+           </button>
+        `;
+    }
+
     card.innerHTML = `
     <input type="checkbox" class="file-checkbox" aria-label="Select ${window.escapeHtml(item.name)}">
     <div class="thumbnail-container" style="position:relative;">
        <button class="favorite-star-btn" style="position: absolute; top: 6px; left: 6px; border: none; background: rgba(0,0,0,0.65); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 9999 !important; pointer-events: auto !important; padding: 0; margin: 0; outline: none; box-shadow: none; transition: background 0.2s;" title="${t.addToFavorites || 'Add to Favorites'}" aria-label="Favorite">
           ${starSvg}
        </button>
+       ${plusBtnHtml}
        ${thumbHtml}
        ${sizeBadgeHtml}
     </div>
@@ -102,6 +145,14 @@ function createCardElement(item, index) {
         starBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             window.toggleFavorite(item.path, starBtn);
+        });
+    }
+
+    const plusBtn = card.querySelector('.add-to-folder-btn');
+    if (plusBtn) {
+        plusBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.showAddToFolderDialog(item);
         });
     }
 
@@ -136,6 +187,30 @@ function createCardElement(item, index) {
         card.addEventListener('mouseleave', () => {
             clearInterval(hoverTimer); tpImg.style.display = 'none'; mainImg.style.display = 'block';
         });
+    } else if (item.type === 'audio') {
+        let hoverAudioTimer;
+        card.addEventListener('mouseenter', () => {
+            // Debounce audio hover preview slightly to avoid instant triggers when quickly moving cursor
+            hoverAudioTimer = setTimeout(() => {
+                if (window.hoverAudioPreview) {
+                    try { window.hoverAudioPreview.pause(); } catch(e) {}
+                    window.hoverAudioPreview = null;
+                }
+                const audioPath = window.sanitizePath(item.path);
+                window.hoverAudioPreview = new Audio(audioPath);
+                window.hoverAudioPreview.volume = 0.4;
+                window.hoverAudioPreview.play().catch(e => {
+                    console.log('[Audio Hover] Autoplay prevented or aborted:', e);
+                });
+            }, 300);
+        });
+        card.addEventListener('mouseleave', () => {
+            clearTimeout(hoverAudioTimer);
+            if (window.hoverAudioPreview) {
+                try { window.hoverAudioPreview.pause(); } catch(e) {}
+                window.hoverAudioPreview = null;
+            }
+        });
     }
 
     // Rename Feature (F2)
@@ -144,25 +219,51 @@ function createCardElement(item, index) {
     const commitRename = async () => {
         input.style.display = 'none'; filename.style.display = 'block';
         if (input.value && input.value !== item.name) {
-            const res = await window.electronAPI.renameFile(item.path, input.value);
             const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
-            if (res.success) {
-                window.showToast((t.renamedTo || 'Renamed to ') + `"${input.value}"`, 'success');
-                const oldPath = item.path;
-                const newPath = res.newPath || (item.path.substring(0, item.path.lastIndexOf('\\') + 1) + input.value);
-                const oldDotIdx = item.name.lastIndexOf('.');
-                const oldBase = oldDotIdx !== -1 ? item.name.substring(0, oldDotIdx) : item.name;
-                const newDotIdx = input.value.lastIndexOf('.');
-                const newBase = newDotIdx !== -1 ? input.value.substring(0, newDotIdx) : input.value;
-                item.name = input.value;
-                item.path = newPath;
-                if (item.thumbnail) item.thumbnail = item.thumbnail.replace(oldBase, newBase);
-                if (item.hoverWebm) item.hoverWebm = item.hoverWebm.replace(oldBase, newBase);
-                filename.innerText = input.value;
-                card.dataset.path = newPath;
+            if (item.type === 'fakeFolder') {
+                const oldName = item.name;
+                const newName = input.value.trim();
+                if (!newName) {
+                    input.value = oldName;
+                    return;
+                }
+                const folders = window.appSettings.folders || [];
+                const folder = folders.find(f => f.name === oldName && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent)));
+                if (folder) {
+                    folder.name = newName;
+                    folders.forEach(f => {
+                        if (f.parent === `root/${oldName}`) {
+                            f.parent = `root/${newName}`;
+                        } else if (f.parent && f.parent.endsWith('/' + oldName)) {
+                            f.parent = f.parent.substring(0, f.parent.lastIndexOf('/') + 1) + newName;
+                        }
+                    });
+                    window.electronAPI.saveSettings(window.appSettings);
+                    item.name = newName;
+                    filename.innerText = newName;
+                    window.showToast((t.renamedTo || 'Renamed to ') + `"${newName}"`, 'success');
+                    window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                }
             } else {
-                input.value = item.name;
-                window.showToast((t.renameFailed || 'Rename failed: ') + res.error, 'error');
+                const res = await window.electronAPI.renameFile(item.path, input.value);
+                if (res.success) {
+                    window.showToast((t.renamedTo || 'Renamed to ') + `"${input.value}"`, 'success');
+                    const oldPath = item.path;
+                    const newPath = res.newPath || (item.path.substring(0, item.path.lastIndexOf('\\') + 1) + input.value);
+                    const oldDotIdx = item.name.lastIndexOf('.');
+                    const oldBase = oldDotIdx !== -1 ? item.name.substring(0, oldDotIdx) : item.name;
+                    const newDotIdx = input.value.lastIndexOf('.');
+                    const newBase = newDotIdx !== -1 ? input.value.substring(0, newDotIdx) : input.value;
+                    item.name = input.value;
+                    item.path = newPath;
+                    if (item.thumbnail) item.thumbnail = item.thumbnail.replace(oldBase, newBase);
+                    if (item.hoverWebm) item.hoverWebm = item.hoverWebm.replace(oldBase, newBase);
+                    filename.innerText = input.value;
+                    card.dataset.path = newPath;
+                } else {
+                    input.value = item.name;
+                    window.showToast((t.renameFailed || 'Rename failed: ') + res.error, 'error');
+                }
             }
         }
     };
@@ -214,8 +315,18 @@ function createCardElement(item, index) {
     });
 
     card.addEventListener('dblclick', () => {
-        if (item.type === 'video') {
+        if (item.isStreaming) {
+            if (typeof window.showMediaDetails === 'function') window.showMediaDetails(item.meta || item);
+        } else if (item.type === 'video') {
             if (typeof window.playItem === 'function') window.playItem(index);
+        } else if (item.type === 'audio') {
+            window.electronAPI.openFile(item.path);
+        } else if (item.type === 'image') {
+            if (typeof window.openImageViewer === 'function') {
+                window.openImageViewer(index);
+            } else {
+                window.electronAPI.openFile(item.path);
+            }
         } else if (item.type === 'fakeFolder') window.navigateTo(window.currentNavPath + '/' + item.name, window.currentRealPath);
         else if (item.type === 'encrypted') {
             window.selectedIndices.clear();
@@ -227,7 +338,17 @@ function createCardElement(item, index) {
             });
             window.updateStatusBar();
             window.triggerCryptoPrompt('decrypt-prompt');
-        } else window.electronAPI.openFile(item.path);
+        } else {
+            if (item.type === 'image') {
+                if (typeof window.openImageViewer === 'function') {
+                    window.openImageViewer(index);
+                } else {
+                    window.electronAPI.openFile(item.path);
+                }
+            } else {
+                window.electronAPI.openFile(item.path);
+            }
+        }
     });
 
     // Context menu — delegated to card-events.js

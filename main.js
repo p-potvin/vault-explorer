@@ -86,6 +86,7 @@ function createWindow() {
             const settings = loadSettings();
             if (settings.minimizeToTray) {
                 e.preventDefault();
+                mainWindow.webContents.send('app-hidden');
                 mainWindow.hide();
                 return;
             }
@@ -141,6 +142,7 @@ registerCryptoIpc(ipcMain);
 
 // Register Modular Handlers
 previewHandlers.registerPreviewHandlers(ipcMain);
+previewHandlers.registerImageEnhanceHandler(ipcMain);
 normalizationHandlers.registerNormalizationHandlers(ipcMain);
 scannerHandlers.registerScannerHandlers(ipcMain);
 tmdbHandlers.registerTmdbHandlers(ipcMain);

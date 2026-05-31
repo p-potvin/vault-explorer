@@ -15,6 +15,13 @@ project_root = os.path.abspath(os.path.join(script_dir, ".."))
 media_processing_root = os.path.abspath(os.path.join(project_root, "..", "vaultwares-media-processing"))
 sys.path.insert(0, media_processing_root)
 
+# Pre-import datasets to resolve the Windows MKL/OpenMP PyTorch/PyArrow import conflict causing silent exit code 1
+try:
+    import datasets
+except Exception:
+    pass
+
+
 # ── httpx compatibility patch ───────────────────────────────────────────────
 try:
     import httpx
@@ -111,11 +118,7 @@ def create_synthesized_audio_track(segments, duration, output_path, target_lang)
     import wave
     from huggingface_hub import hf_hub_download
     from kokoro_onnx import Kokoro
-    try:
-        import sounddevice as sd
-    except Exception as sd_err:
-        print(f"[translation] sounddevice import error: {sd_err}")
-        sd = None
+    sd = None
 
     print("[translation] Initializing Kokoro Text-to-Speech Engine...")
     try:

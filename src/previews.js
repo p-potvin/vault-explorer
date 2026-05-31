@@ -428,9 +428,76 @@ function registerPreviewHandlers(ipcMain) {
     });
 }
 
+const activeImageEnhanceQueue = new Set();
+
+async function enhanceImageThumbnail(imagePath, sender) {
+    const ext = path.extname(imagePath).toLowerCase();
+    const base = path.basename(imagePath, ext);
+    const dir  = path.dirname(imagePath);
+    const thumbsDir = path.join(dir, '.thumbs');
+    const outPath = path.join(thumbsDir, `${base}_enhanced.jpg`);
+
+    if (fs.existsSync(outPath)) {
+        if (sender && !sender.isDestroyed()) {
+            sender.send('image-enhanced', { original: imagePath, enhanced: outPath });
+        }
+        return;
+    }
+
+    try {
+        if (!fs.existsSync(thumbsDir)) {
+            fs.mkdirSync(thumbsDir, { recursive: true });
+        }
+    } catch (e) {
+        console.error(`[previews:enhance] Failed to create .thumbs dir: ${e.message}`);
+        return;
+    }
+
+    // ImageMagick pipeline: adaptive-sharpen → saturation +20% → sigmoidal contrast
+    const args = [
+        imagePath,
+        '-adaptive-sharpen', '1.25x0.75',
+        '-modulate', '100,120',
+        '-sigmoidal-contrast', '3x50%',
+        '-quality', '88',
+        outPath
+    ];
+
+    try {
+        await utils.runLowPriorityProcess('magick', args);
+        if (fs.existsSync(outPath) && sender && !sender.isDestroyed()) {
+            sender.send('image-enhanced', { original: imagePath, enhanced: outPath });
+        }
+    } catch (e) {
+        console.warn(`[previews:enhance] magick failed for ${base}: ${e.message}. Is ImageMagick installed?`);
+    }
+}
+
+function registerImageEnhanceHandler(ipcMain) {
+    ipcMain.handle('enhance-image-thumbnails', async (event, imagePaths) => {
+        if (!Array.isArray(imagePaths) || imagePaths.length === 0) return false;
+        const candidates = imagePaths.slice(0, 60); // cap batch size
+        for (const p of candidates) {
+            if (activeImageEnhanceQueue.has(p)) continue;
+            activeImageEnhanceQueue.add(p);
+            backgroundFfmpegQueue.push(async () => {
+                try {
+                    await enhanceImageThumbnail(p, event.sender);
+                } catch (e) {
+                    console.error('[previews:enhance] Queue error:', e.message);
+                } finally {
+                    activeImageEnhanceQueue.delete(p);
+                }
+            });
+        }
+        return true;
+    });
+}
+
 module.exports = {
     generateThumbAndPreview,
     schedulePreviewGeneration,
     convertLegacyMp4Previews,
-    registerPreviewHandlers
+    registerPreviewHandlers,
+    registerImageEnhanceHandler
 };

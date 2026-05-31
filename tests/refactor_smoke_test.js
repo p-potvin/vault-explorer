@@ -17,8 +17,8 @@ const GLOBALS = [
 const DOM_IDS = [
     'file-grid', 'video-modal', 'video-player', 'search-box',
     'filter-type', 'sort-by', 'btn-select', 'btn-refresh',
-    'btn-back', 'settings-panel', 'tab-vault', 'tab-favorites',
-    'tab-tmdb', 'tab-livestream', 'status-items',
+    'btn-back', 'settings-panel', 'tab-vault', 'tab-streaming',
+    'tab-livestream', 'subtab-vault-favorites', 'status-items',
 ];
 
 async function run() {

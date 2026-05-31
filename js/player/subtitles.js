@@ -139,6 +139,81 @@ function initSubtitleListeners() {
         el('subtitle-file-input').click();
     });
 
+    const optGen = el('opt-generate-subtitle');
+    if (optGen) {
+        optGen.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            el('subtitles-menu').style.display = 'none';
+
+            let videoPath = null;
+            let itemName = 'Active Video';
+
+            if (window.currentPlayingItem) {
+                videoPath = window.currentPlayingItem.path;
+                itemName = window.currentPlayingItem.name;
+            } else if (window.currentPlayingIndex !== -1) {
+                const itm = window.displayedItems[window.currentPlayingIndex];
+                if (itm) {
+                    videoPath = itm.path;
+                    itemName = itm.name;
+                }
+            } else if (window.activeStreamingMedia) {
+                videoPath = window.activeStreamingMedia.path;
+                itemName = window.activeStreamingMedia.name || 'Stream';
+            }
+
+            if (!videoPath || videoPath.startsWith('http://') || videoPath.startsWith('https://')) {
+                window.showToast('ASR Subtitles require a local playback source.', 'error');
+                return;
+            }
+
+            const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
+            const langs = await window.showLanguageModal('Generate Subtitles', true, defaultLangs);
+            if (langs && langs.length > 0) {
+                if (!window.appSettings) window.appSettings = {};
+                window.appSettings.preferredASRLangs = langs;
+                window.electronAPI.saveSettings(window.appSettings);
+
+                window.showToast(`AI Vocal Isolation & Transcription started for "${itemName}"...`, 'success');
+                
+                // Show inline subtitle loading text in subtitle button
+                const subBtn = el('btn-subtitles');
+                const originalContent = subBtn.innerHTML;
+                subBtn.innerHTML = `<span>ASR...</span>`;
+                subBtn.disabled = true;
+
+                const progressHandler = (eventData) => {
+                    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                    if (normPath(eventData.videoPath) === normPath(videoPath)) {
+                        subBtn.innerHTML = `<span>ASR: ${eventData.percent}%</span>`;
+                    }
+                };
+                window.electronAPI.onNormalizeProgress(progressHandler);
+
+                try {
+                    const res = await window.electronAPI.normalizeAudio(videoPath, window.currentRealPath, true);
+                    subBtn.disabled = false;
+                    subBtn.innerHTML = originalContent;
+
+                    if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                        window.showToast('Subtitles generated successfully! Refreshing tracks...', 'success');
+                        
+                        // Trigger track reloading in player
+                        if (window.loadActiveSubtitles) {
+                            await window.loadActiveSubtitles(videoPath);
+                        }
+                    } else {
+                        window.showToast('Subtitles generation failed: ' + (res.error || 'Unknown'), 'error');
+                    }
+                } catch (err) {
+                    subBtn.disabled = false;
+                    subBtn.innerHTML = originalContent;
+                    window.showToast('Subtitles generation failed: ' + err.message, 'error');
+                }
+            }
+        });
+    }
+
     el('subtitle-file-input').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -161,7 +236,66 @@ function initSubtitleListeners() {
     });
 }
 
+async function loadActiveSubtitles(videoPath) {
+    const vpReal = el('video-player');
+    if (!vpReal) return;
+    vpReal.querySelectorAll('track').forEach(t => t.remove());
+    try {
+        const subs = await window.electronAPI.findSubtitles(videoPath, null, true);
+        if (subs && subs.length > 0) {
+            subs.forEach((sub, i) => {
+                const track = document.createElement('track');
+                track.kind = 'subtitles';
+                track.label = sub.isOpenSubtitles ? sub.label : (sub.label === 'Original' ? 'original' : `Subtitles (${sub.label})`);
+                track.srclang = sub.lang;
+                if (sub.isOpenSubtitles) {
+                    track.dataset.opensubtitles = "true";
+                    track.dataset.fileId = sub.fileId;
+                    track.dataset.lang = sub.lang;
+                    track.dataset.videoPath = videoPath;
+                    track.dataset.downloaded = "false";
+                    track.src = "";
+                } else {
+                    track.src = window.sanitizePath(sub.path);
+                }
+                vpReal.appendChild(track);
+            });
+            
+            refreshSubtitlesList();
+            
+            let preferredTrackIdx = -1;
+            const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
+            
+            if (prefLang === 'original') {
+                for (let i = 0; i < vpReal.textTracks.length; i++) {
+                    const lbl = vpReal.textTracks[i].label || '';
+                    if (lbl.toLowerCase() === 'original') {
+                        preferredTrackIdx = i;
+                        break;
+                    }
+                }
+            } else if (prefLang !== 'und') {
+                for (let i = 0; i < vpReal.textTracks.length; i++) {
+                    const tl = vpReal.textTracks[i].language || '';
+                    const lbl = vpReal.textTracks[i].label || '';
+                    if (tl.toLowerCase().startsWith(prefLang.toLowerCase()) || lbl.toLowerCase().includes(`(${prefLang.toLowerCase()})`)) {
+                        preferredTrackIdx = i;
+                        break;
+                    }
+                }
+            }
+            selectSubtitleTrack(preferredTrackIdx >= 0 ? preferredTrackIdx : 0);
+        } else {
+            refreshSubtitlesList();
+            selectSubtitleTrack(-1);
+        }
+    } catch (err) {
+        console.error("Subtitles reload failed:", err);
+    }
+}
+
 // Bind to globals
 window.selectSubtitleTrack = selectSubtitleTrack;
 window.refreshSubtitlesList = refreshSubtitlesList;
 window.initSubtitleListeners = initSubtitleListeners;
+window.loadActiveSubtitles = loadActiveSubtitles;

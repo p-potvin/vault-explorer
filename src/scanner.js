@@ -145,9 +145,10 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             let type = 'other';
             if (['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'].includes(ext)) type = 'video';
             else if (['.jpg', '.png', '.jpeg', '.gif', '.webp'].includes(ext)) type = 'image';
+            else if (['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac', '.wma'].includes(ext)) type = 'audio';
             else if (ext === '.enc') type = 'encrypted';
             
-            if (type !== 'video' && type !== 'image' && type !== 'encrypted') continue;
+            if (type !== 'video' && type !== 'image' && type !== 'audio' && type !== 'encrypted') continue;
 
             const dir = path.dirname(res);
             const name = path.basename(res);
@@ -189,6 +190,14 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 } else if (thumbsDir && fs.existsSync(path.join(thumbsDir, `${baseName}.webm`))) {
                     hoverWebm = path.join(thumbsDir, `${baseName}.webm`);
                 }
+            } else if (type === 'image') {
+                const localThumbsDir = path.join(dir, '.thumbs');
+                const localThumb = path.join(localThumbsDir, `${baseName}_enhanced.jpg`);
+                if (fs.existsSync(localThumb)) {
+                    poster = localThumb;
+                } else {
+                    poster = res;
+                }
             }
 
             let size = 0;
@@ -215,11 +224,40 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 } catch (e) {}
             }
 
+            // Plex/Jellyfin/Kodi NFO interoperability: check for .nfo file adjacent to the video file
+            let nfoMeta = {};
+            if (type === 'video') {
+                const nfoPath = path.join(dir, `${baseName}.nfo`);
+                if (fs.existsSync(nfoPath)) {
+                    try {
+                        const nfoContent = fs.readFileSync(nfoPath, 'utf8');
+                        const titleMatch = nfoContent.match(/<title>([\s\S]*?)<\/title>/i);
+                        const yearMatch = nfoContent.match(/<year>([\s\S]*?)<\/year>/i);
+                        const plotMatch = nfoContent.match(/<plot>([\s\S]*?)<\/plot>/i);
+                        const ratingMatch = nfoContent.match(/<rating>([\s\S]*?)<\/rating>/i);
+                        
+                        if (titleMatch) nfoMeta.title = titleMatch[1].trim();
+                        if (yearMatch) nfoMeta.year = parseInt(yearMatch[1].trim(), 10);
+                        if (plotMatch) nfoMeta.plot = plotMatch[1].trim();
+                        if (ratingMatch) nfoMeta.rating = parseFloat(ratingMatch[1].trim());
+                    } catch (nfoErr) {
+                        console.error(`[scanner:nfo] Error parsing NFO for ${res}:`, nfoErr);
+                    }
+                }
+            }
+
             let enhancedPath = null;
+            let trickplayFolder = null;
             if (type === 'video' || type === 'encrypted') {
                 const potentialEnhanced = path.join(dir, '.enhanced', name);
                 if (fs.existsSync(potentialEnhanced)) {
                     enhancedPath = potentialEnhanced;
+                }
+            }
+            if (type === 'video') {
+                const potentialTrickplay = path.join(dir, `${baseName}.trickplay`);
+                if (fs.existsSync(potentialTrickplay)) {
+                    trickplayFolder = potentialTrickplay;
                 }
             }
 
@@ -246,7 +284,9 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 hasAudio: meta ? meta.hasAudio : null,
                 hasVideo: meta ? meta.hasVideo : null,
                 enhancements: meta ? meta.enhancements : null,
-                enhancedPath
+                enhancedPath,
+                trickplayFolder,
+                nfoMeta: Object.keys(nfoMeta).length > 0 ? nfoMeta : null
             });
         } catch (itemErr) {
             console.error(`[scanner:process] Skipping corrupted/offline iCloud file node: ${res}`, itemErr);

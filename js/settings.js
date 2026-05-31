@@ -124,6 +124,7 @@ function initSettingsListeners() {
             el('settings-default-sub-lang').value = window.appSettings.defaultSubLang || 'original';
             el('settings-sub-font-size').value = window.appSettings.subFontSize || '20px';
             el('settings-remember-position').checked = window.appSettings.rememberPosition !== false;
+            el('settings-mute-previews').checked = window.appSettings.mutePreviews === true;
             el('settings-minimize-to-tray').checked = window.appSettings.minimizeToTray === true;
             if (el('settings-opensubtitles-key')) {
                 el('settings-opensubtitles-key').value = window.appSettings.openSubtitlesKey || '';
@@ -174,8 +175,19 @@ function initSettingsListeners() {
         const rawInput = document.getElementById('pill-tag-input-glob');
         if (rawInput && rawInput.value.trim()) { pillTagAdd(rawInput.value); rawInput.value = ''; }
         
-        window.appSettings.globExclusions = pillTagGetValues();
-        window.appSettings.defaultFolder = el('settings-default-folder').value.trim();
+        // Capture old structural values before updating window.appSettings
+        const oldGlobExclusions = JSON.stringify(window.appSettings.globExclusions || []);
+        const oldDefaultFolder = window.appSettings.defaultFolder || '';
+        
+        const newGlobExclusions = pillTagGetValues();
+        const newDefaultFolder = el('settings-default-folder').value.trim();
+        
+        const hasStructuralChange = 
+            JSON.stringify(newGlobExclusions) !== oldGlobExclusions ||
+            newDefaultFolder !== oldDefaultFolder;
+            
+        window.appSettings.globExclusions = newGlobExclusions;
+        window.appSettings.defaultFolder = newDefaultFolder;
         window.appSettings.defaultTheme = el('settings-default-theme').value;
         window.appSettings.defaultLang = el('settings-default-lang').value;
         window.appSettings.defaultSubLang = el('settings-default-sub-lang').value;
@@ -185,6 +197,7 @@ function initSettingsListeners() {
         document.documentElement.style.setProperty('--sub-font-size', subSize);
         
         window.appSettings.rememberPosition = el('settings-remember-position').checked;
+        window.appSettings.mutePreviews = el('settings-mute-previews').checked;
         window.appSettings.minimizeToTray = el('settings-minimize-to-tray').checked;
         if (el('settings-opensubtitles-key')) {
             window.appSettings.openSubtitlesKey = el('settings-opensubtitles-key').value.trim();
@@ -201,10 +214,15 @@ function initSettingsListeners() {
         showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
         el('settings-panel').style.display = 'none';
         
-        if (window.appSettings.defaultFolder) {
-            window.loadDirectory('root/' + window.appSettings.defaultFolder.split(/[\\/]/).pop(), window.appSettings.defaultFolder, false);
-        } else if (window.currentRealPath) {
-            window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+        if (hasStructuralChange) {
+            console.log('[settings] Structural change detected (exclusions/folder). Reloading directory...');
+            if (window.appSettings.defaultFolder) {
+                window.loadDirectory('root/' + window.appSettings.defaultFolder.split(/[\\/]/).pop(), window.appSettings.defaultFolder, false);
+            } else if (window.currentRealPath) {
+                window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+            }
+        } else {
+            console.log('[settings] Non-structural change saved. Skipping directory reload.');
         }
     });
   }

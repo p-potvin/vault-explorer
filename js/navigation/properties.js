@@ -38,6 +38,16 @@ async function showPropertiesDialog(item) {
     if (stats.channels) rows += `<div><strong>Audio Channels:</strong> ${stats.channels} ch</div>`;
     if (stats.sampleRate) rows += `<div><strong>Sample Rate:</strong> ${stats.sampleRate} Hz</div>`;
     if (stats.bitrate) rows += `<div><strong>Bitrate:</strong> ${window.formatBytes(stats.bitrate)}/s</div>`;
+
+    if (item.nfoMeta) {
+        rows += `<div style="height:1px; background:var(--vault-border); margin:8px 0;"></div>
+            <div style="color:var(--vault-accent); font-weight:700; margin-bottom:4px;">NFO Metadata (Plex/Jellyfin/Kodi)</div>`;
+        if (item.nfoMeta.title) rows += `<div><strong>NFO Title:</strong> ${window.escapeHtml(item.nfoMeta.title)}</div>`;
+        if (item.nfoMeta.year) rows += `<div><strong>NFO Year:</strong> ${item.nfoMeta.year}</div>`;
+        if (item.nfoMeta.rating) rows += `<div><strong>NFO Rating:</strong> ★ ${item.nfoMeta.rating}</div>`;
+        if (item.nfoMeta.plot) rows += `<div style="margin-top:4px;"><strong>NFO Plot:</strong> <span style="opacity:0.85;">${window.escapeHtml(item.nfoMeta.plot)}</span></div>`;
+    }
+
     details.innerHTML = rows;
     modal.style.display = 'flex';
 }
@@ -51,7 +61,7 @@ window.showLanguageModal = function(title, allowMultiple = true, selectedLanguag
             top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(7, 8, 10, 0.85);
             backdrop-filter: blur(4px);
-            z-index: 5000;
+            z-index: 15000;
             display: flex; align-items: center; justify-content: center;
             font-family: var(--font-sans), system-ui;
         `;
@@ -196,7 +206,7 @@ window.showVideoEnhancementDialog = function(item) {
             top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(7, 8, 10, 0.85);
             backdrop-filter: blur(4px);
-            z-index: 5000;
+            z-index: 15000;
             display: flex; align-items: center; justify-content: center;
             font-family: var(--font-sans), system-ui;
         `;
@@ -218,7 +228,8 @@ window.showVideoEnhancementDialog = function(item) {
         `;
         const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
         const svgIcon = window.icons ? window.icons.magic('', 'color:var(--vault-gold); margin-right:4px; width:16px; height:16px;') : '';
-        header.innerHTML = `${svgIcon}<span>${t.aiVideoCenter || 'AI Video Optimization Center 🪄'}</span>`;
+        const magicIcon = window.icons ? window.icons.magic('', 'width: 14px; height: 14px; margin-left: 6px; display: inline-block; vertical-align: middle;') : '';
+        header.innerHTML = `${svgIcon}<span style="vertical-align: middle;">${t.aiVideoCenter || 'AI Video Optimization Center'}</span>${magicIcon}`;
         modal.appendChild(header);
 
         const desc = document.createElement('p');
@@ -281,8 +292,9 @@ window.showVideoEnhancementDialog = function(item) {
         cancelBtn.innerText = 'Abort';
 
         const confirmBtn = document.createElement('button');
-        confirmBtn.style = `background: var(--vault-accent); color: var(--vault-accent-text); border: none; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;`;
-        confirmBtn.innerText = 'Execute Enhancement 🪄';
+        confirmBtn.style = `background: var(--vault-accent); color: var(--vault-accent-text); border: none; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;`;
+        const magicBtnIcon = window.icons ? window.icons.magic('', 'width:12px; height:12px; display:block;') : '';
+        confirmBtn.innerHTML = `<span>Execute Enhancement</span>${magicBtnIcon}`;
 
         btnRow.appendChild(cancelBtn); btnRow.appendChild(confirmBtn);
         modal.appendChild(btnRow);

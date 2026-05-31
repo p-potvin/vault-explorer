@@ -292,3 +292,8 @@ Executed on local hardware via Playwright automated pipeline validation.
 | 2026-05-28T10:37:28.564Z | 70 minute long Big Boobs movie from Zendaya Jay.mp4 | 1010 MB | 4240.0s | 143ms | 3570ms | SUCCESS |
 | 2026-05-29T05:58:18.922Z | Watch Maryjane3_14 live on Chaturbate.mp4 | 148.45 MB | 604.8s | 197ms | 10454ms | SUCCESS |
 | 2026-05-29T06:22:18.814Z | Watch Margoviento live on Chaturbate.mp4 | 496.75 MB | 820.8s | 103ms | 82774ms | SUCCESS |
+| 2026-05-30T21:51:27.843Z | tyannabb 1 Tyannabb1 - tyannabb1 Private from 2025-10-31 041105 .mp4 | 211.29 MB | 860.5s | 92ms | 1196ms | SUCCESS |
+| 2026-05-30T22:17:01.664Z | 1 Alejandra Millan Alejamillan11 X - Copy (1).mp4 | 2.64 MB | 13.4s | 95ms | 856ms | SUCCESS |
+| 2026-05-30T22:18:02.712Z | private 11min Alexa Goddess Live Anal Squirters Latina Chat Room.mp4 | 283.58 MB | 655.2s | 123ms | 1666ms | SUCCESS |
+| 2026-05-31T08:04:12.961Z | 1001738.mp4 | 151.52 MB | 945.0s | 128ms | 1393ms | SUCCESS |
+| 2026-05-31T08:19:15.977Z | 1001738.mp4 | 151.52 MB | 945.0s | 100ms | 1171ms | SUCCESS |

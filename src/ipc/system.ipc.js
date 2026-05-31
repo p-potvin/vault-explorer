@@ -171,6 +171,7 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                 templ = [
                     { label: `Open Folder: ${item.name}`, click: () => once('open-folder') },
                     { type: 'separator' },
+                    { label: 'Rename Folder', click: () => once('rename') },
                     { label: 'Paste into Folder', enabled: item._hasClipboard === true, click: () => once('paste-into-folder') },
                     { type: 'separator' },
                     { label: 'Remove Folder', click: () => once('remove-folder') }
