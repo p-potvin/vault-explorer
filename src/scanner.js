@@ -35,7 +35,8 @@ async function findVideosAsync(dir, exclusionRegexes = [], rootDir = dir, visite
     
     let realDir;
     try {
-        realDir = fs.realpathSync(dir).toLowerCase();
+        const resolvedPath = await fsPromises.realpath(dir);
+        realDir = resolvedPath.toLowerCase();
         if (visitedPaths.has(realDir)) {
             return results; // Circular link detected! Prevent infinite loops
         }
@@ -58,7 +59,7 @@ async function findVideosAsync(dir, exclusionRegexes = [], rootDir = dir, visite
                 let isDir = d.isDirectory();
                 if (d.isSymbolicLink()) {
                     try {
-                        const targetStat = fs.statSync(fullPath);
+                        const targetStat = await fsPromises.stat(fullPath);
                         if (targetStat.isDirectory()) {
                             isDir = true;
                         }
@@ -121,7 +122,35 @@ async function findVideosAsync(dir, exclusionRegexes = [], rootDir = dir, visite
     return results;
 }
 
-function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
+const cachePath = app ? path.join(app.getPath('userData'), 'vault-cache.json') : path.join(__dirname, '..', 'vault-cache.json');
+
+async function loadCache() {
+    try {
+        let exists = false;
+        try {
+            await fsPromises.access(cachePath);
+            exists = true;
+        } catch(e) {}
+        
+        if (exists) {
+            const data = await fsPromises.readFile(cachePath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('[scanner:cache] Failed to load scan cache:', e);
+    }
+    return {};
+}
+
+async function saveCache(cache) {
+    try {
+        await fsPromises.writeFile(cachePath, JSON.stringify(cache, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[scanner:cache] Failed to save scan cache:', e);
+    }
+}
+
+async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
     const output = [];
     if (!vaultRoot && filesArray.length > 0) {
         vaultRoot = path.dirname(filesArray[0]);
@@ -129,17 +158,24 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
     let thumbsDir = vaultRoot ? path.join(vaultRoot, '.thumbs') : null;
     if (thumbsDir) {
         try {
-            if (!fs.existsSync(thumbsDir)) {
-                fs.mkdirSync(thumbsDir, { recursive: true });
+            let thumbsExist = false;
+            try {
+                await fsPromises.access(thumbsDir);
+                thumbsExist = true;
+            } catch(e) {}
+            
+            if (!thumbsExist) {
+                await fsPromises.mkdir(thumbsDir, { recursive: true });
             }
-            previews.convertLegacyMp4Previews(thumbsDir);
         } catch (e) {
             console.error(`[scanner:thumbs] Failed to initialize thumbs directory: ${thumbsDir}`, e);
             thumbsDir = null;
         }
     }
 
-    for (let res of filesArray) {
+    const CONCURRENCY_LIMIT = 32;
+
+    async function processFile(res) {
         try {
             const ext = path.extname(res).toLowerCase();
             let type = 'other';
@@ -148,13 +184,13 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             else if (['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac', '.wma'].includes(ext)) type = 'audio';
             else if (ext === '.enc') type = 'encrypted';
             
-            if (type !== 'video' && type !== 'image' && type !== 'audio' && type !== 'encrypted') continue;
+            if (type !== 'video' && type !== 'image' && type !== 'audio' && type !== 'encrypted') return;
 
             const dir = path.dirname(res);
             const name = path.basename(res);
             const baseName = path.basename(res, ext);
             
-            if (res.split(/[\\/]/).includes('.thumbs')) continue;
+            if (res.split(/[\\/]/).includes('.thumbs')) return;
 
             let checkName = baseName;
 
@@ -167,7 +203,7 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                     const hasParent = ['.mp4', '.mkv', '.avi', '.mov', '.ts', '.wmv'].some(e => 
                         allFilesSet.has(path.join(dir, checkName + e).toLowerCase())
                     );
-                    if (hasParent) continue; 
+                    if (hasParent) return; 
                 }
             }
 
@@ -179,21 +215,47 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 const localThumb = path.join(localThumbsDir, `${baseName}.jpg`);
                 const localWebm = path.join(localThumbsDir, `${baseName}.webm`);
 
-                if (fs.existsSync(localThumb)) {
+                let hasLocalThumb = false;
+                try {
+                    await fsPromises.access(localThumb);
+                    hasLocalThumb = true;
+                } catch(e) {}
+
+                if (hasLocalThumb) {
                     poster = localThumb;
-                } else if (thumbsDir && fs.existsSync(path.join(thumbsDir, `${baseName}.jpg`))) {
-                    poster = path.join(thumbsDir, `${baseName}.jpg`);
+                } else if (thumbsDir) {
+                    try {
+                        const globalThumb = path.join(thumbsDir, `${baseName}.jpg`);
+                        await fsPromises.access(globalThumb);
+                        poster = globalThumb;
+                    } catch(e) {}
                 }
 
-                if (fs.existsSync(localWebm)) {
+                let hasLocalWebm = false;
+                try {
+                    await fsPromises.access(localWebm);
+                    hasLocalWebm = true;
+                } catch(e) {}
+
+                if (hasLocalWebm) {
                     hoverWebm = localWebm;
-                } else if (thumbsDir && fs.existsSync(path.join(thumbsDir, `${baseName}.webm`))) {
-                    hoverWebm = path.join(thumbsDir, `${baseName}.webm`);
+                } else if (thumbsDir) {
+                    try {
+                        const globalWebm = path.join(thumbsDir, `${baseName}.webm`);
+                        await fsPromises.access(globalWebm);
+                        hoverWebm = globalWebm;
+                    } catch(e) {}
                 }
             } else if (type === 'image') {
                 const localThumbsDir = path.join(dir, '.thumbs');
                 const localThumb = path.join(localThumbsDir, `${baseName}_enhanced.jpg`);
-                if (fs.existsSync(localThumb)) {
+                let hasLocalThumb = false;
+                try {
+                    await fsPromises.access(localThumb);
+                    hasLocalThumb = true;
+                } catch(e) {}
+
+                if (hasLocalThumb) {
                     poster = localThumb;
                 } else {
                     poster = res;
@@ -204,7 +266,7 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             let mtime = Date.now();
             let mtimeFormatted = '';
             try {
-                const stat = fs.statSync(res);
+                const stat = await fsPromises.stat(res);
                 size = stat.size;
                 mtime = stat.mtimeMs;
                 const date = new Date(stat.mtimeMs);
@@ -218,9 +280,16 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
 
             const metaPath = res + '.meta.json';
             let meta = null;
-            if (fs.existsSync(metaPath)) {
+            let hasMeta = false;
+            try {
+                await fsPromises.access(metaPath);
+                hasMeta = true;
+            } catch(e) {}
+
+            if (hasMeta) {
                 try {
-                    meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+                    const metaContent = await fsPromises.readFile(metaPath, 'utf8');
+                    meta = JSON.parse(metaContent);
                 } catch (e) {}
             }
 
@@ -228,9 +297,15 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             let nfoMeta = {};
             if (type === 'video') {
                 const nfoPath = path.join(dir, `${baseName}.nfo`);
-                if (fs.existsSync(nfoPath)) {
+                let hasNfo = false;
+                try {
+                    await fsPromises.access(nfoPath);
+                    hasNfo = true;
+                } catch(e) {}
+
+                if (hasNfo) {
                     try {
-                        const nfoContent = fs.readFileSync(nfoPath, 'utf8');
+                        const nfoContent = await fsPromises.readFile(nfoPath, 'utf8');
                         const titleMatch = nfoContent.match(/<title>([\s\S]*?)<\/title>/i);
                         const yearMatch = nfoContent.match(/<year>([\s\S]*?)<\/year>/i);
                         const plotMatch = nfoContent.match(/<plot>([\s\S]*?)<\/plot>/i);
@@ -250,13 +325,25 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             let trickplayFolder = null;
             if (type === 'video' || type === 'encrypted') {
                 const potentialEnhanced = path.join(dir, '.enhanced', name);
-                if (fs.existsSync(potentialEnhanced)) {
+                let hasEnhanced = false;
+                try {
+                    await fsPromises.access(potentialEnhanced);
+                    hasEnhanced = true;
+                } catch(e) {}
+
+                if (hasEnhanced) {
                     enhancedPath = potentialEnhanced;
                 }
             }
             if (type === 'video') {
                 const potentialTrickplay = path.join(dir, `${baseName}.trickplay`);
-                if (fs.existsSync(potentialTrickplay)) {
+                let hasTrickplay = false;
+                try {
+                    await fsPromises.access(potentialTrickplay);
+                    hasTrickplay = true;
+                } catch(e) {}
+
+                if (hasTrickplay) {
                     trickplayFolder = potentialTrickplay;
                 }
             }
@@ -289,13 +376,29 @@ function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 nfoMeta: Object.keys(nfoMeta).length > 0 ? nfoMeta : null
             });
         } catch (itemErr) {
-            console.error(`[scanner:process] Skipping corrupted/offline iCloud file node: ${res}`, itemErr);
+            console.error(`[scanner:process] Skipping corrupted/offline file node: ${res}`, itemErr);
         }
     }
+
+    for (let i = 0; i < filesArray.length; i += CONCURRENCY_LIMIT) {
+        const batch = filesArray.slice(i, i + CONCURRENCY_LIMIT);
+        await Promise.all(batch.map(file => processFile(file)));
+    }
+
     return output;
 }
 
 function registerScannerHandlers(ipcMain) {
+    ipcMain.handle('get-cached-directory', async (event, dirPath) => {
+        if (!dirPath) return [];
+        const normPath = dirPath.toLowerCase().replace(/\\/g, '/');
+        const cache = await loadCache();
+        if (cache[normPath]) {
+            return cache[normPath].items || [];
+        }
+        return [];
+    });
+
     ipcMain.handle('scan-directory', async (event, dirPath) => {
         console.log(`[main:scan] Scanning directory: ${dirPath}`);
         if (!fs.existsSync(dirPath)) return [];
@@ -315,7 +418,18 @@ function registerScannerHandlers(ipcMain) {
 
             const files = await findVideosAsync(dirPath, exclusionRegexes, dirPath);
             const fileSet = new Set(files.map(f => f.toLowerCase()));
-            return _processFileNodes(files, fileSet, dirPath);
+            const scannedItems = await _processFileNodes(files, fileSet, dirPath);
+
+            // Save results to persistent cache
+            const normPath = dirPath.toLowerCase().replace(/\\/g, '/');
+            const cache = await loadCache();
+            cache[normPath] = {
+                timestamp: Date.now(),
+                items: scannedItems
+            };
+            await saveCache(cache);
+
+            return scannedItems;
         } catch (e) {
             console.error("[main:scan] Scan failed:", e);
             return [];
@@ -324,7 +438,7 @@ function registerScannerHandlers(ipcMain) {
 
     ipcMain.handle('scan-specific-files', async (event, pathsArray) => {
         const fileSet = new Set(pathsArray.map(f => f.toLowerCase()));
-        return _processFileNodes(pathsArray, fileSet, null);
+        return await _processFileNodes(pathsArray, fileSet, null);
     });
 
     ipcMain.handle('find-subtitles', async (event, videoPath, queryTitle, skipOpenSubtitles) => {

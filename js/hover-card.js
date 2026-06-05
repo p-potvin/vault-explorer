@@ -110,7 +110,7 @@ window.showPremiumHoverCard = function(card, movie) {
         
     popup.innerHTML = `
       <div class="media-container" style="position:relative; width:100%; height:180px; background:#111; overflow:hidden;">
-        <img class="poster" src="${movie.poster || 'oppenheimer_poster.png'}" style="width:100%; height:100%; object-fit:cover; transition:opacity 0.3s;" />
+        <img class="poster" src="${movie.poster}" alt="${window.escapeHtml(title)}" style="width:100%; height:100%; object-fit:cover; transition:opacity 0.3s;" />
         <div class="trailer-iframe-container" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; transition:opacity 0.5s; pointer-events:none;"></div>
       </div>
       <div class="details-container" style="padding:14px; background:linear-gradient(180deg, rgba(20,18,30,0.95), rgba(11,8,19,0.99)); color:#fff; text-align:left; border-top:1px solid rgba(255,255,255,0.06); font-family: var(--font-sans);">

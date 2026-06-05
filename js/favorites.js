@@ -11,6 +11,7 @@ window.renderFavorites = async function(useCache = false) {
     
     window.appSettings.favorites = window.appSettings.favorites || [];
     const hasFavorites = window.appSettings.favorites.length > 0;
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
     
     if (!hasFavorites) {
         const starIcon = window.icons ? window.icons.star('', 'width: 48px; height: 48px; margin-bottom: 12px; display: inline-block;', 'none', 'var(--vault-gold)') : '';
@@ -18,10 +19,10 @@ window.renderFavorites = async function(useCache = false) {
             <div class="empty-state">
                ${starIcon}
                <h3 style="color: #fff; font-family: var(--font-mono); font-size: 15px; margin-bottom: 8px; font-weight: 700;">
-                   ${window.currentLang === 'fr' ? 'Aucun favori' : 'No Favorites Yet'}
+                   ${t.noFavoritesYet || 'No Favorites Yet'}
                </h3>
                <p style="color: var(--vault-slate); font-family: var(--font-body); font-size: 12px; max-width: 320px; margin: 0 auto;">
-                   ${window.currentLang === 'fr' ? "Cliquez sur l'étoile de n'importe quel fichier pour l'ajouter ici." : 'Click the star icon on any video or image in your Vault to save it here.'}
+                   ${t.noFavoritesYetDesc || 'Click the star icon on any video or image in your Vault to save it here.'}
                </p>
             </div>
         `;
@@ -29,13 +30,13 @@ window.renderFavorites = async function(useCache = false) {
     }
 
     if (!useCache || !window.favoriteLocalItems) {
-        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;"><div class="spinner" style="margin: 0 auto 12px;"></div>Loading favorites...</div>';
+        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;"><div class="spinner" style="margin: 0 auto 12px;"></div>${t.loadingFavorites || 'Loading favorites...'}</div>`;
         try {
             const localPaths = window.appSettings.favorites.filter(p => !p.startsWith('virtual://'));
             window.favoriteLocalItems = await window.electronAPI.scanSpecificFiles(localPaths);
         } catch (e) {
             console.error("Failed to load local favorites:", e);
-            grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-signal-alert, #FF6B7A); padding: 40px 0;">Error loading favorites.</div>';
+            grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-signal-alert, #FF6B7A); padding: 40px 0;">${t.errorLoadingFavorites || 'Error loading favorites.'}</div>`;
             return;
         }
     }
@@ -101,10 +102,10 @@ window.renderFavorites = async function(useCache = false) {
             <div class="empty-state">
                ${searchIcon}
                <h3 style="color: #fff; font-family: var(--font-mono); font-size: 15px; margin-bottom: 8px; font-weight: 700;">
-                   ${window.currentLang === 'fr' ? 'Aucun résultat trouvé' : 'No items found'}
+                   ${t.noItemsFound || 'No items found'}
                </h3>
                <p style="color: var(--vault-slate); font-family: var(--font-body); font-size: 12px; max-width: 320px; margin: 0 auto;">
-                   ${window.currentLang === 'fr' ? 'Ajustez vos filtres de recherche.' : 'Adjust your search filters.'}
+                   ${t.adjustFiltersFavorites || 'Adjust your search filters.'}
                </p>
             </div>
         `;
@@ -125,6 +126,7 @@ window.renderLibrary = async function(useCache = false) {
     
     window.appSettings.library = window.appSettings.library || [];
     const hasLibrary = window.appSettings.library.length > 0;
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
     
     if (!hasLibrary) {
         const libIcon = window.icons ? window.icons.library('', 'width: 48px; height: 48px; margin-bottom: 12px; display: inline-block; stroke: var(--vault-gold);') : '';
@@ -132,10 +134,10 @@ window.renderLibrary = async function(useCache = false) {
             <div class="empty-state">
                ${libIcon}
                <h3 style="color: #fff; font-family: var(--font-mono); font-size: 15px; margin-bottom: 8px; font-weight: 700;">
-                   ${window.currentLang === 'fr' ? 'Votre bibliothèque est vide' : 'Your Library is Empty'}
+                   ${t.libraryEmpty || 'Your Library is Empty'}
                </h3>
                <p style="color: var(--vault-slate); font-family: var(--font-body); font-size: 12px; max-width: 320px; margin: 0 auto;">
-                   ${window.currentLang === 'fr' ? "Ajoutez des films et séries à votre bibliothèque depuis l'onglet Cinéma/Séries." : 'Add films or series to your library from the Movies/Series tab.'}
+                   ${t.libraryEmptyDesc || 'Add films or series to your library from the Movies/Series tab.'}
                </p>
             </div>
         `;
@@ -184,10 +186,10 @@ window.renderLibrary = async function(useCache = false) {
             <div class="empty-state">
                ${searchIcon}
                <h3 style="color: #fff; font-family: var(--font-mono); font-size: 15px; margin-bottom: 8px; font-weight: 700;">
-                   ${window.currentLang === 'fr' ? 'Aucun résultat trouvé' : 'No items found'}
+                   ${t.noItemsFound || 'No items found'}
                </h3>
                <p style="color: var(--vault-slate); font-family: var(--font-body); font-size: 12px; max-width: 320px; margin: 0 auto;">
-                   ${window.currentLang === 'fr' ? 'Ajustez vos filtres de recherche.' : 'Adjust your search filters.'}
+                   ${t.adjustFiltersFavorites || 'Adjust your search filters.'}
                </p>
             </div>
         `;
@@ -242,18 +244,18 @@ window.renderLibrary = async function(useCache = false) {
         
         card.innerHTML = `
             <div class="thumbnail-container" style="position:relative; background:#111; height: 180px; width: 100%; border-top-left-radius: 5px; border-top-right-radius: 5px; overflow: hidden;">
-               <button onclick="event.stopPropagation(); window.showMediaDetails(${JSON.stringify(movie).replace(/"/g, '&quot;')})" style="position: absolute; top: 8px; left: 8px; border: none; background: rgba(0,0,0,0.8); color: var(--vault-gold); font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 4px 6.5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid var(--vault-gold); transition: all 0.2s;" title="${isTV ? 'Browse Seasons' : 'Stream Movie'}">
+               <button onclick="event.stopPropagation(); window.showMediaDetails(${JSON.stringify(movie).replace(/"/g, '&quot;')})" style="position: absolute; top: 8px; left: 8px; border: none; background: rgba(0,0,0,0.8); color: var(--vault-gold); font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 4px 6.5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid var(--vault-gold); transition: all 0.2s;" title="${isTV ? t.browseSeasons : t.streamMovie}">
                   ${isTV ? tvSvg : movieSvg}
                </button>
-               <button onclick="event.stopPropagation(); window.showAddToFolderDialogForStreaming(${JSON.stringify(movie).replace(/"/g, '&quot;')})" style="position: absolute; top: 8px; right: 38px; border: none; background: rgba(0,0,0,0.8); color: var(--vault-accent); font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 4px 6.5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid var(--vault-accent); transition: all 0.2s; width: 24px; height: 24px;" title="${window.currentLang === 'fr' ? 'Ajouter à la Collection' : 'Add to Collection'}">
+               <button onclick="event.stopPropagation(); window.showAddToFolderDialogForStreaming(${JSON.stringify(movie).replace(/"/g, '&quot;')})" style="position: absolute; top: 8px; right: 38px; border: none; background: rgba(0,0,0,0.8); color: var(--vault-accent); font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 4px 6.5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid var(--vault-accent); transition: all 0.2s; width: 24px; height: 24px;" title="${t.addToCollection}">
                   ${plusSvg}
                </button>
-               <button onclick="event.stopPropagation(); window.removeFromLibrary(${movie.id}, '${window.escapeHtml(movie.title || movie.name).replace(/'/g, "\\'")}')" style="position: absolute; top: 8px; right: 8px; border: none; background: rgba(0,0,0,0.8); color: var(--vault-signal-alert, #ff7979); font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 4px 6.5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid var(--vault-signal-alert, #ff7979); transition: all 0.2s; width: 24px; height: 24px;" title="${window.currentLang === 'fr' ? 'Retirer de la Bibliothèque' : 'Remove from Library'}">
+               <button onclick="event.stopPropagation(); window.removeFromLibrary(${movie.id}, '${window.escapeHtml(movie.title || movie.name).replace(/'/g, "\\'")}')" style="position: absolute; top: 8px; right: 8px; border: none; background: rgba(0,0,0,0.8); color: var(--vault-signal-alert, #ff7979); font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 4px 6.5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid var(--vault-signal-alert, #ff7979); transition: all 0.2s; width: 24px; height: 24px;" title="${t.removeFromLibrary}">
                   ${closeSvg}
                </button>
-               <img class="thumbnail" src="${movie.poster}" alt="${window.escapeHtml(movie.title || movie.name)}" style="object-fit: cover; width:100%; height:100%; transition: opacity 0.25s ease;" onerror="this.src='oppenheimer_poster.png'">
+               <img class="thumbnail" src="${movie.poster}" alt="${window.escapeHtml(movie.title || movie.name)}" style="object-fit: cover; width:100%; height:100%; transition: opacity 0.25s ease;" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIGZpbGw9IiMxMTEiIHJ4PSIyIiByeT0iMiIvPjxyZWN0IHg9IjgiIHk9IjgiIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiM5OTkiIHJ4PSIyIiByeT0iMiIvPjwvc3ZnPg==';" />
                <div class="size-badge" style="background:var(--vault-accent); color:var(--vt-primary); font-weight:800; position:absolute; bottom: 8px; left: 8px; width: 28px; height: 28px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 8.5px; line-height: 1.1; padding: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.4); text-align: center;">
-                  <span>★</span>
+                  <span>${window.icons ? window.icons.star('', 'width:10px;height:10px;', 'currentColor', 'currentColor') : '*'}</span>
                   <span style="margin-top:-1px;">${movie.rating || '0.0'}</span>
                </div>
             </div>
@@ -273,9 +275,10 @@ window.renderLibrary = async function(useCache = false) {
  * Remove an item from the streaming library.
  */
 window.removeFromLibrary = async function(movieId, movieTitle) {
-    const confirmTitle = window.currentLang === 'fr' ? 'Retirer de la bibliothèque' : 'Remove from Library';
-    const confirmMsg = window.currentLang === 'fr' 
-        ? `Voulez-vous vraiment retirer "${movieTitle}" de votre bibliothèque ?` 
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+    const confirmTitle = t.removeFromLibrary || 'Remove from Library';
+    const confirmMsg = t.confirmRemoveFromLibrary 
+        ? t.confirmRemoveFromLibrary.replace('{0}', movieTitle) 
         : `Are you sure you want to remove "${movieTitle}" from your library?`;
         
     if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
@@ -283,7 +286,7 @@ window.removeFromLibrary = async function(movieId, movieTitle) {
         window.appSettings.library = window.appSettings.library.filter(m => m.id !== movieId);
         window.electronAPI.saveSettings(window.appSettings);
         
-        const successMsg = window.currentLang === 'fr' ? 'Retiré de la bibliothèque' : 'Removed from Library';
+        const successMsg = t.removedFromLibrary || 'Removed from Library';
         window.showToast(successMsg, 'success');
         
         // Reload Library

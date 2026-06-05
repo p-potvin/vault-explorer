@@ -289,66 +289,6 @@ function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
     });
 }
 
-function convertLegacyMp4Previews(thumbsDir) {
-    if (!thumbsDir || !fs.existsSync(thumbsDir)) return;
-    try {
-        const files = fs.readdirSync(thumbsDir);
-        for (const f of files) {
-            if (f.toLowerCase().endsWith('.mp4')) {
-                const mp4Path = path.join(thumbsDir, f);
-                const webmPath = path.join(thumbsDir, path.basename(f, '.mp4') + '.webm');
-                
-                if (fs.existsSync(webmPath)) {
-                    try { fs.unlinkSync(mp4Path); } catch (e) {}
-                    continue;
-                }
-                
-                if (activeQueuePaths.has(mp4Path)) continue;
-                activeQueuePaths.add(mp4Path);
-                
-                backgroundFfmpegQueue.push(async () => {
-                    try {
-                        const hasVideo = await new Promise((resolveCheck) => {
-                            execFile('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', mp4Path], (err, stdout) => {
-                                resolveCheck(!!stdout.trim());
-                            });
-                        });
-                        if (!hasVideo) {
-                            try { fs.unlinkSync(mp4Path); } catch (e) {}
-                            return;
-                        }
-                        const hasAudio = await utils.checkAudioStream(mp4Path);
-                        const args = [
-                            '-y',
-                            '-i', mp4Path,
-                            '-threads', '2',
-                            '-c:v', 'libvpx-vp9',
-                            '-deadline', 'realtime',
-                            '-cpu-used', '8',
-                            '-b:v', '1M',
-                        ];
-                        if (hasAudio) {
-                            args.push('-c:a', 'libvorbis', '-b:a', '64k');
-                        } else {
-                            args.push('-an');
-                        }
-                        args.push(webmPath, '-loglevel', 'error');
-                        
-                        await utils.runLowPriorityProcess('ffmpeg', args);
-                        try { fs.unlinkSync(mp4Path); } catch (e) {}
-                    } catch (e) {
-                        console.error('Failed to convert legacy preview:', mp4Path, e.message);
-                        try { fs.unlinkSync(mp4Path); } catch (err) {}
-                    } finally {
-                        activeQueuePaths.delete(mp4Path);
-                    }
-                });
-            }
-        }
-    } catch (e) {
-        console.error("Error converting legacy previews:", e.message);
-    }
-}
 
 function registerPreviewHandlers(ipcMain) {
     ipcMain.handle('generate-webm', async (event, videoPath, vaultRoot) => {
@@ -497,7 +437,6 @@ function registerImageEnhanceHandler(ipcMain) {
 module.exports = {
     generateThumbAndPreview,
     schedulePreviewGeneration,
-    convertLegacyMp4Previews,
     registerPreviewHandlers,
     registerImageEnhanceHandler
 };

@@ -70,7 +70,7 @@ Implement the green upward-animating clipboard toast, the properties modal, and 
 <!-- ESTIMATE: 30min -->
 Write and run Playwright tests for `index.html` using Electron. Establish visual regression baselines and verify hover, focus states, titlebar arrangements, and bilingual text lengths.
 
-**Note (2026-05-30):** Started smoke-testing with Gemini Code Assist integration. Created draft PR #34 to test Gemini Code Assist for GitHub. CodeQL checks are in-progress. Branch: `vw-codex-gemini-test`.
+**Note (2026-05-30):** Started smoke-testing with Gemini Code Assist integration. Created draft PR #34 to test Gemini Code Assist for GitHub. CodeQL checks in-progress; no Gemini bot response observed yet. Branch: `vw-codex-gemini-test`.
 
 ### 3t [ ] Run GUI Visual Regression
 <!-- TASK_TYPE: LOCAL -->

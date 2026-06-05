@@ -46,8 +46,9 @@ function registerNormalizationHandlers(ipcMain) {
             
             let outputData = '';
             let errorData = '';
-            let stdoutBuffer = '';
-            let stderrBuffer = '';
+            let latestStatus = null;
+            let latestPath = null;
+            let latestError = null;
 
             const handleLine = (line) => {
                 if (line.includes('PROGRESS_UPDATE:')) {
@@ -64,6 +65,23 @@ function registerNormalizationHandlers(ipcMain) {
                         // ignore JSON parse errors
                     }
                 }
+                if (line.includes('JSON_STATUS:')) {
+                    try {
+                        const jsonStr = line.substring(line.indexOf('JSON_STATUS:') + 12).trim();
+                        const data = JSON.parse(jsonStr);
+                        if (data && data.status) {
+                            latestStatus = data.status;
+                            if (data.path) {
+                                latestPath = data.path;
+                            }
+                            if (data.error) {
+                                latestError = data.error;
+                            }
+                        }
+                    } catch (e) {
+                        // ignore JSON parse errors
+                    }
+                }
                 const matches = line.match(/PROGRESS:\s*(\d+):(.*)/);
                 if (matches && matches.length >= 3) {
                     const percent = parseInt(matches[1], 10);
@@ -74,42 +92,43 @@ function registerNormalizationHandlers(ipcMain) {
                 }
             };
 
-            pyProc.stdout.on('data', (data) => {
-                const str = data.toString();
-                outputData += str;
-                stdoutBuffer += str;
-                let lines = stdoutBuffer.split(/\r?\n/);
-                stdoutBuffer = lines.pop();
-                for (const line of lines) {
-                    handleLine(line);
-                    console.log(`[normalize:stdout] ${line.trim()}`);
-                }
+            const readline = require('readline');
+            const rlStdout = readline.createInterface({ input: pyProc.stdout, terminal: false });
+            const rlStderr = readline.createInterface({ input: pyProc.stderr, terminal: false });
+
+            rlStdout.on('line', (line) => {
+                outputData += line + '\n';
+                handleLine(line);
+                console.log(`[normalize:stdout] ${line.trim()}`);
             });
 
-            pyProc.stderr.on('data', (data) => {
-                const str = data.toString();
-                errorData += str;
-                stderrBuffer += str;
-                let lines = stderrBuffer.split(/\r?\n/);
-                stderrBuffer = lines.pop();
-                for (const line of lines) {
-                    handleLine(line);
-                    console.log(`[normalize:stderr] ${line.trim()}`);
-                }
+            rlStderr.on('line', (line) => {
+                errorData += line + '\n';
+                handleLine(line);
+                console.log(`[normalize:stderr] ${line.trim()}`);
+            });
+
+            pyProc.on('error', (err) => {
+                console.error(`[main:normalize] Spawn error:`, err);
+                resolve({ success: false, status: 'FAILED', error: `Failed to start Python process: ${err.message}` });
             });
 
             pyProc.on('close', (code) => {
-                if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
-                if (stderrBuffer.trim()) handleLine(stderrBuffer);
                 console.log(`[main:normalize] Finished with code ${code}`);
-                if (code === 0) {
-                    resolve({ success: true, log: outputData });
+                if (latestStatus === 'SUCCESS') {
+                    resolve({ success: true, status: 'SUCCESS', path: latestPath, log: outputData });
+                } else if (latestStatus === 'FAILED') {
+                    resolve({ success: false, status: 'FAILED', error: latestError || 'Audio normalization pipeline failed.' });
                 } else {
-                    const cleanErr = errorData.replace(/PROGRESS:\s*\d+:.*\n?/g, '').trim();
-                    resolve({ 
-                        success: false, 
-                        error: cleanErr || `Normalization process exited with error code ${code}` 
-                    });
+                    if (code === 0) {
+                        resolve({ success: true, log: outputData });
+                    } else {
+                        const cleanErr = errorData.replace(/PROGRESS:\s*\d+:.*\n?/g, '').trim();
+                        resolve({ 
+                            success: false, 
+                            error: cleanErr || latestError || `Normalization process exited with error code ${code}` 
+                        });
+                    }
                 }
             });
         });
@@ -146,6 +165,15 @@ function registerNormalizationHandlers(ipcMain) {
 
             pyProc.stderr.on('data', (data) => {
                 errorData += data.toString();
+            });
+
+            pyProc.on('error', (err) => {
+                console.error(`[main:benchmark] Spawn error:`, err);
+                resolve({
+                    success: false,
+                    output: outputData,
+                    error: `Failed to start Python process: ${err.message}`
+                });
             });
 
             pyProc.on('close', (code) => {

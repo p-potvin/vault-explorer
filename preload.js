@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   scanDirectory: (dirPath) => ipcRenderer.invoke('scan-directory', dirPath),
+  getCachedDirectory: (dirPath) => ipcRenderer.invoke('get-cached-directory', dirPath),
   scanSpecificFiles: (arr) => ipcRenderer.invoke('scan-specific-files', arr),
   getEverythingSize: (dirPath) => ipcRenderer.invoke('get-everything-size', dirPath),
   getTrickplaySprites: (folder) => ipcRenderer.invoke('get-trickplay-sprites', folder),

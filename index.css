@@ -1528,3 +1528,28 @@ video::cue {
 .audio-card .thumbnail-container:hover .wv-bar {
   animation-duration: calc(var(--wv-dur, 0.9s) * 0.55);
 }
+
+/* Centralized Global Tooltip */
+.vw-tooltip {
+  position: fixed;
+  background: var(--vt-surface-alt, #2a2340);
+  border: 1px solid var(--vt-border, rgba(255,255,255,0.06));
+  color: var(--vt-text, #fff);
+  font-family: var(--font-body), sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 4px;
+  z-index: 99999;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.vw-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}

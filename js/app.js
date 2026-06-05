@@ -133,6 +133,7 @@ async function initApp() {
 
     window.appSettings = await window.electronAPI.getSettings();
     if (!window.appSettings.folders) window.appSettings.folders = [];
+    if (window.appSettings.mutePreviews === undefined) window.appSettings.mutePreviews = false;
     if (!window.appSettings.lastPath) window.appSettings.lastPath = { navPath: 'root', realPath: '' };
     if (!window.appSettings.scrollPositions) window.appSettings.scrollPositions = {};
     
