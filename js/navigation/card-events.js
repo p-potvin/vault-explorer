@@ -378,13 +378,13 @@ async function handleCardContextMenu(card, item, index) {
             window._clipboard = { paths: [], mode: 'copy' };
         }
         window.electronAPI.saveSettings(window.appSettings);
-        window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+        window.applyFilters();
     } else if (action === 'remove-folder') {
         if (await window.showConfirmDialog(`Remove folder "${item.name}"?`, 'Confirm Folder Removal')) {
             window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
             window.electronAPI.saveSettings(window.appSettings);
             window.showToast('Folder removed', 'success');
-            window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+            window.applyFilters();
         }
     } else if (action === 'delete-item') {
         const targetItems = isMulti ? selectedItems : [item];
@@ -428,6 +428,9 @@ async function handleCardContextMenu(card, item, index) {
                 }
                 if (deletedCount > 0) {
                     window.showToast(targetItems.length > 1 ? `Deleted ${deletedCount} item(s)` : `Deleted: ${item.name}`, 'success');
+                    if (typeof window.invalidateRootCache === 'function') {
+                        window.invalidateRootCache();
+                    }
                     window.applyFilters();
                 } else {
                     window.showToast('Delete failed', 'error');

@@ -742,7 +742,6 @@ function initPlayer() {
             e.stopPropagation();
             const val = parseFloat(opt.dataset.val);
             vp.playbackRate = val;
-            el('btn-speed').textContent = val === 1 ? '1.0× ▾' : `${val}× ▾`;
             el('btn-speed').classList.toggle('active', val !== 1);
             
             document.querySelectorAll('.speed-option').forEach(o => {

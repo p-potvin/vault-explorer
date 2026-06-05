@@ -57,7 +57,7 @@ function showClipboardNotification(message) {
   pill.style.gap = '8px';
   
   pill.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    ${window.icons ? window.icons.checkmark('', 'width: 14px; height: 14px; stroke-width: 3;') : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><polyline points="20 6 9 17 4 12"></polyline></svg>'}
     <span>${message}</span>
   `;
   

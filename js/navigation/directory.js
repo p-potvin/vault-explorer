@@ -91,87 +91,101 @@ async function loadDirectory(navPath, realPath, useCache = false) {
     }
 
     if (realPath) {
-        el('loading').style.display = 'flex';
+        let loadedFromCache = false;
+        try {
+            const cachedItems = await window.electronAPI.getCachedDirectory(realPath);
+            if (cachedItems && cachedItems.length > 0) {
+                window.allItems = cachedItems;
+                if (navPath === 'root') window._rootItemsCache = cachedItems;
+                window.applyFilters();
+                loadedFromCache = true;
+            }
+        } catch (cacheErr) {
+            console.warn('[loadDirectory] Failed to retrieve cached directory:', cacheErr);
+        }
 
-        // Setup a loading bypass safety timeout (appears if scanning takes > 1.5s)
+        if (!loadedFromCache) {
+            el('loading').style.display = 'flex';
+        }
+
         const bypassBtn = el('btn-bypass-loading');
         let bypassTimeout = null;
         if (bypassBtn) {
             bypassBtn.style.display = 'none';
-            bypassTimeout = setTimeout(() => {
-                bypassBtn.style.display = 'inline-block';
-            }, 1500);
+            if (!loadedFromCache) {
+                bypassTimeout = setTimeout(() => {
+                    bypassBtn.style.display = 'inline-block';
+                }, 1500);
+            }
         }
 
-        try {
-            if (navPath === 'root' && window._rootItemsCache && useCache) {
-                window.allItems = window._rootItemsCache;
-            } else {
-                window.allItems = await window.electronAPI.scanDirectory(realPath);
-                if (navPath === 'root') window._rootItemsCache = window.allItems;
+        (async () => {
+            try {
+                const freshItems = await window.electronAPI.scanDirectory(realPath);
+                window.allItems = freshItems;
+                if (navPath === 'root') window._rootItemsCache = freshItems;
+                window.applyFilters();
+
+                if (freshItems && freshItems.length > 0) {
+                    const totalSize = freshItems.reduce((sum, item) => sum + (item.size || 0), 0);
+                    displayFolderSize(totalSize);
+
+                    const videosToProbe = freshItems.filter(item => item.type === 'video' && !item.duration);
+                    if (videosToProbe.length > 0) {
+                        for (const item of videosToProbe) {
+                            try {
+                                const res = await window.electronAPI.getFileProperties(item.path);
+                                if (res && res.success && res.properties) {
+                                    item.duration = res.properties.duration || 0;
+                                    item.width = res.properties.width || null;
+                                    item.height = res.properties.height || null;
+                                    item.codec = res.properties.codec || null;
+                                    item.fps = res.properties.fps || null;
+                                    item.audioCodec = res.properties.audioCodec || null;
+                                    item.channels = res.properties.channels || null;
+                                    item.sampleRate = res.properties.sampleRate || null;
+                                    item.bitrate = res.properties.bitrate || null;
+                                    item.hasAudio = res.properties.hasAudio || null;
+                                    item.hasVideo = res.properties.hasVideo || null;
+                                    item.enhancements = res.properties.enhancements || null;
+                                    item.enhancedPath = res.properties.enhancedPath || null;
+
+                                    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                                    const cardElement = Array.from(document.querySelectorAll('.file-card'))
+                                        .find(c => normPath(c.dataset.path) === normPath(item.path));
+                                    if (cardElement) {
+                                        const d = cardElement.querySelector('.duration-badge');
+                                        if (d && item.duration) {
+                                            d.innerText = window.formatDuration(item.duration);
+                                            d.style.display = 'block';
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('[loadDirectory] Background probe failed:', e);
+                            }
+                            await new Promise(r => setTimeout(r, 150));
+                        }
+                    }
+                } else {
+                    el('status-size').innerText = '';
+                }
+            } catch (err) {
+                console.error('[loadDirectory] Background directory scan failed:', err);
+                if (!loadedFromCache) {
+                    window.allItems = [];
+                    window.applyFilters();
+                }
+            } finally {
+                if (bypassTimeout) clearTimeout(bypassTimeout);
+                if (bypassBtn) bypassBtn.style.display = 'none';
+                el('loading').style.display = 'none';
             }
-        } catch (err) {
-            console.error('[loadDirectory] Directory scan failed:', err);
-            window.allItems = [];
-        } finally {
-            if (bypassTimeout) clearTimeout(bypassTimeout);
-            if (bypassBtn) bypassBtn.style.display = 'none';
-            el('loading').style.display = 'none';
-        }
+        })();
     } else {
         window.allItems = [];
+        window.applyFilters();
     }
-
-    window.applyFilters();
-
-    if (window.allItems && window.allItems.length > 0) {
-        const totalSize = window.allItems.reduce((sum, item) => sum + (item.size || 0), 0);
-        displayFolderSize(totalSize);
-
-        // Staggered background probing for missing video properties to build .meta.json sidecars
-        const videosToProbe = window.allItems.filter(item => item.type === 'video' && !item.duration);
-        if (videosToProbe.length > 0) {
-            (async () => {
-                for (const item of videosToProbe) {
-                    try {
-                        const res = await window.electronAPI.getFileProperties(item.path);
-                        if (res && res.success && res.properties) {
-                            item.duration = res.properties.duration || 0;
-                            item.width = res.properties.width || null;
-                            item.height = res.properties.height || null;
-                            item.codec = res.properties.codec || null;
-                            item.fps = res.properties.fps || null;
-                            item.audioCodec = res.properties.audioCodec || null;
-                            item.channels = res.properties.channels || null;
-                            item.sampleRate = res.properties.sampleRate || null;
-                            item.bitrate = res.properties.bitrate || null;
-                            item.hasAudio = res.properties.hasAudio || null;
-                            item.hasVideo = res.properties.hasVideo || null;
-                            item.enhancements = res.properties.enhancements || null;
-                            item.enhancedPath = res.properties.enhancedPath || null;
-
-                            const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-                            const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                                .find(c => normPath(c.dataset.path) === normPath(item.path));
-                            if (cardElement) {
-                                const d = cardElement.querySelector('.duration-badge');
-                                if (d && item.duration) {
-                                    d.innerText = window.formatDuration(item.duration);
-                                    d.style.display = 'block';
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.error('[loadDirectory] Background probe failed:', e);
-                    }
-                    await new Promise(r => setTimeout(r, 150));
-                }
-            })();
-        }
-    } else {
-        el('status-size').innerText = '';
-    }
-
 }
 
 async function navigateTo(navPath, realPath) {
@@ -187,12 +201,38 @@ async function navigateTo(navPath, realPath) {
 
         if (window._rootItemsCache) {
             window.allItems = window._rootItemsCache;
-            el('loading').style.display = 'none';
+            window.applyFilters();
         } else {
-            el('loading').style.display = 'flex';
-            try { window.allItems = await window.electronAPI.scanDirectory(realPath); window._rootItemsCache = window.allItems; }
-            catch (e) { window.allItems = []; }
-            el('loading').style.display = 'none';
+            let loadedFromCache = false;
+            try {
+                const cachedItems = await window.electronAPI.getCachedDirectory(realPath);
+                if (cachedItems && cachedItems.length > 0) {
+                    window.allItems = cachedItems;
+                    window._rootItemsCache = cachedItems;
+                    window.applyFilters();
+                    loadedFromCache = true;
+                }
+            } catch (e) {}
+
+            if (!loadedFromCache) {
+                el('loading').style.display = 'flex';
+            }
+
+            (async () => {
+                try {
+                    const freshItems = await window.electronAPI.scanDirectory(realPath);
+                    window.allItems = freshItems;
+                    window._rootItemsCache = freshItems;
+                    window.applyFilters();
+                } catch (e) {
+                    if (!loadedFromCache) {
+                        window.allItems = [];
+                        window.applyFilters();
+                    }
+                } finally {
+                    el('loading').style.display = 'none';
+                }
+            })();
         }
     } else {
         el('btn-back').style.display = 'inline-flex';
@@ -240,9 +280,8 @@ async function navigateTo(navPath, realPath) {
         } else {
             window.allItems = [];
         }
+        window.applyFilters();
     }
-
-    window.applyFilters();
 }
 
 // Invalidate root cache when files are modified

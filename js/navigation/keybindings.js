@@ -81,7 +81,7 @@ window.initKeybindingsAndFolderListeners = function() {
                 window.electronAPI.saveSettings(window.appSettings);
                 folderDialog.style.display = 'none';
                 inputFolderName.value = '';
-                window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                window.applyFilters();
                 btnNewFolder.focus();
             }
         });
@@ -382,7 +382,10 @@ window.initKeybindingsAndFolderListeners = function() {
                             if (successCount > 0) {
                                 window.showToast(isVirtual ? `Removed ${successCount} item(s)` : `Deleted ${successCount} item(s)`, 'success');
                                 window.electronAPI.saveSettings(window.appSettings);
-                                window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                                if (!isVirtual && typeof window.invalidateRootCache === 'function') {
+                                    window.invalidateRootCache();
+                                }
+                                window.applyFilters();
                             }
                         })();
                     }

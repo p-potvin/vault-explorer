@@ -297,3 +297,28 @@ Executed on local hardware via Playwright automated pipeline validation.
 | 2026-05-30T22:18:02.712Z | private 11min Alexa Goddess Live Anal Squirters Latina Chat Room.mp4 | 283.58 MB | 655.2s | 123ms | 1666ms | SUCCESS |
 | 2026-05-31T08:04:12.961Z | 1001738.mp4 | 151.52 MB | 945.0s | 128ms | 1393ms | SUCCESS |
 | 2026-05-31T08:19:15.977Z | 1001738.mp4 | 151.52 MB | 945.0s | 100ms | 1171ms | SUCCESS |
+| 2026-06-01T02:05:04.885Z | pigtails for my lovers - Xxxnba Camsoda.mp4 | 18.49 MB | 87.6s | 302ms | 3763ms | SUCCESS |
+
+---
+
+### **Benchmark Run: 2026-06-02 15:16:19**
+
+### **VaultWares ASR Performance Benchmarks**
+
+| Metric | Measured Performance Value | Description |
+| :--- | :--- | :--- |
+| **ASR Model Mode** | `SIMULATED FALLBACK` | Model engine implementation mode |
+| **Execution Hardware** | `CUDA` | Target GPU/CPU computation device |
+| **ASR Initialization Latency** | `1.5005 seconds` | Time to warm-load ASR weights onto RAM/VRAM |
+| **Inference Latency (10s audio)** | `0.3062 seconds` | Time spent transcribing isolated vocals track |
+| **Real-Time Factor (RTF)** | `0.0306` | Processing throughput factor (Speed Ratio) |
+| **Native Translation Latency** | `0.1722 seconds` | Time to decode speech with translation to French |
+| **Translation Throughput RTF** | `0.0172` | Real-time factor for translated decoding |
+| **PyTorch VRAM Allocated** | `0.00 MB` | Active VRAM footprint utilized by model weights |
+| **PyTorch VRAM Reserved** | `2.00 MB` | Peak GPU caching pool |
+
+| 2026-06-02T22:21:24.915Z | Watch Helloiamastrid live on Chaturbate(17).mp4 | 2.94 MB | 4.8s | 119ms | 568ms | SUCCESS |
+| 2026-06-02T22:21:25.641Z | Watch Helloiamastrid live on Chaturbate(18).mp4 | 137.83 MB | 779.2s | 381ms | 5604ms | SUCCESS |
+| 2026-06-02T22:21:30.396Z | Watch Helloiamastrid live on Chaturbate(16).mp4 | 1.13 GB | 2969.6s | 143ms | 5183ms | SUCCESS |
+| 2026-06-02T22:21:38.876Z | Watch Helloiamastrid live on Chaturbate(15).mp4 | 955.67 MB | 2979.2s | 120ms | 8224ms | SUCCESS |
+| 2026-06-02T22:21:40.348Z | Watch Helloiamastrid live on Chaturbate(14).mp4 | 6.84 MB | 28.8s | 75ms | 1298ms | SUCCESS |

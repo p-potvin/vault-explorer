@@ -67,5 +67,17 @@ window.translationsEn = {
   addToLibrary: "Add to Library",
   moreDetails: "More Details",
   removedFromLibrary: "Removed from Library",
-  addedToLibrary: "Added to Library"
+  addedToLibrary: "Added to Library",
+  noFavoritesYet: "No Favorites Yet",
+  noFavoritesYetDesc: "Click the star icon on any video or image in your Vault to save it here.",
+  adjustFiltersFavorites: "Adjust your search filters.",
+  libraryEmpty: "Your Library is Empty",
+  libraryEmptyDesc: "Add films or series to your library from the Movies/Series tab.",
+  browseSeasons: "Browse Seasons",
+  streamMovie: "Stream Movie",
+  addToCollection: "Add to Collection",
+  confirmRemoveFromLibrary: "Are you sure you want to remove \"{0}\" from your library?",
+  loadingFavorites: "Loading favorites...",
+  errorLoadingFavorites: "Error loading favorites.",
+  systemActionRequired: "System Action Required"
 };

@@ -242,7 +242,7 @@ function createCardElement(item, index) {
                     item.name = newName;
                     filename.innerText = newName;
                     window.showToast((t.renamedTo || 'Renamed to ') + `"${newName}"`, 'success');
-                    window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                    window.applyFilters();
                 }
             } else {
                 const res = await window.electronAPI.renameFile(item.path, input.value);

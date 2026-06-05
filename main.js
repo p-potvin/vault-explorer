@@ -114,8 +114,16 @@ process.on('exit', utils.killAllActiveSubprocesses);
 // Load / Save Settings
 const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
 function loadSettings() {
-    try { if (fs.existsSync(settingsPath)) return JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch (e) { }
-    return { folders: [] };
+    try {
+        if (fs.existsSync(settingsPath)) {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            if (settings.mutePreviews === undefined) {
+                settings.mutePreviews = false;
+            }
+            return settings;
+        }
+    } catch (e) { }
+    return { folders: [], mutePreviews: false };
 }
 async function saveSettings(settings) {
     try {
