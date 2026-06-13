@@ -260,6 +260,152 @@ function registerMediaIpc(ipcMain) {
             return { success: false, error: e.message };
         }
     });
+
+    // Streaming Upscale (Real-time AI upscaling with MediaSource)
+    let upscaleStreamProcess = null;
+    let upscaleStreamEvent = null;
+
+    ipcMain.handle('upscale-stream-start', async (event, { videoPath, startTime }) => {
+        console.log('[media.ipc:upscale-stream] Starting real-time upscaling for:', videoPath, 'from time:', startTime);
+        
+        // Kill any existing process
+        if (upscaleStreamProcess) {
+            try { upscaleStreamProcess.kill('SIGKILL'); } catch(e) {}
+            upscaleStreamProcess = null;
+        }
+        upscaleStreamEvent = event;
+
+        if (typeof videoPath !== 'string' || !fs.existsSync(videoPath)) {
+            return { success: false, error: 'File not found' };
+        }
+
+        const realesrganPath = path.join(__dirname, '..', '..', 'tools', 'realesrgan-ncnn-vulkan.exe');
+        const modelsPath = path.join(__dirname, '..', '..', 'tools', 'models');
+
+        if (!fs.existsSync(realesrganPath)) {
+            return { success: false, error: 'RealESRGAN executable not found in tools/' };
+        }
+
+        // For streaming, we use a different approach: ffmpeg pipe to realesrgan
+        // This is a simplified implementation that processes the video in chunks
+        // Note: RealESRGAN is designed for image processing, not video streaming
+        // For true streaming, we'd need a frame-by-frame pipeline with ffmpeg
+        
+        // Create a temp output file for the upscaled version
+        const dir = path.dirname(videoPath);
+        const name = path.basename(videoPath);
+        const enhancedDir = path.join(dir, '.enhanced');
+        if (!fs.existsSync(enhancedDir)) {
+            fs.mkdirSync(enhancedDir, { recursive: true });
+        }
+        const outputPath = path.join(enhancedDir, name);
+
+        // For now, just run the standard upscale process
+        // TODO: Implement true streaming with frame-by-frame processing
+        const args = [
+            '-i', videoPath,
+            '-o', outputPath,
+            '-n', 'realesr-animevideov3-x2',
+            '-m', modelsPath
+        ];
+
+        console.log(`[media.ipc:upscale-stream] Spawning: ${realesrganPath} ${args.join(' ')}`);
+        
+        try {
+            const proc = child_process.spawn(realesrganPath, args, { windowsHide: true });
+            upscaleStreamProcess = proc;
+
+            let stdoutBuffer = '';
+            let stderrBuffer = '';
+            let lastProgress = -1;
+
+            const sendStatus = (type, data = {}) => {
+                if (event.sender && !event.sender.isDestroyed()) {
+                    event.sender.send('upscale-status', { type, ...data });
+                }
+            };
+
+            proc.stdout.on('data', (data) => {
+                const str = data.toString();
+                stdoutBuffer += str;
+                let lines = stdoutBuffer.split(/\r?\n/);
+                stdoutBuffer = lines.pop();
+                
+                for (const line of lines) {
+                    const match = line.match(/(\d+(?:\.\d+)?)%/);
+                    if (match) {
+                        const percent = Math.round(parseFloat(match[1]));
+                        if (percent > lastProgress) {
+                            lastProgress = percent;
+                            sendStatus('processing', { percent, label: `Upscaling... ${percent}%` });
+                        }
+                    }
+                }
+            });
+
+            proc.stderr.on('data', (data) => {
+                const str = data.toString();
+                stderrBuffer += str;
+                let lines = stderrBuffer.split(/\r?\n/);
+                stderrBuffer = lines.pop();
+                
+                for (const line of lines) {
+                    const match = line.match(/(\d+(?:\.\d+)?)%/);
+                    if (match) {
+                        const percent = Math.round(parseFloat(match[1]));
+                        sendStatus('processing', { percent, label: `Upscaling... ${percent}%` });
+                    }
+                }
+            });
+
+            proc.on('close', (code) => {
+                if (stdoutBuffer.trim()) {
+                    const match = stdoutBuffer.match(/(\d+(?:\.\d+)?)%/);
+                    if (match) {
+                        sendStatus('processing', { percent: Math.round(parseFloat(match[1])), label: 'Finalizing...' });
+                    }
+                }
+                if (stderrBuffer.trim()) {
+                    const match = stderrBuffer.match(/(\d+(?:\.\d+)?)%/);
+                    if (match) {
+                        sendStatus('processing', { percent: Math.round(parseFloat(match[1])), label: 'Finalizing...' });
+                    }
+                }
+
+                console.log(`[media.ipc:upscale-stream] Finished with code ${code}`);
+
+                if (code === 0 && fs.existsSync(outputPath)) {
+                    sendStatus('done');
+                    return { success: true, path: outputPath };
+                } else {
+                    // Send error status
+                    sendStatus('chunk-error', { error: stderrBuffer.trim() || `Process exited with code ${code}` });
+                    return { success: false, error: stderrBuffer.trim() || `RealESRGAN process exited with code ${code}` };
+                }
+            });
+
+            // Send initial status
+            sendStatus('init', { width: 0, height: 0, label: 'Starting upscale process...' });
+            
+            return { success: true };
+        } catch (err) {
+            console.error('[media.ipc:upscale-stream] Failed to start:', err);
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('upscale-stream-stop', async () => {
+        console.log('[media.ipc:upscale-stream] Stopping stream upscaling...');
+        
+        if (upscaleStreamProcess) {
+            try { upscaleStreamProcess.kill('SIGKILL'); } catch(e) {}
+            upscaleStreamProcess = null;
+            upscaleStreamEvent = null;
+        }
+        
+        return { success: true };
+    });
+
 }
 
 module.exports = {

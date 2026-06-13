@@ -197,6 +197,17 @@ window.switchVaultSubtab = function(subtab) {
         }
     });
 
+    // Show/hide the appropriate grid for the subtab
+    const fileGrid = el('file-grid');
+    const favGrid = el('favorites-grid');
+    if (fileGrid) fileGrid.style.display = (subtab === 'favorites') ? 'none' : 'grid';
+    if (favGrid) favGrid.style.display = (subtab === 'favorites') ? 'grid' : 'none';
+
+    // Render favorites content when switching to favorites subtab
+    if (subtab === 'favorites' && typeof window.renderFavorites === 'function') {
+        window.renderFavorites();
+    }
+
     // Clear search filter when switching virtual/subtabs
     const sb = el('search-box');
     if (sb) sb.value = '';
@@ -216,11 +227,13 @@ window.switchVaultSubtab = function(subtab) {
         }
     }
 
-    // Reset navigation path to root when switching subtabs to ensure correct containment/context!
-    if (typeof window.navigateTo === 'function') {
-        window.navigateTo('root', window.currentRealPath);
-    } else {
-        window.switchTab('vault');
+    // Reset navigation path to root when switching subtabs (except favorites which has its own rendering)
+    if (subtab !== 'favorites') {
+        if (typeof window.navigateTo === 'function') {
+            window.navigateTo('root', window.currentRealPath);
+        } else {
+            window.switchTab('vault');
+        }
     }
 };
 

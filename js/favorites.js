@@ -10,6 +10,15 @@ window.renderFavorites = async function(useCache = false) {
     if (!grid) return;
     
     window.appSettings.favorites = window.appSettings.favorites || [];
+    
+    // Clean up old virtual folder references from favorites (they shouldn't be there)
+    window.appSettings.favorites = window.appSettings.favorites.filter(p => !p.startsWith('virtual://'));
+    
+    // Also clean up any empty or invalid paths
+    window.appSettings.favorites = window.appSettings.favorites.filter(p => p && typeof p === 'string' && p.trim() !== '');
+    
+    window.electronAPI.saveSettings(window.appSettings);
+    
     const hasFavorites = window.appSettings.favorites.length > 0;
     const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
     
@@ -32,8 +41,18 @@ window.renderFavorites = async function(useCache = false) {
     if (!useCache || !window.favoriteLocalItems) {
         grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;"><div class="spinner" style="margin: 0 auto 12px;"></div>${t.loadingFavorites || 'Loading favorites...'}</div>`;
         try {
-            const localPaths = window.appSettings.favorites.filter(p => !p.startsWith('virtual://'));
+            const localPaths = window.appSettings.favorites;
+            if (localPaths.length === 0) {
+                grid.innerHTML = ''; // Clear loading message
+                return;
+            }
             window.favoriteLocalItems = await window.electronAPI.scanSpecificFiles(localPaths);
+            // Add isFavorited flag to each item for consistency with other tabs
+            if (window.favoriteLocalItems) {
+                window.favoriteLocalItems.forEach(item => {
+                    item.isFavorited = true;
+                });
+            }
         } catch (e) {
             console.error("Failed to load local favorites:", e);
             grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-signal-alert, #FF6B7A); padding: 40px 0;">${t.errorLoadingFavorites || 'Error loading favorites.'}</div>`;
@@ -48,27 +67,10 @@ window.renderFavorites = async function(useCache = false) {
     const sortBy = el('sort-by').value;
     const sortOrder = el('btn-sort-order').dataset.order || 'desc';
 
-    // Parse virtual favorites from favorites list
-    const virtualFavorites = [];
-    window.appSettings.favorites.forEach(favPath => {
-        if (favPath.startsWith('virtual://')) {
-            const parts = favPath.substring('virtual://'.length).split('/');
-            const name = parts.pop();
-            const parent = parts.join('/') || 'root';
-            virtualFavorites.push({
-                type: 'fakeFolder',
-                name: name,
-                parent: parent,
-                path: favPath
-            });
-        }
-    });
-
-    // Filter and sort Local Favorite files and virtual folders
-    let filteredLocal = [...virtualFavorites, ...(window.favoriteLocalItems || [])];
+    // Filter and sort Local Favorite files only
+    let filteredLocal = [...(window.favoriteLocalItems || [])];
     filteredLocal = filteredLocal.filter(v => {
         if (term && !v.name.toLowerCase().includes(term)) return false;
-        if (v.type === 'fakeFolder') return true;
         if (filterAttr === 'video') return v.type === 'video' || v.type === 'encrypted';
         if (filterAttr === 'image') return v.type === 'image';
         if (filterAttr === 'audio') return v.type === 'audio';
@@ -77,9 +79,6 @@ window.renderFavorites = async function(useCache = false) {
 
     // Sort favorites
     filteredLocal.sort((a, b) => {
-        if (a.type === 'fakeFolder' && b.type !== 'fakeFolder') return -1;
-        if (b.type === 'fakeFolder' && a.type !== 'fakeFolder') return 1;
-
         let valA = a[sortBy];
         let valB = b[sortBy];
         if (sortBy === 'name') {
@@ -324,7 +323,7 @@ window.toggleFavorite = function(filePath, btnEl) {
         window.showToast(t.removedFromFavorites || 'Removed from Favorites', 'success');
     } else {
         window.appSettings.favorites.push(filePath);
-        window.showToast(t.addedToFavorites || 'Added to Favorites', 'success');
+        // Don't show toast - yellow star provides visual feedback
         isNowStarred = true;
     }
     
@@ -335,14 +334,18 @@ window.toggleFavorite = function(filePath, btnEl) {
     window.favoriteLocalItems = null;
     
     // Update SVG icon in any matching card elements
-    const escapedPath = filePath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    document.querySelectorAll(`.file-card[data-path="${escapedPath}"]`).forEach(c => {
-        const svg = c.querySelector('.star-svg');
-        if (svg) {
-            svg.setAttribute('fill', isNowStarred ? '#E5A93B' : 'none');
-            svg.setAttribute('stroke', isNowStarred ? '#E5A93B' : '#ffffff');
-            svg.style.transform = 'scale(1.3)';
-            setTimeout(() => { svg.style.transform = 'scale(1.0)'; }, 200);
+    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+    const targetPath = normPath(filePath);
+    document.querySelectorAll('.file-card').forEach(c => {
+        const cardPath = normPath(c.dataset.path);
+        if (cardPath === targetPath) {
+            const svg = c.querySelector('.star-svg');
+            if (svg) {
+                svg.setAttribute('fill', isNowStarred ? '#E5A93B' : 'none');
+                svg.setAttribute('stroke', isNowStarred ? '#E5A93B' : '#ffffff');
+                svg.style.transform = 'scale(1.3)';
+                setTimeout(() => { svg.style.transform = 'scale(1.0)'; }, 200);
+            }
         }
     });
 

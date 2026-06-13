@@ -30,10 +30,16 @@ function createCardElement(item, index) {
             const pathDropped = e.dataTransfer.getData('text/plain');
             if (pathDropped) {
                 const targetFolder = window.appSettings.folders.find(f => f.name === item.name && f.parent === window.currentNavPath);
-                if (targetFolder && !targetFolder.items.includes(pathDropped)) {
-                    targetFolder.items.push(pathDropped);
-                    window.electronAPI.saveSettings(window.appSettings);
-                    window.applyFilters();
+                if (targetFolder) {
+                    const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+                    if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
+                    if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
+                    const folderFiles = window.appSettings.folderContents[folderPath];
+                    if (!folderFiles.includes(pathDropped)) {
+                        folderFiles.push(pathDropped);
+                        window.electronAPI.saveSettings(window.appSettings);
+                        window.applyFilters();
+                    }
                 }
             }
         });

@@ -552,9 +552,30 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
         const btnTrailer = el('btn-watch-trailer-browser');
 
         if (iframeWrapper && iframe) {
-            // Apply referrerpolicy for strict origin to eliminate Error 152/153 verification blocks
-            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-            iframe.src = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=0&rel=0`;
+            // Fix Error 152-4: Remove sandbox (causes verification blocks), use proper origin
+            iframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+            iframe.removeAttribute('sandbox');
+            // Use proper origin parameter matching the embedding domain
+            const originParam = encodeURIComponent(window.location.origin || 'http://localhost');
+            iframe.src = `https://www.youtube.com/embed/${trailerKey}?autoplay=0&rel=0&modestbranding=1&origin=${originParam}&enablejsapi=1&widget_referrer=${originParam}`;
+            
+            // Ensure allow attributes are present
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('allowfullscreen', 'true');
+            
+            // Error handling: if iframe fails to load, show fallback button
+            iframe.onerror = () => {
+                console.error('[streaming] YouTube embed failed (Error 152-4). Falling back to browser open.');
+                if (iframeWrapper) iframeWrapper.style.display = 'none';
+                if (btnTrailer) btnTrailer.style.display = 'flex';
+                window.showToast('YouTube trailer blocked. Click "Watch Trailer on YouTube" to open in browser.', 'warning');
+            };
+            
+            // Load handler to verify success
+            iframe.onload = () => {
+                console.log('[streaming] YouTube embed loaded successfully');
+            };
+            
             iframeWrapper.style.display = 'block';
         }
         if (btnTrailer) {

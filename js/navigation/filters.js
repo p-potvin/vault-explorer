@@ -16,7 +16,12 @@ window.getTargetFolder = function(navPath) {
     const parts = navPath.split('/');
     const leafName = parts.pop();
     const parentPath = parts.join('/');
-    return window.appSettings.folders.find(f => f.name === leafName && (f.parent === parentPath || ((!f.parent || f.parent === 'root') && parentPath === 'root')));
+    
+    // Normalize parentPath for comparison (ensure 'root' is consistent)
+    const normalizedParent = parentPath === '' ? 'root' : parentPath;
+    const normalizedFolderParent = (f) => f.parent === undefined || f.parent === null || f.parent === '' ? 'root' : f.parent;
+    
+    return window.appSettings.folders.find(f => f.name === leafName && normalizedFolderParent(f) === normalizedParent);
 };
 
 window.renderingMore = false;
@@ -47,13 +52,6 @@ function applyFilters() {
     const term = el('search-box').value.toLowerCase();
     const filterAttr = el('filter-type').value;
 
-    const pathVirtualFolderMap = new Map();
-    window.appSettings.folders.forEach(f => {
-        f.items.forEach(p => {
-            pathVirtualFolderMap.set(p, f.name);
-        });
-    });
-
     const activeSubtab = window.currentVaultSubtab || 'all';
     let currentFolderType = null;
     if (window.currentNavPath !== 'root') {
@@ -72,13 +70,22 @@ function applyFilters() {
         return true;
     };
 
+    // Ensure folderContents exists (auto-migration from old format)
+    if (!window.appSettings.folderContents) {
+        window.appSettings.folderContents = {};
+        (window.appSettings.folders || []).forEach(f => {
+            const folderPath = f.parent === 'root' || !f.parent ? `root/${f.name}` : `${f.parent}/${f.name}`;
+            if (f.items && f.items.length > 0) {
+                window.appSettings.folderContents[folderPath] = [...f.items];
+            }
+        });
+        window.electronAPI.saveSettings(window.appSettings);
+    }
+
     let pool = [];
     if (term) {
         // Global search: search across all files in the vault and all virtual folders
         const allVaultFiles = (window._rootItemsCache || window.allItems || []).filter(v => matchesCategoryType(v.type));
-        allVaultFiles.forEach(v => {
-            v.virtualFolder = pathVirtualFolderMap.get(v.path) || '';
-        });
         const allFakeFolders = window.appSettings.folders.map(f => ({
             type: 'fakeFolder',
             name: f.name,
@@ -110,15 +117,18 @@ function applyFilters() {
                 return true;
             });
             
-        const displayableFiles = window.allItems.filter(v => {
-            v.virtualFolder = pathVirtualFolderMap.get(v.path) || '';
-            if (window.currentNavPath === 'root') {
-                if (v.virtualFolder !== '') return false;
-                // Collections/Albums/Playlists only show their virtual folders at root, not loose files
-                if (activeSubtab !== 'all') return false;
-            }
-            return matchesCategoryType(v.type);
-        });
+        // Get files that belong to the current navigation path
+        let displayableFiles = [];
+        if (window.currentNavPath === 'root') {
+            // At root: show ALL files regardless of folder membership (tagging system)
+            displayableFiles = window.allItems.filter(v => matchesCategoryType(v.type));
+        } else {
+            // Inside a virtual folder: show files that are in this specific folder
+            const folderPath = window.currentNavPath;
+            const folderFiles = window.appSettings.folderContents[folderPath] || [];
+            const folderFilesSet = new Set(folderFiles);
+            displayableFiles = window.allItems.filter(v => folderFilesSet.has(v.path) && matchesCategoryType(v.type));
+        }
         pool = [...fakeFolders, ...displayableFiles];
     }
 

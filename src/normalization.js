@@ -24,7 +24,7 @@ function registerNormalizationHandlers(ipcMain) {
     ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe, translateTo }) => {
         console.log(`[main:normalize] Starting audio normalization for ${videoPath}`);
         return new Promise((resolve) => {
-            const pythonScript = path.join(__dirname, '..', 'python-scripts', 'audio_normalize.py');
+            const pythonScript = path.join("C:\\Users\\Administrator\\desktop\\github repos\\vault-explorer\\", 'python-scripts', 'audio_normalize.py');
             
             const pythonExe = getMediaProcessingPythonExe();
 

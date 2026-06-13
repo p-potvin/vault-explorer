@@ -114,25 +114,66 @@ window.initKeybindingsAndFolderListeners = function() {
             const folderName = selectAddToFolder.value;
             if (!folderName || !window.itemToAssign) return;
             
-            const targetFolder = window.appSettings.folders.find(f => f.name === folderName);
+            // Determine the expected type based on the item being assigned
+            let expectedType = 'collection';
+            if (window.itemToAssign.type === 'video' || window.itemToAssign.type === 'encrypted') expectedType = 'collection';
+            else if (window.itemToAssign.type === 'image') expectedType = 'album';
+            else if (window.itemToAssign.type === 'audio') expectedType = 'playlist';
+            
+            // Find folder by name, but prefer folders in the current navigation path
+            // This helps with duplicate folder names
+            let targetFolder = null;
+            
+            // First, try to find folder in current nav path with correct type
+            if (window.currentNavPath && window.currentNavPath !== 'root') {
+                targetFolder = window.appSettings.folders.find(f => 
+                    f.name === folderName && f.parent === window.currentNavPath && (f.type || 'collection') === expectedType
+                );
+            }
+            
+            // If not found, try root level with correct type
+            if (!targetFolder) {
+                targetFolder = window.appSettings.folders.find(f => 
+                    f.name === folderName && (f.parent === 'root' || !f.parent || f.parent === '') && (f.type || 'collection') === expectedType
+                );
+            }
+            
+            // If still not found, try any folder with matching name and correct type
+            if (!targetFolder) {
+                targetFolder = window.appSettings.folders.find(f => f.name === folderName && (f.type || 'collection') === expectedType);
+            }
+            
+            // If still not found, try any folder with matching name (fallback)
+            if (!targetFolder) {
+                targetFolder = window.appSettings.folders.find(f => f.name === folderName);
+            }
+            
             if (targetFolder) {
-                if (targetFolder.items.includes(window.itemToAssign.path)) {
-                    const alreadyMsg = window.currentLang === 'fr' ? 'Ce fichier est déjà dans ce dossier' : 'This file is already in this folder';
-                    window.showToast(alreadyMsg, 'error');
-                } else {
-                    targetFolder.items.push(window.itemToAssign.path);
+                // Build the folder path for folderContents
+                const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+                
+                // Initialize folderContents entry if it doesn't exist
+                if (!window.appSettings.folderContents) {
+                    window.appSettings.folderContents = {};
+                }
+                if (!window.appSettings.folderContents[folderPath]) {
+                    window.appSettings.folderContents[folderPath] = [];
+                }
+                
+                // Add the file to this folder (multi-folder tagging allowed)
+                const folderFiles = window.appSettings.folderContents[folderPath];
+                if (!folderFiles.includes(window.itemToAssign.path)) {
+                    folderFiles.push(window.itemToAssign.path);
                     window.electronAPI.saveSettings(window.appSettings);
                     const addedMsg = window.currentLang === 'fr' ? 'Ajouté avec succès' : 'Successfully added to virtual folder';
                     window.showToast(addedMsg, 'success');
-                    addToFolderDialog.style.display = 'none';
-                    
-                    // If we're inside the target virtual folder, we must reload the folder view
-                    if (window.currentNavPath === `root/${folderName}` || window.currentNavPath.endsWith('/' + folderName)) {
-                        window.navigateTo(window.currentNavPath, window.currentRealPath);
-                    } else {
-                        window.applyFilters();
-                    }
+                } else {
+                    const alreadyMsg = window.currentLang === 'fr' ? 'Ce fichier est déjà dans ce dossier' : 'This file is already in this folder';
+                    window.showToast(alreadyMsg, 'info');
                 }
+                
+                addToFolderDialog.style.display = 'none';
+                window.applyFilters();
             }
         });
     }
@@ -168,7 +209,9 @@ window.initKeybindingsAndFolderListeners = function() {
             matchingFolders.forEach(f => {
                 const option = document.createElement('option');
                 option.value = f.name;
-                option.innerText = `${f.name} (${f.type || 'collection'})`;
+                // Include parent path for folders not at root to help distinguish duplicates
+                const parentLabel = (f.parent && f.parent !== 'root' && f.parent !== '') ? `${f.parent}/` : '';
+                option.innerText = `${parentLabel}${f.name} (${f.type || 'collection'})`;
                 selectEl.appendChild(option);
             });
             btnConfirmAddToFolder.disabled = false;
@@ -354,13 +397,15 @@ window.initKeybindingsAndFolderListeners = function() {
                             if (isVirtual) {
                                 const targetFolder = window.getTargetFolder(window.currentNavPath);
                                 if (targetFolder) {
+                                    const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+                                    const folderFiles = window.appSettings.folderContents[folderPath] || [];
                                     for (const item of itemsToDelete) {
                                         if (item.type === 'fakeFolder') {
                                             window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
                                             successCount++;
                                         } else {
-                                            targetFolder.items = targetFolder.items.filter(p => p !== item.path);
-                                            window.allItems = window.allItems.filter(i => i.path !== item.path);
+                                            const idx = folderFiles.indexOf(item.path);
+                                            if (idx > -1) folderFiles.splice(idx, 1);
                                             successCount++;
                                         }
                                     }

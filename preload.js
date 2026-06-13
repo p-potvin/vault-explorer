@@ -83,5 +83,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enhanceImageThumbnails: (paths) => ipcRenderer.invoke('enhance-image-thumbnails', paths),
   onImageEnhanced: (cb) => ipcRenderer.on('image-enhanced', (_, data) => cb(data)),
   offImageEnhanced: () => ipcRenderer.removeAllListeners('image-enhanced'),
-  onAppHidden: (cb) => ipcRenderer.on('app-hidden', (_, data) => cb(data))
+  onAppHidden: (cb) => ipcRenderer.on('app-hidden', (_, data) => cb(data)),
+  
+  // Video Clipping API
+  clipVideo: (data) => ipcRenderer.invoke('clipVideo', data),
+  onClipProgress: (cb) => ipcRenderer.on('clip-progress', (_, data) => cb(data)),
+  offClipProgress: () => ipcRenderer.removeAllListeners('clip-progress')
 });

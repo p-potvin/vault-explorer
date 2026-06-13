@@ -19,7 +19,7 @@ function formatBytes(bytes) {
 }
 
 function formatDuration(sec) {
-  if (!sec) return '';
+  if (sec == null || isNaN(sec) || !isFinite(sec)) return '0:00';
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s < 10 ? '0' : ''}${s}`;
