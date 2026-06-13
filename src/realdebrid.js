@@ -3,6 +3,24 @@
 const fs = require('fs');
 const path = require('path');
 
+// Helper function to fetch with timeout
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+    }
+}
+
 // Load environment variables from .env if process.env doesn't have it
 let envConfig = {};
 try {
@@ -39,7 +57,7 @@ async function checkRealDebridCache(torrentList) {
         for (let i = 0; i < hashes.length; i += chunkSize) {
             const chunk = hashes.slice(i, i + chunkSize);
             const cacheUrl = `https://api.real-debrid.com/rest/1.0/torrents/instantAvailability/${chunk.join('/')}`;
-            const cacheRes = await fetch(cacheUrl, {
+            const cacheRes = await fetchWithTimeout(cacheUrl, {
                 headers: { Authorization: `Bearer ${RD_TOKEN}` }
             });
             if (cacheRes.ok) {
@@ -74,7 +92,7 @@ function registerRealDebridHandlers(ipcMain) {
             if (tmdbId && TMDB_BEARER_TOKEN) {
                 console.log(`[Real-Debrid] Fetching IMDB ID from TMDB for TMDB ID: ${tmdbId} (${itemMediaType})`);
                 try {
-                    const extRes = await fetch(`https://api.themoviedb.org/3/${itemMediaType}/${tmdbId}/external_ids`, {
+                    const extRes = await fetchWithTimeout(`https://api.themoviedb.org/3/${itemMediaType}/${tmdbId}/external_ids`, {
                         headers: {
                             accept: 'application/json',
                             Authorization: `Bearer ${TMDB_BEARER_TOKEN}`
@@ -110,7 +128,7 @@ function registerRealDebridHandlers(ipcMain) {
                 
                 try {
                     console.log(`[Real-Debrid] Trying cached Torrentio endpoint: ${torrentioDefaultUrl}`);
-                    const res = await fetch(torrentioDefaultUrl, { signal: AbortSignal.timeout(3000) });
+                    const res = await fetchWithTimeout(torrentioDefaultUrl, {}, 3000);
                     if (res.ok) {
                         const temp = await res.json();
                         if (temp && temp.streams && temp.streams.length > 0) {
@@ -126,7 +144,7 @@ function registerRealDebridHandlers(ipcMain) {
                 if (!data) {
                     try {
                         console.log(`[Real-Debrid] Falling back to custom providers query: ${torrentioCustomUrl}`);
-                        const res = await fetch(torrentioCustomUrl, { signal: AbortSignal.timeout(5000) });
+                        const res = await fetchWithTimeout(torrentioCustomUrl, {}, 5000);
                         if (res.ok) {
                             const temp = await res.json();
                             if (temp && temp.streams && temp.streams.length > 0) {
@@ -196,7 +214,7 @@ function registerRealDebridHandlers(ipcMain) {
                             ? `https://${domain}/api/get-torrents?imdb_id=${imdbNumber}`
                             : `https://${domain}/api/get-torrents?limit=10&query=${encodeURIComponent(cleanTitle)}`;
                         console.log(`[Real-Debrid] Trying EZTV mirror: ${url}`);
-                        const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+                        const response = await fetchWithTimeout(url, {}, 4000);
                         if (response.ok) {
                             const data = await response.json();
                             if (data && data.torrents && data.torrents.length > 0) {
@@ -239,7 +257,7 @@ function registerRealDebridHandlers(ipcMain) {
                 try {
                     const url = `https://${domain}/api/v2/list_movies.json?query_term=${encodeURIComponent(cleanTitle)}`;
                     console.log(`[Real-Debrid] Trying YTS mirror: ${url}`);
-                    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+                    const response = await fetchWithTimeout(url, {}, 4000);
                     if (response.ok) {
                         const data = await response.json();
                         if (data && data.data && data.data.movies && data.data.movies.length > 0) {
@@ -296,7 +314,7 @@ function registerRealDebridHandlers(ipcMain) {
             if (url) {
                 console.log(`[Real-Debrid] Resolving pre-debrided stream redirect: ${url}`);
                 try {
-                    const redirectRes = await fetch(url, { method: 'HEAD', redirect: 'manual' });
+                    const redirectRes = await fetchWithTimeout(url, { method: 'HEAD', redirect: 'manual' }, 10000);
                     const location = redirectRes.headers.get('location');
                     if (location) {
                         console.log(`[Real-Debrid] Pre-debrided redirect resolved successfully: ${location}`);
@@ -313,7 +331,7 @@ function registerRealDebridHandlers(ipcMain) {
 
             console.log('[Real-Debrid] Adding magnet...');
             // Step 1: Add Magnet to Real-Debrid
-            const addRes = await fetch('https://api.real-debrid.com/rest/1.0/torrents/addMagnet', {
+            const addRes = await fetchWithTimeout('https://api.real-debrid.com/rest/1.0/torrents/addMagnet', {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${RD_TOKEN}`,
@@ -339,7 +357,7 @@ function registerRealDebridHandlers(ipcMain) {
             console.log(`[Real-Debrid] Magnet added. ID: ${torrentId}`);
 
             // Step 2: Get torrent info to select largest/video file
-            const infoRes = await fetch(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
+            const infoRes = await fetchWithTimeout(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
                 headers: { Authorization: `Bearer ${RD_TOKEN}` }
             });
 
@@ -362,7 +380,7 @@ function registerRealDebridHandlers(ipcMain) {
             }
 
             console.log(`[Real-Debrid] Selecting files: ${targetFiles}`);
-            const selectRes = await fetch(`https://api.real-debrid.com/rest/1.0/torrents/selectFiles/${torrentId}`, {
+            const selectRes = await fetchWithTimeout(`https://api.real-debrid.com/rest/1.0/torrents/selectFiles/${torrentId}`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${RD_TOKEN}`,
@@ -381,7 +399,7 @@ function registerRealDebridHandlers(ipcMain) {
             let attempts = 0;
             let finalInfo = null;
             while (attempts < 6) {
-                const checkRes = await fetch(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
+                const checkRes = await fetchWithTimeout(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
                     headers: { Authorization: `Bearer ${RD_TOKEN}` }
                 });
                 if (checkRes.ok) {
@@ -418,7 +436,7 @@ function registerRealDebridHandlers(ipcMain) {
 
             // Step 5: Unrestrict (debrid) the first direct link
             console.log(`[Real-Debrid] Unrestricting link: ${links[0]}`);
-            const unrestrictRes = await fetch('https://api.real-debrid.com/rest/1.0/unrestrict/link', {
+            const unrestrictRes = await fetchWithTimeout('https://api.real-debrid.com/rest/1.0/unrestrict/link', {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${RD_TOKEN}`,
@@ -458,7 +476,7 @@ function registerRealDebridHandlers(ipcMain) {
             if (!RD_TOKEN) {
                 return { success: false, error: 'Real-Debrid API token is not configured in .env' };
             }
-            const res = await fetch(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
+            const res = await fetchWithTimeout(`https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`, {
                 headers: { Authorization: `Bearer ${RD_TOKEN}` }
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -699,7 +717,7 @@ function parseProxyString(proxyStr) {
 
 function makeProxiedRequest(url, options = {}, proxyStr) {
     if (!proxyStr) {
-        return fetch(url, options);
+        return fetchWithTimeout(url, options);
     }
     const proxyConfig = parseProxyString(proxyStr);
     if (!proxyConfig) {

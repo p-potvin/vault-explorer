@@ -190,8 +190,17 @@ async function initApp() {
                 if (pctText) {
                     pctText.innerText = `${completed}/${total} (${pct}%)`;
                 }
+                // Hide badge when batch is complete, has error, or is invalid
                 if (completed >= total && total > 0) {
-                    setTimeout(() => { badge.style.display = 'none'; }, 3000);
+                    setTimeout(() => { 
+                        if (badge) badge.style.display = 'none'; 
+                    }, 2000);
+                }
+                // Also hide if there's an error or completion without total
+                if (data.error || (data.completed > 0 && total === 0)) {
+                    setTimeout(() => { 
+                        if (badge) badge.style.display = 'none'; 
+                    }, 3000);
                 }
             }
             return;
@@ -271,7 +280,7 @@ async function initApp() {
                 pctText.innerText = `${data.percent}%`;
             }
 
-            if (data.percent >= 100) {
+            if (data.percent >= 100 || data.error) {
                 setTimeout(() => {
                     badge.style.display = 'none';
                     // Restore original text just in case
@@ -294,6 +303,19 @@ async function initApp() {
              if (mainImg) mainImg.style.display = 'block';
          });
     });
+
+    // Failsafe: Clear task badge after 5 minutes to prevent stuck messages
+    setInterval(() => {
+        const badge = el('task-badge');
+        if (badge && badge.style.display === 'inline-flex') {
+            // Only clear if no active progress is happening
+            const loadingEl = el('loading');
+            if (loadingEl && loadingEl.style.display === 'none') {
+                console.log('[cleanup] Clearing stuck task badge');
+                badge.style.display = 'none';
+            }
+        }
+    }, 5 * 60 * 1000);
 
     // Default boot tab setup, deferred to run after full init
     window.vaultLoaded = false;

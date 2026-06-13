@@ -1,7 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const child_process = require('child_process');
-const { execFile } = child_process;
 const { BrowserWindow } = require('electron');
 const utils = require('./utils');
 
@@ -105,13 +103,9 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     try {
         console.log(`[main:webm-preview] Generating preview: ${path.basename(videoPath)}`);
 
+        // Use runLowPriorityProcess which handles priority, thread limiting, and cleanup
         const runFfmpegPromise = (args) => {
-            return new Promise((res, rej) => {
-                execFile('ffmpeg', args, { windowsHide: true }, (err) => {
-                    if (err) return rej(err);
-                    res();
-                });
-            });
+            return utils.runLowPriorityProcess('ffmpeg', args);
         };
 
         if (duration <= 100) {

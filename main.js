@@ -55,26 +55,36 @@ function createWindow() {
     });
     mainWindow.maximize();
 
-    // YouTube Referer & Origin overrides to fix Error 153 (domain embedding restrictions)
+    // YouTube Referer & Origin overrides to fix Error 152/153/4 (domain embedding restrictions)
+    // Apply to ALL sessions to cover iframe requests
+    const youtubeUrls = ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'];
+    
     session.defaultSession.webRequest.onBeforeSendHeaders(
-        { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+        { urls: youtubeUrls },
         (details, callback) => {
+            // Set both Referer and Origin to youtube.com to bypass embedding restrictions
             details.requestHeaders['Referer'] = 'https://www.youtube.com/';
             details.requestHeaders['Origin'] = 'https://www.youtube.com';
             details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+            // Remove any existing origin that might conflict
+            delete details.requestHeaders['referer'];
+            delete details.requestHeaders['origin'];
             callback({ cancel: false, requestHeaders: details.requestHeaders });
         }
     );
 
     // Bypass frame blocking restrictions on YouTube trailer embedding
     session.defaultSession.webRequest.onHeadersReceived(
-        { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+        { urls: youtubeUrls },
         (details, callback) => {
             const responseHeaders = { ...details.responseHeaders };
+            // Remove security headers that block iframe embedding
             delete responseHeaders['x-frame-options'];
             delete responseHeaders['X-Frame-Options'];
             delete responseHeaders['content-security-policy'];
             delete responseHeaders['Content-Security-Policy'];
+            delete responseHeaders['x-content-security-policy'];
+            delete responseHeaders['X-Content-Security-Policy'];
             callback({ cancel: false, responseHeaders });
         }
     );
@@ -110,6 +120,152 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 app.on('before-quit', utils.killAllActiveSubprocesses);
 app.on('will-quit', utils.killAllActiveSubprocesses);
 process.on('exit', utils.killAllActiveSubprocesses);
+
+// Clip Handler for video clipping
+function registerClipHandler(ipcMain) {
+    ipcMain.handle('clipVideo', async (event, { inputPath, outputFormat, startTime, duration, quality }) => {
+        try {
+            console.log('[main:clip] Clipping video:', { inputPath, outputFormat, startTime, duration, quality });
+            
+            // Sanitize input path
+            const safeInputPath = path.normalize(inputPath).replace(/^file:\\\\\\/, '');
+            
+            // Check if input file exists
+            if (!fs.existsSync(safeInputPath)) {
+                return { success: false, error: 'Input file not found' };
+            }
+            
+            // Get file info
+            const stat = fs.statSync(safeInputPath);
+            const fileSizeMB = stat.size / (1024 * 1024);
+            console.log('[main:clip] Input file size:', fileSizeMB.toFixed(2), 'MB');
+            
+            // Determine output path
+            const fileName = path.basename(safeInputPath, path.extname(safeInputPath));
+            const ext = outputFormat === 'gif' ? 'gif' : outputFormat;
+            const outputName = `${fileName}_clip_${Date.now()}.${ext}`;
+            
+            // Default output to user's Videos folder or Desktop
+            let outputDir = app.getPath('videos');
+            if (!fs.existsSync(outputDir)) {
+                outputDir = app.getPath('desktop');
+            }
+            const outputPath = path.join(outputDir, outputName);
+            
+            // Build ffmpeg command
+            const ffmpegArgs = [];
+            
+            // Input
+            ffmpegArgs.push('-i', safeInputPath);
+            
+            // Seek to start time
+            ffmpegArgs.push('-ss', String(startTime));
+            
+            // Duration
+            ffmpegArgs.push('-t', String(duration));
+            
+            // Output format specific options
+            if (outputFormat === 'webm') {
+                ffmpegArgs.push('-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0');
+                ffmpegArgs.push('-c:a', 'libopus', '-b:a', '128k');
+            } else if (outputFormat === 'mp4') {
+                ffmpegArgs.push('-c:v', 'libx264', '-crf', '23', '-preset', 'fast');
+                ffmpegArgs.push('-c:a', 'aac', '-b:a', '192k');
+            } else if (outputFormat === 'gif') {
+                ffmpegArgs.push('-vf', 'fps=15,scale=trunc(iw/2)*2:trunc(ih/2)*2');
+                ffmpegArgs.push('-c:v', 'gif', '-f', 'gif');
+            }
+            
+            // Quality settings
+            if (quality !== 'original') {
+                if (quality === '1080p') {
+                    ffmpegArgs.push('-vf', 'scale=1920:-2');
+                } else if (quality === '720p') {
+                    ffmpegArgs.push('-vf', 'scale=1280:-2');
+                } else if (quality === '480p') {
+                    ffmpegArgs.push('-vf', 'scale=854:-2');
+                }
+            }
+            
+            // Force overwrite
+            ffmpegArgs.push('-y');
+            
+            // Output file
+            ffmpegArgs.push(outputPath);
+            
+            console.log('[main:clip] ffmpeg args:', ffmpegArgs.join(' '));
+            
+            // Check if ffmpeg is available
+            const ffmpegPath = utils.getFFmpegPath();
+            if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
+                return { 
+                    success: false, 
+                    error: 'ffmpeg not found. Please install ffmpeg and add it to PATH.' 
+                };
+            }
+            
+            // Run ffmpeg
+            const ffmpegProc = execFile(ffmpegPath, ffmpegArgs, {
+                cwd: path.dirname(safeInputPath),
+                windowsHide: false
+            });
+            
+            // Track progress
+            let stdoutData = '';
+            let stderrData = '';
+            
+            ffmpegProc.stdout.on('data', (data) => {
+                stdoutData += data.toString();
+                // Send progress updates if available
+                const timeMatch = stdoutData.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
+                if (timeMatch && event.sender && !event.sender.isDestroyed()) {
+                    event.sender.send('clip-progress', { currentTime: timeMatch[1] });
+                }
+            });
+            
+            ffmpegProc.stderr.on('data', (data) => {
+                stderrData += data.toString();
+                console.log('[main:clip] ffmpeg stderr:', data.toString().trim());
+            });
+            
+            // Wait for completion
+            await new Promise((resolve, reject) => {
+                ffmpegProc.on('close', (code) => {
+                    if (code === 0) {
+                        console.log('[main:clip] Clipping completed successfully');
+                        resolve();
+                    } else {
+                        console.error('[main:clip] ffmpeg failed with code:', code);
+                        console.error('[main:clip] stderr:', stderrData);
+                        reject(new Error(`ffmpeg failed with code ${code}: ${stderrData.substring(0, 200)}`));
+                    }
+                });
+                ffmpegProc.on('error', (err) => {
+                    console.error('[main:clip] ffmpeg error:', err);
+                    reject(err);
+                });
+            });
+            
+            // Verify output exists
+            if (!fs.existsSync(outputPath)) {
+                return { success: false, error: 'Output file was not created' };
+            }
+            
+            const outputSizeMB = fs.statSync(outputPath).size / (1024 * 1024);
+            console.log('[main:clip] Output file size:', outputSizeMB.toFixed(2), 'MB');
+            
+            return {
+                success: true,
+                outputPath: outputPath,
+                outputSize: fs.statSync(outputPath).size
+            };
+            
+        } catch (error) {
+            console.error('[main:clip] Error:', error);
+            return { success: false, error: error.message };
+        }
+    });
+}
 
 // Load / Save Settings
 const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
@@ -157,3 +313,6 @@ tmdbHandlers.registerTmdbHandlers(ipcMain);
 realDebridHandlers.registerRealDebridHandlers(ipcMain);
 livestreamHandlers.registerLivestreamHandlers(ipcMain);
 watchHistoryHandlers.registerWatchHistoryHandlers(ipcMain, app);
+
+// Register Clip Handler
+registerClipHandler(ipcMain);

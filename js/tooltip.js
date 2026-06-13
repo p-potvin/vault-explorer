@@ -10,19 +10,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let activeTarget = null;
+    let showTimeout = null;
+    let hideTimeout = null;
 
     const showTooltip = (target) => {
         const text = target.getAttribute('data-tooltip');
         if (!text) return;
 
-        tooltipEl.textContent = text;
-        tooltipEl.classList.add('visible');
-        activeTarget = target;
+        // Clear any pending hide or show
+        if (hideTimeout) clearTimeout(hideTimeout);
+        if (showTimeout) clearTimeout(showTimeout);
 
-        positionTooltip(target);
+        // Add 50ms delay to prevent tooltip from blocking video preview instantly
+        showTimeout = setTimeout(() => {
+            tooltipEl.textContent = text;
+            tooltipEl.classList.add('visible');
+            activeTarget = target;
+            positionTooltip(target);
+        }, 50);
     };
 
     const hideTooltip = () => {
+        if (showTimeout) clearTimeout(showTimeout);
         tooltipEl.classList.remove('visible');
         activeTarget = null;
     };
@@ -88,7 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.body.addEventListener('focusout', (e) => {
         if (activeTarget) {
-            hideTooltip();
+            if (showTimeout) clearTimeout(showTimeout);
+            if (hideTimeout) clearTimeout(hideTimeout);
+            tooltipEl.classList.remove('visible');
+            activeTarget = null;
         }
     });
 

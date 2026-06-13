@@ -3,6 +3,24 @@
 const fs = require('fs');
 const path = require('path');
 
+// Helper function to fetch with timeout
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+    }
+}
+
 // Load environment variables from .env
 let envConfig = {};
 try {
@@ -79,7 +97,7 @@ function registerTmdbHandlers(ipcMain) {
             }
 
             console.log(`[TMDB] Fetching API: ${url}`);
-            const response = await fetch(url, {
+            const response = await fetchWithTimeout(url, {
                 method: 'GET',
                 headers: {
                     accept: 'application/json',
@@ -165,7 +183,7 @@ function registerTmdbHandlers(ipcMain) {
             }
 
             const url = `https://api.themoviedb.org/3/movie/${id}?append_to_response=videos&language=${language}`;
-            const response = await fetch(url, {
+            const response = await fetchWithTimeout(url, {
                 method: 'GET',
                 headers: {
                     accept: 'application/json',
@@ -181,7 +199,7 @@ function registerTmdbHandlers(ipcMain) {
                 try {
                     console.log(`[TMDB] No YouTube trailer found in TMDB. Querying Kinocheck fallback for TMDB ID: ${id}`);
                     const kcUrl = `https://api.kinocheck.de/movies?tmdb_id=${id}`;
-                    const kcRes = await fetch(kcUrl);
+                    const kcRes = await fetchWithTimeout(kcUrl);
                     if (kcRes.ok) {
                         const kcData = await kcRes.json();
                         if (kcData && kcData.trailer && kcData.trailer.youtube_video_id) {
@@ -248,7 +266,7 @@ function registerTmdbHandlers(ipcMain) {
             }
 
             const url = `https://api.themoviedb.org/3/tv/${id}?language=${language}`;
-            const response = await fetch(url, {
+            const response = await fetchWithTimeout(url, {
                 method: 'GET',
                 headers: {
                     accept: 'application/json',
@@ -304,7 +322,7 @@ function registerTmdbHandlers(ipcMain) {
             }
 
             const url = `https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=${language}`;
-            const response = await fetch(url, {
+            const response = await fetchWithTimeout(url, {
                 method: 'GET',
                 headers: {
                     accept: 'application/json',
@@ -340,7 +358,7 @@ function registerTmdbHandlers(ipcMain) {
             const url = `https://api.kinocheck.com/${type}?tmdb_id=${tmdbId}&language=en`;
             console.log(`[KinoCheck] Fetching premium trailer: ${url}`);
             
-            const response = await fetch(url, {
+            const response = await fetchWithTimeout(url, {
                 headers: {
                     'X-Api-Key': KINOCHECK_API_KEY,
                     'Accept': 'application/json'
@@ -437,7 +455,7 @@ function registerTmdbHandlers(ipcMain) {
             }
             console.log(`[TMDB] Discovering streaming provider items: ${url}`);
             
-            const response = await fetch(url, {
+            const response = await fetchWithTimeout(url, {
                 method: 'GET',
                 headers: {
                     accept: 'application/json',
@@ -493,7 +511,7 @@ function registerTmdbHandlers(ipcMain) {
             const url = `http://www.omdbapi.com/?s=${encodeURIComponent(query)}&page=${page}&apikey=${OMDB_API_KEY}`;
             console.log(`[OMDb] Searching: ${url}`);
             
-            const response = await fetch(url);
+            const response = await fetchWithTimeout(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
             const data = await response.json();
@@ -542,7 +560,7 @@ function registerTmdbHandlers(ipcMain) {
             }
             
             console.log(`[OMDb] Fetching details: ${url}`);
-            const response = await fetch(url);
+            const response = await fetchWithTimeout(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
             const data = await response.json();

@@ -106,17 +106,24 @@ async function loadDirectory(navPath, realPath, useCache = false) {
 
         if (!loadedFromCache) {
             el('loading').style.display = 'flex';
+        } else {
+            // Update loading text to indicate background refresh when using cache
+            el('loading-text').innerText = window.translations[window.currentLang].refreshing || 'Refreshing...';
         }
 
         const bypassBtn = el('btn-bypass-loading');
         let bypassTimeout = null;
         if (bypassBtn) {
             bypassBtn.style.display = 'none';
-            if (!loadedFromCache) {
-                bypassTimeout = setTimeout(() => {
-                    bypassBtn.style.display = 'inline-block';
-                }, 1500);
-            }
+            // Always show loading indicator for initial directory scan, even if from cache
+            // This prevents the UI from appearing to "refresh without warning"
+            el('loading').style.display = 'flex';
+            bypassTimeout = setTimeout(() => {
+                bypassBtn.style.display = 'inline-block';
+            }, 1500);
+        } else {
+            // If no bypass button, still show loading
+            el('loading').style.display = 'flex';
         }
 
         (async () => {
@@ -199,9 +206,19 @@ async function navigateTo(navPath, realPath) {
         el('btn-back').style.display = 'none';
         el('btn-back').disabled = true;
 
+        // Always show loading indicator when navigating to root to prevent UI from appearing to refresh without warning
+        el('loading').style.display = 'flex';
+
         if (window._rootItemsCache) {
             window.allItems = window._rootItemsCache;
             window.applyFilters();
+            // Update loading text to indicate background refresh when using cache
+            el('loading-text').innerText = window.translations[window.currentLang].refreshing || 'Refreshing...';
+            // Hide loading after a reasonable delay to show refresh is happening
+            setTimeout(() => { 
+                el('loading').style.display = 'none'; 
+                el('loading-text').innerText = window.translations[window.currentLang].scanning || 'Scanning directory...';
+            }, 2000);
         } else {
             let loadedFromCache = false;
             try {
@@ -213,10 +230,6 @@ async function navigateTo(navPath, realPath) {
                     loadedFromCache = true;
                 }
             } catch (e) {}
-
-            if (!loadedFromCache) {
-                el('loading').style.display = 'flex';
-            }
 
             (async () => {
                 try {
@@ -239,43 +252,50 @@ async function navigateTo(navPath, realPath) {
         el('btn-back').disabled = false;
 
         const targetFolder = window.getTargetFolder(navPath);
-        if (targetFolder && targetFolder.items.length > 0) {
+        if (targetFolder) {
             el('loading').style.display = 'flex';
-            const localPaths = [];
-            const streamingItems = [];
+            const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+            const folderFiles = window.appSettings.folderContents[folderPath] || [];
             
-            targetFolder.items.forEach(it => {
-                if (typeof it === 'string' && it.startsWith('tmdb://metadata:')) {
-                    try {
-                        const movie = JSON.parse(it.substring('tmdb://metadata:'.length));
-                        streamingItems.push({
-                            name: movie.title || movie.name,
-                            path: it,
-                            type: 'video',
-                            thumbnail: movie.poster,
-                            poster: movie.poster,
-                            rating: movie.rating,
-                            genres: movie.genres,
-                            year: movie.year,
-                            overview: movie.overview,
-                            media_type: movie.media_type,
-                            isStreaming: true,
-                            meta: movie
-                        });
-                    } catch (e) {
-                        console.error('[directory] Failed to parse streaming item metadata:', e);
+            if (folderFiles.length > 0) {
+                const localPaths = [];
+                const streamingItems = [];
+                
+                folderFiles.forEach(it => {
+                    if (typeof it === 'string' && it.startsWith('tmdb://metadata:')) {
+                        try {
+                            const movie = JSON.parse(it.substring('tmdb://metadata:'.length));
+                            streamingItems.push({
+                                name: movie.title || movie.name,
+                                path: it,
+                                type: 'video',
+                                thumbnail: movie.poster,
+                                poster: movie.poster,
+                                rating: movie.rating,
+                                genres: movie.genres,
+                                year: movie.year,
+                                overview: movie.overview,
+                                media_type: movie.media_type,
+                                isStreaming: true,
+                                meta: movie
+                            });
+                        } catch (e) {
+                            console.error('[directory] Failed to parse streaming item metadata:', e);
+                        }
+                    } else {
+                        localPaths.push(it);
                     }
-                } else {
-                    localPaths.push(it);
+                });
+                
+                let loadedLocal = [];
+                if (localPaths.length > 0) {
+                    loadedLocal = await window.electronAPI.scanSpecificFiles(localPaths);
                 }
-            });
-            
-            let loadedLocal = [];
-            if (localPaths.length > 0) {
-                loadedLocal = await window.electronAPI.scanSpecificFiles(localPaths);
+                
+                window.allItems = [...streamingItems, ...loadedLocal];
+            } else {
+                window.allItems = [];
             }
-            
-            window.allItems = [...streamingItems, ...loadedLocal];
             el('loading').style.display = 'none';
         } else {
             window.allItems = [];
@@ -463,8 +483,12 @@ function initNavigationListeners() {
                 if (window.currentNavPath !== 'root') {
                     const targetFolder = window.getTargetFolder(window.currentNavPath);
                     if (targetFolder && Array.isArray(res.pastedPaths)) {
+                        const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+                        if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
+                        if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
+                        const folderFiles = window.appSettings.folderContents[folderPath];
                         res.pastedPaths.forEach(p => {
-                            if (!targetFolder.items.includes(p)) targetFolder.items.push(p);
+                            if (!folderFiles.includes(p)) folderFiles.push(p);
                         });
                         window.electronAPI.saveSettings(window.appSettings);
                     }

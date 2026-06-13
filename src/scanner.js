@@ -515,12 +515,16 @@ function registerScannerHandlers(ipcMain) {
             try {
                 const fetchFn = typeof fetch !== 'undefined' ? fetch : require('node-fetch');
                 const searchUrl = `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(searchQuery)}&languages=en,fr,es`;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
                 const response = await fetchFn(searchUrl, {
                     headers: {
                         'Api-Key': apiKey,
                         'User-Agent': 'VaultExplorer v1.0.0'
-                    }
+                    },
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     const data = await response.json();
@@ -573,6 +577,8 @@ function registerScannerHandlers(ipcMain) {
         console.log(`[OpenSubtitles] Requesting download for File ID: ${fileId}`);
         const fetchFn = typeof fetch !== 'undefined' ? fetch : require('node-fetch');
         const downloadUrl = `https://api.opensubtitles.com/api/v1/download`;
+        const controller1 = new AbortController();
+        const timeoutId1 = setTimeout(() => controller1.abort(), 15000); // 15 second timeout
         const downloadRes = await fetchFn(downloadUrl, {
             method: 'POST',
             headers: {
@@ -580,8 +586,10 @@ function registerScannerHandlers(ipcMain) {
                 'User-Agent': 'VaultExplorer v1.0.0',
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ file_id: parseInt(fileId) })
+            body: JSON.stringify({ file_id: parseInt(fileId) }),
+            signal: controller1.signal
         });
+        clearTimeout(timeoutId1);
 
         if (!downloadRes.ok) {
             const errText = await downloadRes.text();
@@ -593,7 +601,10 @@ function registerScannerHandlers(ipcMain) {
             throw new Error("No download link returned by OpenSubtitles");
         }
 
-        const subFileRes = await fetchFn(downloadData.link);
+        const controller2 = new AbortController();
+        const timeoutId2 = setTimeout(() => controller2.abort(), 15000); // 15 second timeout
+        const subFileRes = await fetchFn(downloadData.link, { signal: controller2.signal });
+        clearTimeout(timeoutId2);
         if (!subFileRes.ok) {
             throw new Error(`Failed to fetch subtitle file: ${subFileRes.status}`);
         }

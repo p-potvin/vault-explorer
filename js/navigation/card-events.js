@@ -1,5 +1,63 @@
 // card-events.js — handles card context menu triggers, file copy/cut/paste/delete pipelines, subtitles, VSR upscaling, and crypto prompts.
 
+// Helper to update a single video card after AI processing
+async function updateSingleVideoCard(videoPath) {
+    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+    const normalizedPath = normPath(videoPath);
+    
+    // Find the card by path
+    const card = Array.from(document.querySelectorAll('.file-card'))
+        .find(c => normPath(c.dataset.path) === normalizedPath);
+    
+    if (card) {
+        const index = parseInt(card.dataset.index);
+        // Re-scan this specific file to get updated metadata
+        try {
+            const newItems = await window.electronAPI.scanSpecificFiles([videoPath]);
+            if (newItems && newItems.length > 0) {
+                const newItem = newItems[0];
+                
+                // Update window.allItems
+                const existingIndex = window.allItems.findIndex(i => normPath(i.path) === normalizedPath);
+                if (existingIndex !== -1) {
+                    window.allItems[existingIndex] = newItem;
+                } else {
+                    window.allItems.push(newItem);
+                }
+                
+                // Update window.displayedItems
+                const displayedIndex = window.displayedItems.findIndex(i => normPath(i.path) === normalizedPath);
+                if (displayedIndex !== -1) {
+                    window.displayedItems[displayedIndex] = newItem;
+                    // Re-render just this card
+                    card.replaceWith(window.createCardElement(newItem, displayedIndex));
+                } else {
+                    // If not in displayed items, trigger a filter refresh
+                    window.applyFilters();
+                }
+            }
+        } catch (e) {
+            console.error('[AI] Failed to update card:', e);
+            // Fallback to full refresh
+            refreshDirectoryWithScrollPreservation();
+        }
+    } else {
+        // Card not found, fallback to full refresh
+        refreshDirectoryWithScrollPreservation();
+    }
+}
+
+// Helper to save and restore scroll position during directory refresh
+function refreshDirectoryWithScrollPreservation() {
+    const mainArea = el('main-area');
+    const scrollTop = mainArea ? mainArea.scrollTop : 0;
+    window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+    // Restore scroll position after the directory loads
+    setTimeout(() => {
+        if (mainArea) mainArea.scrollTop = scrollTop;
+    }, 100);
+}
+
 async function handleCardContextMenu(card, item, index) {
     if (!window.selectedIndices.has(index)) {
         window.selectedIndices.clear();
@@ -33,12 +91,60 @@ async function handleCardContextMenu(card, item, index) {
 
     if (action && action.startsWith('add-to-folder:')) {
         const folderName = action.substring('add-to-folder:'.length);
-        const targetFolder = window.appSettings.folders.find(f => f.name === folderName);
+        
+        // Determine expected folder type based on the first selected item
+        let expectedType = 'collection';
+        const firstItem = selectedItems[0];
+        if (firstItem) {
+            if (firstItem.type === 'video' || firstItem.type === 'encrypted') expectedType = 'collection';
+            else if (firstItem.type === 'image') expectedType = 'album';
+            else if (firstItem.type === 'audio') expectedType = 'playlist';
+        }
+        
+        // Find folder by name, but prefer folders in the current navigation path
+        let targetFolder = null;
+        
+        // First, try to find folder in current nav path with correct type
+        if (window.currentNavPath && window.currentNavPath !== 'root') {
+            targetFolder = window.appSettings.folders.find(f => 
+                f.name === folderName && f.parent === window.currentNavPath && (f.type || 'collection') === expectedType
+            );
+        }
+        
+        // If not found, try root level with correct type
+        if (!targetFolder) {
+            targetFolder = window.appSettings.folders.find(f => 
+                f.name === folderName && (f.parent === 'root' || !f.parent || f.parent === '') && (f.type || 'collection') === expectedType
+            );
+        }
+        
+        // If still not found, try any folder with matching name and correct type
+        if (!targetFolder) {
+            targetFolder = window.appSettings.folders.find(f => f.name === folderName && (f.type || 'collection') === expectedType);
+        }
+        
+        // If still not found, try any folder with matching name (fallback)
+        if (!targetFolder) {
+            targetFolder = window.appSettings.folders.find(f => f.name === folderName);
+        }
+        
         if (targetFolder) {
+            // Build the folder path for folderContents
+            const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+            
+            // Initialize folderContents entry if it doesn't exist
+            if (!window.appSettings.folderContents) {
+                window.appSettings.folderContents = {};
+            }
+            if (!window.appSettings.folderContents[folderPath]) {
+                window.appSettings.folderContents[folderPath] = [];
+            }
+            
+            const folderFiles = window.appSettings.folderContents[folderPath];
             let added = 0;
             selectedItems.forEach(si => {
-                if (si && si.path && !targetFolder.items.includes(si.path)) {
-                    targetFolder.items.push(si.path);
+                if (si && si.path && !folderFiles.includes(si.path)) {
+                    folderFiles.push(si.path);
                     added++;
                 }
             });
@@ -188,7 +294,7 @@ async function handleCardContextMenu(card, item, index) {
                 if (overlay) overlay.remove();
                 if (res.success) {
                     window.showToast(`${targetItem.name}: Upscaling complete!`, 'success');
-                    window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+                    refreshDirectoryWithScrollPreservation();
                 } else {
                     window.showToast(`${targetItem.name}: Upscale failed: ` + (res.error || 'Unknown'), 'error');
                 }
@@ -208,7 +314,7 @@ async function handleCardContextMenu(card, item, index) {
                 if (res.success) count++;
             }
             window.showToast(`Reverted enhancements for ${count}/${targetItems.length} video(s)`, 'success');
-            window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+            refreshDirectoryWithScrollPreservation();
         }
     } else if (action === 'generate-subtitles-prompt') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
@@ -252,7 +358,7 @@ async function handleCardContextMenu(card, item, index) {
                     if (overlay) overlay.remove();
                     if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                         window.showToast(`${targetItem.name}: Subtitles generated successfully!`, 'success');
-                        window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                        refreshDirectoryWithScrollPreservation();
                     } else {
                         window.showToast(`${targetItem.name}: Subtitles failed: ` + (res.error || 'Unknown'), 'error');
                     }
@@ -301,7 +407,7 @@ async function handleCardContextMenu(card, item, index) {
                     if (overlay) overlay.remove();
                     if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                         window.showToast(`${targetItem.name}: Translation complete!`, 'success');
-                        window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                        refreshDirectoryWithScrollPreservation();
                     } else {
                         window.showToast(`${targetItem.name}: Translation failed: ` + (res.error || 'Unknown'), 'error');
                     }
@@ -345,7 +451,7 @@ async function handleCardContextMenu(card, item, index) {
                     if (overlay) overlay.remove();
                     if (res.success) {
                         window.showToast(`${targetItem.name}: Super-Resolution complete!`, 'success');
-                        window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
+                        refreshDirectoryWithScrollPreservation();
                     } else {
                         window.showToast(`${targetItem.name}: Super-Resolution failed: ` + (res.error || 'Unknown'), 'error');
                     }
@@ -366,10 +472,14 @@ async function handleCardContextMenu(card, item, index) {
             window.showToast('Virtual folder not found', 'error');
             return;
         }
+        const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+        if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
+        if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
+        const folderFiles = window.appSettings.folderContents[folderPath];
         let added = 0;
         window._clipboard.paths.forEach(p => {
-            if (!targetFolder.items.includes(p)) {
-                targetFolder.items.push(p);
+            if (!folderFiles.includes(p)) {
+                folderFiles.push(p);
                 added++;
             }
         });
@@ -406,9 +516,12 @@ async function handleCardContextMenu(card, item, index) {
             if (isVirtual) {
                 const targetFolder = window.getTargetFolder(window.currentNavPath);
                 if (targetFolder) {
+                    const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+                    const folderFiles = window.appSettings.folderContents[folderPath] || [];
                     targetItems.forEach(targetItem => {
-                        targetFolder.items = targetFolder.items.filter(p => p !== targetItem.path);
-                        window.allItems = window.allItems.filter(i => i.path !== targetItem.path);
+                        // Remove from folderContents only, NOT from window.allItems
+                        const idx = folderFiles.indexOf(targetItem.path);
+                        if (idx > -1) folderFiles.splice(idx, 1);
                     });
                     window.electronAPI.saveSettings(window.appSettings);
                     window.showToast(targetItems.length > 1 
@@ -468,8 +581,12 @@ async function handleCardContextMenu(card, item, index) {
                 if (window.currentNavPath !== 'root') {
                     const targetFolder = window.getTargetFolder(window.currentNavPath);
                     if (targetFolder && Array.isArray(res.pastedPaths)) {
+                        const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
+                        if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
+                        if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
+                        const folderFiles = window.appSettings.folderContents[folderPath];
                         res.pastedPaths.forEach(p => {
-                            if (!targetFolder.items.includes(p)) targetFolder.items.push(p);
+                            if (!folderFiles.includes(p)) folderFiles.push(p);
                         });
                         window.electronAPI.saveSettings(window.appSettings);
                     }
