@@ -52,7 +52,7 @@ async function startUpscaleMode() {
         badge.style.cssText = 'position:absolute;top:52px;left:12px;z-index:210;padding:3px 8px;border-radius:4px;font-size:10px;font-family:var(--font-body);font-weight:700;letter-spacing:0.06em;color:#fff;pointer-events:none;background:rgba(0,0,0,0.65);';
         el('video-modal').appendChild(badge);
     }
-    upscaleSetStatus('⬆ AI  ·  initializing…', '#1a1a2e');
+    upscaleSetStatus('⬆ RTX VSR  ·  initializing…', '#1a1a2e');
 
     let rawPath = decodeURIComponent(upscaleOrigSrc.replace(/^file:\/\/\//, '').replace(/\//g, '\\'));
     rawPath = rawPath.replace(/^([A-Za-z])%3A/, '$1:');
@@ -60,24 +60,25 @@ async function startUpscaleMode() {
     window.electronAPI.offUpscaleChunk();
     window.electronAPI.offUpscaleStatus();
 
-    window.electronAPI.onUpscaleStatus(({ type, chunk, chunkStart, fps, width, height, duration }) => {
+    window.electronAPI.onUpscaleStatus(({ type, chunk, chunkStart, fps, width, height, duration, error }) => {
         if (type === 'init') {
-            upscaleSetStatus(`⬆ AI  ·  ${width}×${height}→${width*2}×${height*2}  ·  buffering…`, '#0d1117');
+            upscaleSetStatus(`⬆ RTX VSR  ·  ${width}×${height} → ${width*2}×${height*2}  ·  buffering…`, '#0d1117');
         } else if (type === 'processing') {
-            upscaleSetStatus(`⬆ AI  ·  chunk ${chunk+1}  processing…`, '#0d1117');
+            upscaleSetStatus(`⬆ RTX VSR  ·  ${chunk} frames  ·  buffering…`, '#0d1117');
         } else if (type === 'done') {
-            upscaleSetStatus('⬆ AI  ·  complete', '#155724');
+            upscaleSetStatus('⬆ RTX VSR  ·  complete', '#155724');
             if (upscaleMS && upscaleMS.readyState === 'open') {
                 try { upscaleMS.endOfStream(); } catch(_) {}
             }
         } else if (type === 'chunk-error') {
-            console.warn('[upscale] chunk error on chunk', chunk);
+            console.warn('[upscale] chunk error:', error || chunk);
+            window.showToast('RTX VSR stream error: ' + (error || 'unknown'), 'error');
         }
     });
 
     window.electronAPI.onUpscaleChunk(({ chunk, buffer }) => {
         upscaleChunkCount++;
-        upscaleSetStatus(`⬆ AI  ·  buf ${upscaleChunkCount} chunk(s)`, '#0d3349');
+        upscaleSetStatus(`⬆ RTX VSR  ·  buf ${upscaleChunkCount} chunk(s)`, '#0d3349');
         const ab = buffer instanceof ArrayBuffer ? buffer : buffer.buffer || Buffer.from(buffer).buffer;
         upscaleQueue.push(ab);
         upscaleFlushQueue();

@@ -5,17 +5,20 @@ const fs = require('fs');
 const utils = require('./utils');
 
 /**
- * Resolves the Python executable from the vaultwares-media-processing venv,
+ * Resolves the Python executable from the .venv,
  * which carries NeMo, Demucs, and the heavy ASR dependencies.
  * Falls back to getRobustPythonExe() if not found.
  */
-function getMediaProcessingPythonExe() {
+function getPythonExe() {
     const candidates = [
-        'C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv\\Scripts\\python.exe',
-        path.join(__dirname, '..', '..', 'vaultwares-media-processing', '.venv', 'Scripts', 'python.exe'),
+        'C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer\\.venv\\Scripts\\python.exe',
+        path.join(__dirname, '.venv', 'Scripts', 'python.exe'),
     ];
     for (const c of candidates) {
-        if (fs.existsSync(c)) return c;
+        if (fs.existsSync(c)) {
+            console.log('Found python exe at: ', c);
+            return c;
+        }
     }
     return utils.getRobustPythonExe();
 }
@@ -25,8 +28,8 @@ function registerNormalizationHandlers(ipcMain) {
         console.log(`[main:normalize] Starting audio normalization for ${videoPath}`);
         return new Promise((resolve) => {
             const pythonScript = path.join("C:\\Users\\Administrator\\desktop\\github repos\\vault-explorer\\", 'python-scripts', 'audio_normalize.py');
-            
-            const pythonExe = getMediaProcessingPythonExe();
+
+            const pythonExe = getPythonExe();
 
             const args = ['-u', pythonScript, videoPath];
             if (vaultRoot) {
@@ -43,7 +46,7 @@ function registerNormalizationHandlers(ipcMain) {
             const env = { ...process.env };
             env.PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION = 'python';
             const pyProc = spawn(pythonExe, args, { env, windowsHide: true });
-            
+
             let outputData = '';
             let errorData = '';
             let latestStatus = null;
@@ -124,9 +127,9 @@ function registerNormalizationHandlers(ipcMain) {
                         resolve({ success: true, log: outputData });
                     } else {
                         const cleanErr = errorData.replace(/PROGRESS:\s*\d+:.*\n?/g, '').trim();
-                        resolve({ 
-                            success: false, 
-                            error: cleanErr || latestError || `Normalization process exited with error code ${code}` 
+                        resolve({
+                            success: false,
+                            error: cleanErr || latestError || `Normalization process exited with error code ${code}`
                         });
                     }
                 }
@@ -134,12 +137,12 @@ function registerNormalizationHandlers(ipcMain) {
         });
     });
 
-    ipcMain.handle('run-asr-benchmark', async (event, { forceSimulation }) => {
+    ipcMain.handle('run-asr-benchmark', async (_event, { forceSimulation }) => {
         console.log(`[main:benchmark] Starting ASR benchmark (forceSimulation: ${forceSimulation})`);
         return new Promise((resolve) => {
             const pythonScript = path.join(__dirname, '..', 'python-scripts', 'benchmark_asr.py');
-            
-            const pythonExe = getMediaProcessingPythonExe();
+
+            const pythonExe = getPythonExe();
 
             const args = ['-u', pythonScript];
             if (forceSimulation) {
@@ -149,13 +152,13 @@ function registerNormalizationHandlers(ipcMain) {
             }
 
             console.log(`[main:benchmark] Spawning: ${pythonExe} ${args.join(' ')}`);
-            
+
             // Set up environment so Python can load from sibling directories
             const env = { ...process.env };
-            env.PYTHONPATH = path.join(__dirname, '..', '..', 'vaultwares-media-processing');
+            env.PYTHONPATH = path.join(__dirname, '..');
 
             const pyProc = spawn(pythonExe, args, { env, windowsHide: true });
-            
+
             let outputData = '';
             let errorData = '';
 

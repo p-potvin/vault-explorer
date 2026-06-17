@@ -318,12 +318,31 @@ window.initTMDBListeners = function() {
         });
     });
 
-    // TMDB Load More pagination click handler
+    // TMDB Load More pagination click handler (kept as manual fallback)
     const tmdbLoadMoreBtn = el('tmdb-load-more-btn');
     if (tmdbLoadMoreBtn) {
         tmdbLoadMoreBtn.addEventListener('click', () => {
             window.tmdbCurrentPage++;
             window.renderTMDB(window.tmdbCurrentQuery, true);
         });
+    }
+
+    // Auto-paginate: when the user scrolls close to the bottom of the
+    // streaming container, automatically fetch the next page. Throttled so
+    // mid-fetch scroll events don't fire it again, and only fires when the
+    // load-more button is actually visible (i.e. more pages exist).
+    const tmdbContainer = el('tmdb-container');
+    if (tmdbContainer) {
+        tmdbContainer.addEventListener('scroll', () => {
+            if (window.tmdbIsFetching) return;
+            const loadMoreContainer = el('tmdb-load-more-container');
+            if (!loadMoreContainer || loadMoreContainer.style.display === 'none') return;
+            const nearBottom = tmdbContainer.scrollTop + tmdbContainer.clientHeight
+                            >= tmdbContainer.scrollHeight - 600;
+            if (nearBottom) {
+                window.tmdbCurrentPage++;
+                window.renderTMDB(window.tmdbCurrentQuery, true);
+            }
+        }, { passive: true });
     }
 };

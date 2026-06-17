@@ -7,21 +7,24 @@ window.lastSelectedIndex = -1;
 window.PAGE_SIZE = 50;
 window.currentlyRendered = 0;
 window.scrollPositions = {};
-window.currentNavPath = '';
+window.currentNavPath = '';     // display breadcrumb path ('root' or 'root/Name/Sub')
 window.currentRealPath = '';
+window.currentFolderId = null;  // source of truth: null at root, else a vf id
 window.folderSizeTimer = null;
 
-window.getTargetFolder = function(navPath) {
-    if (!navPath || navPath === 'root') return null;
-    const parts = navPath.split('/');
-    const leafName = parts.pop();
-    const parentPath = parts.join('/');
-    
-    // Normalize parentPath for comparison (ensure 'root' is consistent)
-    const normalizedParent = parentPath === '' ? 'root' : parentPath;
-    const normalizedFolderParent = (f) => f.parent === undefined || f.parent === null || f.parent === '' ? 'root' : f.parent;
-    
-    return window.appSettings.folders.find(f => f.name === leafName && normalizedFolderParent(f) === normalizedParent);
+// Resolve the *current* virtual folder by id. Returns null at root or if the
+// id has been deleted out from under us.
+window.getTargetFolder = function() {
+    if (!window.currentFolderId || !window.vf) return null;
+    return window.vf.get(window.currentFolderId);
+};
+
+// Build a breadcrumb display string from a folder id (or 'root' if null).
+window.buildNavPath = function(folderId) {
+    if (!folderId || !window.vf) return 'root';
+    const chain = window.vf.breadcrumb(folderId);
+    if (!chain.length) return 'root';
+    return 'root/' + chain.map(f => f.name).join('/');
 };
 
 window.renderingMore = false;
@@ -51,85 +54,57 @@ function applyFilters() {
     }
     const term = el('search-box').value.toLowerCase();
     const filterAttr = el('filter-type').value;
+    const vf = window.vf;
 
     const activeSubtab = window.currentVaultSubtab || 'all';
-    let currentFolderType = null;
-    if (window.currentNavPath !== 'root') {
-        const target = window.getTargetFolder(window.currentNavPath);
-        if (target) {
-            currentFolderType = target.type || 'collection';
-        }
-    }
+    const currentFolder = window.getTargetFolder();
+    const currentFolderType = currentFolder ? currentFolder.type : null;
+    const subtabType = activeSubtab === 'collections' ? 'collection'
+                    : activeSubtab === 'albums'      ? 'album'
+                    : activeSubtab === 'playlists'   ? 'playlist'
+                    : null;
 
-    // Helper to verify if item type matches context (active subtab or folder type)
+    // True if a file's item-type is admissible in the current context.
     const matchesCategoryType = (itemType) => {
-        const checkType = currentFolderType || (activeSubtab === 'collections' ? 'collection' : activeSubtab === 'albums' ? 'album' : activeSubtab === 'playlists' ? 'playlist' : 'all');
-        if (checkType === 'collection') return itemType === 'video' || itemType === 'encrypted';
-        if (checkType === 'album') return itemType === 'image';
-        if (checkType === 'playlist') return itemType === 'audio';
-        return true;
+        const ctxType = currentFolderType || subtabType;
+        if (!ctxType) return true;
+        return vf.itemAccepts(ctxType, itemType);
     };
 
-    // Ensure folderContents exists (auto-migration from old format)
-    if (!window.appSettings.folderContents) {
-        window.appSettings.folderContents = {};
-        (window.appSettings.folders || []).forEach(f => {
-            const folderPath = f.parent === 'root' || !f.parent ? `root/${f.name}` : `${f.parent}/${f.name}`;
-            if (f.items && f.items.length > 0) {
-                window.appSettings.folderContents[folderPath] = [...f.items];
-            }
-        });
-        window.electronAPI.saveSettings(window.appSettings);
-    }
+    // Project a vf folder into the legacy fakeFolder render shape (id-stamped).
+    const projectFolder = (f) => ({
+        type: 'fakeFolder',
+        id: f.id,
+        name: f.name,
+        parentId: f.parentId,
+        parent: f.parentId ? window.buildNavPath(f.parentId) : 'root',
+        path: 'virtual://' + f.id,
+        folderType: f.type,
+    });
 
     let pool = [];
     if (term) {
-        // Global search: search across all files in the vault and all virtual folders
+        // Global search: every vault file + every (matching-type) virtual folder.
         const allVaultFiles = (window._rootItemsCache || window.allItems || []).filter(v => matchesCategoryType(v.type));
-        const allFakeFolders = window.appSettings.folders.map(f => ({
-            type: 'fakeFolder',
-            name: f.name,
-            parent: f.parent || 'root',
-            path: 'virtual://' + (f.parent || 'root') + '/' + f.name,
-            folderType: f.type || 'collection'
-        })).filter(f => {
-            if (activeSubtab === 'collections') return f.folderType === 'collection';
-            if (activeSubtab === 'albums') return f.folderType === 'album';
-            if (activeSubtab === 'playlists') return f.folderType === 'playlist';
-            return true;
-        });
+        const allFakeFolders = vf.list({})
+            .filter(f => !subtabType || f.type === subtabType)
+            .map(projectFolder);
         pool = [...allFakeFolders, ...allVaultFiles];
+    } else if (currentFolder) {
+        // Inside a virtual folder: sub-folders here + this folder's items.
+        const subFolders = vf.list({ parentId: currentFolder.id }).map(projectFolder);
+        const memberSet = new Set(vf.itemsOf(currentFolder.id));
+        const memberItems = window.allItems.filter(v => memberSet.has(v.path) && matchesCategoryType(v.type));
+        pool = [...subFolders, ...memberItems];
+    } else if (subtabType) {
+        // Category subtabs (Collections / Albums / Playlists) show ONLY the
+        // user's virtual folders of that type — no vault files mixed in.
+        // Vault files for that category live inside the folders themselves.
+        pool = vf.list({ parentId: null, type: subtabType }).map(projectFolder);
     } else {
-        // Standard view: filter by the current navigation directory
-        const fakeFolders = window.appSettings.folders
-            .filter(f => f.parent === window.currentNavPath)
-            .map(f => ({
-                type: 'fakeFolder',
-                name: f.name,
-                parent: f.parent || 'root',
-                path: 'virtual://' + (f.parent || 'root') + '/' + f.name,
-                folderType: f.type || 'collection'
-            })).filter(f => {
-                if (window.currentNavPath !== 'root') return true; // Show nested folders regardless
-                if (activeSubtab === 'collections') return f.folderType === 'collection';
-                if (activeSubtab === 'albums') return f.folderType === 'album';
-                if (activeSubtab === 'playlists') return f.folderType === 'playlist';
-                return true;
-            });
-            
-        // Get files that belong to the current navigation path
-        let displayableFiles = [];
-        if (window.currentNavPath === 'root') {
-            // At root: show ALL files regardless of folder membership (tagging system)
-            displayableFiles = window.allItems.filter(v => matchesCategoryType(v.type));
-        } else {
-            // Inside a virtual folder: show files that are in this specific folder
-            const folderPath = window.currentNavPath;
-            const folderFiles = window.appSettings.folderContents[folderPath] || [];
-            const folderFilesSet = new Set(folderFiles);
-            displayableFiles = window.allItems.filter(v => folderFilesSet.has(v.path) && matchesCategoryType(v.type));
-        }
-        pool = [...fakeFolders, ...displayableFiles];
+        // 'All' subtab: every top-level folder + every vault file (tagging model).
+        const rootFolders = vf.list({ parentId: null }).map(projectFolder);
+        pool = [...rootFolders, ...window.allItems];
     }
 
     let filteredItems = pool.filter(v => {
@@ -153,7 +128,7 @@ function applyFilters() {
         if (a.type === 'fakeFolder' && b.type !== 'fakeFolder') return -1;
         if (b.type === 'fakeFolder' && a.type !== 'fakeFolder') return 1;
         let valA = a[sortBy]; let valB = b[sortBy];
-        if (sortBy === 'name') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
+        if (sortBy === 'name') { valA = (valA || '').toLowerCase(); valB = (valB || '').toLowerCase(); }
         else if (['size', 'duration', 'mtime'].includes(sortBy)) { valA = valA || 0; valB = valB || 0; }
         let compare = 0;
         if (valA < valB) compare = -1; else if (valA > valB) compare = 1;

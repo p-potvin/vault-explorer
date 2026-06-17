@@ -399,6 +399,9 @@ function startClipMode() {
     // Disable other controls during clip mode
     document.body.classList.add('clip-mode-active');
     
+    // Show clip mode toolbar
+    showClipToolbar();
+    
     console.log('[Clip] Clip mode started', {
         start: window.clipState.startTime,
         end: window.clipState.endTime
@@ -416,6 +419,9 @@ function endClipMode() {
     if (clipMarkersContainer) clipMarkersContainer.style.display = 'none';
     if (clipPreviewCanvas) clipPreviewCanvas.style.display = 'none';
     if (clipDurationDisplay) clipDurationDisplay.style.display = 'none';
+    
+    // Hide clip toolbar
+    hideClipToolbar();
     
     // Enable other controls
     document.body.classList.remove('clip-mode-active');
@@ -524,6 +530,180 @@ function updateClipPreviewFrame() {
 }
 
 // ============================================================================
+// CLIP MODE TOOLBAR
+// ============================================================================
+
+function showClipToolbar() {
+    hideClipToolbar();
+    
+    clipToolbar = document.createElement('div');
+    clipToolbar.id = 'clip-mode-toolbar';
+    clipToolbar.style.cssText = `
+        position: fixed;
+        top: 56px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 18px;
+        background: rgba(11, 8, 19, 0.92);
+        border: 1px solid var(--vault-accent);
+        border-radius: 8px;
+        box-shadow: 0 8px 30px rgba(245, 185, 41, 0.15), 0 0 0 1px rgba(245, 185, 41, 0.1);
+        backdrop-filter: blur(12px);
+        z-index: 10500;
+        font-family: var(--font-mono);
+        animation: clipToolbarIn 0.25s ease-out;
+    `;
+    
+    // Inject animation keyframes if not already present
+    if (!document.getElementById('clip-toolbar-keyframes')) {
+        const style = document.createElement('style');
+        style.id = 'clip-toolbar-keyframes';
+        style.textContent = `
+            @keyframes clipToolbarIn {
+                from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+                to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Clip mode label
+    const label = document.createElement('span');
+    label.style.cssText = `
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--vault-accent);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    `;
+    label.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        CLIP MODE
+    `;
+    
+    // Duration indicator (updated reactively)
+    const durationSpan = document.createElement('span');
+    durationSpan.id = 'clip-toolbar-duration';
+    durationSpan.style.cssText = `
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--vault-text);
+        padding: 2px 8px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 4px;
+        min-width: 50px;
+        text-align: center;
+    `;
+    durationSpan.textContent = formatClipDuration(window.clipState.endTime - window.clipState.startTime);
+    
+    // Save button
+    const saveBtn = document.createElement('button');
+    saveBtn.id = 'clip-toolbar-save';
+    saveBtn.style.cssText = `
+        background: var(--vault-accent);
+        color: #0b0813;
+        border: none;
+        padding: 5px 14px;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 10px;
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+        transition: filter 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    `;
+    saveBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Save Clip
+    `;
+    saveBtn.onmouseenter = () => { saveBtn.style.filter = 'brightness(1.15)'; };
+    saveBtn.onmouseleave = () => { saveBtn.style.filter = ''; };
+    saveBtn.onclick = () => { exportClip(); };
+    
+    // Cancel button
+    const cancelBtn = document.createElement('button');
+    cancelBtn.id = 'clip-toolbar-cancel';
+    cancelBtn.style.cssText = `
+        background: transparent;
+        color: var(--vault-slate);
+        border: 1px solid var(--vault-border);
+        padding: 5px 12px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 10px;
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all 0.15s;
+    `;
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onmouseenter = () => {
+        cancelBtn.style.borderColor = 'var(--vault-slate)';
+        cancelBtn.style.color = 'var(--vault-text)';
+    };
+    cancelBtn.onmouseleave = () => {
+        cancelBtn.style.borderColor = 'var(--vault-border)';
+        cancelBtn.style.color = 'var(--vault-slate)';
+    };
+    cancelBtn.onclick = () => { cancelClipMode(); };
+    
+    clipToolbar.appendChild(label);
+    clipToolbar.appendChild(durationSpan);
+    clipToolbar.appendChild(saveBtn);
+    clipToolbar.appendChild(cancelBtn);
+    
+    document.body.appendChild(clipToolbar);
+    
+    // Start reactive duration updater
+    startToolbarDurationUpdater();
+}
+
+function hideClipToolbar() {
+    if (clipToolbar) {
+        clipToolbar.remove();
+        clipToolbar = null;
+    }
+    const existing = document.getElementById('clip-mode-toolbar');
+    if (existing) existing.remove();
+    stopToolbarDurationUpdater();
+}
+
+let _toolbarDurationTimer = null;
+function startToolbarDurationUpdater() {
+    stopToolbarDurationUpdater();
+    _toolbarDurationTimer = setInterval(() => {
+        const el = document.getElementById('clip-toolbar-duration');
+        if (!el || !window.clipState.active) {
+            stopToolbarDurationUpdater();
+            return;
+        }
+        el.textContent = formatClipDuration(window.clipState.endTime - window.clipState.startTime);
+    }, 200);
+}
+function stopToolbarDurationUpdater() {
+    if (_toolbarDurationTimer) {
+        clearInterval(_toolbarDurationTimer);
+        _toolbarDurationTimer = null;
+    }
+}
+
+// ============================================================================
 // EXPORT FUNCTIONS
 // ============================================================================
 
@@ -570,13 +750,14 @@ function showClipEditingDialog(clipData) {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 3500;
+        z-index: 10500;
         backdrop-filter: blur(5px);
     `;
     
     const dialogContent = document.createElement('div');
     dialogContent.style.cssText = `
         background: var(--vault-warm-bg, #1a1a24);
+        color: #161320;
         border: 1px solid var(--vault-border);
         border-radius: 8px;
         padding: 24px;
@@ -740,11 +921,11 @@ function showClipEditingDialog(clipData) {
             align-items: center;
             gap: 4px;
             padding: 10px 12px;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(22, 19, 32, 0.06);
             border: 1px solid var(--vault-border);
             border-radius: 6px;
             cursor: pointer;
-            color: var(--vault-text);
+            color: #161320;
             transition: all 0.2s;
             font-family: var(--font-body);
             font-size: 11px;
@@ -753,10 +934,10 @@ function showClipEditingDialog(clipData) {
         button.innerHTML = `<span style="font-size: 18px;">${btn.icon}</span><span>${btn.name}</span>`;
         button.onclick = btn.action;
         button.onmouseenter = () => {
-            button.style.background = 'rgba(255, 255, 255, 0.1)';
+            button.style.background = 'rgba(22, 19, 32, 0.12)';
         };
         button.onmouseleave = () => {
-            button.style.background = 'rgba(255, 255, 255, 0.05)';
+            button.style.background = 'rgba(22, 19, 32, 0.06)';
         };
         optionsGrid.appendChild(button);
     });
@@ -802,7 +983,7 @@ function showClipEditingDialog(clipData) {
             border: 1px solid #F5B92B;
             border-radius: 6px;
             cursor: pointer;
-            color: var(--vault-text);
+            color: #161320;
             transition: all 0.2s;
             font-family: var(--font-body);
             font-size: 11px;
@@ -835,8 +1016,8 @@ function showClipEditingDialog(clipData) {
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
     cancelBtn.style.cssText = `
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--vault-text);
+        background: rgba(22, 19, 32, 0.06);
+        color: #161320;
         border: 1px solid var(--vault-border);
         padding: 10px 20px;
         border-radius: 4px;
@@ -953,13 +1134,14 @@ function showClipExportDialog(clipData) {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 3500;
+        z-index: 10500;
         backdrop-filter: blur(5px);
     `;
     
     const dialogContent = document.createElement('div');
     dialogContent.style.cssText = `
         background: var(--vault-warm-bg, #1a1a24);
+        color: #161320;
         border: 1px solid var(--vault-border);
         border-radius: 8px;
         padding: 24px;
@@ -1126,7 +1308,7 @@ function showClipExportDialog(clipData) {
     shareBtn.textContent = 'Share...';
     shareBtn.style.cssText = `
         flex: 1;
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(22, 19, 32, 0.06);
         color: var(--vault-text);
         border: 1px solid var(--vault-border);
         padding: 10px 16px;
@@ -1146,7 +1328,7 @@ function showClipExportDialog(clipData) {
     publishBtn.textContent = 'Publish...';
     publishBtn.style.cssText = `
         flex: 1;
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(22, 19, 32, 0.06);
         color: var(--vault-text);
         border: 1px solid var(--vault-border);
         padding: 10px 16px;
@@ -1191,15 +1373,30 @@ function exportClipToDesktop(clipData, format, quality) {
         return Promise.reject(new Error('No video source available'));
     }
     
-    const videoPath = vp.src.replace('file:///', '');
+    // Properly decode URI-encoded file paths
+    let videoPath = vp.src;
+    try {
+        videoPath = decodeURIComponent(videoPath);
+    } catch (_) {}
+    videoPath = videoPath.replace(/^file:\/\/\//, '');
+    
     const outputFormat = format;
     const startTime = clipData.startTime;
     const duration = clipData.duration;
     
-    window.showToast(`Preparing clip export: ${formatClipDuration(duration)} (${outputFormat.toUpperCase()})...`, 'info');
+    console.log('[Clip] Exporting clip:', { videoPath, outputFormat, startTime, duration, quality });
+    window.showToast(`Exporting clip: ${formatClipDuration(duration)} (${outputFormat.toUpperCase()})...`, 'info');
     
     // Send to main process for ffmpeg processing
     if (window.electronAPI && window.electronAPI.clipVideo) {
+        // Listen for progress events
+        if (window.electronAPI.onClipProgress) {
+            window.electronAPI.offClipProgress();
+            window.electronAPI.onClipProgress((data) => {
+                console.log('[Clip] Progress:', data.currentTime);
+            });
+        }
+        
         return window.electronAPI.clipVideo({
             inputPath: videoPath,
             outputFormat: outputFormat,
@@ -1207,14 +1404,19 @@ function exportClipToDesktop(clipData, format, quality) {
             duration: duration,
             quality: quality
         }).then(result => {
+            // Cleanup progress listener
+            if (window.electronAPI.offClipProgress) window.electronAPI.offClipProgress();
+            
             if (result.success) {
-                window.showToast(`Clip saved to: ${result.outputPath}`, 'success');
+                const sizeMB = result.outputSize ? (result.outputSize / (1024 * 1024)).toFixed(1) : '?';
+                window.showToast(`✓ Clip saved (${sizeMB} MB): ${result.outputPath}`, 'success');
                 return result;
             } else {
                 window.showToast(`Export failed: ${result.error}`, 'error');
                 throw new Error(result.error || 'Export failed');
             }
         }).catch(err => {
+            if (window.electronAPI.offClipProgress) window.electronAPI.offClipProgress();
             console.error('[Clip] Export error:', err);
             window.showToast(`Export failed: ${err.message}`, 'error');
             throw err;
@@ -1262,13 +1464,14 @@ function showShareDialogUI(clipData, format, quality) {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 3500;
+        z-index: 10500;
         backdrop-filter: blur(5px);
     `;
     
     const dialogContent = document.createElement('div');
     dialogContent.style.cssText = `
         background: var(--vault-warm-bg, #1a1a24);
+        color: #161320;
         border: 1px solid var(--vault-border);
         border-radius: 8px;
         padding: 24px;
@@ -1390,7 +1593,7 @@ function showShareDialogUI(clipData, format, quality) {
             align-items: center;
             gap: 6px;
             padding: 12px;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(22, 19, 32, 0.06);
             border: 1px solid var(--vault-border);
             border-radius: 6px;
             cursor: pointer;
@@ -1407,11 +1610,11 @@ function showShareDialogUI(clipData, format, quality) {
             dialog.remove();
         };
         btn.onmouseenter = () => {
-            btn.style.background = 'rgba(255, 255, 255, 0.1)';
+            btn.style.background = 'rgba(22, 19, 32, 0.12)';
             btn.style.borderColor = platform.color;
         };
         btn.onmouseleave = () => {
-            btn.style.background = 'rgba(255, 255, 255, 0.05)';
+            btn.style.background = 'rgba(22, 19, 32, 0.06)';
             btn.style.borderColor = 'var(--vault-border)';
         };
         platformsGrid.appendChild(btn);
@@ -1457,7 +1660,7 @@ function shareToPlatform(platform, clipData, format, quality, message) {
         const clipInfo = `Clip: ${clipData.duration}s from ${new Date(clipData.startTime * 1000).toISOString()}`;
         const fullMessage = message ? `${message}\n${clipInfo}` : clipInfo;
         navigator.clipboard.writeText(fullMessage).then(() => {
-            window.showToast(`Copied to clipboard (${platformNames[platform] || platform]} link simulated)`, 'success');
+            window.showToast(`Copied to clipboard (${platformNames[platform] || platform} link simulated)`, 'success');
         }).catch(() => {
             window.showToast(`Clip ready to share on ${platformNames[platform] || platform}!`, 'success');
         });
@@ -1498,13 +1701,14 @@ function showPublishDialogUI(clipData, format, quality) {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 3500;
+        z-index: 10500;
         backdrop-filter: blur(5px);
     `;
     
     const dialogContent = document.createElement('div');
     dialogContent.style.cssText = `
         background: var(--vault-warm-bg, #1a1a24);
+        color: #161320;
         border: 1px solid var(--vault-border);
         border-radius: 8px;
         padding: 24px;
@@ -1628,7 +1832,7 @@ function showPublishDialogUI(clipData, format, quality) {
             align-items: center;
             gap: 6px;
             padding: 12px;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(22, 19, 32, 0.06);
             border: 1px solid var(--vault-border);
             border-radius: 6px;
             cursor: pointer;
@@ -1645,11 +1849,11 @@ function showPublishDialogUI(clipData, format, quality) {
             dialog.remove();
         };
         btn.onmouseenter = () => {
-            btn.style.background = 'rgba(255, 255, 255, 0.1)';
+            btn.style.background = 'rgba(22, 19, 32, 0.12)';
             btn.style.borderColor = platform.color;
         };
         btn.onmouseleave = () => {
-            btn.style.background = 'rgba(255, 255, 255, 0.05)';
+            btn.style.background = 'rgba(22, 19, 32, 0.06)';
             btn.style.borderColor = 'var(--vault-border)';
         };
         platformsGrid.appendChild(btn);

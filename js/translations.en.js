@@ -46,7 +46,6 @@ window.translationsEn = {
   tabLivestream: "Livestream",
   moviesSeriesBrowser: "Streaming Browser",
   streamHeading: "Streaming Settings",
-  streamAutoSelect: "Auto-Select Best Stream:",
   streamQuality: "Max Stream Quality:",
   streamLang: "Preferred Language:",
   downloadingSubtitles: "Downloading subtitles...",

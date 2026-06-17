@@ -321,6 +321,17 @@ select option {
   position: relative;
 }
 
+/* Streaming tab: edge-to-edge container. The TMDB browser owns its own
+   internal padding/scroll; main-area padding would just create an inset. */
+body.tab-streaming-active .main-area {
+  padding: 0;
+  overflow: hidden;
+}
+body.tab-streaming-active #tmdb-container {
+  height: 100%;
+  width: 100%;
+}
+
 .file-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -559,6 +570,21 @@ select option {
 }
 
 /* Video Player Modal */
+/* Idle state: 2s without mouse movement -> hide custom controls + cursor
+   while the player is visible. JS sets body.player-idle. */
+body.player-idle #video-modal #custom-controls,
+body.player-idle #video-modal #player-topbar {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease;
+}
+body.player-idle #video-modal {
+  cursor: none !important;
+}
+body.player-idle #video-modal * {
+  cursor: none !important;
+}
+
 #video-modal {
   display: none;
   position: fixed;
@@ -1218,7 +1244,9 @@ body.titlebar-hovered #video-modal #player-topbar {
   top: 100%;
   right: 0;
   left: auto;
-  z-index: 2000;
+  /* Settings sit above everything else (player modal: 10000, toasts: 99999,
+     debrid dialog: 10500). 100001 keeps it on top of all current UI layers. */
+  z-index: 100001;
   background: var(--vt-surface);
   border: 1px solid var(--vault-border);
   border-top: none;
@@ -1364,9 +1392,12 @@ video::cue {
 
 /* Movies/Series Tab Smaller Cards & Premium Netflix-Style Hover */
 .tmdb-grid {
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
-  gap: 16px !important;
-  padding: 10px 0 !important;
+  /* Larger min width pushes most viewports to 8 columns (was ~9-10 at 130px).
+     Bigger row-gap gives the hover popup breathing room. */
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  column-gap: 18px !important;
+  row-gap: 32px !important;
+  padding: 14px 0 !important;
 }
 
 .tmdb-movie-card {
@@ -1655,6 +1686,15 @@ body.clip-mode-active #btn-clip {
 
 #clip-export-dialog > div {
   animation: slideUp 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Force warm-mode dark text inside all clip dialogs regardless of active theme.
+   Scoping --vault-text here means every descendant that uses var(--vault-text)
+   for color resolves to the warm-mode dark instead of dark-mode white. */
+#clip-editing-dialog > div,
+#clip-export-dialog > div,
+#clip-share-dialog > div {
+  --vault-text: #161320;
 }
 
 @keyframes fadeIn {

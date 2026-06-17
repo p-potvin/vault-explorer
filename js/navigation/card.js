@@ -14,7 +14,7 @@ function createCardElement(item, index) {
             } else if (item.type === 'video') {
                 if (typeof window.playItem === 'function') window.playItem(index);
             } else if (item.type === 'fakeFolder') {
-                window.navigateTo(window.currentNavPath + '/' + item.name, window.currentRealPath);
+                window.navigateTo(item.id, window.currentRealPath);
             } else {
                 window.electronAPI.openFile(item.path);
             }
@@ -28,20 +28,10 @@ function createCardElement(item, index) {
             e.preventDefault();
             card.style.borderColor = "";
             const pathDropped = e.dataTransfer.getData('text/plain');
-            if (pathDropped) {
-                const targetFolder = window.appSettings.folders.find(f => f.name === item.name && f.parent === window.currentNavPath);
-                if (targetFolder) {
-                    const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-                    if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
-                    if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
-                    const folderFiles = window.appSettings.folderContents[folderPath];
-                    if (!folderFiles.includes(pathDropped)) {
-                        folderFiles.push(pathDropped);
-                        window.electronAPI.saveSettings(window.appSettings);
-                        window.applyFilters();
-                    }
-                }
-            }
+            if (!pathDropped || !item.id) return;
+            const res = window.vf.addItems(item.id, [pathDropped]);
+            if (res.added) window.applyFilters();
+            else if (res.rejected) window.showToast(`"${item.name}" only accepts ${item.folderType === 'album' ? 'images' : item.folderType === 'playlist' ? 'audio' : 'video'} files`, 'error');
         });
     } else {
         card.draggable = true;
@@ -227,28 +217,17 @@ function createCardElement(item, index) {
         if (input.value && input.value !== item.name) {
             const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
             if (item.type === 'fakeFolder') {
-                const oldName = item.name;
                 const newName = input.value.trim();
-                if (!newName) {
-                    input.value = oldName;
-                    return;
-                }
-                const folders = window.appSettings.folders || [];
-                const folder = folders.find(f => f.name === oldName && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent)));
-                if (folder) {
-                    folder.name = newName;
-                    folders.forEach(f => {
-                        if (f.parent === `root/${oldName}`) {
-                            f.parent = `root/${newName}`;
-                        } else if (f.parent && f.parent.endsWith('/' + oldName)) {
-                            f.parent = f.parent.substring(0, f.parent.lastIndexOf('/') + 1) + newName;
-                        }
-                    });
-                    window.electronAPI.saveSettings(window.appSettings);
-                    item.name = newName;
-                    filename.innerText = newName;
-                    window.showToast((t.renamedTo || 'Renamed to ') + `"${newName}"`, 'success');
+                if (!newName) { input.value = item.name; return; }
+                const res = window.vf.rename(item.id, newName);
+                if (res.ok) {
+                    item.name = res.folder.name;
+                    filename.innerText = res.folder.name;
+                    window.showToast((t.renamedTo || 'Renamed to ') + `"${res.folder.name}"`, 'success');
                     window.applyFilters();
+                } else {
+                    input.value = item.name;
+                    window.showToast(res.error || 'Rename failed', 'error');
                 }
             } else {
                 const res = await window.electronAPI.renameFile(item.path, input.value);
@@ -315,7 +294,8 @@ function createCardElement(item, index) {
         document.querySelectorAll('.file-card').forEach(c => {
             const isSel = window.selectedIndices.has(parseInt(c.dataset.index));
             c.classList.toggle('selected', isSel);
-            c.querySelector('.file-checkbox').checked = isSel;
+            const cb = c.querySelector('.file-checkbox');
+            if (cb) cb.checked = isSel;
         });
         window.updateStatusBar();
     });
@@ -333,7 +313,7 @@ function createCardElement(item, index) {
             } else {
                 window.electronAPI.openFile(item.path);
             }
-        } else if (item.type === 'fakeFolder') window.navigateTo(window.currentNavPath + '/' + item.name, window.currentRealPath);
+        } else if (item.type === 'fakeFolder') window.navigateTo(item.id, window.currentRealPath);
         else if (item.type === 'encrypted') {
             window.selectedIndices.clear();
             window.selectedIndices.add(index);

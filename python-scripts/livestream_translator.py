@@ -50,14 +50,13 @@ from huggingface_hub import hf_hub_download
 from kokoro_onnx import Kokoro
 from deep_translator import GoogleTranslator
 
-# Ensure media processing project paths are in sys.path
+# Ensure vault-explorer project root is in sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(script_dir, ".."))
-media_processing_root = os.path.abspath(os.path.join(project_root, "..", "vaultwares-media-processing"))
-sys.path.insert(0, media_processing_root)
+sys.path.insert(0, project_root)
 
 try:
-    from vaultwares_media_processing.parakeet_wrapper import ParakeetV3Wrapper
+    from vault_explorer.parakeet_wrapper import ParakeetV3Wrapper
 except Exception as err:
     print(f"Error importing Parakeet: {err}")
     sys.exit(1)

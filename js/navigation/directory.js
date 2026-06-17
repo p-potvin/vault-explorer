@@ -66,7 +66,9 @@ function clearSearchBox() {
 
 async function loadDirectory(navPath, realPath, useCache = false) {
     if (!realPath && navPath !== 'root') return;
-    window.currentNavPath = navPath; window.currentRealPath = realPath || '';
+    window.currentNavPath = navPath;
+    window.currentRealPath = realPath || '';
+    window.currentFolderId = null;
 
     const displayPath = navPath === 'root' 
         ? (realPath || (window.translations[window.currentLang].noFolderSelected || 'No folder selected...')) 
@@ -195,14 +197,36 @@ async function loadDirectory(navPath, realPath, useCache = false) {
     }
 }
 
-async function navigateTo(navPath, realPath) {
-    window.currentNavPath = navPath;
+// navigateTo accepts either:
+//   - ('root', realPath)                              -> go to vault root
+//   - (vfId,   realPath)  where vfId starts with 'vf_' -> enter a virtual folder
+// Legacy string paths like 'root/Name/Sub' are resolved by walking the name chain
+// through vf so existing call sites keep working.
+function _resolveTargetFolderId(arg) {
+    if (!arg || arg === 'root') return null;
+    if (typeof arg === 'string' && arg.startsWith('vf_')) return arg;
+    if (!window.vf || typeof arg !== 'string') return null;
+    const parts = arg.split('/').filter(Boolean);
+    if (parts[0] === 'root') parts.shift();
+    let parentId = null;
+    for (const name of parts) {
+        const next = window.vf.list({ parentId }).find(f => f.name === name);
+        if (!next) return null;
+        parentId = next.id;
+    }
+    return parentId;
+}
+
+async function navigateTo(target, realPath) {
+    const folderId = _resolveTargetFolderId(target);
+    window.currentFolderId = folderId;
+    window.currentNavPath = folderId ? window.buildNavPath(folderId) : 'root';
     window.currentRealPath = realPath;
-    el('path-display').innerText = getDisplayPath(navPath);
+    el('path-display').innerText = getDisplayPath(window.currentNavPath);
     clearSearchBox();
     el('main-area').scrollTop = 0;
 
-    if (navPath === 'root') {
+    if (!folderId) {
         el('btn-back').style.display = 'none';
         el('btn-back').disabled = true;
 
@@ -251,12 +275,11 @@ async function navigateTo(navPath, realPath) {
         el('btn-back').style.display = 'inline-flex';
         el('btn-back').disabled = false;
 
-        const targetFolder = window.getTargetFolder(navPath);
+        const targetFolder = window.vf.get(folderId);
         if (targetFolder) {
             el('loading').style.display = 'flex';
-            const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-            const folderFiles = window.appSettings.folderContents[folderPath] || [];
-            
+            const folderFiles = window.vf.itemsOf(folderId);
+
             if (folderFiles.length > 0) {
                 const localPaths = [];
                 const streamingItems = [];
@@ -362,9 +385,9 @@ function initNavigationListeners() {
     });
 
     el('btn-back').addEventListener('click', () => {
-        if (window.currentNavPath && window.currentNavPath !== 'root') {
-            const parts = window.currentNavPath.split('/'); parts.pop(); navigateTo(parts.join('/'), window.currentRealPath);
-        }
+        if (!window.currentFolderId) return;
+        const cur = window.vf.get(window.currentFolderId);
+        navigateTo(cur && cur.parentId ? cur.parentId : 'root', window.currentRealPath);
     });
 
     el('btn-refresh').addEventListener('click', async () => {
@@ -427,7 +450,7 @@ function initNavigationListeners() {
         sbox.style.left = startX + 'px'; sbox.style.top = startY + 'px'; sbox.style.width = '0px'; sbox.style.height = '0px'; sbox.style.display = 'block';
         if (!e.ctrlKey && !e.shiftKey) {
             window.selectedIndices.clear();
-            document.querySelectorAll('.file-card').forEach(c => { c.classList.remove('selected'); c.querySelector('.file-checkbox').checked = false; });
+            document.querySelectorAll('.file-card').forEach(c => { c.classList.remove('selected'); const cb = c.querySelector('.file-checkbox'); if (cb) cb.checked = false; });
             updateStatusBar();
         }
     });
@@ -444,7 +467,7 @@ function initNavigationListeners() {
             const intersects = !(cardX > x + w || cardX + cr.width < x || cardY > y + h || cardY + cr.height < y);
             const idx = parseInt(card.dataset.index);
             if (intersects) {
-                window.selectedIndices.add(idx); card.classList.add('selected'); card.querySelector('.file-checkbox').checked = true;
+                window.selectedIndices.add(idx); card.classList.add('selected'); const chk = card.querySelector('.file-checkbox'); if (chk) chk.checked = true;
             }
         });
         updateStatusBar();
@@ -480,22 +503,12 @@ function initNavigationListeners() {
             const res = await window.electronAPI.pasteFiles({ paths: window._clipboard.paths, mode: window._clipboard.mode, destination: window.currentRealPath });
             if (res.success) {
                 window.showToast(`Pasted ${res.count} file(s)`, 'success');
-                if (window.currentNavPath !== 'root') {
-                    const targetFolder = window.getTargetFolder(window.currentNavPath);
-                    if (targetFolder && Array.isArray(res.pastedPaths)) {
-                        const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-                        if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
-                        if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
-                        const folderFiles = window.appSettings.folderContents[folderPath];
-                        res.pastedPaths.forEach(p => {
-                            if (!folderFiles.includes(p)) folderFiles.push(p);
-                        });
-                        window.electronAPI.saveSettings(window.appSettings);
-                    }
+                if (window.currentFolderId && Array.isArray(res.pastedPaths)) {
+                    window.vf.addItems(window.currentFolderId, res.pastedPaths);
                 }
                 if (window._clipboard.mode === 'cut') window._clipboard = { paths: [], mode: 'copy' };
-                if (window.currentNavPath !== 'root') {
-                    navigateTo(window.currentNavPath, window.currentRealPath);
+                if (window.currentFolderId) {
+                    navigateTo(window.currentFolderId, window.currentRealPath);
                 } else {
                     loadDirectory(window.currentNavPath, window.currentRealPath, false);
                 }
@@ -505,7 +518,7 @@ function initNavigationListeners() {
         } else if (action === 'bg-select-all') {
             window.selectedIndices.clear();
             window.displayedItems.forEach((_, i) => window.selectedIndices.add(i));
-            document.querySelectorAll('.file-card').forEach(c => { c.classList.add('selected'); c.querySelector('.file-checkbox').checked = true; });
+            document.querySelectorAll('.file-card').forEach(c => { c.classList.add('selected'); const chk = c.querySelector('.file-checkbox'); if (chk) chk.checked = true; });
             updateStatusBar();
             window.showToast(`Selected ${window.displayedItems.length} item(s)`, 'success');
         } else if (action === 'bg-new-folder') {

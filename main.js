@@ -22,7 +22,7 @@ let isQuitting = false;
 
 function createTray() {
     if (tray) return;
-    const trayIconPath = path.join(__dirname, 'public', 'vaultwares_logo.png');
+    const trayIconPath = path.join(__dirname, 'build', 'icon.ico');
     if (fs.existsSync(trayIconPath)) {
         tray = new Tray(trayIconPath);
         const contextMenu = Menu.buildFromTemplate([
@@ -41,7 +41,7 @@ function createTray() {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200, height: 800,
-        icon: path.join(__dirname, 'public', 'vaultwares_logo.png'),
+        icon: path.join(__dirname, 'build', 'icon.ico'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -116,6 +116,14 @@ app.on('before-quit', () => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
+// Native fullscreen toggle for the player. Document fullscreen alone leaves
+// the OS window resizable, which paints resize cursors at the screen edges.
+ipcMain.handle('set-window-fullscreen', (_e, on) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    mainWindow.setFullScreen(!!on);
+    return mainWindow.isFullScreen();
+});
+
 // Automatic clean exit subprocess killing hooks
 app.on('before-quit', utils.killAllActiveSubprocesses);
 app.on('will-quit', utils.killAllActiveSubprocesses);
@@ -126,45 +134,68 @@ function registerClipHandler(ipcMain) {
     ipcMain.handle('clipVideo', async (event, { inputPath, outputFormat, startTime, duration, quality }) => {
         try {
             console.log('[main:clip] Clipping video:', { inputPath, outputFormat, startTime, duration, quality });
-            
-            // Sanitize input path
-            const safeInputPath = path.normalize(inputPath).replace(/^file:\\\\\\/, '');
-            
-            // Check if input file exists
-            if (!fs.existsSync(safeInputPath)) {
-                return { success: false, error: 'Input file not found' };
+
+            const isRemoteUrl = /^https?:\/\//i.test(inputPath);
+            let safeInputPath;
+            let fileName;
+
+            if (isRemoteUrl) {
+                safeInputPath = inputPath;
+                try {
+                    const u = new URL(inputPath);
+                    const last = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || 'remote');
+                    fileName = path.basename(last, path.extname(last)).replace(/[\\/:*?"<>|]/g, '_') || 'remote';
+                } catch (_) {
+                    fileName = 'remote';
+                }
+                console.log('[main:clip] Remote input detected, passing URL directly to ffmpeg');
+            } else {
+                safeInputPath = decodeURIComponent(inputPath).replace(/^file:\/\/\//, '');
+                safeInputPath = path.normalize(safeInputPath);
+
+                if (!fs.existsSync(safeInputPath)) {
+                    return { success: false, error: `Input file not found: ${safeInputPath}` };
+                }
+
+                const stat = fs.statSync(safeInputPath);
+                console.log('[main:clip] Input file size:', (stat.size / (1024 * 1024)).toFixed(2), 'MB');
+                fileName = path.basename(safeInputPath, path.extname(safeInputPath));
             }
-            
-            // Get file info
-            const stat = fs.statSync(safeInputPath);
-            const fileSizeMB = stat.size / (1024 * 1024);
-            console.log('[main:clip] Input file size:', fileSizeMB.toFixed(2), 'MB');
-            
-            // Determine output path
-            const fileName = path.basename(safeInputPath, path.extname(safeInputPath));
             const ext = outputFormat === 'gif' ? 'gif' : outputFormat;
             const outputName = `${fileName}_clip_${Date.now()}.${ext}`;
             
             // Default output to user's Videos folder or Desktop
-            let outputDir = app.getPath('videos');
-            if (!fs.existsSync(outputDir)) {
+            let outputDir;
+            try {
+                outputDir = app.getPath('videos');
+                if (!fs.existsSync(outputDir)) throw new Error('videos dir missing');
+            } catch (_) {
                 outputDir = app.getPath('desktop');
             }
             const outputPath = path.join(outputDir, outputName);
             
-            // Build ffmpeg command
-            const ffmpegArgs = [];
+            // Build -vf filter chain — collect filters, join at end
+            const vfFilters = [];
             
-            // Input
-            ffmpegArgs.push('-i', safeInputPath);
+            // Format-specific video filters
+            if (outputFormat === 'gif') {
+                vfFilters.push('fps=15', 'scale=trunc(iw/2)*2:trunc(ih/2)*2');
+            }
             
-            // Seek to start time
-            ffmpegArgs.push('-ss', String(startTime));
+            // Quality/scale filters
+            if (quality !== 'original') {
+                const scaleMap = { '1080p': '1920:-2', '720p': '1280:-2', '480p': '854:-2' };
+                if (scaleMap[quality]) vfFilters.push(`scale=${scaleMap[quality]}`);
+            }
             
-            // Duration
-            ffmpegArgs.push('-t', String(duration));
+            // Build ffmpeg args — put -ss BEFORE -i for fast input seeking
+            const ffmpegArgs = [
+                '-ss', String(startTime),
+                '-i', safeInputPath,
+                '-t', String(duration)
+            ];
             
-            // Output format specific options
+            // Output format specific codec options
             if (outputFormat === 'webm') {
                 ffmpegArgs.push('-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0');
                 ffmpegArgs.push('-c:a', 'libopus', '-b:a', '128k');
@@ -172,60 +203,42 @@ function registerClipHandler(ipcMain) {
                 ffmpegArgs.push('-c:v', 'libx264', '-crf', '23', '-preset', 'fast');
                 ffmpegArgs.push('-c:a', 'aac', '-b:a', '192k');
             } else if (outputFormat === 'gif') {
-                ffmpegArgs.push('-vf', 'fps=15,scale=trunc(iw/2)*2:trunc(ih/2)*2');
-                ffmpegArgs.push('-c:v', 'gif', '-f', 'gif');
+                ffmpegArgs.push('-f', 'gif');
             }
             
-            // Quality settings
-            if (quality !== 'original') {
-                if (quality === '1080p') {
-                    ffmpegArgs.push('-vf', 'scale=1920:-2');
-                } else if (quality === '720p') {
-                    ffmpegArgs.push('-vf', 'scale=1280:-2');
-                } else if (quality === '480p') {
-                    ffmpegArgs.push('-vf', 'scale=854:-2');
-                }
+            // Apply combined -vf chain (single flag, avoids conflicts)
+            if (vfFilters.length > 0) {
+                ffmpegArgs.push('-vf', vfFilters.join(','));
             }
             
-            // Force overwrite
-            ffmpegArgs.push('-y');
+            // Force overwrite + output
+            ffmpegArgs.push('-y', outputPath);
             
-            // Output file
-            ffmpegArgs.push(outputPath);
-            
+            // Resolve ffmpeg executable
+            const ffmpegPath = utils.getFFmpegPath();
+            console.log('[main:clip] Using ffmpeg at:', ffmpegPath);
             console.log('[main:clip] ffmpeg args:', ffmpegArgs.join(' '));
             
-            // Check if ffmpeg is available
-            const ffmpegPath = utils.getFFmpegPath();
-            if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
-                return { 
-                    success: false, 
-                    error: 'ffmpeg not found. Please install ffmpeg and add it to PATH.' 
-                };
-            }
-            
-            // Run ffmpeg
+            // Run ffmpeg (remote inputs must not set cwd to the URL path)
             const ffmpegProc = execFile(ffmpegPath, ffmpegArgs, {
-                cwd: path.dirname(safeInputPath),
-                windowsHide: false
+                cwd: isRemoteUrl ? outputDir : path.dirname(safeInputPath),
+                windowsHide: true
             });
             
-            // Track progress
-            let stdoutData = '';
+            // Track progress — ffmpeg logs to stderr, not stdout
             let stderrData = '';
             
-            ffmpegProc.stdout.on('data', (data) => {
-                stdoutData += data.toString();
-                // Send progress updates if available
-                const timeMatch = stdoutData.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
-                if (timeMatch && event.sender && !event.sender.isDestroyed()) {
-                    event.sender.send('clip-progress', { currentTime: timeMatch[1] });
-                }
-            });
+            if (ffmpegProc.stdout) {
+                ffmpegProc.stdout.on('data', () => {});
+            }
             
             ffmpegProc.stderr.on('data', (data) => {
                 stderrData += data.toString();
-                console.log('[main:clip] ffmpeg stderr:', data.toString().trim());
+                // ffmpeg progress lines include time= in stderr
+                const timeMatch = stderrData.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
+                if (timeMatch && event.sender && !event.sender.isDestroyed()) {
+                    event.sender.send('clip-progress', { currentTime: timeMatch[1] });
+                }
             });
             
             // Wait for completion
@@ -236,12 +249,12 @@ function registerClipHandler(ipcMain) {
                         resolve();
                     } else {
                         console.error('[main:clip] ffmpeg failed with code:', code);
-                        console.error('[main:clip] stderr:', stderrData);
-                        reject(new Error(`ffmpeg failed with code ${code}: ${stderrData.substring(0, 200)}`));
+                        console.error('[main:clip] stderr (last 500 chars):', stderrData.slice(-500));
+                        reject(new Error(`ffmpeg exited with code ${code}: ${stderrData.slice(-200)}`));
                     }
                 });
                 ffmpegProc.on('error', (err) => {
-                    console.error('[main:clip] ffmpeg error:', err);
+                    console.error('[main:clip] ffmpeg spawn error:', err);
                     reject(err);
                 });
             });
@@ -251,13 +264,14 @@ function registerClipHandler(ipcMain) {
                 return { success: false, error: 'Output file was not created' };
             }
             
-            const outputSizeMB = fs.statSync(outputPath).size / (1024 * 1024);
+            const outputStat = fs.statSync(outputPath);
+            const outputSizeMB = outputStat.size / (1024 * 1024);
             console.log('[main:clip] Output file size:', outputSizeMB.toFixed(2), 'MB');
             
             return {
                 success: true,
                 outputPath: outputPath,
-                outputSize: fs.statSync(outputPath).size
+                outputSize: outputStat.size
             };
             
         } catch (error) {

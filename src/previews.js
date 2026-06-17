@@ -49,10 +49,16 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         return;
     }
     
-    // Clean partials to force clean recreation
-    try { if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath); } catch(e) {}
-    try { if (fs.existsSync(hoverWebmPath)) fs.unlinkSync(hoverWebmPath); } catch(e) {}
-    
+    // Atomic-write strategy: ffmpeg writes to .tmp paths so a failed run
+    // can NEVER destroy a pre-existing thumbnail or webm preview. Only at
+    // the very end do we rename .tmp -> final. Any prior versions stay
+    // intact until the rename succeeds, and on failure we clean up the
+    // temp files only.
+    const thumbWritePath = thumbPath + '.tmp';
+    const webmWritePath = hoverWebmPath + '.tmp';
+    try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch(e) {}
+    try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch(e) {}
+
     let thumbStart = Date.now();
     let thumbTimeMs = null;
     const middleTime = duration > 0 ? (duration / 2).toFixed(2) : '5.00';
@@ -64,10 +70,10 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             '-vf', "select='eq(pict_type,I)'",
             '-vframes', '1',
             '-q:v', '2',
-            thumbPath,
+            thumbWritePath,
             '-loglevel', 'error'
         ]);
-        if (!fs.existsSync(thumbPath)) {
+        if (!fs.existsSync(thumbWritePath)) {
             console.log(`[main:preview] Keyframe select produced no file, falling back to simple frame capture at ${middleTime}`);
             await utils.runLowPriorityProcess('ffmpeg', [
                 '-y',
@@ -75,7 +81,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-i', videoPath,
                 '-vframes', '1',
                 '-q:v', '2',
-                thumbPath,
+                thumbWritePath,
                 '-loglevel', 'error'
             ]);
         }
@@ -89,7 +95,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-i', videoPath,
                 '-vframes', '1',
                 '-q:v', '2',
-                thumbPath,
+                thumbWritePath,
                 '-loglevel', 'error'
             ]);
             thumbTimeMs = Date.now() - thumbStart;
@@ -130,7 +136,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                         '-ac', '2',
                         '-c:a', 'libvorbis',
                         '-b:a', '64k',
-                        hoverWebmPath,
+                        webmWritePath,
                         '-loglevel', 'error'
                     ]);
                     success = true;
@@ -148,7 +154,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                     '-b:v', '1M',
                     '-speed', '4',
                     '-an',
-                    hoverWebmPath,
+                    webmWritePath,
                     '-loglevel', 'error'
                 ]);
             }
@@ -186,7 +192,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                         '-c:a', 'libvorbis',
                         '-b:a', '64k'
                     );
-                    audioArgs.push(hoverWebmPath, '-loglevel', 'error');
+                    audioArgs.push(webmWritePath, '-loglevel', 'error');
                     
                     await runFfmpegPromise(audioArgs);
                     success = true;
@@ -212,14 +218,29 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                     '-speed', '4',
                     '-an'
                 );
-                silentArgs.push(hoverWebmPath, '-loglevel', 'error');
+                silentArgs.push(webmWritePath, '-loglevel', 'error');
                 
                 await runFfmpegPromise(silentArgs);
             }
         }
         
         webmTimeMs = Date.now() - webmStart;
-        
+
+        // Atomic-commit: only promote temp files to their final names if BOTH
+        // were created successfully. If either is missing, leave the existing
+        // originals untouched and clean up the orphan temp.
+        const thumbTmpOk = fs.existsSync(thumbWritePath);
+        const webmTmpOk = fs.existsSync(webmWritePath);
+        if (thumbTmpOk && webmTmpOk) {
+            try { fs.renameSync(thumbWritePath, thumbPath); } catch(e) { console.error('[preview] thumb rename failed:', e.message); }
+            try { fs.renameSync(webmWritePath, hoverWebmPath); } catch(e) { console.error('[preview] webm rename failed:', e.message); }
+        } else {
+            console.warn(`[preview] Partial output (thumb=${thumbTmpOk} webm=${webmTmpOk}). Keeping originals; discarding temp.`);
+            try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch(_) {}
+            try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch(_) {}
+            throw new Error('FFmpeg produced incomplete output (originals preserved)');
+        }
+
         if (finalSender && !finalSender.isDestroyed()) {
             finalSender.send('generate-webm-progress', {
                 videoPath,
@@ -229,7 +250,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 hoverWebm: hoverWebmPath
             });
         }
-        
+
         try {
             writeBenchmark({
                 name: path.basename(videoPath),
@@ -242,6 +263,20 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         } catch(e) {}
     } catch (e) {
         console.error("Failed to generate WebM preview:", e.message);
+        // Discard any partial temp output so we don't leave orphan .tmp files.
+        try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch(_) {}
+        try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch(_) {}
+        // Tell the renderer the job is over so the toolbar spinner clears.
+        // Without a terminal event the spinner sat at the last reported %
+        // forever, masking the failure.
+        if (finalSender && !finalSender.isDestroyed()) {
+            finalSender.send('generate-webm-progress', {
+                videoPath,
+                percent: 100,
+                label: 'Preview failed',
+                error: e.message || 'FFmpeg error'
+            });
+        }
         try {
             writeBenchmark({
                 name: path.basename(videoPath),
@@ -252,6 +287,8 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 status: 'FAILED'
             });
         } catch(e) {}
+        // Re-throw so the IPC handler returns success=false to the renderer.
+        throw e;
     }
 }
 

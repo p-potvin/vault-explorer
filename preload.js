@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   getTheme: () => ipcRenderer.invoke('get-theme'),
   setTheme: (t) => ipcRenderer.invoke('set-theme', t),
+  setWindowFullScreen: (on) => ipcRenderer.invoke('set-window-fullscreen', !!on),
   scheduleIdlePreviews: (items) => ipcRenderer.invoke('schedule-idle-previews', items),
   pasteFiles: (data) => ipcRenderer.invoke('paste-files', data),
   zipSelection: (data) => ipcRenderer.invoke('zip-selection', data),

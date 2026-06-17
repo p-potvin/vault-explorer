@@ -324,7 +324,7 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             let enhancedPath = null;
             let trickplayFolder = null;
             if (type === 'video' || type === 'encrypted') {
-                const potentialEnhanced = path.join(dir, '.enhanced', name);
+                const potentialEnhanced = path.join(dir, '.thumbs', `${baseName}_enhanced${ext}`);
                 let hasEnhanced = false;
                 try {
                     await fsPromises.access(potentialEnhanced);
@@ -437,11 +437,16 @@ function registerScannerHandlers(ipcMain) {
     });
 
     ipcMain.handle('scan-specific-files', async (event, pathsArray) => {
-        const fileSet = new Set(pathsArray.map(f => f.toLowerCase()));
-        return await _processFileNodes(pathsArray, fileSet, null);
+        // Defensive: drop non-string / empty entries so one bad path can't 502 the whole call.
+        const safe = Array.isArray(pathsArray)
+            ? pathsArray.filter(p => typeof p === 'string' && p.trim() !== '')
+            : [];
+        if (safe.length === 0) return [];
+        const fileSet = new Set(safe.map(f => f.toLowerCase()));
+        return await _processFileNodes(safe, fileSet, null);
     });
 
-    ipcMain.handle('find-subtitles', async (event, videoPath, queryTitle, skipOpenSubtitles) => {
+    ipcMain.handle('find-subtitles', async (event, videoPath, queryTitle, skipOpenSubtitles, langsOverride) => {
         let base = '';
         const results = [];
         if (videoPath && !videoPath.startsWith('http://') && !videoPath.startsWith('https://')) {
@@ -514,7 +519,23 @@ function registerScannerHandlers(ipcMain) {
             console.log(`[OpenSubtitles] Querying OpenSubtitles API for: ${searchQuery}`);
             try {
                 const fetchFn = typeof fetch !== 'undefined' ? fetch : require('node-fetch');
-                const searchUrl = `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(searchQuery)}&languages=en,fr,es`;
+                // langsOverride lets the renderer narrow the search per click
+                // (e.g. 'fr-CA,fr' for the French Canadian preset). Otherwise
+                // default to en+fr (and add Spanish only if the user opted in).
+                let langsParam;
+                if (typeof langsOverride === 'string' && langsOverride.trim()) {
+                    langsParam = langsOverride.trim();
+                } else {
+                    let includeEs = false;
+                    try {
+                        if (fs.existsSync(settingsPath)) {
+                            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+                            includeEs = settings.subsIncludeSpanish === true;
+                        }
+                    } catch (_) {}
+                    langsParam = includeEs ? 'en,fr,es' : 'en,fr';
+                }
+                const searchUrl = `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(searchQuery)}&languages=${encodeURIComponent(langsParam)}`;
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
                 const response = await fetchFn(searchUrl, {

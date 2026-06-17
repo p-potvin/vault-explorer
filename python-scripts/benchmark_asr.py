@@ -22,11 +22,10 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
-# Ensure media processing repo path is in sys.path
+# Ensure vault-explorer project root is in sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(script_dir, ".."))
-media_processing_root = os.path.abspath(os.path.join(project_root, "..", "vaultwares-media-processing"))
-sys.path.insert(0, media_processing_root)
+sys.path.insert(0, project_root)
 
 # ── httpx compatibility patch ───────────────────────────────────────────────
 try:
