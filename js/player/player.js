@@ -90,7 +90,11 @@ async function playItem(idx) {
     if (idx < 0 || idx >= window.displayedItems.length) return;
     const itm = window.displayedItems[idx];
     if (itm.type !== 'video') return;
-    
+
+    // Local file playback — hide the (RD-stream-only) quality picker.
+    const qCont = el('quality-dropdown-container');
+    if (qCont) qCont.style.display = 'none';
+
     window.currentPlayingIndex = idx;
     window.currentPlayingItem = itm;
     trickFrames = [];
@@ -440,11 +444,25 @@ function initPlayer() {
             }
         }
         
-        // Reset active streaming media cache
+        // Reset active streaming media cache + any in-flight RD/quality-switch
+        // state. If we leave these set, the NEXT stream attempt can race against
+        // a stale flow id or seek to the previous movie's pause position.
         window.activeStreamingMedia = null;
+        window.activeRDFlowId = null;
+        window._resumePosAfterSwitch = null;
 
         vp.pause();
-        try { vp.src = ''; } catch(e) {}
+        // Hard-reset the <video> element. The prior `vp.src = ''` assignment
+        // resolved to the document base URL, attempted to load it, and parked
+        // the element in MEDIA_ERR_SRC_NOT_SUPPORTED. Subsequent `vp.src =
+        // newUrl` then silently no-op'd because the error state persisted —
+        // which is why no other movie would play until the app was restarted.
+        // removeAttribute + load() returns the element to NETWORK_EMPTY.
+        try {
+            vp.removeAttribute('src');
+            vp.load();
+        } catch (e) { console.log('[Player] reset error (non-fatal):', e); }
+
         window.currentPlayingItem = null;
         if (window.currentPlayingIndex !== -1) {
             const card = document.querySelector(`.file-card[data-index="${window.currentPlayingIndex}"]`);
@@ -489,8 +507,43 @@ function initPlayer() {
     updateVolumeIconUI(vp.volume);
 
     volSlider.addEventListener('input', (e) => {
-        saveAndSetVolume(parseFloat(e.target.value));
+        const v = parseFloat(e.target.value);
+        // Any non-zero slider change implies the user wants sound — unmute.
+        if (v > 0 && vp.muted) vp.muted = false;
+        saveAndSetVolume(v);
     });
+
+    // Slider hides on mouseleave from the volume container. Drop focus after
+    // pointer-up so the :focus-within style doesn't keep it pinned open.
+    volSlider.addEventListener('pointerup', () => { try { volSlider.blur(); } catch (_) {} });
+    volSlider.addEventListener('touchend',  () => { try { volSlider.blur(); } catch (_) {} });
+    const volContainer = document.querySelector('.volume-container');
+    if (volContainer) {
+        volContainer.addEventListener('mouseleave', () => { try { volSlider.blur(); } catch (_) {} });
+    }
+
+    // Click the volume icon -> toggle mute. Persists the pre-mute volume so
+    // unmuting restores the user's chosen level instead of jumping to 100%.
+    const btnVolIcon = el('btn-volume-icon');
+    if (btnVolIcon) {
+        btnVolIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!vp) return;
+            if (vp.muted || vp.volume === 0) {
+                vp.muted = false;
+                const restore = parseFloat(localStorage.getItem('player-volume-prev-mute') || '');
+                const target = isFinite(restore) && restore > 0
+                    ? restore
+                    : (vp.volume > 0 ? vp.volume : 0.5);
+                saveAndSetVolume(target);
+            } else {
+                localStorage.setItem('player-volume-prev-mute', String(vp.volume));
+                vp.muted = true;
+                updateVolumeIconUI(0);
+                if (volSlider) volSlider.value = 0;
+            }
+        });
+    }
 
     let lastHistoryUpdate = 0;
     vp.addEventListener('timeupdate', () => {
@@ -544,10 +597,20 @@ function initPlayer() {
 
     vp.addEventListener('error', (e) => {
         const err = vp.error;
+        // Suppress errors that fire as a consequence of closing the player:
+        // (a) the modal is already hidden, or
+        // (b) src was cleared (empty / unset) — code 4 fires every time we
+        //     reset vp.src to '' on close. These aren't user-actionable.
+        const modalHidden = el('video-modal').style.display !== 'flex';
+        const srcEmpty = !vp.src || vp.src === window.location.href;
+        if (modalHidden || srcEmpty) {
+            console.log('[Video Player] Ignoring error during close/reset:', err && err.code);
+            return;
+        }
         let errMsg = 'Unknown playback error.';
         if (err) {
             switch (err.code) {
-                case 1: 
+                case 1:
                     // User aborted - don't show error toast
                     console.log('[Video Player] Playback aborted by user - ignoring error');
                     return;
@@ -719,13 +782,45 @@ function initPlayer() {
         });
     }
     
-    el('btn-fullscreen').addEventListener('click', () => { 
+    el('btn-fullscreen').addEventListener('click', () => {
         if (!document.fullscreenElement) {
-            vp.parentElement.requestFullscreen(); 
+            vp.parentElement.requestFullscreen();
         } else {
             document.exitFullscreen();
         }
     });
+
+    // Mirror document fullscreen onto the Electron window. Without this the
+    // OS frame stays in "windowed" mode and paints resize cursors at the
+    // screen edges over the video.
+    document.addEventListener('fullscreenchange', () => {
+        const isFs = !!document.fullscreenElement;
+        if (window.electronAPI && typeof window.electronAPI.setWindowFullScreen === 'function') {
+            window.electronAPI.setWindowFullScreen(isFs).catch(() => {});
+        }
+        // Reset idle state on transition so controls aren't stuck hidden.
+        document.body.classList.remove('player-idle');
+    });
+
+    // Idle-hide: hide custom controls + cursor after 2s of mouse inactivity
+    // while the player modal is open. Any mousemove cancels the hide.
+    let _idleTimer = null;
+    const markActive = () => {
+        document.body.classList.remove('player-idle');
+        if (_idleTimer) clearTimeout(_idleTimer);
+        const modal = el('video-modal');
+        if (!modal || modal.style.display !== 'flex') return;
+        _idleTimer = setTimeout(() => {
+            // Only hide if the cursor isn't currently over an interactive
+            // control (hover-keep behavior).
+            if (!document.querySelector('#custom-controls:hover, #player-topbar:hover')) {
+                document.body.classList.add('player-idle');
+            }
+        }, 2000);
+    };
+    document.addEventListener('mousemove', markActive);
+    document.addEventListener('mousedown', markActive);
+    document.addEventListener('keydown', markActive);
 
     // ── Autoplay toggle Switch ──────────────────────────────
     if (el('btn-autoplay')) {
@@ -753,7 +848,85 @@ function initPlayer() {
         updateAutoplayUI();
     }
 
-    // ── Playback Speed Dropdown ──────────────────────────────
+    // ── Stream Quality Picker (RD streams only) ──────────────
+    // The picker reads from window.currentTorrentList (set by triggerRDStream
+    // after ranking). Selecting an option re-starts the RD flow for the
+    // chosen torrent and seeks the new stream back to where we paused.
+    const qBtn = el('btn-quality');
+    const qMenu = el('quality-menu');
+    if (qBtn && qMenu) {
+        qBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const sm = el('speed-menu'); if (sm) sm.style.display = 'none';
+            const subm = el('subtitles-menu'); if (subm) subm.style.display = 'none';
+            window.refreshQualityMenu();
+            qMenu.style.display = (qMenu.style.display === 'none' || !qMenu.style.display) ? 'block' : 'none';
+        });
+    }
+
+    window.refreshQualityMenu = function() {
+        const menu = el('quality-menu');
+        const container = el('quality-dropdown-container');
+        if (!menu || !container) return;
+        const list = Array.isArray(window.currentTorrentList) ? window.currentTorrentList : [];
+        if (!list.length) { container.style.display = 'none'; return; }
+        container.style.display = 'inline-block';
+
+        // Group by quality label (4K/2160p/1080p/720p/...), keep the BEST-ranked
+        // representative per group (currentTorrentList is already ranked).
+        const buckets = new Map();
+        const rankOrder = { '2160p': 4, '4k': 4, 'uhd': 4, '1080p': 3, '720p': 2, '480p': 1 };
+        const labelOf = (t) => {
+            const text = `${t.quality || ''} ${t.type || ''} ${t.desc || ''}`.toLowerCase();
+            if (/\b(2160p?|4k|uhd)\b/.test(text)) return '2160p';
+            if (/\b1080p?\b/.test(text)) return '1080p';
+            if (/\b720p?\b/.test(text)) return '720p';
+            if (/\b480p?\b/.test(text)) return '480p';
+            return (t.quality || 'HD').toUpperCase();
+        };
+        list.forEach((t, idx) => {
+            const lbl = labelOf(t);
+            if (!buckets.has(lbl)) buckets.set(lbl, { label: lbl, torrent: t, idx });
+        });
+        const ordered = [...buckets.values()].sort((a, b) => (rankOrder[b.label] || 0) - (rankOrder[a.label] || 0));
+
+        const currentLabel = (window.activeStreamingMedia && window.activeStreamingMedia.quality)
+            ? labelOf({ quality: window.activeStreamingMedia.quality, type: '', desc: '' })
+            : null;
+
+        const txt = el('quality-btn-text');
+        if (txt) txt.innerText = currentLabel ? currentLabel.toUpperCase() : 'AUTO';
+
+        menu.innerHTML = '';
+        ordered.forEach(entry => {
+            const opt = document.createElement('div');
+            const isActive = currentLabel === entry.label;
+            opt.style.cssText = `padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-mono); font-size:11px; transition:background 0.2s; color:${isActive ? 'var(--vault-accent)' : 'var(--vault-text)'}; font-weight:${isActive ? '700' : '500'};`;
+            const sizeStr = entry.torrent.size ? ` <span style="color:var(--vault-slate); font-weight:400; font-size:10px;">${entry.torrent.size}</span>` : '';
+            opt.innerHTML = `${entry.label.toUpperCase()}${sizeStr}`;
+            opt.addEventListener('mouseenter', () => { opt.style.background = 'rgba(245,185,41,0.08)'; });
+            opt.addEventListener('mouseleave', () => { opt.style.background = 'transparent'; });
+            opt.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                menu.style.display = 'none';
+                if (isActive) return;
+                // Save position; the new RD flow will re-open playStream which
+                // will pick up window._resumePosAfterSwitch on loadedmetadata.
+                const vpEl = el('video-player');
+                const at = vpEl ? vpEl.currentTime : 0;
+                window._resumePosAfterSwitch = at;
+                window.showToast(`Switching to ${entry.label.toUpperCase()}…`, 'info');
+                try { if (vpEl) vpEl.pause(); } catch (_) {}
+                const title = window.currentMovieTitle || (window.activeStreamingMedia && window.activeStreamingMedia.title) || '';
+                if (typeof window.startRDDebridFlow === 'function') {
+                    window.startRDDebridFlow(entry.torrent, title, entry.idx);
+                }
+            });
+            menu.appendChild(opt);
+        });
+    };
+
+    // ── Playback Speed Dropdown (kept for code completeness; hidden in UI) ─
     el('btn-speed').addEventListener('click', (e) => {
         e.stopPropagation();
         el('subtitles-menu').style.display = 'none';
@@ -906,10 +1079,19 @@ function initPlayer() {
         if (sbm && !e.target.closest('.subtitle-dropdown-container')) sbm.style.display = 'none';
     });
 
-    // Handle ESC to close the video modal
+    // Esc closes the player. Shift+Q toggles PiP/minimized mode so playback
+    // continues while the user does something else.
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !e.shiftKey && !e.ctrlKey && el('video-modal').style.display === 'flex') {
+        const modal = el('video-modal');
+        if (!modal || modal.style.display !== 'flex') return;
+        // Don't intercept while the user is typing in an input/textarea.
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        if (e.key === 'Escape' && !e.shiftKey && !e.ctrlKey) {
             el('close-modal').click();
+        } else if (e.shiftKey && (e.key === 'Q' || e.key === 'q')) {
+            e.preventDefault();
+            modal.classList.toggle('minimized');
         }
     });
 
@@ -1096,6 +1278,10 @@ async function playStream(url, title) {
     vp.querySelectorAll('track').forEach(t => t.remove());
     try {
         const subs = await window.electronAPI.findSubtitles(url, title);
+        // Bug fix: the streaming path never populated _allAvailableSubtitles,
+        // so the menu only showed the one auto-loaded sub. Set it so the menu
+        // exposes every OpenSubtitles result the search returned.
+        window._allAvailableSubtitles = subs || [];
         let preferredSub = null;
         let preferredTrackIdx = -1;
         
@@ -1166,8 +1352,24 @@ async function playStream(url, title) {
         console.error("Auto subtitle loading error:", err);
     }
     
-    // Restore stream playback progress
-    if (prog && prog.positionSec > 0 && prog.durationSec > 0 && !prog.completed) {
+    // If the user just switched stream quality, restore their position from
+    // the in-memory marker (takes precedence over saved server progress
+    // because they were mid-watch when they switched). Also explicitly call
+    // play() after the seek — the upfront vp.play() may have been blocked
+    // because the new src wasn't ready yet, leaving the player paused.
+    if (typeof window._resumePosAfterSwitch === 'number' && window._resumePosAfterSwitch > 0) {
+        const resumeAt = window._resumePosAfterSwitch;
+        window._resumePosAfterSwitch = null;
+        const seekOnce = () => {
+            if (resumeAt < vp.duration - 5) vp.currentTime = resumeAt;
+            // Resume playback after seek (the initial vp.play() may have
+            // rejected on the still-loading src).
+            vp.play().catch(e => console.log('[Player] resume after quality switch:', e));
+            vp.removeEventListener('loadedmetadata', seekOnce);
+        };
+        vp.addEventListener('loadedmetadata', seekOnce);
+    } else if (prog && prog.positionSec > 0 && prog.durationSec > 0 && !prog.completed) {
+        // Restore stream playback progress from saved server-side watch progress.
         const restoreOnce = () => {
             if (prog.positionSec < vp.duration - 15) {
                 vp.currentTime = prog.positionSec;
@@ -1177,6 +1379,9 @@ async function playStream(url, title) {
         };
         vp.addEventListener('loadedmetadata', restoreOnce);
     }
+
+    // Refresh the quality picker — visible whenever currentTorrentList exists.
+    if (typeof window.refreshQualityMenu === 'function') window.refreshQualityMenu();
 
     el('video-modal').classList.remove('minimized');
     btnPlay.innerHTML = PAUSE_ICON_SVG;

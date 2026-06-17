@@ -73,6 +73,11 @@ window.switchTab = function(tabName) {
         }
     }
     
+    // Mark the active tab on <body> so CSS can scope tab-specific layout
+    // (e.g. streaming tab uses a full-bleed container with no .main-area padding).
+    document.body.classList.remove('tab-vault-active', 'tab-streaming-active', 'tab-livestream-active');
+    document.body.classList.add(`tab-${tabName}-active`);
+
     // Toggle active state on tabs
     const tabs = {
         'vault': el('tab-vault'),

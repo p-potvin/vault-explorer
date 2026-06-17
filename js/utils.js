@@ -77,6 +77,41 @@ function showClipboardNotification(message) {
   }, 2200);
 }
 
+// ── Dev mode + toast noise filter ──────────────────────────────────────────
+// When Dev Mode is OFF (default), suppress chatty non-essential toasts and
+// route console.log/info/debug to no-ops. Errors always show and ALSO clear
+// any pending toasts in the queue so the urgent message stands alone.
+window.isDevMode = function() {
+    return !!(window.appSettings && window.appSettings.devMode === true);
+};
+
+// Substring patterns (case-insensitive) of non-essential informational
+// toasts to suppress in non-dev mode. Add freely as new noise crops up.
+const _TOAST_NOISE_PATTERNS = [
+    'direct high-speed',
+    'direct high speed',
+    'subtitles loading',
+    'downloading subtitles',
+    'subtitles ready',
+    'subtitles reset',
+    'subtitles loaded',
+    'auto-selecting',
+    'switching to',
+    'opening in default app',
+    'opened in windows explorer',
+    'views refreshed',
+    'loaded ',           // generic "Loaded X" toasts (sub loads etc.)
+    'searching opensubtitles',
+    'loading favorites',
+    'resuming stream',
+];
+
+function _isToastNoise(message) {
+    if (!message) return false;
+    const m = String(message).toLowerCase();
+    return _TOAST_NOISE_PATTERNS.some(p => m.includes(p));
+}
+
 function showToast(message, type = 'success') {
   const msgLower = (message || '').toLowerCase();
   const isClipboard = msgLower.includes('copied') || msgLower.includes('presse-papiers') || msgLower.includes('press-papiers') || msgLower.includes('cut ') || msgLower.includes('pasted');
@@ -86,28 +121,39 @@ function showToast(message, type = 'success') {
   }
 
   let container = document.getElementById('toast-container');
+
+  // Errors are always urgent — clear the queue so this toast stands alone.
+  if (type === 'error' && container) {
+      container.querySelectorAll('.toast').forEach(t => t.remove());
+  }
+
+  // Non-dev mode: drop low-signal toasts.
+  if (type !== 'error' && type !== 'warning' && !window.isDevMode() && _isToastNoise(message)) {
+      return;
+  }
+
   if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
       container.className = 'toast-container';
       document.body.appendChild(container);
   }
-  
+
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  
+
   let icon = '';
   if (window.icons) {
     icon = type === 'success' ? window.icons.success() : window.icons.error();
   }
-  
+
   toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
   container.appendChild(toast);
-  
+
   requestAnimationFrame(() => {
       toast.classList.add('show');
   });
-  
+
   setTimeout(() => {
       toast.classList.remove('show');
       setTimeout(() => {
@@ -115,6 +161,19 @@ function showToast(message, type = 'success') {
       }, 300);
   }, 3000);
 }
+
+// Console gating: route .log/.info/.debug through a check so they're silent
+// in non-dev mode. .warn/.error always pass through. Wrap once.
+(function gateConsole() {
+    if (window._consoleGated) return;
+    window._consoleGated = true;
+    const origLog = console.log.bind(console);
+    const origInfo = console.info.bind(console);
+    const origDebug = console.debug.bind(console);
+    console.log = (...args) => { if (window.isDevMode()) origLog(...args); };
+    console.info = (...args) => { if (window.isDevMode()) origInfo(...args); };
+    console.debug = (...args) => { if (window.isDevMode()) origDebug(...args); };
+})();
 
 function attachHoverWebmToCard(card, hoverWebmPath) {
   if (!card || !hoverWebmPath) return;

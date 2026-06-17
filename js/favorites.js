@@ -3,117 +3,131 @@
    ========================================================================== */
 
 /**
- * Render Favorite Local Files only.
+ * Render Favorite Local Files. The favorites tab shares its cell renderer
+ * (createCardElement) with the main Vault grid, so cards behave identically:
+ * star toggles, context menus, double-click to play. The tab maintains its
+ * own grid and its own item cache (window.favoriteLocalItems).
+ *
+ * Robustness:
+ *   - Sanitizes appSettings.favorites in-memory; persists only if it actually
+ *     changed (no save-on-every-render).
+ *   - Drops any path the scanner can't resolve (auto-prune) so a single bad
+ *     entry can't break the whole tab.
+ *   - Reports how many paths were dropped via a small notice atop the grid.
  */
 window.renderFavorites = async function(useCache = false) {
     const grid = el('favorites-grid');
     if (!grid) return;
-    
-    window.appSettings.favorites = window.appSettings.favorites || [];
-    
-    // Clean up old virtual folder references from favorites (they shouldn't be there)
-    window.appSettings.favorites = window.appSettings.favorites.filter(p => !p.startsWith('virtual://'));
-    
-    // Also clean up any empty or invalid paths
-    window.appSettings.favorites = window.appSettings.favorites.filter(p => p && typeof p === 'string' && p.trim() !== '');
-    
-    window.electronAPI.saveSettings(window.appSettings);
-    
-    const hasFavorites = window.appSettings.favorites.length > 0;
+
     const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
-    
-    if (!hasFavorites) {
+
+    // Sanitize the in-memory favorites list. Persist only if we actually changed it.
+    const raw = Array.isArray(window.appSettings.favorites) ? window.appSettings.favorites : [];
+    const cleaned = raw.filter(p =>
+        typeof p === 'string' && p.trim() !== '' && !p.startsWith('virtual://')
+    );
+    if (cleaned.length !== raw.length) {
+        window.appSettings.favorites = cleaned;
+        window.electronAPI.saveSettings(window.appSettings);
+    } else {
+        window.appSettings.favorites = cleaned;
+    }
+
+    if (cleaned.length === 0) {
         const starIcon = window.icons ? window.icons.star('', 'width: 48px; height: 48px; margin-bottom: 12px; display: inline-block;', 'none', 'var(--vault-gold)') : '';
         grid.innerHTML = `
             <div class="empty-state">
                ${starIcon}
-               <h3 style="color: #fff; font-family: var(--font-mono); font-size: 15px; margin-bottom: 8px; font-weight: 700;">
+               <h3 style="color:#fff; font-family:var(--font-mono); font-size:15px; margin-bottom:8px; font-weight:700;">
                    ${t.noFavoritesYet || 'No Favorites Yet'}
                </h3>
-               <p style="color: var(--vault-slate); font-family: var(--font-body); font-size: 12px; max-width: 320px; margin: 0 auto;">
+               <p style="color:var(--vault-slate); font-family:var(--font-body); font-size:12px; max-width:320px; margin:0 auto;">
                    ${t.noFavoritesYetDesc || 'Click the star icon on any video or image in your Vault to save it here.'}
                </p>
-            </div>
-        `;
+            </div>`;
+        window.displayedItems = [];
+        if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
         return;
     }
 
     if (!useCache || !window.favoriteLocalItems) {
-        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-slate); padding: 40px 0;"><div class="spinner" style="margin: 0 auto 12px;"></div>${t.loadingFavorites || 'Loading favorites...'}</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; color:var(--vault-slate); padding:40px 0;"><div class="spinner" style="margin:0 auto 12px;"></div>${t.loadingFavorites || 'Loading favorites...'}</div>`;
+        let scanned = [];
         try {
-            const localPaths = window.appSettings.favorites;
-            if (localPaths.length === 0) {
-                grid.innerHTML = ''; // Clear loading message
-                return;
-            }
-            window.favoriteLocalItems = await window.electronAPI.scanSpecificFiles(localPaths);
-            // Add isFavorited flag to each item for consistency with other tabs
-            if (window.favoriteLocalItems) {
-                window.favoriteLocalItems.forEach(item => {
-                    item.isFavorited = true;
-                });
-            }
+            scanned = (await window.electronAPI.scanSpecificFiles(cleaned)) || [];
         } catch (e) {
-            console.error("Failed to load local favorites:", e);
-            grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--vault-signal-alert, #FF6B7A); padding: 40px 0;">${t.errorLoadingFavorites || 'Error loading favorites.'}</div>`;
-            return;
+            console.error('[favorites] scanSpecificFiles failed:', e);
+            scanned = [];
         }
+
+        // Auto-prune entries that the scanner couldn't resolve (moved/deleted files).
+        // Drop them from appSettings.favorites so the next render is clean.
+        const foundSet = new Set(scanned.map(i => (i.path || '').toLowerCase()));
+        const missing = cleaned.filter(p => !foundSet.has(p.toLowerCase()));
+        if (missing.length) {
+            window.appSettings.favorites = cleaned.filter(p => foundSet.has(p.toLowerCase()));
+            window.electronAPI.saveSettings(window.appSettings);
+        }
+
+        scanned.forEach(item => { item.isFavorited = true; });
+        window.favoriteLocalItems = scanned;
+        // Stash for the notice below; cleared after first display.
+        window._favoritesMissingCount = missing.length;
     }
 
-    grid.innerHTML = '';
+    const term = (el('search-box') && el('search-box').value || '').toLowerCase();
+    const filterAttr = el('filter-type') ? el('filter-type').value : 'all';
+    const sortBy = el('sort-by') ? el('sort-by').value : 'name';
+    const sortOrder = (el('btn-sort-order') && el('btn-sort-order').dataset.order) || 'desc';
 
-    const term = el('search-box').value.toLowerCase();
-    const filterAttr = el('filter-type').value;
-    const sortBy = el('sort-by').value;
-    const sortOrder = el('btn-sort-order').dataset.order || 'desc';
-
-    // Filter and sort Local Favorite files only
-    let filteredLocal = [...(window.favoriteLocalItems || [])];
-    filteredLocal = filteredLocal.filter(v => {
-        if (term && !v.name.toLowerCase().includes(term)) return false;
+    let filtered = (window.favoriteLocalItems || []).filter(v => {
+        if (!v) return false;
+        if (term && !(v.name || '').toLowerCase().includes(term)) return false;
         if (filterAttr === 'video') return v.type === 'video' || v.type === 'encrypted';
         if (filterAttr === 'image') return v.type === 'image';
         if (filterAttr === 'audio') return v.type === 'audio';
         return true;
     });
 
-    // Sort favorites
-    filteredLocal.sort((a, b) => {
-        let valA = a[sortBy];
-        let valB = b[sortBy];
-        if (sortBy === 'name') {
-            valA = (valA || '').toLowerCase();
-            valB = (valB || '').toLowerCase();
-        } else if (['size', 'duration', 'mtime'].includes(sortBy)) {
-            valA = valA || 0;
-            valB = valB || 0;
-        }
-        let compare = 0;
-        if (valA < valB) compare = -1; else if (valA > valB) compare = 1;
-        return sortOrder === 'desc' ? compare * -1 : compare;
+    filtered.sort((a, b) => {
+        let valA = a[sortBy], valB = b[sortBy];
+        if (sortBy === 'name') { valA = (valA || '').toLowerCase(); valB = (valB || '').toLowerCase(); }
+        else if (['size', 'duration', 'mtime'].includes(sortBy)) { valA = valA || 0; valB = valB || 0; }
+        const cmp = valA < valB ? -1 : valA > valB ? 1 : 0;
+        return sortOrder === 'desc' ? -cmp : cmp;
     });
 
-    window.displayedItems = filteredLocal; // So player playlists work!
+    window.displayedItems = filtered;
 
-    if (filteredLocal.length === 0) {
-        const searchIcon = window.icons ? window.icons.search('', 'width: 48px; height: 48px; margin-bottom: 12px; display: inline-block;') : '';
-        grid.innerHTML = `
+    // Optional notice about pruned-missing entries (shown once after the scan).
+    let noticeHtml = '';
+    if (window._favoritesMissingCount > 0) {
+        const n = window._favoritesMissingCount;
+        noticeHtml = `<div style="grid-column:1/-1; padding:8px 12px; margin-bottom:8px; background:rgba(245,185,41,0.08); border:1px solid var(--vault-gold); border-radius:4px; font-size:11px; color:var(--vault-gold); font-family:var(--font-mono);">${n} missing favorite${n === 1 ? '' : 's'} pruned (file${n === 1 ? '' : 's'} moved or deleted).</div>`;
+        window._favoritesMissingCount = 0;
+    }
+
+    if (filtered.length === 0) {
+        const searchIcon = window.icons ? window.icons.search('', 'width:48px; height:48px; margin-bottom:12px; display:inline-block;') : '';
+        grid.innerHTML = `${noticeHtml}
             <div class="empty-state">
                ${searchIcon}
-               <h3 style="color: #fff; font-family: var(--font-mono); font-size: 15px; margin-bottom: 8px; font-weight: 700;">
+               <h3 style="color:#fff; font-family:var(--font-mono); font-size:15px; margin-bottom:8px; font-weight:700;">
                    ${t.noItemsFound || 'No items found'}
                </h3>
-               <p style="color: var(--vault-slate); font-family: var(--font-body); font-size: 12px; max-width: 320px; margin: 0 auto;">
+               <p style="color:var(--vault-slate); font-family:var(--font-body); font-size:12px; max-width:320px; margin:0 auto;">
                    ${t.adjustFiltersFavorites || 'Adjust your search filters.'}
                </p>
-            </div>
-        `;
+            </div>`;
+        if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
         return;
     }
 
-    filteredLocal.forEach((item, i) => {
-        grid.appendChild(window.createCardElement(item, i));
-    });
+    grid.innerHTML = noticeHtml;
+    const frag = document.createDocumentFragment();
+    filtered.forEach((item, i) => frag.appendChild(window.createCardElement(item, i)));
+    grid.appendChild(frag);
+    if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
 };
 
 /**

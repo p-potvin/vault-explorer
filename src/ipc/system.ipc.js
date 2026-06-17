@@ -47,8 +47,8 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
             
             const folderSubmenu = (item.folders && item.folders.length > 0)
                 ? item.folders.map(f => ({
-                    label: f.name,
-                    click: () => once(`add-to-folder:${f.name}`)
+                    label: f.label || f.name,
+                    click: () => once(`add-to-folder:${f.id || f.name}`)
                   }))
                 : [{ label: 'No virtual folders created', enabled: false }];
             

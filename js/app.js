@@ -132,7 +132,11 @@ async function initApp() {
     }
 
     window.appSettings = await window.electronAPI.getSettings();
-    if (!window.appSettings.folders) window.appSettings.folders = [];
+    // One-shot migration: legacy {folders,folderContents} -> stable-id virtualFolders.
+    // Safe no-op if already migrated.
+    if (window.vf && typeof window.vf.migrateLegacy === 'function') {
+        try { window.vf.migrateLegacy(); } catch (e) { console.error('[app] vf.migrateLegacy failed:', e); }
+    }
     if (window.appSettings.mutePreviews === undefined) window.appSettings.mutePreviews = false;
     if (!window.appSettings.lastPath) window.appSettings.lastPath = { navPath: 'root', realPath: '' };
     if (!window.appSettings.scrollPositions) window.appSettings.scrollPositions = {};

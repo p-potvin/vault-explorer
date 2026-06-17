@@ -25,10 +25,10 @@ if (-not (Test-Path $PythonScript)) {
     exit 1
 }
 
-# Resolve heavy NeMo media processing environment
+# Resolve vault-explorer virtual environment
 $VenvCandidates = @(
-    "C:\Users\Administrator\Desktop\Github Repos\vaultwares-media-processing\.venv\Scripts\python.exe",
-    (Join-Path (Join-Path (Join-Path $ProjectRoot '..') 'vaultwares-media-processing') '.venv\Scripts\python.exe')
+    (Join-Path $ProjectRoot '.venv\Scripts\python.exe'),
+    "C:\Users\Administrator\Desktop\Github Repos\vault-explorer\.venv\Scripts\python.exe"
 )
 
 $PythonExe = "python"

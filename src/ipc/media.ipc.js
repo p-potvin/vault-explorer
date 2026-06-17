@@ -23,9 +23,9 @@ function getFullProbeMetadata(filePath) {
 }
 
 function registerMediaIpc(ipcMain) {
-    // ESRGAN Super-Resolution Video Upscale
+    // RTX VSR Video Upscale (permanent enhancement → .thumbs folder)
     ipcMain.handle('upscale-video', async (event, filePath) => {
-        console.log('[media.ipc:upscale] RealESRGAN requested for:', filePath);
+        console.log('[media.ipc:upscale] RTX VSR requested for:', filePath);
         if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
             return { success: false, error: 'File not found' };
         }
@@ -33,60 +33,47 @@ function registerMediaIpc(ipcMain) {
         const ext = path.extname(filePath);
         const dir = path.dirname(filePath);
         const name = path.basename(filePath);
-        const enhancedDir = path.join(dir, '.enhanced');
-        if (!fs.existsSync(enhancedDir)) {
-            fs.mkdirSync(enhancedDir, { recursive: true });
-        }
-        const outputPath = path.join(enhancedDir, name);
+        const baseName = path.basename(filePath, ext);
+        const thumbsDir = path.join(dir, '.thumbs');
+        const outputPath = path.join(thumbsDir, `${baseName}_enhanced${ext}`);
+        const metaPath = filePath + '.meta.json';
 
-        let sourcePath = filePath;
-        let tempSourceFile = null;
-        if (fs.existsSync(outputPath)) {
-            const tempDir = path.join(enhancedDir, 'temp_upscale');
-            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-            tempSourceFile = path.join(tempDir, 'temp_src_' + name);
+        // Ensure .thumbs directory exists
+        if (!fs.existsSync(thumbsDir)) {
+            fs.mkdirSync(thumbsDir, { recursive: true });
+        }
+
+        // Skip redundant enhancement: check sidecar metadata
+        if (fs.existsSync(metaPath) && fs.existsSync(outputPath)) {
             try {
-                fs.copyFileSync(outputPath, tempSourceFile);
-                sourcePath = tempSourceFile;
-            } catch (copyErr) {
-                console.error('[media.ipc:upscale] Failed to create temp copy of existing enhanced file:', copyErr.message);
-            }
+                const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+                if (meta.enhancements && meta.enhancements.video === true) {
+                    console.log('[media.ipc:upscale] Skipping redundant enhancement (already in .thumbs):', filePath);
+                    return { success: true, path: outputPath, skipped: true };
+                }
+            } catch (e) {}
         }
 
-        const realesrganPath = path.join(__dirname, '..', '..', 'tools', 'realesrgan-ncnn-vulkan.exe');
-        const modelsPath = path.join(__dirname, '..', '..', 'tools', 'models');
-
-        if (!fs.existsSync(realesrganPath)) {
-            if (tempSourceFile && fs.existsSync(tempSourceFile)) {
-                try { fs.unlinkSync(tempSourceFile); } catch (e) {}
-            }
-            return { success: false, error: 'RealESRGAN executable not found in tools/' };
-        }
+        const pythonPath = process.platform === 'win32'
+            ? path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe')
+            : path.join(__dirname, '..', '..', '.venv', 'bin', 'python');
+        const scriptPath = path.join(__dirname, '..', '..', 'python-scripts', 'rtx_vsr_stream.py');
 
         return new Promise((resolve) => {
             const args = [
-                '-i', sourcePath,
-                '-o', outputPath,
-                '-n', 'realesr-animevideov3-x2',
-                '-m', modelsPath
+                scriptPath,
+                'enhance',
+                filePath,
+                outputPath,
+                '--quality', 'HIGH',
             ];
 
-            console.log(`[media.ipc:upscale] Spawning: ${realesrganPath} ${args.join(' ')}`);
-            const proc = child_process.spawn(realesrganPath, args, { windowsHide: true });
+            console.log(`[media.ipc:upscale] Spawning: ${pythonPath} ${args.join(' ')}`);
+            const proc = child_process.spawn(pythonPath, args, { windowsHide: true });
 
             let errorData = '';
             let stdoutBuffer = '';
             let stderrBuffer = '';
-
-            const handleLine = (line) => {
-                const match = line.match(/(\d+(?:\.\d+)?)%/);
-                if (match) {
-                    const percent = Math.round(parseFloat(match[1]));
-                    if (event.sender && !event.sender.isDestroyed()) {
-                        event.sender.send('upscale-progress', { videoPath: filePath, percent, label: `Upscaling... ${percent}%` });
-                    }
-                }
-            };
 
             proc.stdout.on('data', (data) => {
                 const str = data.toString();
@@ -94,7 +81,6 @@ function registerMediaIpc(ipcMain) {
                 let lines = stdoutBuffer.split(/\r?\n/);
                 stdoutBuffer = lines.pop();
                 for (const line of lines) {
-                    handleLine(line);
                     console.log(`[media.ipc:upscale:stdout] ${line.trim()}`);
                 }
             });
@@ -106,36 +92,33 @@ function registerMediaIpc(ipcMain) {
                 let lines = stderrBuffer.split(/\r?\n/);
                 stderrBuffer = lines.pop();
                 for (const line of lines) {
-                    handleLine(line);
                     console.log(`[media.ipc:upscale:stderr] ${line.trim()}`);
                 }
             });
 
             proc.on('close', (code) => {
-                if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
-                if (stderrBuffer.trim()) handleLine(stderrBuffer);
+                if (stdoutBuffer.trim()) console.log(`[media.ipc:upscale:stdout] ${stdoutBuffer.trim()}`);
+                if (stderrBuffer.trim()) console.log(`[media.ipc:upscale:stderr] ${stderrBuffer.trim()}`);
                 console.log(`[media.ipc:upscale] Finished with code ${code}`);
 
-                if (tempSourceFile && fs.existsSync(tempSourceFile)) {
-                    try { fs.unlinkSync(tempSourceFile); } catch (e) {}
-                }
-
-                if (code === 0 && fs.existsSync(outputPath)) {
-                    const metaPath = filePath + '.meta.json';
-                    if (fs.existsSync(metaPath)) {
-                        try {
-                            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                            if (!meta.enhancements) {
-                                meta.enhancements = { audio: false, video: false, subtitles: [], translation: [] };
-                            }
-                            meta.enhancements.video = true;
-                            meta.enhancedPath = outputPath;
-                            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-                        } catch (e) {}
-                    }
+                if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+                    try {
+                        let meta = {};
+                        if (fs.existsSync(metaPath)) {
+                            try {
+                                meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+                            } catch (e) {}
+                        }
+                        if (!meta.enhancements) {
+                            meta.enhancements = { audio: false, video: false, subtitles: [], translation: [] };
+                        }
+                        meta.enhancements.video = true;
+                        meta.enhancedPath = outputPath;
+                        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+                    } catch (e) {}
                     resolve({ success: true, path: outputPath });
                 } else {
-                    resolve({ success: false, error: errorData.trim() || `RealESRGAN process exited with code ${code}` });
+                    resolve({ success: false, error: errorData.trim() || `RTX VSR exited with code ${code}` });
                 }
             });
         });
@@ -147,8 +130,9 @@ function registerMediaIpc(ipcMain) {
             return { success: false, error: 'File not found' };
         }
         const dir = path.dirname(filePath);
-        const name = path.basename(filePath);
-        const enhancedFile = path.join(dir, '.enhanced', name);
+        const ext = path.extname(filePath);
+        const baseName = path.basename(filePath, ext);
+        const enhancedFile = path.join(dir, '.thumbs', `${baseName}_enhanced${ext}`);
         const metaPath = filePath + '.meta.json';
 
         try {
@@ -159,6 +143,7 @@ function registerMediaIpc(ipcMain) {
                 try {
                     const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
                     meta.enhancements = { audio: false, video: false, subtitles: [], translation: [] };
+                    delete meta.enhancedPath;
                     fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
                 } catch (e) {}
             }
@@ -266,8 +251,8 @@ function registerMediaIpc(ipcMain) {
     let upscaleStreamEvent = null;
 
     ipcMain.handle('upscale-stream-start', async (event, { videoPath, startTime }) => {
-        console.log('[media.ipc:upscale-stream] Starting real-time upscaling for:', videoPath, 'from time:', startTime);
-        
+        console.log('[media.ipc:upscale-stream] Starting RTX VSR real-time stream for:', videoPath, 'from time:', startTime);
+
         // Kill any existing process
         if (upscaleStreamProcess) {
             try { upscaleStreamProcess.kill('SIGKILL'); } catch(e) {}
@@ -279,45 +264,28 @@ function registerMediaIpc(ipcMain) {
             return { success: false, error: 'File not found' };
         }
 
-        const realesrganPath = path.join(__dirname, '..', '..', 'tools', 'realesrgan-ncnn-vulkan.exe');
-        const modelsPath = path.join(__dirname, '..', '..', 'tools', 'models');
+        const pythonPath = process.platform === 'win32'
+            ? path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe')
+            : path.join(__dirname, '..', '..', '.venv', 'bin', 'python');
+        const scriptPath = path.join(__dirname, '..', '..', 'python-scripts', 'rtx_vsr_stream.py');
 
-        if (!fs.existsSync(realesrganPath)) {
-            return { success: false, error: 'RealESRGAN executable not found in tools/' };
-        }
-
-        // For streaming, we use a different approach: ffmpeg pipe to realesrgan
-        // This is a simplified implementation that processes the video in chunks
-        // Note: RealESRGAN is designed for image processing, not video streaming
-        // For true streaming, we'd need a frame-by-frame pipeline with ffmpeg
-        
-        // Create a temp output file for the upscaled version
-        const dir = path.dirname(videoPath);
-        const name = path.basename(videoPath);
-        const enhancedDir = path.join(dir, '.enhanced');
-        if (!fs.existsSync(enhancedDir)) {
-            fs.mkdirSync(enhancedDir, { recursive: true });
-        }
-        const outputPath = path.join(enhancedDir, name);
-
-        // For now, just run the standard upscale process
-        // TODO: Implement true streaming with frame-by-frame processing
         const args = [
-            '-i', videoPath,
-            '-o', outputPath,
-            '-n', 'realesr-animevideov3-x2',
-            '-m', modelsPath
+            scriptPath,
+            'stream',
+            videoPath,
+            '--start-time', String(startTime || 0),
+            '--quality', 'HIGH',
         ];
 
-        console.log(`[media.ipc:upscale-stream] Spawning: ${realesrganPath} ${args.join(' ')}`);
-        
-        try {
-            const proc = child_process.spawn(realesrganPath, args, { windowsHide: true });
-            upscaleStreamProcess = proc;
+        console.log(`[media.ipc:upscale-stream] Spawning: ${pythonPath} ${args.join(' ')}`);
 
-            let stdoutBuffer = '';
-            let stderrBuffer = '';
-            let lastProgress = -1;
+        try {
+            const proc = child_process.spawn(pythonPath, args, {
+                windowsHide: true,
+                // Ensure binary stdout is not mangled
+                env: { ...process.env, PYTHONUNBUFFERED: '1' },
+            });
+            upscaleStreamProcess = proc;
 
             const sendStatus = (type, data = {}) => {
                 if (event.sender && !event.sender.isDestroyed()) {
@@ -325,68 +293,72 @@ function registerMediaIpc(ipcMain) {
                 }
             };
 
+            // Send initial status with source dimensions
+            const probe = await getFullProbeMetadata(videoPath);
+            let srcW = 0, srcH = 0;
+            if (probe && Array.isArray(probe.streams)) {
+                const vStream = probe.streams.find(s => s.codec_type === 'video');
+                if (vStream) {
+                    srcW = vStream.width || 0;
+                    srcH = vStream.height || 0;
+                }
+            }
+            sendStatus('init', {
+                width: srcW,
+                height: srcH,
+                fps: probe && probe.streams ? 30 : 0,
+                label: 'RTX VSR initializing…',
+            });
+
+            let frameCount = 0;
+
+            // Forward MP4 chunks from Python stdout to renderer
             proc.stdout.on('data', (data) => {
-                const str = data.toString();
-                stdoutBuffer += str;
-                let lines = stdoutBuffer.split(/\r?\n/);
-                stdoutBuffer = lines.pop();
-                
-                for (const line of lines) {
-                    const match = line.match(/(\d+(?:\.\d+)?)%/);
-                    if (match) {
-                        const percent = Math.round(parseFloat(match[1]));
-                        if (percent > lastProgress) {
-                            lastProgress = percent;
-                            sendStatus('processing', { percent, label: `Upscaling... ${percent}%` });
-                        }
-                    }
+                if (event.sender && !event.sender.isDestroyed()) {
+                    frameCount++;
+                    // Send the chunk as a Node Buffer (will be serialized to ArrayBuffer)
+                    event.sender.send('upscale-chunk', {
+                        chunk: frameCount,
+                        buffer: data,
+                    });
                 }
             });
 
+            let stderrBuffer = '';
             proc.stderr.on('data', (data) => {
                 const str = data.toString();
                 stderrBuffer += str;
-                let lines = stderrBuffer.split(/\r?\n/);
-                stderrBuffer = lines.pop();
-                
+                // Log VSR progress lines to console
+                const lines = str.split(/\r?\n/);
                 for (const line of lines) {
-                    const match = line.match(/(\d+(?:\.\d+)?)%/);
-                    if (match) {
-                        const percent = Math.round(parseFloat(match[1]));
-                        sendStatus('processing', { percent, label: `Upscaling... ${percent}%` });
+                    if (line.trim()) {
+                        console.log(`[rtx-vsr] ${line.trim()}`);
                     }
+                }
+                // Report processing status based on frame count in stderr
+                const match = str.match(/Processed (\d+) frames/);
+                if (match) {
+                    const frames = parseInt(match[1], 10);
+                    sendStatus('processing', { chunk: frames, label: `RTX VSR · ${frames} frames` });
                 }
             });
 
             proc.on('close', (code) => {
-                if (stdoutBuffer.trim()) {
-                    const match = stdoutBuffer.match(/(\d+(?:\.\d+)?)%/);
-                    if (match) {
-                        sendStatus('processing', { percent: Math.round(parseFloat(match[1])), label: 'Finalizing...' });
-                    }
-                }
-                if (stderrBuffer.trim()) {
-                    const match = stderrBuffer.match(/(\d+(?:\.\d+)?)%/);
-                    if (match) {
-                        sendStatus('processing', { percent: Math.round(parseFloat(match[1])), label: 'Finalizing...' });
-                    }
-                }
-
-                console.log(`[media.ipc:upscale-stream] Finished with code ${code}`);
-
-                if (code === 0 && fs.existsSync(outputPath)) {
+                console.log(`[media.ipc:upscale-stream] RTX VSR stream exited with code ${code}`);
+                upscaleStreamProcess = null;
+                upscaleStreamEvent = null;
+                if (code === 0 || code === null) {
                     sendStatus('done');
-                    return { success: true, path: outputPath };
                 } else {
-                    // Send error status
-                    sendStatus('chunk-error', { error: stderrBuffer.trim() || `Process exited with code ${code}` });
-                    return { success: false, error: stderrBuffer.trim() || `RealESRGAN process exited with code ${code}` };
+                    sendStatus('chunk-error', { error: stderrBuffer.trim() || `RTX VSR exited with code ${code}` });
                 }
             });
 
-            // Send initial status
-            sendStatus('init', { width: 0, height: 0, label: 'Starting upscale process...' });
-            
+            proc.on('error', (err) => {
+                console.error('[media.ipc:upscale-stream] Process error:', err);
+                sendStatus('chunk-error', { error: err.message });
+            });
+
             return { success: true };
         } catch (err) {
             console.error('[media.ipc:upscale-stream] Failed to start:', err);
@@ -395,14 +367,19 @@ function registerMediaIpc(ipcMain) {
     });
 
     ipcMain.handle('upscale-stream-stop', async () => {
-        console.log('[media.ipc:upscale-stream] Stopping stream upscaling...');
-        
+        console.log('[media.ipc:upscale-stream] Stopping RTX VSR stream...');
+
         if (upscaleStreamProcess) {
-            try { upscaleStreamProcess.kill('SIGKILL'); } catch(e) {}
+            try {
+                // On Windows SIGKILL doesn't exist; use kill() which terminates the tree
+                upscaleStreamProcess.kill('SIGKILL');
+            } catch(e) {
+                try { upscaleStreamProcess.kill(); } catch(e2) {}
+            }
             upscaleStreamProcess = null;
             upscaleStreamEvent = null;
         }
-        
+
         return { success: true };
     });
 

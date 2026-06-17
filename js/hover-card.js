@@ -213,11 +213,15 @@ window.showPremiumHoverCard = function(card, movie) {
     popup.style.width = rect.width + 'px';
     popup.style.height = rect.height + 'px';
     
-    const expWidth = 320; 
+    const expWidth = 320;
     const expHeight = 350;
-    
+
+    // Anchor the popup's BOTTOM to the card's bottom (grows upward). The old
+    // anchor (rect.top - 60) let the popup extend past the card's bottom edge,
+    // which created a dead-zone where the cursor sat over the *next* card's
+    // area while the popup was still rendered — causing rapid hover toggling.
     const targetLeft = Math.max(10, Math.min(window.innerWidth - expWidth - 10, rect.left - (expWidth - rect.width) / 2));
-    const targetTop = Math.max(10, Math.min(window.innerHeight - expHeight - 10, rect.top - 60));
+    const targetTop  = Math.max(10, Math.min(window.innerHeight - expHeight - 10, rect.bottom - expHeight));
     
     requestAnimationFrame(() => {
         popup.style.left = targetLeft + 'px';

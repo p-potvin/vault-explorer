@@ -95,9 +95,16 @@ async function selectSubtitleTrack(trackIdx) {
 // Select subtitle from the allAvailableSubtitles array by index
 function selectSubtitleByIndex(idx) {
     if (!window._allAvailableSubtitles || idx < 0 || idx >= window._allAvailableSubtitles.length) {
+        window._selectedSubtitleIdx = -1;
         selectSubtitleTrack(-1);
         return;
     }
+    // Track the renderer's selected index explicitly. The previous active-state
+    // check tried to reverse-derive it by comparing track.label/srclang/src
+    // against the sub catalog — which collapses any duplicate-label or
+    // shared-language entries onto the first match (so picking the 2nd
+    // English sub still highlighted the 1st).
+    window._selectedSubtitleIdx = idx;
     const sub = window._allAvailableSubtitles[idx];
     const vp = el('video-player');
     if (!vp) return;
@@ -148,13 +155,8 @@ function refreshSubtitlesList() {
             opt.style.cssText = 'padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;';
             opt.textContent = sub.label || `Track ${idx + 1}`;
 
-            // Check if this subtitle is currently loaded and showing
-            const isActive = Array.from(vp.textTracks).some(track => 
-                track.mode === 'showing' && 
-                (track.label === sub.label || 
-                 track.srclang === sub.lang ||
-                 track.src === window.sanitizePath(sub.path))
-            );
+            // Active iff this idx matches the renderer's explicit selection.
+            const isActive = window._selectedSubtitleIdx === idx;
             if (isActive) {
                 opt.classList.add('active');
                 opt.style.color = 'var(--vault-accent)';
@@ -195,8 +197,14 @@ function refreshSubtitlesList() {
 
     const offOption = el('subtitles-menu').querySelector('.subtitle-option[data-idx="-1"]');
     if (offOption) {
+        // Mirror the explicit selection: Off is active when nothing is picked.
+        const offActive = window._selectedSubtitleIdx === -1 || window._selectedSubtitleIdx === undefined;
+        offOption.classList.toggle('active', offActive);
+        offOption.style.color = offActive ? 'var(--vault-accent)' : 'var(--vault-text)';
+        offOption.style.fontWeight = offActive ? '600' : 'normal';
         offOption.onclick = (e) => {
             e.stopPropagation();
+            window._selectedSubtitleIdx = -1;
             selectSubtitleTrack(-1);
             el('subtitles-menu').style.display = 'none';
         };
@@ -424,6 +432,36 @@ function initSubtitleListeners() {
         el('subtitle-file-input').click();
     });
 
+    // Collapsible "More subtitles…" section — keeps the menu compact.
+    const moreBtn = el('opt-more-subs');
+    const morePanel = el('subtitles-more-panel');
+    const moreCaret = el('more-subs-caret');
+    if (moreBtn && morePanel) {
+        moreBtn.addEventListener('mouseenter', () => { moreBtn.style.background = 'rgba(245,185,41,0.08)'; });
+        moreBtn.addEventListener('mouseleave', () => { moreBtn.style.background = 'transparent'; });
+        moreBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = morePanel.style.display !== 'none';
+            morePanel.style.display = open ? 'none' : 'block';
+            if (moreCaret) moreCaret.textContent = open ? '▸' : '▾';
+        });
+    }
+
+    // ── Quick-lang search buttons (English / French CA / French) ─────────
+    // Searches OpenSubtitles with a narrow `languages` filter for the
+    // currently-playing title, picks the best result (FR-CA preferred over
+    // FR-FR when the user asked for 'fr-CA'), loads it as a track.
+    document.querySelectorAll('.subtitle-quick-lang').forEach(btn => {
+        btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(245,185,41,0.08)'; });
+        btn.addEventListener('mouseleave', () => { btn.style.background = 'transparent'; });
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const lang = btn.dataset.lang || 'en';
+            el('subtitles-menu').style.display = 'none';
+            await searchAndLoadSubtitlesByLang(lang);
+        });
+    });
+
     const optGen = el('opt-generate-subtitle');
     if (optGen) {
         optGen.addEventListener('click', async (e) => {
@@ -519,6 +557,86 @@ function initSubtitleListeners() {
         window.showToast((t.subtitlesLoaded || 'Subtitles loaded: ') + file.name, 'success');
         e.target.value = '';
     });
+}
+
+// Fetch OpenSubtitles results for a narrow language filter and load the best
+// match as a track. Reuses the existing find-subtitles IPC (extended with a
+// 4th `langsOverride` param) and the existing addSubtitleTrack logic.
+//
+// Language presets:
+//   'en'    -> just English
+//   'fr-CA' -> Quebec/Canadian French preferred; falls back to fr-FR/fr
+//   'fr'    -> any French (FR-FR first, then FR-CA)
+async function searchAndLoadSubtitlesByLang(lang) {
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+
+    // Resolve a video path + query title for both local and stream contexts.
+    let videoPath = null;
+    let queryTitle = null;
+    if (window.currentPlayingItem && window.currentPlayingItem.path) {
+        videoPath = window.currentPlayingItem.path;
+        queryTitle = window.currentPlayingItem.name;
+    } else if (window.activeStreamingMedia) {
+        videoPath = (el('video-player') && el('video-player').src) || '';
+        queryTitle = window.activeStreamingMedia.title;
+    }
+    if (!queryTitle) {
+        window.showToast('No active title to search subtitles for', 'error');
+        return;
+    }
+
+    // Translate the picker code to OpenSubtitles language codes. fr-CA is
+    // a valid OpenSubtitles language code; we ask for fr too as a fallback.
+    const langsParam = lang === 'fr-CA' ? 'fr-CA,fr'
+                    : lang === 'fr'    ? 'fr,fr-CA'
+                    : 'en';
+
+    window.showToast(`Searching OpenSubtitles for ${lang.toUpperCase()}…`, 'info');
+    let results = [];
+    try {
+        results = await window.electronAPI.findSubtitles(videoPath, queryTitle, false, langsParam) || [];
+    } catch (err) {
+        console.error('[subtitles] quick-lang search failed:', err);
+        window.showToast('Subtitle search failed', 'error');
+        return;
+    }
+    // Keep only OpenSubtitles hits (we already cover local sidecars elsewhere).
+    const osHits = results.filter(s => s.isOpenSubtitles);
+    if (osHits.length === 0) {
+        window.showToast(`No ${lang.toUpperCase()} subtitles found for "${queryTitle}"`, 'warning');
+        return;
+    }
+    // Canadian-French priority: when the user asked for fr-CA, surface any
+    // result whose language code starts with 'fr-ca' first; FR otherwise.
+    const want = lang.toLowerCase();
+    osHits.sort((a, b) => {
+        const aL = (a.lang || '').toLowerCase();
+        const bL = (b.lang || '').toLowerCase();
+        const aMatch = aL === want ? 0 : aL.startsWith(want.split('-')[0]) ? 1 : 2;
+        const bMatch = bL === want ? 0 : bL.startsWith(want.split('-')[0]) ? 1 : 2;
+        return aMatch - bMatch;
+    });
+    const chosen = osHits[0];
+
+    // Merge into the menu's catalog (stamp videoPath so the download IPC
+    // knows where to write the SRT/VTT sidecar — or to use a stream-safe
+    // path when videoPath is a stream URL).
+    window._allAvailableSubtitles = window._allAvailableSubtitles || [];
+    osHits.forEach(h => {
+        h.videoPath = videoPath || '';
+        if (!window._allAvailableSubtitles.some(x => x.fileId === h.fileId)) {
+            window._allAvailableSubtitles.push(h);
+        }
+    });
+
+    // Find the chosen sub's index in the catalog and let selectSubtitleByIndex
+    // own the actual <track> create + lazy-download + select chain.
+    const chosenIdx = window._allAvailableSubtitles.findIndex(s => s.fileId === chosen.fileId);
+    if (chosenIdx >= 0) {
+        selectSubtitleByIndex(chosenIdx);
+    }
+    refreshSubtitlesList();
+    window.showToast(`Loaded ${(chosen.label || lang.toUpperCase())}`, 'success');
 }
 
 async function loadActiveSubtitles(videoPath) {

@@ -68,22 +68,15 @@ window.initKeybindingsAndFolderListeners = function() {
 
         btnCreateFolder.addEventListener('click', () => {
             const name = inputFolderName.value.trim();
-            if (name) {
-                window.appSettings.folders = window.appSettings.folders || [];
-                const exists = window.appSettings.folders.some(f => f.name.toLowerCase() === name.toLowerCase() && f.parent === window.currentNavPath);
-                if (exists) {
-                    window.showToast('A virtual folder with this name already exists in this location', 'error');
-                    return;
-                }
-                const typeEl = el('fake-folder-type');
-                const type = typeEl ? typeEl.value : 'collection';
-                window.appSettings.folders.push({ name: name, parent: window.currentNavPath, items: [], type: type });
-                window.electronAPI.saveSettings(window.appSettings);
-                folderDialog.style.display = 'none';
-                inputFolderName.value = '';
-                window.applyFilters();
-                btnNewFolder.focus();
-            }
+            if (!name) return;
+            const typeEl = el('fake-folder-type');
+            const type = typeEl ? typeEl.value : 'collection';
+            const res = window.vf.create({ name, type, parentId: window.currentFolderId || null });
+            if (!res.ok) { window.showToast(res.error || 'Failed to create folder', 'error'); return; }
+            folderDialog.style.display = 'none';
+            inputFolderName.value = '';
+            window.applyFilters();
+            btnNewFolder.focus();
         });
 
         inputFolderName.addEventListener('keydown', (e) => {
@@ -111,70 +104,21 @@ window.initKeybindingsAndFolderListeners = function() {
         });
         
         btnConfirmAddToFolder.addEventListener('click', () => {
-            const folderName = selectAddToFolder.value;
-            if (!folderName || !window.itemToAssign) return;
-            
-            // Determine the expected type based on the item being assigned
-            let expectedType = 'collection';
-            if (window.itemToAssign.type === 'video' || window.itemToAssign.type === 'encrypted') expectedType = 'collection';
-            else if (window.itemToAssign.type === 'image') expectedType = 'album';
-            else if (window.itemToAssign.type === 'audio') expectedType = 'playlist';
-            
-            // Find folder by name, but prefer folders in the current navigation path
-            // This helps with duplicate folder names
-            let targetFolder = null;
-            
-            // First, try to find folder in current nav path with correct type
-            if (window.currentNavPath && window.currentNavPath !== 'root') {
-                targetFolder = window.appSettings.folders.find(f => 
-                    f.name === folderName && f.parent === window.currentNavPath && (f.type || 'collection') === expectedType
-                );
+            const folderId = selectAddToFolder.value;
+            if (!folderId || !window.itemToAssign) return;
+            const folder = window.vf.get(folderId);
+            if (!folder) { window.showToast('Folder not found', 'error'); return; }
+            const res = window.vf.addItems(folderId, [window.itemToAssign]);
+            if (res.added) {
+                window.showToast(window.currentLang === 'fr' ? 'Ajouté avec succès' : 'Successfully added to virtual folder', 'success');
+            } else if (res.rejected) {
+                const want = folder.type === 'album' ? 'images' : folder.type === 'playlist' ? 'audio files' : 'videos';
+                window.showToast(`"${folder.name}" only accepts ${want}`, 'error');
+            } else {
+                window.showToast(window.currentLang === 'fr' ? 'Ce fichier est déjà dans ce dossier' : 'This file is already in this folder', 'info');
             }
-            
-            // If not found, try root level with correct type
-            if (!targetFolder) {
-                targetFolder = window.appSettings.folders.find(f => 
-                    f.name === folderName && (f.parent === 'root' || !f.parent || f.parent === '') && (f.type || 'collection') === expectedType
-                );
-            }
-            
-            // If still not found, try any folder with matching name and correct type
-            if (!targetFolder) {
-                targetFolder = window.appSettings.folders.find(f => f.name === folderName && (f.type || 'collection') === expectedType);
-            }
-            
-            // If still not found, try any folder with matching name (fallback)
-            if (!targetFolder) {
-                targetFolder = window.appSettings.folders.find(f => f.name === folderName);
-            }
-            
-            if (targetFolder) {
-                // Build the folder path for folderContents
-                const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-                
-                // Initialize folderContents entry if it doesn't exist
-                if (!window.appSettings.folderContents) {
-                    window.appSettings.folderContents = {};
-                }
-                if (!window.appSettings.folderContents[folderPath]) {
-                    window.appSettings.folderContents[folderPath] = [];
-                }
-                
-                // Add the file to this folder (multi-folder tagging allowed)
-                const folderFiles = window.appSettings.folderContents[folderPath];
-                if (!folderFiles.includes(window.itemToAssign.path)) {
-                    folderFiles.push(window.itemToAssign.path);
-                    window.electronAPI.saveSettings(window.appSettings);
-                    const addedMsg = window.currentLang === 'fr' ? 'Ajouté avec succès' : 'Successfully added to virtual folder';
-                    window.showToast(addedMsg, 'success');
-                } else {
-                    const alreadyMsg = window.currentLang === 'fr' ? 'Ce fichier est déjà dans ce dossier' : 'This file is already in this folder';
-                    window.showToast(alreadyMsg, 'info');
-                }
-                
-                addToFolderDialog.style.display = 'none';
-                window.applyFilters();
-            }
+            addToFolderDialog.style.display = 'none';
+            window.applyFilters();
         });
     }
 
@@ -182,21 +126,18 @@ window.initKeybindingsAndFolderListeners = function() {
         const dialog = el('add-to-folder-dialog');
         const filenameEl = el('add-to-folder-dialog-filename');
         const selectEl = el('add-to-folder-select');
-        
+
         if (!dialog || !selectEl || !filenameEl) return;
-        
+
         window.itemToAssign = item;
         filenameEl.innerText = item.name;
-        
-        // Determine the expected type based on the file type
-        let expectedType = 'collection';
-        if (item.type === 'video' || item.type === 'encrypted') expectedType = 'collection';
-        else if (item.type === 'image') expectedType = 'album';
-        else if (item.type === 'audio') expectedType = 'playlist';
-        
-        // Filter folders by expected type
-        const matchingFolders = (window.appSettings.folders || []).filter(f => (f.type || 'collection') === expectedType);
-        
+
+        // Resolve the expected folder type for this item once and ask vf for matches.
+        const expectedType = (item.type === 'image') ? 'album'
+                          : (item.type === 'audio') ? 'playlist'
+                          : 'collection';
+        const matchingFolders = window.vf.list({ type: expectedType });
+
         selectEl.innerHTML = '';
         if (matchingFolders.length === 0) {
             const option = document.createElement('option');
@@ -208,15 +149,14 @@ window.initKeybindingsAndFolderListeners = function() {
         } else {
             matchingFolders.forEach(f => {
                 const option = document.createElement('option');
-                option.value = f.name;
-                // Include parent path for folders not at root to help distinguish duplicates
-                const parentLabel = (f.parent && f.parent !== 'root' && f.parent !== '') ? `${f.parent}/` : '';
-                option.innerText = `${parentLabel}${f.name} (${f.type || 'collection'})`;
+                option.value = f.id; // stable id, not name
+                const parentLabel = f.parentId ? `${window.buildNavPath(f.parentId).replace(/^root\/?/, '')}/` : '';
+                option.innerText = `${parentLabel}${f.name} (${f.type})`;
                 selectEl.appendChild(option);
             });
             btnConfirmAddToFolder.disabled = false;
         }
-        
+
         dialog.style.display = 'block';
     };
 
@@ -332,8 +272,10 @@ window.initKeybindingsAndFolderListeners = function() {
                 }
             }
         } 
-        // Copy (Ctrl+C)
+        // Copy (Ctrl+C) — skip when video player is open to avoid file manager side effects
         else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+            const playerOpen = el('video-modal') && el('video-modal').style.display === 'flex';
+            if (playerOpen) return; // Let browser handle native text copy inside player
             if (window.selectedIndices && window.selectedIndices.size > 0) {
                 e.preventDefault();
                 window._clipboard = { paths: [], mode: 'copy' };
@@ -394,42 +336,29 @@ window.initKeybindingsAndFolderListeners = function() {
                     if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
                         (async () => {
                             let successCount = 0;
-                            if (isVirtual) {
-                                const targetFolder = window.getTargetFolder(window.currentNavPath);
-                                if (targetFolder) {
-                                    const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-                                    const folderFiles = window.appSettings.folderContents[folderPath] || [];
-                                    for (const item of itemsToDelete) {
-                                        if (item.type === 'fakeFolder') {
-                                            window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
-                                            successCount++;
-                                        } else {
-                                            const idx = folderFiles.indexOf(item.path);
-                                            if (idx > -1) folderFiles.splice(idx, 1);
-                                            successCount++;
-                                        }
-                                    }
-                                }
-                            } else {
-                                for (const item of itemsToDelete) {
-                                    if (item.type === 'fakeFolder') {
-                                        window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
+                            const folderItems = itemsToDelete.filter(i => i.type === 'fakeFolder');
+                            const fileItems = itemsToDelete.filter(i => i.type !== 'fakeFolder');
+
+                            // Folders: vf.remove cascades to descendants + their items.
+                            for (const it of folderItems) {
+                                if (window.vf.remove(it.id)) successCount++;
+                            }
+
+                            if (isVirtual && window.currentFolderId && fileItems.length) {
+                                successCount += window.vf.removeItems(window.currentFolderId, fileItems.map(i => i.path).filter(Boolean));
+                            } else if (!isVirtual) {
+                                for (const it of fileItems) {
+                                    const res = await window.electronAPI.deleteItem(it.path);
+                                    if (res.success) {
+                                        window.allItems = window.allItems.filter(i => i.path !== it.path);
                                         successCount++;
-                                    } else {
-                                        const res = await window.electronAPI.deleteItem(item.path);
-                                        if (res.success) {
-                                            window.allItems = window.allItems.filter(i => i.path !== item.path);
-                                            successCount++;
-                                        }
                                     }
                                 }
                             }
+
                             if (successCount > 0) {
                                 window.showToast(isVirtual ? `Removed ${successCount} item(s)` : `Deleted ${successCount} item(s)`, 'success');
-                                window.electronAPI.saveSettings(window.appSettings);
-                                if (!isVirtual && typeof window.invalidateRootCache === 'function') {
-                                    window.invalidateRootCache();
-                                }
+                                if (!isVirtual && typeof window.invalidateRootCache === 'function') window.invalidateRootCache();
                                 window.applyFilters();
                             }
                         })();

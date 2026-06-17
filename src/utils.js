@@ -7,13 +7,13 @@ function getSystemMemoryInfo() {
     if (process.platform !== 'win32') {
         return { total: 0, free: 0, usedPercent: 0 };
     }
-    
+
     try {
         // Use Windows WMI to get memory info
         const result = child_process.execSync('wmic OS get FreePhysicalMemory,TotalVisibleMemorySize /Value', { encoding: 'utf8' });
         const lines = result.trim().split('\n');
         let freeMem = 0, totalMem = 0;
-        
+
         lines.forEach(line => {
             if (line.includes('FreePhysicalMemory')) {
                 const match = line.match(/(\d+)/);
@@ -24,7 +24,7 @@ function getSystemMemoryInfo() {
                 if (match) totalMem = parseInt(match[1]);
             }
         });
-        
+
         if (totalMem > 0) {
             const used = totalMem - freeMem;
             const usedPercent = Math.round((used / totalMem) * 100);
@@ -33,7 +33,7 @@ function getSystemMemoryInfo() {
     } catch (e) {
         console.warn('[memory] Could not get Windows memory info:', e.message);
     }
-    
+
     // Fallback: use Node.js os module (less accurate but works)
     const total = os.totalmem();
     const free = os.freemem();
@@ -44,7 +44,7 @@ function getSystemMemoryInfo() {
 
 const activeSubprocesses = new Set();
 const originalSpawn = child_process.spawn;
-child_process.spawn = function() {
+child_process.spawn = function () {
     const proc = originalSpawn.apply(this, arguments);
     activeSubprocesses.add(proc);
     const clean = () => { activeSubprocesses.delete(proc); };
@@ -55,7 +55,7 @@ child_process.spawn = function() {
 };
 
 const originalExecFile = child_process.execFile;
-child_process.execFile = function() {
+child_process.execFile = function () {
     const proc = originalExecFile.apply(this, arguments);
     activeSubprocesses.add(proc);
     const clean = () => { activeSubprocesses.delete(proc); };
@@ -65,33 +65,38 @@ child_process.execFile = function() {
     return proc;
 };
 
+// On Windows proc.kill('SIGKILL') only signals the immediate child — any
+// grandchild process (ffmpeg's helpers, Python's spawned workers) is left
+// orphaned and shows up as "Vault Explorer is still running" zombies.
+// taskkill /T /F walks the process tree and terminates every descendant.
+function _killTree(proc) {
+    if (!proc || !proc.pid || proc.killed) return;
+    try {
+        if (process.platform === 'win32') {
+            originalSpawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { windowsHide: true });
+        } else {
+            try { process.kill(-proc.pid, 'SIGKILL'); } catch (_) { proc.kill('SIGKILL'); }
+        }
+    } catch (e) {
+        try { proc.kill('SIGKILL'); } catch (_) { }
+    }
+}
+
 function killAllActiveSubprocesses() {
-    console.log(`[main:cleanup] Killing ${activeSubprocesses.size} active subprocesses and ${activeFfmpegProcesses.size} FFmpeg processes...`);
-    
-    // Kill all tracked subprocesses
-    for (const proc of activeSubprocesses) {
-        try { proc.kill('SIGKILL'); } catch (e) {}
-    }
+    console.log(`[main:cleanup] Killing ${activeSubprocesses.size} subprocess trees and ${activeFfmpegProcesses.size} FFmpeg trees...`);
+    for (const proc of activeSubprocesses) _killTree(proc);
     activeSubprocesses.clear();
-    
-    // Kill all tracked FFmpeg processes
-    for (const proc of activeFfmpegProcesses) {
-        try { proc.kill('SIGKILL'); } catch (e) {}
-    }
+    for (const proc of activeFfmpegProcesses) _killTree(proc);
     activeFfmpegProcesses.clear();
     activeFfmpegCount = 0;
-    ffmpegWaitQueue.length = 0; // Clear wait queue
+    ffmpegWaitQueue.length = 0;
 }
 
 function killAllFfmpegProcesses() {
-    console.log(`[main:ffmpeg] Force killing ${activeFfmpegProcesses.size} active FFmpeg processes...`);
+    console.log(`[main:ffmpeg] Force killing ${activeFfmpegProcesses.size} FFmpeg process trees...`);
     for (const proc of activeFfmpegProcesses) {
-        try { 
-            proc.kill('SIGKILL'); 
-            console.log(`[main:ffmpeg] Killed FFmpeg process PID: ${proc.pid}`);
-        } catch (e) {
-            console.error(`[main:ffmpeg] Failed to kill FFmpeg process: ${e.message}`);
-        }
+        _killTree(proc);
+        console.log(`[main:ffmpeg] Killed FFmpeg tree PID: ${proc.pid}`);
     }
     activeFfmpegProcesses.clear();
     activeFfmpegCount = 0;
@@ -100,7 +105,6 @@ function killAllFfmpegProcesses() {
 
 // Windows priority constants
 const PRIORITY_BELOW_NORMAL = process.platform === 'win32' ? 16 : 0;
-const PRIORITY_normal = process.platform === 'win32' ? 32 : 0;
 
 // Track all FFmpeg processes for cleanup
 const activeFfmpegProcesses = new Set();
@@ -119,17 +123,17 @@ function runLowPriorityProcess(command, args) {
             if (memInfo.usedPercent > 80) {
                 const errMsg = `Aborting FFmpeg process: System memory usage at ${memInfo.usedPercent}% (threshold: 80%)`;
                 console.warn('[ffmpeg] ' + errMsg);
-                
+
                 // Kill all existing FFmpeg processes to free up memory
                 killAllFfmpegProcesses();
-                
+
                 reject(new Error(errMsg));
                 return;
             }
-            
+
             // TODO: Future enhancement - use GPU acceleration (NVENC/QSV/AMF) when available
             // This would require detecting GPU hardware and modifying ffmpeg command arguments
-            
+
             if (activeFfmpegCount >= MAX_FFMPEG_THREADS) {
                 // Add to wait queue
                 ffmpegWaitQueue.push({ command, args, resolve, reject });
@@ -137,14 +141,14 @@ function runLowPriorityProcess(command, args) {
             }
             activeFfmpegCount++;
         }
-        
+
         const child = spawn(command, args, { windowsHide: true });
-        
+
         // Track FFmpeg processes
         if (command.toLowerCase().includes('ffmpeg') || command.toLowerCase().includes('ffprobe')) {
             activeFfmpegProcesses.add(child);
         }
-        
+
         // Set priority to BELOW NORMAL
         try {
             if (process.platform === 'win32') {
@@ -157,10 +161,10 @@ function runLowPriorityProcess(command, args) {
         } catch (e) {
             console.log("Failed to set process priority:", e.message);
         }
-        
+
         let stderr = '';
         child.stderr.on('data', (data) => { stderr += data.toString(); });
-        
+
         const cleanup = () => {
             if (command.toLowerCase().includes('ffmpeg') || command.toLowerCase().includes('ffprobe')) {
                 activeFfmpegProcesses.delete(child);
@@ -172,29 +176,29 @@ function runLowPriorityProcess(command, args) {
                 }
             }
         };
-        
+
         child.on('close', (code) => {
             cleanup();
             if (code === 0) resolve();
             else reject(new Error(`Command ${command} failed with exit code ${code}. Stderr: ${stderr}`));
         });
-        child.on('exit', (code) => {
+        child.on('exit', () => {
             cleanup();
         });
         child.on('error', (err) => {
             cleanup();
             reject(err);
         });
-        
+
         // Add timeout to prevent hanging processes (30 minutes max)
         const timeout = setTimeout(() => {
             cleanup();
             reject(new Error(`Command ${command} timed out after 30 minutes`));
             try {
                 child.kill('SIGKILL');
-            } catch (e) {}
+            } catch (e) { }
         }, 30 * 60 * 1000);
-        
+
         // Clear timeout on successful completion
         const clearTimeoutOnSuccess = () => clearTimeout(timeout);
         child.on('close', clearTimeoutOnSuccess);
@@ -217,7 +221,7 @@ function getVideoDuration(videoPath) {
 
 function checkAudioStream(videoPath) {
     return new Promise((resolve) => {
-        execFile('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (err, stdout) => {
+        execFile('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (_err, stdout) => {
             resolve(!!stdout.trim());
         });
     });
@@ -257,16 +261,16 @@ class PriorityQueue {
 function getRobustPythonExe() {
     const fs = require('fs');
     const path = require('path');
-    
+
     let pythonExe = 'python';
     const searchBases = [];
-    
-    // 1. vaultwares-media-processing venv first (has PyTorch + NeMo + Parakeet)
-    searchBases.push('C:\\Users\\Administrator\\Desktop\\Github Repos\\vaultwares-media-processing\\.venv');
-    
+
+    // 1. vault-explorer venv first (has PyTorch + NeMo + Parakeet)
+    searchBases.push('C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer\\.venv');
+
     // 2. Relative paths based on sibling structures
     let baseDir = __dirname;
-    searchBases.push(path.join(baseDir, '..', '..', 'vaultwares-media-processing', '.venv'));
+    searchBases.push(path.join(baseDir, '..', '..', 'vault-explorer', '.venv'));
 
     // 3. Fallback to local venvs
     searchBases.push('C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer\\.venv');
@@ -274,10 +278,10 @@ function getRobustPythonExe() {
     searchBases.push(path.join(baseDir, '..', '.venv'));
     searchBases.push(path.join(baseDir, '..', 'venv'));
     searchBases.push(path.join(baseDir, '..', '..', '.venv'));
-    
+
     if (baseDir.includes('app.asar')) {
         const cleanBase = baseDir.substring(0, baseDir.indexOf('app.asar'));
-        searchBases.push(path.join(cleanBase, '..', 'vaultwares-media-processing', '.venv'));
+        searchBases.push(path.join(cleanBase, '..', 'vault-explorer', '.venv'));
         searchBases.push(path.join(cleanBase, '.venv'));
         searchBases.push(path.join(cleanBase, 'venv'));
         searchBases.push(path.join(cleanBase, '..', '.venv'));
@@ -285,7 +289,7 @@ function getRobustPythonExe() {
         searchBases.push(path.join(cleanBase, '..', '..', '.venv'));
         searchBases.push(path.join(cleanBase, '..', '..', 'venv'));
     }
-    
+
     // 4. Search and return the first match
     for (const vPath of searchBases) {
         if (process.platform === 'win32') {
@@ -300,33 +304,42 @@ function getRobustPythonExe() {
             }
         }
     }
-    
+
     return pythonExe;
 }
 
 function getFFmpegPath() {
     const fs = require('fs');
     const path = require('path');
-    
+    const os = require('os');
+
+    const homeDir = os.homedir();
     const searchPaths = [
-        'ffmpeg',
+        // WinGet shims (common on modern Windows installs)
+        path.join(homeDir, 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'ffmpeg.exe'),
+        // Standard install locations
         'C:\\ffmpeg\\bin\\ffmpeg.exe',
         'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
         'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe',
         path.join(process.env['ProgramW6432'] || 'C:\\Program Files', 'ffmpeg', 'bin', 'ffmpeg.exe'),
         path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'ffmpeg', 'bin', 'ffmpeg.exe'),
+        // Scoop / Chocolatey common paths
+        path.join(homeDir, 'scoop', 'shims', 'ffmpeg.exe'),
+        path.join('C:\\ProgramData', 'chocolatey', 'bin', 'ffmpeg.exe'),
+        // Portable / local project paths
         path.join(process.cwd(), 'ffmpeg.exe'),
         path.join(process.cwd(), 'bin', 'ffmpeg.exe'),
         path.join(__dirname, '..', 'ffmpeg.exe'),
         path.join(__dirname, '..', 'bin', 'ffmpeg.exe'),
     ];
-    
+
     for (const p of searchPaths) {
         if (fs.existsSync(p)) {
             return p;
         }
     }
-    
+
+    // Fallback: rely on PATH resolution (execFile will find it)
     return 'ffmpeg';
 }
 

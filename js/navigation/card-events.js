@@ -79,82 +79,40 @@ async function handleCardContextMenu(card, item, index) {
 
     const hasClip = !!(window._clipboard && window._clipboard.paths.length > 0);
     const isStarred = !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.includes(item.path));
+    // Project vf folders into the {name, parent, type} shape the native menu
+    // expects, but tag each with an id so the action handler resolves by id (not name).
+    const folderMenuList = (window.vf ? window.vf.list({}) : []).map(f => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        parent: f.parentId ? window.buildNavPath(f.parentId) : 'root',
+        label: f.parentId
+            ? `${window.buildNavPath(f.parentId).replace(/^root\/?/, '')}/${f.name} (${f.type})`
+            : `${f.name} (${f.type})`,
+    }));
     const action = await window.electronAPI.showContextMenu({
         ...item,
         _hasClipboard: hasClip,
         isFavorite: isStarred,
         isMultiSelect: isMulti,
         selectedItems: selectedItems,
-        folders: window.appSettings.folders || []
+        folders: folderMenuList
     });
     console.log('[ctx-menu] action:', action, 'item:', item.name);
 
     if (action && action.startsWith('add-to-folder:')) {
-        const folderName = action.substring('add-to-folder:'.length);
-        
-        // Determine expected folder type based on the first selected item
-        let expectedType = 'collection';
-        const firstItem = selectedItems[0];
-        if (firstItem) {
-            if (firstItem.type === 'video' || firstItem.type === 'encrypted') expectedType = 'collection';
-            else if (firstItem.type === 'image') expectedType = 'album';
-            else if (firstItem.type === 'audio') expectedType = 'playlist';
-        }
-        
-        // Find folder by name, but prefer folders in the current navigation path
-        let targetFolder = null;
-        
-        // First, try to find folder in current nav path with correct type
-        if (window.currentNavPath && window.currentNavPath !== 'root') {
-            targetFolder = window.appSettings.folders.find(f => 
-                f.name === folderName && f.parent === window.currentNavPath && (f.type || 'collection') === expectedType
-            );
-        }
-        
-        // If not found, try root level with correct type
-        if (!targetFolder) {
-            targetFolder = window.appSettings.folders.find(f => 
-                f.name === folderName && (f.parent === 'root' || !f.parent || f.parent === '') && (f.type || 'collection') === expectedType
-            );
-        }
-        
-        // If still not found, try any folder with matching name and correct type
-        if (!targetFolder) {
-            targetFolder = window.appSettings.folders.find(f => f.name === folderName && (f.type || 'collection') === expectedType);
-        }
-        
-        // If still not found, try any folder with matching name (fallback)
-        if (!targetFolder) {
-            targetFolder = window.appSettings.folders.find(f => f.name === folderName);
-        }
-        
-        if (targetFolder) {
-            // Build the folder path for folderContents
-            const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-            
-            // Initialize folderContents entry if it doesn't exist
-            if (!window.appSettings.folderContents) {
-                window.appSettings.folderContents = {};
-            }
-            if (!window.appSettings.folderContents[folderPath]) {
-                window.appSettings.folderContents[folderPath] = [];
-            }
-            
-            const folderFiles = window.appSettings.folderContents[folderPath];
-            let added = 0;
-            selectedItems.forEach(si => {
-                if (si && si.path && !folderFiles.includes(si.path)) {
-                    folderFiles.push(si.path);
-                    added++;
-                }
-            });
-            if (added > 0) {
-                window.electronAPI.saveSettings(window.appSettings);
-                window.showToast(`Added ${added} item(s) to folder "${folderName}"`, 'success');
-                window.applyFilters();
-            } else {
-                window.showToast('Selected item(s) already in this folder', 'info');
-            }
+        const folderId = action.substring('add-to-folder:'.length);
+        const folder = window.vf.get(folderId);
+        if (!folder) { window.showToast('Folder not found', 'error'); return; }
+        const res = window.vf.addItems(folderId, selectedItems);
+        if (res.added > 0) {
+            window.showToast(`Added ${res.added} item(s) to "${folder.name}"`, 'success');
+            window.applyFilters();
+        } else if (res.rejected > 0) {
+            const want = folder.type === 'album' ? 'images' : folder.type === 'playlist' ? 'audio files' : 'videos';
+            window.showToast(`"${folder.name}" only accepts ${want}`, 'error');
+        } else {
+            window.showToast('Selected item(s) already in this folder', 'info');
         }
         return;
     }
@@ -461,39 +419,22 @@ async function handleCardContextMenu(card, item, index) {
     } else if (action === 'encrypt-prompt' || action === 'decrypt-prompt') {
         window.triggerCryptoPrompt(action);
     } else if (action === 'open-folder') {
-        window.navigateTo(window.currentNavPath + '/' + item.name, window.currentRealPath);
+        window.navigateTo(item.id, window.currentRealPath);
     } else if (action === 'paste-into-folder') {
-        if (!window._clipboard || window._clipboard.paths.length === 0) {
-            window.showToast('Nothing to paste', 'error');
-            return;
-        }
-        const targetFolder = window.getTargetFolder(window.currentNavPath + '/' + item.name);
-        if (!targetFolder) {
-            window.showToast('Virtual folder not found', 'error');
-            return;
-        }
-        const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-        if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
-        if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
-        const folderFiles = window.appSettings.folderContents[folderPath];
-        let added = 0;
-        window._clipboard.paths.forEach(p => {
-            if (!folderFiles.includes(p)) {
-                folderFiles.push(p);
-                added++;
-            }
-        });
-        window.showToast(`Pasted ${added} file(s) into virtual folder "${item.name}"`, 'success');
-        if (window._clipboard.mode === 'cut') {
-            window._clipboard = { paths: [], mode: 'copy' };
-        }
-        window.electronAPI.saveSettings(window.appSettings);
+        if (!window._clipboard || window._clipboard.paths.length === 0) { window.showToast('Nothing to paste', 'error'); return; }
+        if (!item.id) { window.showToast('Virtual folder not found', 'error'); return; }
+        const res = window.vf.addItems(item.id, window._clipboard.paths);
+        if (res.added) window.showToast(`Pasted ${res.added} file(s) into "${item.name}"`, 'success');
+        else if (res.rejected) {
+            const want = item.folderType === 'album' ? 'images' : item.folderType === 'playlist' ? 'audio files' : 'videos';
+            window.showToast(`"${item.name}" only accepts ${want}`, 'error');
+        } else window.showToast('Already in this folder', 'info');
+        if (window._clipboard.mode === 'cut') window._clipboard = { paths: [], mode: 'copy' };
         window.applyFilters();
     } else if (action === 'remove-folder') {
         if (await window.showConfirmDialog(`Remove folder "${item.name}"?`, 'Confirm Folder Removal')) {
-            window.appSettings.folders = window.appSettings.folders.filter(f => !(f.name === item.name && (f.parent === window.currentNavPath || (window.currentNavPath === 'root' && !f.parent))));
-            window.electronAPI.saveSettings(window.appSettings);
-            window.showToast('Folder removed', 'success');
+            const n = window.vf.remove(item.id);
+            window.showToast(n > 1 ? `Removed folder and ${n - 1} sub-folder(s)` : 'Folder removed', 'success');
             window.applyFilters();
         }
     } else if (action === 'delete-item') {
@@ -514,18 +455,11 @@ async function handleCardContextMenu(card, item, index) {
                 
         if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
             if (isVirtual) {
-                const targetFolder = window.getTargetFolder(window.currentNavPath);
-                if (targetFolder) {
-                    const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-                    const folderFiles = window.appSettings.folderContents[folderPath] || [];
-                    targetItems.forEach(targetItem => {
-                        // Remove from folderContents only, NOT from window.allItems
-                        const idx = folderFiles.indexOf(targetItem.path);
-                        if (idx > -1) folderFiles.splice(idx, 1);
-                    });
-                    window.electronAPI.saveSettings(window.appSettings);
-                    window.showToast(targetItems.length > 1 
-                        ? (window.currentLang === 'fr' ? `${targetItems.length} éléments retirés` : `${targetItems.length} items removed`)
+                const fid = window.currentFolderId;
+                if (fid) {
+                    const removed = window.vf.removeItems(fid, targetItems.map(i => i.path).filter(Boolean));
+                    window.showToast(removed > 1
+                        ? (window.currentLang === 'fr' ? `${removed} éléments retirés` : `${removed} items removed`)
                         : (window.currentLang === 'fr' ? `Retiré: ${item.name}` : `Removed: ${item.name}`), 'success');
                     window.applyFilters();
                 }
@@ -578,25 +512,12 @@ async function handleCardContextMenu(card, item, index) {
             const res = await window.electronAPI.pasteFiles({ paths: window._clipboard.paths, mode: window._clipboard.mode, destination: window.currentRealPath });
             if (res.success) {
                 window.showToast(`Pasted ${res.count} file(s)`, 'success');
-                if (window.currentNavPath !== 'root') {
-                    const targetFolder = window.getTargetFolder(window.currentNavPath);
-                    if (targetFolder && Array.isArray(res.pastedPaths)) {
-                        const folderPath = targetFolder.parent === 'root' || !targetFolder.parent ? `root/${targetFolder.name}` : `${targetFolder.parent}/${targetFolder.name}`;
-                        if (!window.appSettings.folderContents) window.appSettings.folderContents = {};
-                        if (!window.appSettings.folderContents[folderPath]) window.appSettings.folderContents[folderPath] = [];
-                        const folderFiles = window.appSettings.folderContents[folderPath];
-                        res.pastedPaths.forEach(p => {
-                            if (!folderFiles.includes(p)) folderFiles.push(p);
-                        });
-                        window.electronAPI.saveSettings(window.appSettings);
-                    }
+                if (window.currentFolderId && Array.isArray(res.pastedPaths)) {
+                    window.vf.addItems(window.currentFolderId, res.pastedPaths);
                 }
                 if (window._clipboard.mode === 'cut') window._clipboard = { paths: [], mode: 'copy' };
-                if (window.currentNavPath !== 'root') {
-                    window.navigateTo(window.currentNavPath, window.currentRealPath);
-                } else {
-                    window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
-                }
+                if (window.currentFolderId) window.navigateTo(window.currentFolderId, window.currentRealPath);
+                else window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
             } else {
                 window.showToast('Paste failed: ' + res.error, 'error');
             }
@@ -626,9 +547,6 @@ async function handleCardContextMenu(card, item, index) {
         window.showToast('Opened in Windows Explorer', 'success');
     } else if (action === 'copied') {
         window.showToast('Path copied to clipboard', 'success');
-    } else if (action === 'open-folder') {
-        window.navigateTo(window.currentNavPath + '/' + item.name, window.currentRealPath);
-        window.showToast(`Opened: ${item.name}`, 'success');
     }
 }
 

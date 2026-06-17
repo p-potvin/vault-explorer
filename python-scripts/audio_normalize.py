@@ -9,11 +9,11 @@ import math
 import json
 import argparse
 
-# Ensure parent and media processing repo paths are in sys.path
+# Ensure parent and vault-explorer repo paths are in sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(script_dir, ".."))
-media_processing_root = os.path.abspath(os.path.join(project_root, "..", "vaultwares-media-processing"))
-sys.path.insert(0, media_processing_root)
+vault_explorer_root = os.path.abspath(os.path.join(project_root, "..", "vault-explorer"))
+sys.path.insert(0, vault_explorer_root)
 
 # Pre-import datasets to resolve the Windows MKL/OpenMP PyTorch/PyArrow import conflict causing silent exit code 1
 try:
@@ -39,7 +39,7 @@ except Exception:
 
 # Import/Warm-load Parakeet as requested (off by default, but imported and available)
 try:
-    from vaultwares_media_processing.parakeet_wrapper import ParakeetV3Wrapper
+    from vault_explorer.parakeet_wrapper import ParakeetV3Wrapper
     print("ASR Engine: Parakeet V3 imported successfully.")
 except Exception as e:
     print(f"Parakeet import note: {e}")
@@ -278,7 +278,7 @@ def main():
         # Step 1: Vocal Separation using Demucs
         report_progress(5, "Initializing vocal isolation (Demucs)...")
         
-        venv_python = os.path.join(media_processing_root, ".venv", "Scripts", "python.exe")
+        venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
         if not os.path.exists(venv_python):
             venv_python = sys.executable
             
@@ -388,7 +388,7 @@ def main():
             
             # Simple subtitle generation
             try:
-                from vaultwares_media_processing import utils
+                from vault_explorer import utils
                 class DummySeg:
                     def __init__(self, idx, start, end, text):
                         self.id = idx

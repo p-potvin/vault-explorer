@@ -46,7 +46,6 @@ window.translationsQc = {
   tabLivestream: "Diffuser en Direct",
   moviesSeriesBrowser: "Navigateur de films et séries",
   streamHeading: "Paramètres de diffusion",
-  streamAutoSelect: "Diffusion auto-sélectionnée :",
   streamQuality: "Qualité maximale de diffusion :",
   streamLang: "Langue de diffusion préférée :",
   downloadingSubtitles: "Téléchargement des sous-titres...",

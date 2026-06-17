@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vault Explorer</title>
+  <!-- v1.1.1 -->
   <link href="themes.css" rel="stylesheet">
   <link href="index.css" rel="stylesheet">
   <script src="themes.js" defer></script>
@@ -13,7 +14,12 @@
   <script src="js/translations.js" defer></script>
   <script src="js/utils.js" defer></script>
   <script src="js/icons.js" defer></script>
-  <script src="js/settings.js" defer></script>
+  <script src="js/settings/theme.js" defer></script>
+  <script src="js/settings/pill-tags.js" defer></script>
+  <script src="js/settings/benchmark.js" defer></script>
+  <script src="js/settings/debrid-downloader.js" defer></script>
+  <script src="js/settings/core.js" defer></script>
+  <script src="js/navigation/virtual-folders.js" defer></script>
   <script src="js/navigation/filters.js" defer></script>
   <script src="js/navigation/properties.js" defer></script>
   <script src="js/navigation/card-events.js" defer></script>
@@ -24,7 +30,11 @@
   <script src="js/player/clip.js" defer></script>
   <script src="js/player/player.js" defer></script>
   <script src="js/progress.js" defer></script>
-  <script src="js/streaming.js" defer></script>
+  <script src="js/streaming/ranking.js" defer></script>
+  <script src="js/streaming/badges.js" defer></script>
+  <script src="js/streaming/trailer.js" defer></script>
+  <script src="js/streaming/details-modal.js" defer></script>
+  <script src="js/streaming/rd-flow.js" defer></script>
   <script src="js/hover-card.js" defer></script>
   <script src="js/favorites.js" defer></script>
   <script src="js/tmdb.js" defer></script>
@@ -261,30 +271,25 @@
       </div>
 
       <!-- Persistent TMDB Browser Tab Container -->
-      <div id="tmdb-container" style="display:none; padding: 24px; color: var(--vault-text); font-family: var(--font-sans); width: 100%; height: 100%; overflow-y: auto;">
-         <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--vault-warm-border-subtle); padding-bottom: 15px;">
-            <h2 id="streaming-title-header" style="font-size: 16px; font-weight: 700; text-transform: uppercase; color: var(--vault-accent); margin: 0; font-family: var(--font-mono); letter-spacing: 0.05em; display:flex; align-items:center; gap:8px;">
-               <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; display:inline-block; vertical-align:middle; color:var(--vault-accent);"><polygon points="5 3 19 12 5 21 5 3"/></svg>Streaming
-            </h2>
-            <div style="margin-left: auto; display: flex; gap: 8px;">
-               <input type="text" id="tmdb-search-input" class="search-box" placeholder="Search Movies & TV Shows..." style="width: 280px; padding: 6px 12px; height: 32px; font-size: 13px; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); outline:none; border-radius:4px;" />
-               <button id="tmdb-search-btn" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 0 16px; border-radius: 4px; font-weight: 600; cursor: pointer; height: 32px; font-size:12px;">Search</button>
+      <div id="tmdb-container" style="display:none; color: var(--vault-text); font-family: var(--font-sans); width:100%; height:100%; overflow-y:auto;">
+         <!-- Single-row compact toolbar: type · providers · search -->
+         <div id="streaming-toolbar" style="display:flex; gap:8px; align-items:center; padding:6px 12px; border-bottom:1px solid var(--vault-warm-border-subtle); flex-wrap:nowrap; min-height:42px; background: rgba(0,0,0,0.12);">
+            <button id="subtab-movies" class="top-tab active" style="background:var(--vault-accent); color:var(--vt-primary); font-family:var(--font-body); font-size:9.5px; font-weight:700; text-transform:uppercase; border:none; padding:4.5px 11px; border-radius:4px; cursor:pointer; letter-spacing:0.05em; transition:all 0.2s; flex-shrink:0;">Movies</button>
+            <button id="subtab-series" class="top-tab" style="background:transparent; color:var(--vault-text); font-family:var(--font-body); font-size:9.5px; font-weight:700; text-transform:uppercase; border:1px solid var(--vault-border); padding:4.5px 11px; border-radius:4px; cursor:pointer; opacity:0.8; letter-spacing:0.05em; transition:all 0.2s; flex-shrink:0;">Series</button>
+            <span style="width:1px; height:22px; background:var(--vault-warm-border-subtle); margin:0 4px; flex-shrink:0;"></span>
+            <div id="streaming-providers" style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap; overflow:hidden;">
+               <button class="provider-btn active" data-provider="all" style="background:var(--vault-accent); color:var(--vt-primary); border:none; padding:4px 9px; border-radius:4px; font-weight:700; cursor:pointer; font-size:10px; text-transform:uppercase; font-family:var(--font-mono); transition:all 0.2s; flex-shrink:0;">All</button>
+               <button class="provider-btn" data-provider="8" style="background:transparent; color:#E50914; border:1px solid rgba(229,9,20,0.4); padding:4px 9px; border-radius:4px; font-weight:700; cursor:pointer; font-size:10px; text-transform:uppercase; font-family:var(--font-mono); transition:all 0.2s; flex-shrink:0;">Netflix</button>
+               <button class="provider-btn" data-provider="337" style="background:transparent; color:#0063e5; border:1px solid rgba(0,99,229,0.4); padding:4px 9px; border-radius:4px; font-weight:700; cursor:pointer; font-size:10px; text-transform:uppercase; font-family:var(--font-mono); transition:all 0.2s; flex-shrink:0;">Disney+</button>
+               <button class="provider-btn" data-provider="350" style="background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.3); padding:4px 9px; border-radius:4px; font-weight:700; cursor:pointer; font-size:10px; text-transform:uppercase; font-family:var(--font-mono); transition:all 0.2s; flex-shrink:0;">Apple TV+</button>
+               <button class="provider-btn" data-provider="9" style="background:transparent; color:#00A8E1; border:1px solid rgba(0,168,225,0.4); padding:4px 9px; border-radius:4px; font-weight:700; cursor:pointer; font-size:10px; text-transform:uppercase; font-family:var(--font-mono); transition:all 0.2s; flex-shrink:0;">Prime</button>
+            </div>
+            <div style="margin-left:auto; display:flex; gap:6px; flex-shrink:0;">
+               <input type="text" id="tmdb-search-input" class="search-box" placeholder="Search Movies & TV…" style="width:240px; padding:4px 10px; height:28px; font-size:12px; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); outline:none; border-radius:4px;" />
+               <button id="tmdb-search-btn" style="background:var(--vault-accent); color:var(--vt-primary); border:none; padding:0 14px; border-radius:4px; font-weight:600; cursor:pointer; height:28px; font-size:11px;">Search</button>
             </div>
          </div>
-         <div id="streaming-subtabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--vault-warm-border-subtle); padding-bottom: 10px;">
-            <button id="subtab-movies" class="top-tab active" style="background: var(--vault-accent); color: var(--vt-primary); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: none; padding: 4.5px 12px; border-radius: 4px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s;">Movies</button>
-            <button id="subtab-series" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-body); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 12px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s;">Series</button>
-         </div>
-         <!-- Watch Provider Selector -->
-         <div id="streaming-providers" style="display: flex; gap: 12px; margin-bottom: 24px; align-items: center; background: rgba(255,255,255,0.02); padding: 10px; border-radius: 8px; border: 1px solid var(--vault-border); flex-wrap: wrap; font-family: var(--font-sans);">
-            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--vault-slate); font-family: var(--font-mono); letter-spacing: 0.05em;">Watch Providers:</span>
-            <button class="provider-btn active" data-provider="all" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 5px 10px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 10px; text-transform: uppercase; font-family: var(--font-mono); transition: all 0.2s;">All / Tout</button>
-            <button class="provider-btn" data-provider="8" style="background: transparent; color: #E50914; border: 1px solid rgba(229,9,20,0.4); padding: 5px 10px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 10px; text-transform: uppercase; font-family: var(--font-mono); transition: all 0.2s;">Netflix</button>
-            <button class="provider-btn" data-provider="337" style="background: transparent; color: #0063e5; border: 1px solid rgba(0,99,229,0.4); padding: 5px 10px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 10px; text-transform: uppercase; font-family: var(--font-mono); transition: all 0.2s;">Disney+</button>
-            <button class="provider-btn" data-provider="350" style="background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 5px 10px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 10px; text-transform: uppercase; font-family: var(--font-mono); transition: all 0.2s;">Apple TV+</button>
-            <button class="provider-btn" data-provider="9" style="background: transparent; color: #00A8E1; border: 1px solid rgba(0,168,225,0.4); padding: 5px 10px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 10px; text-transform: uppercase; font-family: var(--font-mono); transition: all 0.2s;">Prime Video</button>
-         </div>
-         <div id="tmdb-results-grid" class="file-grid tmdb-grid">
+         <div id="tmdb-results-grid" class="file-grid tmdb-grid" style="padding:16px; flex:1 1 auto;">
             <!-- Trending movies displayed here -->
          </div>
          <!-- Load More Button Container -->
@@ -466,7 +471,7 @@
   </div>
 
   <!-- Settings Panel Console Modal -->
-  <div id="settings-panel" class="vw-console-shell" role="dialog" aria-modal="true" aria-label="Settings Panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:24px; border:1px solid var(--vault-border); background: var(--vault-warm-bg, #1a1a24); color: var(--vault-text); z-index: 3400; box-shadow: 0 30px 100px rgba(0,0,0,0.85); font-family: var(--font-sans); width: 440px; border-radius: 8px; max-height: 85vh; flex-direction: column; overflow-y: auto;">
+  <div id="settings-panel" class="vw-console-shell" role="dialog" aria-modal="true" aria-label="Settings Panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:24px; border:1px solid var(--vault-border); background: var(--vault-warm-bg, #1a1a24); color: var(--vault-text); z-index: 2147483647; box-shadow: 0 30px 100px rgba(0,0,0,0.85); font-family: var(--font-sans); width: 440px; border-radius: 8px; max-height: 85vh; flex-direction: column; overflow-y: auto;">
     <div style="font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; color: var(--vault-accent); margin-bottom: 16px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vault-border); padding-bottom: 10px; user-select: none;">
       <div style="display: flex; align-items: center; gap: 8px;">
          ⚙️ <span class="settings-panel-header">Settings / Paramètres</span>
@@ -539,6 +544,16 @@
         <input type="checkbox" id="settings-minimize-to-tray" style="accent-color: var(--vault-accent); width: 16px; height: 16px; cursor: pointer;" />
       </div>
 
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;" title="Show all toasts and console logs. When off, only errors and essential notifications appear.">
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Dev Mode (verbose toasts/logs):</span>
+        <input type="checkbox" id="settings-dev-mode" style="accent-color: var(--vault-accent); width: 16px; height: 16px; cursor: pointer;" />
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;" title="Add Spanish to the default OpenSubtitles search.">
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Include Spanish Subtitles:</span>
+        <input type="checkbox" id="settings-subs-include-es" style="accent-color: var(--vault-accent); width: 16px; height: 16px; cursor: pointer;" />
+      </div>
+
       <div>
         <label for="settings-opensubtitles-key" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">OpenSubtitles API Key:</label>
         <input type="password" id="settings-opensubtitles-key" class="search-box" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6.5px 8px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px;" placeholder="Paste OpenSubtitles API Key here..." />
@@ -556,11 +571,6 @@
       <div style="border-top: 1px solid var(--vault-warm-border-subtle); margin-top: 8px; padding-top: 8px; display: flex; flex-direction: column; gap: 8px;">
         <span id="label-stream-heading" style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--vault-accent); display: block; margin-bottom: 2px; letter-spacing: 0.05em;">Streaming Settings / Flux</span>
         
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <span id="label-stream-auto-select" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Auto-Select Best Stream:</span>
-          <input type="checkbox" id="settings-stream-auto-select" style="accent-color: var(--vault-accent); width: 16px; height: 16px; cursor: pointer;" />
-        </div>
-
         <div>
           <label for="settings-stream-quality" id="label-stream-quality" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Max Stream Quality:</label>
           <select id="settings-stream-quality" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
@@ -1078,21 +1088,33 @@
                     </svg>
                  </button>
                  
-                 <div class="speed-dropdown-container" style="position:relative; display:inline-block; -webkit-app-region: no-drag;">
-                    <button id="btn-speed" class="ctrl-btn-sm" title="Playback speed" aria-label="Playback speed" style="display:inline-flex; align-items:center; justify-content:center;">
+                 <!-- Playback speed picker — kept in DOM for code compat, hidden from view (replaced by quality picker) -->
+                 <div class="speed-dropdown-container" style="display:none; position:relative; -webkit-app-region: no-drag;">
+                    <button id="btn-speed" class="ctrl-btn-sm" title="Playback speed" aria-label="Playback speed" style="display:none;">
                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px; display:block;">
                           <path d="M 4 17 A 8 8 0 0 1 18 7" /><path d="M 20 10 A 8 8 0 0 1 20 17" />
                           <line x1="12" y1="15" x2="15" y2="10" />
                        </svg>
                     </button>
-                    <div id="speed-menu" style="display:none; position:absolute; bottom:38px; right:0; background:var(--vt-surface); border:1px solid var(--vault-border); border-radius:4px; padding:4px 0; z-index:210; min-width:110px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
-                       <div class="speed-option" data-val="0.5" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">0.5×</div>
-                       <div class="speed-option" data-val="0.75" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">0.75×</div>
-                       <div class="speed-option active" data-val="1" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-accent); font-weight:600; transition:background 0.2s;">1.0× (Normal)</div>
-                       <div class="speed-option" data-val="1.25" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">1.25×</div>
-                       <div class="speed-option" data-val="1.5" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">1.5×</div>
-                       <div class="speed-option" data-val="2" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">2.0×</div>
+                    <div id="speed-menu" style="display:none;">
+                       <div class="speed-option" data-val="0.5">0.5×</div>
+                       <div class="speed-option" data-val="0.75">0.75×</div>
+                       <div class="speed-option active" data-val="1">1.0× (Normal)</div>
+                       <div class="speed-option" data-val="1.25">1.25×</div>
+                       <div class="speed-option" data-val="1.5">1.5×</div>
+                       <div class="speed-option" data-val="2">2.0×</div>
                     </div>
+                 </div>
+
+                 <!-- Stream quality picker (RD streams only — hidden for local files) -->
+                 <div id="quality-dropdown-container" class="quality-dropdown-container" style="position:relative; display:none; -webkit-app-region: no-drag;">
+                    <button id="btn-quality" class="ctrl-btn-sm" title="Stream quality" aria-label="Stream quality" style="display:inline-flex; align-items:center; gap:5px;">
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:block;">
+                          <rect x="3" y="6" width="18" height="12" rx="2"/><path d="M 8 10 H 16"/><path d="M 8 14 H 12"/>
+                       </svg>
+                       <span id="quality-btn-text" style="font-family:var(--font-mono); font-size:11px; font-weight:700;">AUTO</span> ▾
+                    </button>
+                    <div id="quality-menu" style="display:none; position:absolute; bottom:38px; right:0; background:var(--vt-surface); border:1px solid var(--vault-border); border-radius:4px; padding:4px 0; z-index:210; min-width:160px; box-shadow:0 4px 15px rgba(0,0,0,0.5);"></div>
                  </div>
                  
                  <div class="subtitle-dropdown-container" style="position:relative; display:inline-block; -webkit-app-region: no-drag;">
@@ -1102,10 +1124,18 @@
                        </svg>
                        <span id="subtitles-btn-text">CC</span> ▾
                     </button>
-                    <div id="subtitles-menu" style="display:none; position:absolute; bottom:38px; right:0; background:var(--vt-surface); border:1px solid var(--vault-border); border-radius:4px; padding:4px 0; z-index:210; min-width:140px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
+                    <div id="subtitles-menu" style="display:none; position:absolute; bottom:38px; right:0; background:var(--vt-surface); border:1px solid var(--vault-border); border-radius:4px; padding:4px 0; z-index:210; min-width:180px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
                        <div class="subtitle-option active" data-idx="-1" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-accent); font-weight:600; transition:background 0.2s;">Off</div>
                        <div class="subtitle-divider" style="height:1px; background:var(--vault-border); margin:4px 0;"></div>
-                       <div id="subtitle-tracks-list" style="max-height: 120px; overflow-y: auto;"></div>
+                       <div id="subtitle-tracks-list" style="max-height: 160px; overflow-y: auto;"></div>
+                       <div class="subtitle-divider" style="height:1px; background:var(--vault-border); margin:4px 0;"></div>
+                       <div id="opt-more-subs" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:11px; color:var(--vault-slate); transition:background 0.2s; display:flex; align-items:center; justify-content:space-between;" title="Search OpenSubtitles by language"><span>More subtitles…</span><span id="more-subs-caret" style="font-size:10px;">▸</span></div>
+                       <div id="subtitles-more-panel" style="display:none;">
+                          <div style="padding:2px 12px 2px; font-size:9px; font-family:var(--font-mono); font-weight:700; text-transform:uppercase; color:var(--vault-slate); letter-spacing:0.05em;">Search OpenSubtitles</div>
+                          <div class="subtitle-quick-lang" data-lang="en" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s; display:flex; align-items:center; justify-content:space-between;"><span>🇬🇧 English</span><span style="font-size:10px; color:var(--vault-slate);">EN</span></div>
+                          <div class="subtitle-quick-lang" data-lang="fr-CA" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s; display:flex; align-items:center; justify-content:space-between;"><span>🇨🇦 French (Canadian)</span><span style="font-size:10px; color:var(--vault-slate);">FR-CA</span></div>
+                          <div class="subtitle-quick-lang" data-lang="fr" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s; display:flex; align-items:center; justify-content:space-between;"><span>🇫🇷 French</span><span style="font-size:10px; color:var(--vault-slate);">FR</span></div>
+                       </div>
                        <div class="subtitle-divider" style="height:1px; background:var(--vault-border); margin:4px 0;"></div>
                        <div class="subtitle-option-upload" id="opt-upload-subtitle" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;">Upload SRT/VTT...</div>
                        <div class="subtitle-option-upload" id="opt-generate-subtitle" style="padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-accent); font-weight:600; transition:background 0.2s; border-top:1px dashed var(--vault-border); display:inline-flex; align-items:center; gap:6px; width:100%; box-sizing:border-box;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px; display:block; flex-shrink:0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Generate Subtitles (ASR)</span></div>

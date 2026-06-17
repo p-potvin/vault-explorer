@@ -35,7 +35,7 @@ function registerLivestreamHandlers(ipcMain) {
 
         const env = { ...process.env };
         env.PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION = 'python';
-        env.PYTHONPATH = path.join(__dirname, '..', '..', 'vaultwares-media-processing');
+        env.PYTHONPATH = path.join(__dirname, '..');
 
         const pyProc = spawn(pythonExe, args, { env, windowsHide: true });
         currentLivestreamProcess = pyProc;
