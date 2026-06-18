@@ -39,7 +39,7 @@
   --vault-gold-muted: var(--vault-console-gold);
   --vault-paper: var(--vault-warm-raised);
   --vault-slate: rgba(22, 19, 32, 0.6);
-  --vault-cyan: var(--vault-console-active);
+  --vault-blue: #4173d6;
 
   --vault-bg: var(--vault-warm-bg);
   --vault-acrylic: var(--vault-warm-muted);
@@ -249,9 +249,9 @@ select {
   padding: 8px 18px;
   border-radius: 4px;
   cursor: pointer;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   outline: none;
@@ -268,7 +268,7 @@ select:hover {
 button:focus-visible,
 select:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--vault-cyan);
+  outline: 2px solid var(--vault-blue);
   outline-offset: 2px;
 }
 
@@ -284,9 +284,9 @@ select option {
 
 .path-display {
   flex: 1;
-  font-family: var(--font-body);
-  font-weight: 400;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 11px;
   padding: 8px 16px;
   background: var(--vt-surface-alt);
   border-radius: 4px;
@@ -303,8 +303,8 @@ select option {
   color: var(--vault-text);
   padding: 8px 16px;
   border-radius: 4px;
-  font-family: var(--font-body);
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 12px;
   width: 200px;
   outline: none;
   transition: border-color 0.2s ease;
@@ -382,12 +382,12 @@ body.tab-streaming-active #tmdb-container {
 }
 
 .file-card:focus-visible {
-  outline: 2px solid var(--vault-cyan);
+  outline: 2px solid var(--vault-blue);
   outline-offset: 2px;
 }
 
 .file-card.fake-folder {
-  border: 1px dashed var(--vault-cyan);
+  border: 1px dashed var(--vault-blue);
   background: var(--vt-info-bg);
 }
 
@@ -463,6 +463,7 @@ body.tab-streaming-active #tmdb-container {
   right: 8px;
   background: rgba(0, 0, 0, 0.85);
   color: var(--vault-accent);
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   padding: 3px 6px;
@@ -517,7 +518,8 @@ body.tab-streaming-active #tmdb-container {
   align-items: center;
   padding: 8px 24px;
   background: var(--vault-acrylic);
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -560,6 +562,7 @@ body.tab-streaming-active #tmdb-container {
   left: 8px;
   background: rgba(0, 0, 0, 0.85);
   color: #fff;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   padding: 3px 6px;
@@ -1711,4 +1714,162 @@ body.clip-mode-active #btn-clip {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ==========================================================================
+   Photos River / Masonry Layout
+   ========================================================================== */
+.photos-river {
+  column-count: 4;
+  column-gap: 16px;
+}
+
+.photos-river .photo-item {
+  break-inside: avoid;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.photos-river .photo-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.photos-river .photo-item img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+@media (max-width: 1200px) {
+  .photos-river { column-count: 3; }
+}
+
+@media (max-width: 800px) {
+  .photos-river { column-count: 2; }
+}
+
+/* ==========================================================================
+   Audio View — Sidebar + Tracklist
+   ========================================================================== */
+.audio-sidebar-item {
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--vault-text);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.audio-sidebar-item:hover {
+  background: var(--vault-hover);
+}
+
+.audio-sidebar-item.active {
+  background: var(--vault-accent);
+  color: var(--vt-primary);
+}
+
+.audio-track-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 120px 60px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--vault-text);
+  transition: background 0.1s ease;
+}
+
+.audio-track-row:hover {
+  background: var(--vault-hover);
+}
+
+.audio-track-row .track-num {
+  color: var(--vault-slate);
+  text-align: center;
+}
+
+.audio-track-row .track-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-track-row .track-artist {
+  color: var(--vault-slate);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-track-row .track-duration {
+  color: var(--vault-slate);
+  text-align: right;
+}
+
+/* ==========================================================================
+   Audio Bottom Bar
+   ========================================================================== */
+#audio-bottom-bar {
+  display: none;
+  width: 100%;
+  height: 48px;
+  border-top: 1px solid var(--vault-border);
+  background: var(--vault-console-surface);
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 100;
+  box-sizing: border-box;
+}
+
+#audio-bottom-bar button {
+  background: transparent;
+  border: none;
+  color: var(--vault-text);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#audio-bottom-bar button:hover {
+  color: var(--vault-accent);
+}
+
+#audio-bar-progress-track {
+  flex: 1;
+  height: 3px;
+  background: var(--vault-border);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+}
+
+#audio-bar-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: var(--vault-accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Photo Editor Modal
+   ========================================================================== */
+#photo-editor-modal {
+  display: none;
+}
+
+#photo-editor-modal.open {
+  display: flex;
 }

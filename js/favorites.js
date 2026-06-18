@@ -363,7 +363,7 @@ window.toggleFavorite = function(filePath, btnEl) {
         }
     });
 
-    if (window.currentTab === 'vault' && window.currentVaultSubtab === 'favorites') {
+    if (window.currentTab === 'files' && window.currentFilesSubtab === 'favorites') {
         window.renderFavorites();
     }
 };

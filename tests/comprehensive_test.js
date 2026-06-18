@@ -57,9 +57,9 @@ async function runTests() {
     });    console.log('[Test Setup] Waiting for application load and mock assets...');
     await window.waitForTimeout(4000);
 
-    // Switch to Vault tab to make toolbar elements visible
-    console.log('[Test Setup] Switching to Vault tab to ensure elements are visible...');
-    await window.locator('#tab-vault').click();
+    // Switch to Files tab to make toolbar elements visible
+    console.log('[Test Setup] Switching to Files tab to ensure elements are visible...');
+    await window.locator('#tab-files').click();
     await window.waitForTimeout(1000);
 
     // Assert base elements are visible in DOM

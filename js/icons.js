@@ -28,5 +28,33 @@ window.icons = {
   arrowUp: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`,
   arrowDown: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>`,
   refresh: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`,
-  musicNote: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`
+  musicNote: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+
+  // ============================================================================
+  // TYPE-A: PHOTO EDITOR SUBSYSTEM
+  // ============================================================================
+  layers: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 12 4 L 20 8 L 12 12 L 4 8 Z" /><path d="M 4 12 L 12 16 L 20 12" /><path d="M 6 15.5 L 12 19 L 18 15.5" /></svg>`,
+  crop: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 6 2 V 18 H 22" /><path d="M 18 22 V 7" /><path d="M 14 6 H 6" /></svg>`,
+  exposure: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 21 12 A 9 9 0 0 1 12 21 A 9 9 0 0 1 3 12 Z" /><path d="M 12 2 V 22" /><line x1="12" y1="6" x2="17" y2="6" /><line x1="12" y1="10" x2="19" y2="10" /><line x1="12" y1="14" x2="18" y2="14" /><line x1="12" y1="18" x2="15" y2="18" /></svg>`,
+
+  // ============================================================================
+  // TYPE-B: MUSIC PLAYER SUBSYSTEM
+  // ============================================================================
+  equalizer: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="10" /><line x1="4" y1="6" x2="4" y2="4" /><line x1="10" y1="20" x2="10" y2="4" /><line x1="16" y1="20" x2="16" y2="14" /><line x1="16" y1="10" x2="16" y2="8" /><line x1="22" y1="20" x2="22" y2="12" /></svg>`,
+  shuffle: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 16 4 H 20 V 8" /><path d="M 16 20 H 20 V 16" /><path d="M 4 20 L 9 15" /><path d="M 13 11 L 20 4" /><path d="M 4 4 L 20 20" /></svg>`,
+  repeat: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 17 2 H 5 A 3 3 0 0 0 2 5 V 13 A 3 3 0 0 0 5 16 H 19" /><path d="M 7 22 H 19 A 3 3 0 0 0 22 19 V 11" /><path d="M 15 8 L 19 11 L 15 14" /></svg>`,
+
+  // ============================================================================
+  // TYPE-C: STREAMING APP SUBSYSTEM
+  // ============================================================================
+  pip: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 21 11 V 5 C 21 3.9 20.1 3 19 3 H 5 C 3.9 3 3 3.9 3 5 V 17 C 3 18.1 3.9 19 5 19 H 11" /><rect x="13" y="13" width="8" height="6" rx="1" /></svg>`,
+  cast: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 2 16 A 4 4 0 0 1 6 20" /><path d="M 2 11 A 9 9 0 0 1 11 20" /><path d="M 2 6 A 14 14 0 0 1 16 20" /><path d="M 20 20 H 21 C 22.1 20 23 19.1 23 18 V 6 C 23 4.9 22.1 4 21 4 H 3 C 2.4 4 2 4.4 2 5 V 7" /></svg>`,
+  downloadPlayer: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 12 3 V 15" /><path d="M 8 11 L 12 15 L 16 11" /><path d="M 20 15 V 19 C 20 19.6 19.6 20 19 20 H 5 C 4.4 20 4 19.6 4 19 V 15" /></svg>`,
+
+  // ============================================================================
+  // TYPE-D: LIVESTREAMING WIDGET SUBSYSTEM
+  // ============================================================================
+  broadcast: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2" /><path d="M 12 7 A 5 5 0 0 1 16.5 9.5" /><path d="M 16.5 14.5 A 5 5 0 0 1 12 17" /><path d="M 7.5 14.5 A 5 5 0 0 1 7.5 9.5" /><path d="M 12 3 A 9 9 0 0 1 20.3 7.5" /><path d="M 21 12 A 9 9 0 0 1 12 21" /><path d="M 3 12 A 9 9 0 0 1 12 3" /></svg>`,
+  viewers: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 16 21 V 19 A 4 4 0 0 0 12 15 H 4 A 4 4 0 0 0 0 19 V 21" /><circle cx="8" cy="7" r="4" /><path d="M 16 11 A 4 4 0 0 1 22 15 V 17" /><circle cx="18" cy="5" r="3" /></svg>`,
+  streamChat: (cls = '', style = '') => `<svg class="${cls}" style="${style}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 21 11.5 A 8.5 8.5 0 0 1 12.5 20 H 4 L 6.5 16.5 A 8.5 8.5 0 0 1 4 11.5 A 8.5 8.5 0 0 1 12.5 3 H 13" /><line x1="8" y1="9" x2="16" y2="9" /><line x1="8" y1="13" x2="14" y2="13" /></svg>`
 };

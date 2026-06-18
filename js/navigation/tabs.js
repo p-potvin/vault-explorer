@@ -2,19 +2,20 @@
    Vault Explorer — Navigation Tabs Routing
    ========================================================================== */
 
-window.currentTab = 'vault';
+window.currentTab = 'files';
 
 window.switchTab = function(tabName) {
+    if (tabName === 'vault') tabName = 'files';
     window.currentTab = tabName;
-    
+
     if (tabName === 'livestream') {
         if (window.loadLivestreamSettingsOnce) window.loadLivestreamSettingsOnce();
     }
-    
+
     // --- FORCE CLEANUP OF ACTIVE MEDIA PROCESSES & SOUNDS ---
     const vm = el('video-modal');
     const isMinimized = vm && vm.classList.contains('minimized');
-    
+
     if (!isMinimized) {
         const vp = el('video-player');
         if (vp) {
@@ -32,7 +33,7 @@ window.switchTab = function(tabName) {
         const tbTitle = el('titlebar-video-title');
         if (tbTitle) tbTitle.style.display = 'none';
     }
-    
+
     if (window.killAllHoverVideos) {
         window.killAllHoverVideos();
     }
@@ -56,7 +57,7 @@ window.switchTab = function(tabName) {
                 audioEl.src = '';
             }
             window.isStreamPlaying = false;
-            
+
             const btnToggle = el('btn-livestream-toggle');
             if (btnToggle) {
                 btnToggle.disabled = false;
@@ -72,84 +73,105 @@ window.switchTab = function(tabName) {
             console.error('Error stopping livestream during tab switch:', e);
         }
     }
-    
+
+    // --- AUDIO BOTTOM BAR VISIBILITY ---
+    const audioBar = el('audio-bottom-bar');
+    if (audioBar) {
+        // Audio bar stays open unless video player is active
+        const videoModal = el('video-modal');
+        const isVideoOpen = videoModal && videoModal.style.display !== 'none' && !videoModal.classList.contains('minimized');
+        if (isVideoOpen) {
+            audioBar.style.display = 'none';
+        }
+        // Otherwise it keeps its current open/closed state
+    }
+
     // Mark the active tab on <body> so CSS can scope tab-specific layout
-    // (e.g. streaming tab uses a full-bleed container with no .main-area padding).
-    document.body.classList.remove('tab-vault-active', 'tab-streaming-active', 'tab-livestream-active');
+    document.body.classList.remove(
+        'tab-files-active', 'tab-photos-active', 'tab-audio-active',
+        'tab-albums-active', 'tab-playlists-active', 'tab-streaming-active',
+        'tab-livestream-active', 'tab-misc-active'
+    );
     document.body.classList.add(`tab-${tabName}-active`);
 
     // Toggle active state on tabs
-    const tabs = {
-        'vault': el('tab-vault'),
-        'streaming': el('tab-streaming'),
-        'livestream': el('tab-livestream')
-    };
-    
-    Object.keys(tabs).forEach(name => {
-        const btn = tabs[name];
+    const tabIds = ['files','photos','audio','albums','playlists','streaming','livestream','misc'];
+    tabIds.forEach(name => {
+        const btn = el(`tab-${name}`);
         if (!btn) return;
         if (name === tabName) {
             btn.classList.add('active');
             btn.style.background = 'var(--vault-accent)';
             btn.style.color = 'var(--vt-primary)';
             btn.style.border = '1px solid transparent';
-            btn.style.padding = '4.5px 10px';
             btn.style.opacity = '1';
         } else {
             btn.classList.remove('active');
             btn.style.background = 'transparent';
             btn.style.color = 'var(--vault-text)';
             btn.style.border = '1px solid var(--vault-border)';
-            btn.style.padding = '4.5px 10px';
             btn.style.opacity = '0.8';
         }
     });
 
-    // Toggle view elements
-    const fileGrid = el('file-grid');
-    const favGrid = el('favorites-grid');
-    const libGrid = el('library-grid');
-    const tmdbContainer = el('tmdb-container');
-    const livestreamContainer = el('livestream-container');
+    // --- SHOW/HIDE CONTAINERS ---
+    const containers = {
+        'files': ['file-grid', 'favorites-grid'],
+        'photos': ['photos-container'],
+        'audio': ['audio-container'],
+        'albums': ['albums-container'],
+        'playlists': ['playlists-container'],
+        'streaming': ['tmdb-container', 'library-grid'],
+        'livestream': ['livestream-container'],
+        'misc': ['misc-container']
+    };
+
+    // Hide all known content containers first
+    const allContainerIds = [
+        'file-grid','favorites-grid','playlist-view-container',
+        'library-grid','tmdb-container','livestream-container',
+        'photos-container','audio-container','albums-container',
+        'playlists-container','misc-container'
+    ];
+    allContainerIds.forEach(id => {
+        const el_ = el(id);
+        if (el_) el_.style.display = 'none';
+    });
+
     const toolbar = document.querySelector('.toolbar');
     const subNavBar = el('sub-nav-bar');
-    const subNavVault = el('sub-nav-vault');
+    const subNavFiles = el('sub-nav-files');
     const subNavStreaming = el('sub-nav-streaming');
 
-    // Toggle sub-nav visibility
+    // Sub-nav visibility
     if (subNavBar) {
-        if (tabName === 'vault' || tabName === 'streaming') {
+        if (tabName === 'files' || tabName === 'streaming') {
             subNavBar.style.display = 'flex';
-            if (subNavVault) subNavVault.style.display = (tabName === 'vault') ? 'flex' : 'none';
+            if (subNavFiles) subNavFiles.style.display = (tabName === 'files') ? 'flex' : 'none';
             if (subNavStreaming) subNavStreaming.style.display = (tabName === 'streaming') ? 'flex' : 'none';
         } else {
             subNavBar.style.display = 'none';
         }
     }
-    
-    // Default subtabs if not set
-    if (!window.currentVaultSubtab) window.currentVaultSubtab = 'all';
+
+    if (toolbar) toolbar.style.display = (tabName === 'files') ? 'flex' : 'none';
+
+    // Default subtabs
+    if (!window.currentFilesSubtab) window.currentFilesSubtab = 'all';
     if (!window.currentStreamingSubtab) window.currentStreamingSubtab = 'discover';
 
-    // Hide everything first
-    if (fileGrid) fileGrid.style.display = 'none';
-    if (favGrid) favGrid.style.display = 'none';
-    if (libGrid) libGrid.style.display = 'none';
-    if (tmdbContainer) tmdbContainer.style.display = 'none';
-    if (livestreamContainer) livestreamContainer.style.display = 'none';
-
-    // Show according to current tab and its active subtab
-    if (tabName === 'vault') {
-        if (toolbar) toolbar.style.display = 'flex';
-        
-        if (window.currentVaultSubtab === 'favorites') {
+    // Show relevant container(s)
+    if (tabName === 'files') {
+        if (window.currentFilesSubtab === 'favorites') {
+            const favGrid = el('favorites-grid');
             if (favGrid) favGrid.style.display = 'grid';
-            window.renderFavorites();
+            if (typeof window.renderFavorites === 'function') window.renderFavorites();
         } else {
+            const fileGrid = el('file-grid');
             if (fileGrid) fileGrid.style.display = 'grid';
             if (!window.vaultLoaded) {
                 window.vaultLoaded = true;
-                console.log('[Lazy Load] First time entering Vault Tab, performing directory load...');
+                console.log('[Lazy Load] First time entering Files Tab, performing directory load...');
                 if (window.appSettings.lastPath && window.appSettings.lastPath.realPath) {
                     window.loadDirectory(window.appSettings.lastPath.navPath, window.appSettings.lastPath.realPath, true);
                 } else if (window.appSettings.defaultFolder) {
@@ -162,31 +184,36 @@ window.switchTab = function(tabName) {
             }
         }
     } else if (tabName === 'streaming') {
-        if (toolbar) toolbar.style.display = 'none'; // TMDB/Streaming handles its own search/categories or we hide standard toolbar
-        
         if (window.currentStreamingSubtab === 'discover') {
+            const tmdbContainer = el('tmdb-container');
             if (tmdbContainer) tmdbContainer.style.display = 'block';
-            window.renderTMDB();
+            if (typeof window.renderTMDB === 'function') window.renderTMDB();
         } else if (window.currentStreamingSubtab === 'library') {
+            const libGrid = el('library-grid');
             if (libGrid) libGrid.style.display = 'grid';
-            if (typeof window.renderLibrary === 'function') {
-                window.renderLibrary();
-            }
+            if (typeof window.renderLibrary === 'function') window.renderLibrary();
         }
-    } else if (tabName === 'livestream') {
-        if (toolbar) toolbar.style.display = 'none';
-        if (livestreamContainer) livestreamContainer.style.display = 'block';
+    } else {
+        const ids = containers[tabName] || [];
+        ids.forEach(id => {
+            const el_ = el(id);
+            if (el_) el_.style.display = (id === 'tmdb-container') ? 'block' : (id === 'audio-container' || id === 'photos-container') ? 'block' : 'grid';
+        });
+        if (tabName === 'photos' && typeof window.renderPhotos === 'function') window.renderPhotos();
+        if (tabName === 'audio' && typeof window.renderAudio === 'function') window.renderAudio();
+        if (tabName === 'albums' && typeof window.renderAlbums === 'function') window.renderAlbums();
+        if (tabName === 'playlists' && typeof window.renderPlaylists === 'function') window.renderPlaylists();
+        if (tabName === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
     }
 };
 
-window.switchVaultSubtab = function(subtab) {
-    window.currentVaultSubtab = subtab;
-    
-    // Update pills styling
-    const pills = document.querySelectorAll('#sub-nav-vault .sub-nav-pill');
+window.switchFilesSubtab = function(subtab) {
+    window.currentFilesSubtab = subtab;
+
+    const pills = document.querySelectorAll('#sub-nav-files .sub-nav-pill');
     pills.forEach(pill => {
         const id = pill.id;
-        const targetId = `subtab-vault-${subtab}`;
+        const targetId = `subtab-files-${subtab}`;
         if (id === targetId) {
             pill.classList.add('active');
             pill.style.background = 'var(--vault-accent)';
@@ -202,42 +229,23 @@ window.switchVaultSubtab = function(subtab) {
         }
     });
 
-    // Show/hide the appropriate grid for the subtab
     const fileGrid = el('file-grid');
     const favGrid = el('favorites-grid');
     if (fileGrid) fileGrid.style.display = (subtab === 'favorites') ? 'none' : 'grid';
     if (favGrid) favGrid.style.display = (subtab === 'favorites') ? 'grid' : 'none';
 
-    // Render favorites content when switching to favorites subtab
     if (subtab === 'favorites' && typeof window.renderFavorites === 'function') {
         window.renderFavorites();
     }
 
-    // Clear search filter when switching virtual/subtabs
     const sb = el('search-box');
     if (sb) sb.value = '';
     const cb = el('search-clear-btn');
     if (cb) cb.style.display = 'none';
 
-    // Toggle visibility of playlist view toggle button based on subtab
-    const plToggle = el('btn-playlist-view-toggle');
-    if (plToggle) {
-        plToggle.style.display = (subtab === 'playlists') ? 'inline-flex' : 'none';
-    }
-
-    // Deactivate playlist view when switching to any other subtab
-    if (subtab !== 'playlists' && window.playlistViewActive) {
-        if (typeof window.togglePlaylistView === 'function') {
-            window.togglePlaylistView(false);
-        }
-    }
-
-    // Reset navigation path to root when switching subtabs (except favorites which has its own rendering)
     if (subtab !== 'favorites') {
         if (typeof window.navigateTo === 'function') {
             window.navigateTo('root', window.currentRealPath);
-        } else {
-            window.switchTab('vault');
         }
     }
 };
@@ -245,7 +253,6 @@ window.switchVaultSubtab = function(subtab) {
 window.switchStreamingSubtab = function(subtab) {
     window.currentStreamingSubtab = subtab;
 
-    // Update pills styling
     const pills = document.querySelectorAll('#sub-nav-streaming .sub-nav-pill');
     pills.forEach(pill => {
         const id = pill.id;
@@ -265,37 +272,37 @@ window.switchStreamingSubtab = function(subtab) {
         }
     });
 
-    // Reload layout
     window.switchTab('streaming');
 };
 
 window.initTabListeners = function() {
     console.log('[tabs] Initializing top navigation tab click listeners...');
-    const tabVault = el('tab-vault');
-    const tabStreaming = el('tab-streaming');
-    const tabLivestream = el('tab-livestream');
 
-    if (tabVault) tabVault.addEventListener('click', () => window.switchTab('vault'));
-    if (tabStreaming) tabStreaming.addEventListener('click', () => window.switchTab('streaming'));
-    if (tabLivestream) tabLivestream.addEventListener('click', () => window.switchTab('livestream'));
+    const tabIds = ['files','photos','audio','albums','playlists','streaming','livestream','misc'];
+    tabIds.forEach(name => {
+        const btn = el(`tab-${name}`);
+        if (btn) btn.addEventListener('click', () => window.switchTab(name));
+    });
 
-    // Subtab event listeners
-    const subtabAll = el('subtab-vault-all');
-    const subtabFavs = el('subtab-vault-favorites');
-    const subtabColls = el('subtab-vault-collections');
-    const subtabAlbs = el('subtab-vault-albums');
-    const subtabPls = el('subtab-vault-playlists');
+    // Files subtab listeners
+    const subtabAll = el('subtab-files-all');
+    const subtabColls = el('subtab-files-collections');
+    if (subtabAll) subtabAll.addEventListener('click', () => window.switchFilesSubtab('all'));
+    if (subtabColls) subtabColls.addEventListener('click', () => window.switchFilesSubtab('collections'));
 
-    if (subtabAll) subtabAll.addEventListener('click', () => window.switchVaultSubtab('all'));
-    if (subtabFavs) subtabFavs.addEventListener('click', () => window.switchVaultSubtab('favorites'));
-    if (subtabColls) subtabColls.addEventListener('click', () => window.switchVaultSubtab('collections'));
-    if (subtabAlbs) subtabAlbs.addEventListener('click', () => window.switchVaultSubtab('albums'));
-    if (subtabPls) subtabPls.addEventListener('click', () => window.switchVaultSubtab('playlists'));
-
+    // Streaming subtab listeners
     const subtabDisc = el('subtab-streaming-discover');
     const subtabLib = el('subtab-streaming-library');
-
     if (subtabDisc) subtabDisc.addEventListener('click', () => window.switchStreamingSubtab('discover'));
     if (subtabLib) subtabLib.addEventListener('click', () => window.switchStreamingSubtab('library'));
+
+    // Audio bottom bar close
+    const audioBarClose = el('audio-bar-close');
+    if (audioBarClose) {
+        audioBarClose.addEventListener('click', () => {
+            const bar = el('audio-bottom-bar');
+            if (bar) bar.style.display = 'none';
+        });
+    }
 };
 

@@ -6,7 +6,7 @@
     function resetIdleTimer() {
         clearTimeout(idleTimeout);
         idleTimeout = setTimeout(() => {
-            if (window.currentTab === 'vault' && window.allItems && window.allItems.length > 0) {
+            if (window.currentTab === 'files' && window.allItems && window.allItems.length > 0) {
                 console.log('[Idle Previews] User is idle for 60s. sequential preview generation triggered...');
                 window.electronAPI.scheduleIdlePreviews(window.allItems);
             }

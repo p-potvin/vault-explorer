@@ -46,7 +46,7 @@ window.initKeybindingsAndFolderListeners = function() {
             // Pre-select folder type based on the active subtab
             const typeEl = el('fake-folder-type');
             if (typeEl) {
-                const sub = window.currentVaultSubtab || 'all';
+                const sub = window.currentFilesSubtab || 'all';
                 if (sub === 'albums') typeEl.value = 'album';
                 else if (sub === 'playlists') typeEl.value = 'playlist';
                 else typeEl.value = 'collection';
