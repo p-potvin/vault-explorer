@@ -42,7 +42,6 @@
   <script src="js/navigation/keybindings.js" defer></script>
   <script src="js/navigation/idle.js" defer></script>
   <script src="js/livestream.js" defer></script>
-  <script src="js/photos.js" defer></script>
   <script src="js/photo-editor.js" defer></script>
   <script src="js/audio.js" defer></script>
   <script src="js/audio-bar.js" defer></script>
@@ -66,7 +65,6 @@
     <!-- Top-level navigation tabs -->
     <div class="top-tabs" style="display: flex; gap: 4px; align-items: center; -webkit-app-region: no-drag; margin-left: 12px; margin-right: auto; height: 100%;">
        <button id="tab-files" class="top-tab active" style="background: var(--vault-accent); color: var(--vt-primary); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Files</button>
-       <button id="tab-photos" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photos</button>
        <button id="tab-audio" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Audio</button>
        <button id="tab-albums" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Albums</button>
        <button id="tab-playlists" class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Playlists</button>
@@ -409,19 +407,6 @@
       </div>
     </div>
 
-      <!-- Photos Tab — Masonry / River Layout -->
-      <div id="photos-container" style="display:none; width: 100%; height: 100%; overflow-y: auto; padding: 24px; box-sizing: border-box;">
-        <div id="photos-river" class="photos-river" style="column-count: 4; column-gap: 16px;">
-          <div class="empty-state" style="column-span: all;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px; color: var(--vault-accent);">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-            </svg>
-            <h3>No Photos Found</h3>
-            <p>Browse a folder with images to see them in the river layout. Double-click to open the editor.</p>
-          </div>
-        </div>
-      </div>
-
       <!-- Audio Tab — Apple Music–style Sidebar + Main Area -->
       <div id="audio-container" style="display:none; width: 100%; height: 100%; overflow: hidden;">
         <div style="display: flex; width: 100%; height: 100%;">
@@ -451,8 +436,9 @@
         </div>
       </div>
 
-      <!-- Albums Tab — Album Art Grid -->
+      <!-- Albums/Photos Section — Album Art Grid + Photo River -->
       <div id="albums-container" style="display:none; width: 100%; height: 100%; overflow-y: auto; padding: 24px; box-sizing: border-box;">
+        <!-- Album grid view -->
         <div id="albums-grid" class="file-grid" style="display: grid;">
           <div class="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px; margin-bottom: 12px; color: var(--vault-accent);">
@@ -461,6 +447,17 @@
             <h3>No Albums Yet</h3>
             <p>Albums will appear here once a music metadata API is integrated.</p>
           </div>
+        </div>
+        <!-- Album photo view (hidden by default) -->
+        <div id="album-photos-view" style="display: none; width: 100%;">
+          <div id="album-photos-header" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--vault-border);">
+            <button id="btn-back-to-albums" style="background: transparent; border: 1px solid var(--vault-border); color: var(--vault-text); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+              Back to Albums
+            </button>
+            <h3 id="album-photos-title" style="margin: 0; font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--vault-text); font-family: var(--font-mono); letter-spacing: 0.05em;">Album</h3>
+          </div>
+          <div id="album-photos-river" class="photos-river" style="column-count: 4; column-gap: 16px;"></div>
         </div>
       </div>
 
@@ -684,10 +681,47 @@
       <div>
         <label for="settings-default-home-tab" id="label-default-home-tab" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Default Homepage Tab:</label>
         <select id="settings-default-home-tab" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
-          <option value="vault">Vault Files</option>
-          <option value="favorites">Favorites</option>
-          <option value="tmdb">Movies & Series</option>
+          <option value="files">Vault Files</option>
+          <option value="audio">Audio</option>
+          <option value="albums">Albums</option>
+          <option value="playlists">Playlists</option>
+          <option value="streaming">Streaming</option>
+          <option value="livestream">Livestream</option>
+          <option value="misc">Misc</option>
         </select>
+      </div>
+
+      <div style="border-top: 1px solid var(--vault-warm-border-subtle); margin-top: 8px; padding-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+        <span id="label-tab-folders-heading" style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--vault-accent); display: block; margin-bottom: 2px; letter-spacing: 0.05em;">Default Folders</span>
+        <p style="font-size: 10px; color: var(--vault-slate); font-family: var(--font-mono); margin: 0;">Vault Files uses the global default folder above. Other tabs can override it here.</p>
+        <div>
+          <label for="settings-default-folder-albums" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Albums/Photos:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="settings-default-folder-albums" class="search-box" style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px;" placeholder="Same as Vault Files" />
+            <button id="settings-btn-browse-albums" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 10px; border-radius: 4px; font-weight: 700; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; cursor: pointer;">Browse</button>
+          </div>
+        </div>
+        <div>
+          <label for="settings-default-folder-audio" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Audio:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="settings-default-folder-audio" class="search-box" style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px;" placeholder="Same as Vault Files" />
+            <button id="settings-btn-browse-audio" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 10px; border-radius: 4px; font-weight: 700; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; cursor: pointer;">Browse</button>
+          </div>
+        </div>
+        <div>
+          <label for="settings-default-folder-playlists" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Playlists:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="settings-default-folder-playlists" class="search-box" style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px;" placeholder="Same as Vault Files" />
+            <button id="settings-btn-browse-playlists" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 10px; border-radius: 4px; font-weight: 700; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; cursor: pointer;">Browse</button>
+          </div>
+        </div>
+        <div>
+          <label for="settings-default-folder-misc" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Misc:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="settings-default-folder-misc" class="search-box" style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px;" placeholder="Same as Vault Files" />
+            <button id="settings-btn-browse-misc" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 10px; border-radius: 4px; font-weight: 700; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; cursor: pointer;">Browse</button>
+          </div>
+        </div>
       </div>
 
       <div style="border-top: 1px solid var(--vault-warm-border-subtle); margin-top: 8px; padding-top: 8px; display: flex; flex-direction: column; gap: 8px;">

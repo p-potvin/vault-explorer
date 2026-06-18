@@ -34,14 +34,13 @@
     function renderEmptyTracklist() {
         const tracklist = el('audio-tracklist');
         if (!tracklist) return;
-        tracklist.innerHTML = `
-            <div class="empty-state" style="padding: 40px 0; text-align: center; color: var(--vault-slate);">
-                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.5;">
-                    <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-                </svg>
-                <p style="font-size: 12px; font-family: var(--font-mono);">No audio files found in current folder.</p>
-            </div>
-        `;
+        tracklist.innerHTML = '';
+        const empty = window.createFolderChooserEmptyState(
+            { title: 'No Audio Found', body: 'Load a folder containing audio files to see playlists and tracks.' },
+            () => window.browseTabFolder('audio')
+        );
+        empty.style.padding = '40px 0';
+        tracklist.appendChild(empty);
     }
 
     function renderTrack(items, playlistName) {

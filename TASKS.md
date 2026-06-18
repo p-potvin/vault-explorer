@@ -130,4 +130,28 @@ Replace generic inline SVGs with the VaultWares custom icon set where appropriat
 <!-- ESTIMATE: 60min -->
 Allow users to view and rebind keyboard shortcuts from the settings panel.
 
-**Note (2026-06-18):** Smoke test passed after Photo Editor implementation. All redesigned tabs have real content renderers. Ledger events recorded.
+### 2.9 [x] Default home tab setting (Vault/Files)
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/app.js, js/settings/core.js, index.html -->
+<!-- ESTIMATE: 15min -->
+Default boot tab is `files` (Vault). Updated settings dropdown to include all redesigned tabs and added validation so legacy/invalid values fall back to Vault safely.
+
+### 2.10 [x] Hide Photos tab; unify Albums/Photos section
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/albums.js, js/photos.js, index.html, js/navigation/tabs.js -->
+<!-- ESTIMATE: 45min -->
+Removed Photos from top-level navigation. Albums tab now hosts both the album grid and a photo river view with a "Back to Albums" button. Deleted standalone `photos-container` from layout.
+
+### 2.11 [x] Empty states with folder chooser
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/utils.js, js/albums.js, js/audio.js, js/playlists.js, js/misc.js -->
+<!-- ESTIMATE: 30min -->
+All empty states now include a "Choose Folder" button. Clicking it opens the system picker, loads the folder, and saves it as the tab-specific default.
+
+### 2.12 [x] Per-tab default folders
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/utils.js, js/navigation/tabs.js, js/navigation/filters.js, js/settings/core.js, index.html -->
+<!-- ESTIMATE: 45min -->
+Each media tab (Audio, Albums, Playlists, Misc) can have its own default folder. Falls back to the global Vault folder if unset. Added settings UI section and auto-load on first tab visit.
+
+**Note (2026-06-18):** Smoke tests passed. All redesigned tabs have real content renderers. Ledger events recorded.
