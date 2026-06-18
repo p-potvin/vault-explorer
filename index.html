@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vault Explorer</title>
-  <!-- v1.1.1 -->
+  <!-- v1.1.5 -->
   <link href="themes.css" rel="stylesheet">
   <link href="index.css" rel="stylesheet">
   <script src="themes.js" defer></script>
@@ -586,6 +586,61 @@
             <option value="en">English (EN)</option>
             <option value="fr">French / VF (FR)</option>
             <option value="multi">Multilingual / Dual</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid var(--vault-warm-border-subtle); margin-top: 8px; padding-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--vault-accent); display: block; margin-bottom: 2px; letter-spacing: 0.05em;">RTX VSR Settings</span>
+
+        <div>
+          <label for="settings-vsr-quality" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Quality Preset:</label>
+          <select id="settings-vsr-quality" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+            <option value="LOW">LOW</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="HIGH" selected>HIGH</option>
+            <option value="ULTRA">ULTRA</option>
+            <option value="DENOISE_LOW">DENOISE LOW</option>
+            <option value="DENOISE_MEDIUM">DENOISE MEDIUM</option>
+            <option value="DENOISE_HIGH">DENOISE HIGH</option>
+            <option value="DENOISE_ULTRA">DENOISE ULTRA</option>
+            <option value="DEBLUR_LOW">DEBLUR LOW</option>
+            <option value="DEBLUR_MEDIUM">DEBLUR MEDIUM</option>
+            <option value="DEBLUR_HIGH">DEBLUR HIGH</option>
+            <option value="DEBLUR_ULTRA">DEBLUR ULTRA</option>
+            <option value="HIGHBITRATE_LOW">HIGHBITRATE LOW</option>
+            <option value="HIGHBITRATE_MEDIUM">HIGHBITRATE MEDIUM</option>
+            <option value="HIGHBITRATE_HIGH">HIGHBITRATE HIGH</option>
+            <option value="HIGHBITRATE_ULTRA">HIGHBITRATE ULTRA</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="settings-vsr-scale" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Scale Factor:</label>
+          <select id="settings-vsr-scale" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+            <option value="1.5">1.5×</option>
+            <option value="2" selected>2×</option>
+            <option value="3">3×</option>
+            <option value="4">4×</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="settings-vsr-bitrate" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Stream Bitrate:</label>
+          <select id="settings-vsr-bitrate" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+            <option value="8M">8 Mbps</option>
+            <option value="12M" selected>12 Mbps</option>
+            <option value="16M">16 Mbps</option>
+            <option value="20M">20 Mbps</option>
+            <option value="25M">25 Mbps</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="settings-vsr-chroma" style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Chroma Format:</label>
+          <select id="settings-vsr-chroma" style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+            <option value="yuv420p" selected>4:2:0 (smaller files)</option>
+            <option value="yuv444p">4:4:4 (better color fidelity)</option>
           </select>
         </div>
       </div>

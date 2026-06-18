@@ -265,13 +265,42 @@ window.showPremiumHoverCard = function(card, movie) {
             }
         }
         
+        // ── PRIMARY: yt-dlp direct stream (bypasses embed restrictions) ──
+        let directUrl = null;
+        if (trailerKey && window.electronAPI && window.electronAPI.extractYouTubeURL) {
+            try {
+                const result = await window.electronAPI.extractYouTubeURL(trailerKey);
+                if (result && result.success && result.url) {
+                    directUrl = result.url;
+                }
+            } catch (e) {
+                console.warn('[HoverCard] yt-dlp extraction failed:', e.message);
+            }
+        }
+
+        if (directUrl) {
+            iframeContainer.innerHTML = '';
+            const vid = document.createElement('video');
+            vid.style.cssText = 'width:100%; height:100%; border:none; background:#000; display:block; transform:scale(1.02); pointer-events:none;';
+            vid.src = directUrl;
+            vid.muted = true;
+            vid.autoplay = true;
+            vid.loop = true;
+            vid.playsInline = true;
+            vid.preload = 'metadata';
+            iframeContainer.appendChild(vid);
+            iframeContainer.style.opacity = '1';
+            return;
+        }
+
+        // ── FALLBACK: legacy iframe embed ──
         let embedUrl;
         if (trailerKey) {
             embedUrl = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1`;
         } else {
             embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(title + ' ' + (year || '') + ' official trailer')}&autoplay=1&mute=1&controls=0&modestbranding=1&rel=0`;
         }
-        
+
         iframeContainer.innerHTML = `<iframe src="${embedUrl}" style="width:100%; height:100%; border:none; transform: scale(1.02); pointer-events:none;" allow="autoplay; encrypted-media"></iframe>`;
         iframeContainer.style.opacity = '1';
     }, 850);
@@ -286,7 +315,12 @@ window.hidePremiumHoverCard = function() {
         }
         popup.classList.remove('active');
         const iframeContainer = popup.querySelector('.trailer-iframe-container');
-        if (iframeContainer) iframeContainer.innerHTML = '';
+        if (iframeContainer) {
+            const vid = iframeContainer.querySelector('video');
+            if (vid) { vid.pause(); vid.src = ''; vid.load(); }
+            iframeContainer.innerHTML = '';
+            iframeContainer.style.opacity = '0';
+        }
         popup.style.display = 'none';
         
         if (window.premiumHoverState.activeCard) {

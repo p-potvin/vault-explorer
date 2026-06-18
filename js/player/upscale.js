@@ -108,9 +108,18 @@ async function startUpscaleMode() {
     vp.src = msUrl;
     vp.play().catch(() => {});
 
+    const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
+    const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
+    const vsrBitrate = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
+    const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
+
     const result = await window.electronAPI.startUpscaleStream({
         videoPath: rawPath,
-        startTime: upscaleOrigTime
+        startTime: upscaleOrigTime,
+        quality: vsrQuality,
+        scale: vsrScale,
+        bitrate: vsrBitrate,
+        chroma: vsrChroma,
     });
     if (!result.success) {
         window.showToast('Upscale failed: ' + result.error, 'error');

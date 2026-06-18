@@ -248,7 +248,10 @@ async function handleCardContextMenu(card, item, index) {
 
             window.electronAPI.onUpscaleProgress(upscaleProgressHandler);
 
-            window.electronAPI.upscaleVideo(targetItem.path).then(res => {
+            const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
+            const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
+            const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
+            window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality, scale: vsrScale, chroma: vsrChroma }).then(res => {
                 if (overlay) overlay.remove();
                 if (res.success) {
                     window.showToast(`${targetItem.name}: Upscaling complete!`, 'success');
@@ -405,7 +408,10 @@ async function handleCardContextMenu(card, item, index) {
                     }
                 };
                 window.electronAPI.onUpscaleProgress(progressHandler);
-                window.electronAPI.upscaleVideo(targetItem.path).then(res => {
+                const vsrQuality2 = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
+                const vsrScale2 = (window.appSettings && window.appSettings.vsrScale) || '2';
+                const vsrChroma2 = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
+                window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality2, scale: vsrScale2, chroma: vsrChroma2 }).then(res => {
                     if (overlay) overlay.remove();
                     if (res.success) {
                         window.showToast(`${targetItem.name}: Super-Resolution complete!`, 'success');

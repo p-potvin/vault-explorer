@@ -1,8 +1,12 @@
 // src/realdebrid/stream.js - Real-Debrid magnet unrestrict workflow and status polling
 const { fetchWithTimeout, RD_TOKEN } = require("./client");
 
+// Track in-flight addMagnet operations to prevent duplicate concurrent calls
+const _inFlightMagnets = new Set();
+
 function registerStreamHandlers(ipcMain) {
     ipcMain.handle('rd-stream-torrent', async (event, { magnet, hash, url }) => {
+        let dedupKey = '';
         try {
             if (!RD_TOKEN) {
                 return { success: false, error: 'Real-Debrid API token is not configured in .env' };
@@ -26,6 +30,13 @@ function registerStreamHandlers(ipcMain) {
                     console.error('[Real-Debrid] Failed to follow Torrentio redirect, falling back to magnet flow:', e);
                 }
             }
+
+            const dedupKey = (hash || magnet).toLowerCase().trim();
+            if (_inFlightMagnets.has(dedupKey)) {
+                console.warn(`[Real-Debrid] Skipping duplicate in-flight magnet: ${dedupKey.slice(0, 16)}...`);
+                return { success: false, error: 'Duplicate in-flight magnet request', dedup: true };
+            }
+            _inFlightMagnets.add(dedupKey);
 
             console.log('[Real-Debrid] Adding magnet...');
             // Step 1: Add Magnet to Real-Debrid
@@ -166,6 +177,8 @@ function registerStreamHandlers(ipcMain) {
         } catch (e) {
             console.error('[Real-Debrid] Workflow Error:', e);
             return { success: false, error: e.message };
+        } finally {
+            if (dedupKey) _inFlightMagnets.delete(dedupKey);
         }
     });
 

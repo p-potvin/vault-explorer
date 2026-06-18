@@ -24,8 +24,12 @@ function getFullProbeMetadata(filePath) {
 
 function registerMediaIpc(ipcMain) {
     // RTX VSR Video Upscale (permanent enhancement → .thumbs folder)
-    ipcMain.handle('upscale-video', async (event, filePath) => {
-        console.log('[media.ipc:upscale] RTX VSR requested for:', filePath);
+    ipcMain.handle('upscale-video', async (event, opts) => {
+        const filePath = typeof opts === 'string' ? opts : (opts && opts.path);
+        const quality = (typeof opts === 'object' && opts.quality) ? opts.quality : 'HIGH';
+        const scale = (typeof opts === 'object' && opts.scale) ? opts.scale : '2';
+        const chroma = (typeof opts === 'object' && opts.chroma) ? opts.chroma : 'yuv420p';
+        console.log('[media.ipc:upscale] RTX VSR requested for:', filePath, 'quality=', quality, 'scale=', scale);
         if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
             return { success: false, error: 'File not found' };
         }
@@ -65,7 +69,9 @@ function registerMediaIpc(ipcMain) {
                 'enhance',
                 filePath,
                 outputPath,
-                '--quality', 'HIGH',
+                '--quality', quality,
+                '--scale', scale,
+                '--chroma', chroma,
             ];
 
             console.log(`[media.ipc:upscale] Spawning: ${pythonPath} ${args.join(' ')}`);
@@ -250,7 +256,7 @@ function registerMediaIpc(ipcMain) {
     let upscaleStreamProcess = null;
     let upscaleStreamEvent = null;
 
-    ipcMain.handle('upscale-stream-start', async (event, { videoPath, startTime }) => {
+    ipcMain.handle('upscale-stream-start', async (event, { videoPath, startTime, quality, scale, bitrate, chroma }) => {
         console.log('[media.ipc:upscale-stream] Starting RTX VSR real-time stream for:', videoPath, 'from time:', startTime);
 
         // Kill any existing process
@@ -274,7 +280,10 @@ function registerMediaIpc(ipcMain) {
             'stream',
             videoPath,
             '--start-time', String(startTime || 0),
-            '--quality', 'HIGH',
+            '--quality', quality || 'HIGH',
+            '--scale', scale || '2',
+            '--bitrate', bitrate || '12M',
+            '--chroma', chroma || 'yuv420p',
         ];
 
         console.log(`[media.ipc:upscale-stream] Spawning: ${pythonPath} ${args.join(' ')}`);
@@ -381,6 +390,160 @@ function registerMediaIpc(ipcMain) {
         }
 
         return { success: true };
+    });
+
+    // ---------------------------------------------------------------------------
+    // YouTube direct stream extraction (replaces fragile iframe embedding)
+    // Uses yt-dlp to get the actual video file URL, bypassing all embedding
+    // restrictions, CORS issues, and error 152/150/101.
+    // ---------------------------------------------------------------------------
+    ipcMain.handle('extract-youtube-url', async (_event, videoId) => {
+        if (!videoId || typeof videoId !== 'string') {
+            return { success: false, error: 'Invalid video ID' };
+        }
+        const ytDlp = 'yt-dlp';
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
+        // Request a 720p-or-lower combined audio+video format for reliable playback
+        const args = ['--format', 'best[height<=720]', '--get-url', url];
+        console.log(`[media.ipc:youtube] Extracting stream URL via yt-dlp for ${videoId}`);
+        return new Promise((resolve) => {
+            const proc = child_process.spawn(ytDlp, args, {
+                windowsHide: true,
+                env: { ...process.env },
+            });
+            let stdout = '';
+            let stderr = '';
+            proc.stdout.on('data', (d) => { stdout += d.toString(); });
+            proc.stderr.on('data', (d) => { stderr += d.toString(); });
+            proc.on('close', (code) => {
+                const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+                const streamUrl = lines[lines.length - 1];
+                if (code === 0 && streamUrl && streamUrl.startsWith('http')) {
+                    console.log(`[media.ipc:youtube] Extracted stream URL for ${videoId}`);
+                    resolve({ success: true, url: streamUrl });
+                } else {
+                    console.warn(`[media.ipc:youtube] yt-dlp failed for ${videoId}:`, stderr.trim() || `exit ${code}`);
+                    resolve({ success: false, error: stderr.trim() || `yt-dlp exited ${code}` });
+                }
+            });
+            proc.on('error', (err) => {
+                console.error(`[media.ipc:youtube] yt-dlp spawn error:`, err.message);
+                resolve({ success: false, error: err.message });
+            });
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // AI Image Enhancement — RealESRGAN super-resolution (ncnn-vulkan)
+    // ---------------------------------------------------------------------------
+    function resolveToolPath(...segments) {
+        const devPath = path.join(__dirname, '..', '..', 'tools', ...segments);
+        const prodPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'tools', ...segments);
+        if (fs.existsSync(devPath)) return devPath;
+        if (fs.existsSync(prodPath)) return prodPath;
+        return null;
+    }
+
+    ipcMain.handle('enhance-image-realesrgan', async (_event, filePath) => {
+        if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+            return { success: false, error: 'File not found' };
+        }
+
+        const ext = path.extname(filePath);
+        const baseName = path.basename(filePath, ext);
+        const dir = path.dirname(filePath);
+        const thumbsDir = path.join(dir, '.thumbs');
+        const outputPath = path.join(thumbsDir, `${baseName}_realesrgan${ext}`);
+
+        if (fs.existsSync(outputPath)) {
+            return { success: true, path: outputPath, skipped: true };
+        }
+
+        if (!fs.existsSync(thumbsDir)) {
+            fs.mkdirSync(thumbsDir, { recursive: true });
+        }
+
+        const toolPath = resolveToolPath('realesrgan-ncnn-vulkan.exe');
+        if (!toolPath) {
+            return { success: false, error: 'RealESRGAN binary not found in tools/' };
+        }
+
+        const toolsDir = path.dirname(toolPath);
+
+        try {
+            await new Promise((resolve, reject) => {
+                const args = ['-i', filePath, '-o', outputPath, '-n', 'realesrgan-x4plus', '-g', '0'];
+                const proc = child_process.spawn(toolPath, args, { cwd: toolsDir, windowsHide: true });
+                let stderr = '';
+                proc.stderr.on('data', (d) => { stderr += d.toString(); });
+                proc.on('close', (code) => {
+                    if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(stderr.trim() || `realesrgan exited with code ${code}`));
+                    }
+                });
+                proc.on('error', reject);
+            });
+            return { success: true, path: outputPath };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    // ---------------------------------------------------------------------------
+    // AI Image Enhancement — ImageMagick effects (denoise, edge-detect)
+    // ---------------------------------------------------------------------------
+    ipcMain.handle('enhance-image-magick', async (_event, { path: filePath, operation }) => {
+        if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+            return { success: false, error: 'File not found' };
+        }
+        if (!operation || typeof operation !== 'string') {
+            return { success: false, error: 'Missing operation parameter' };
+        }
+
+        const ext = path.extname(filePath);
+        const baseName = path.basename(filePath, ext);
+        const dir = path.dirname(filePath);
+        const thumbsDir = path.join(dir, '.thumbs');
+        const opLabel = operation === 'edge' ? 'edge' : 'denoise';
+        const outputPath = path.join(thumbsDir, `${baseName}_${opLabel}${ext}`);
+
+        if (fs.existsSync(outputPath)) {
+            return { success: true, path: outputPath, skipped: true };
+        }
+
+        if (!fs.existsSync(thumbsDir)) {
+            fs.mkdirSync(thumbsDir, { recursive: true });
+        }
+
+        let magickArgs;
+        if (operation === 'denoise') {
+            magickArgs = [filePath, '-median', '3', outputPath];
+        } else if (operation === 'edge') {
+            magickArgs = [filePath, '-edge', '1', outputPath];
+        } else {
+            return { success: false, error: `Unknown operation: ${operation}` };
+        }
+
+        try {
+            await new Promise((resolve, reject) => {
+                const proc = child_process.spawn('magick', magickArgs, { windowsHide: true });
+                let stderr = '';
+                proc.stderr.on('data', (d) => { stderr += d.toString(); });
+                proc.on('close', (code) => {
+                    if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(stderr.trim() || `magick exited with code ${code}`));
+                    }
+                });
+                proc.on('error', reject);
+            });
+            return { success: true, path: outputPath };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
     });
 
 }

@@ -1,7 +1,7 @@
 {
     "name": "vault-explorer",
-    "version": "1.1.1",
-    "description": "",
+    "version": "1.1.6",
+    "description": "Re-discover the joys of browsing your files on a christmas morning or a rainy tuesday at work.",
     "main": "main.js",
     "scripts": {
         "start": "electron .",
@@ -19,12 +19,45 @@
     "build": {
         "appId": "com.vaultwares.vaultexplorer",
         "icon": "build/icon.ico",
+        "files": [
+            "main.js",
+            "preload.js",
+            "index.html",
+            "index.css",
+            "themes.css",
+            "themes.js",
+            "js/**",
+            "css/**",
+            "src/**",
+            "public/**",
+            "powershell/**",
+            "build/**",
+            "python-scripts/**",
+            "tools/**",
+            "scripts/**",
+            "vaultwares-themes/**",
+            "node_modules/**",
+            "!node_modules/playwright/**",
+            "!node_modules/@playwright/**",
+            "!node_modules/electron/**",
+            "!node_modules/electron-builder/**",
+            "!node_modules/app-builder-lib/**",
+            "!node_modules/builder-util/**",
+            "!node_modules/electron-publish/**",
+            "!node_modules/@electron/rebuild/**",
+            "!node_modules/dmg-builder/**"
+        ],
+        "asarUnpack": [
+            "tools/**",
+            "python-scripts/**"
+        ],
         "win": {
             "target": "nsis"
         },
         "nsis": {
             "oneClick": false,
-            "allowToChangeInstallationDirectory": true
+            "allowToChangeInstallationDirectory": true,
+            "artifactName": "vault-explorer-${version}-setup.${ext}"
         }
     },
     "dependencies": {

@@ -260,20 +260,29 @@ function registerSearchHandlers(ipcMain) {
                 return { success: false, error: 'No torrent matches found' };
             }
 
-            const torrentList = match.torrents.map(t => {
-                const magnet = `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(match.title)}&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://9.rarbg.to:2710/announce&tr=udp://tracker.opentrackr.org:1337/announce`;
-                return {
-                    quality: t.quality,
-                    type: 'YTS ' + t.type.toUpperCase(),
-                    size: t.size,
-                    seeds: t.seeds,
-                    peers: t.peers,
-                    hash: t.hash,
-                    magnet,
-                    desc: `${match.title} (${t.quality})`
-                };
-            });
+            const SHA1_RE = /^[a-fA-F0-9]{40}$/;
+            const torrentList = match.torrents
+                .filter(t => t.hash && SHA1_RE.test(t.hash))
+                .map(t => {
+                    const magnet = `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(match.title)}&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://9.rarbg.to:2710/announce&tr=udp://tracker.opentrackr.org:1337/announce`;
+                    return {
+                        quality: t.quality,
+                        type: 'YTS ' + (t.type || 'unknown').toUpperCase(),
+                        size: t.size,
+                        seeds: t.seeds || 0,
+                        peers: t.peers || 0,
+                        hash: t.hash.toLowerCase(),
+                        magnet,
+                        desc: `${match.title} (${t.quality})`
+                    };
+                });
 
+            if (torrentList.length === 0) {
+                console.warn('[Real-Debrid] YTS returned movie data but no valid torrent hashes.');
+                return { success: false, error: 'YTS mirror returned data but no valid torrent hashes.' };
+            }
+
+            console.log(`[Real-Debrid] YTS resolved ${torrentList.length} valid torrent(s) for "${match.title}"`);
             const checkedList = await checkRealDebridCache(torrentList);
             return { success: true, title: match.title, torrents: checkedList };
         } catch (e) {

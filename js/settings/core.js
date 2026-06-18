@@ -45,6 +45,10 @@ function initSettingsListeners() {
             }
             el('settings-stream-quality').value = window.appSettings.streamQuality || '1080p';
             el('settings-stream-lang').value = window.appSettings.streamLang || 'en';
+            if (el('settings-vsr-quality')) el('settings-vsr-quality').value = window.appSettings.vsrQuality || 'HIGH';
+            if (el('settings-vsr-scale')) el('settings-vsr-scale').value = window.appSettings.vsrScale || '2';
+            if (el('settings-vsr-bitrate')) el('settings-vsr-bitrate').value = window.appSettings.vsrBitrate || '12M';
+            if (el('settings-vsr-chroma')) el('settings-vsr-chroma').value = window.appSettings.vsrChroma || 'yuv420p';
             el('debrid-proxy-enable').checked = window.appSettings.debridProxyEnable === true;
             el('debrid-proxy-address-input').value = window.appSettings.debridProxyAddress || '';
             document.getElementById('pill-tag-input-glob').focus();
@@ -119,6 +123,10 @@ function initSettingsListeners() {
         }
         window.appSettings.streamQuality = el('settings-stream-quality').value;
         window.appSettings.streamLang = el('settings-stream-lang').value;
+        if (el('settings-vsr-quality')) window.appSettings.vsrQuality = el('settings-vsr-quality').value;
+        if (el('settings-vsr-scale')) window.appSettings.vsrScale = el('settings-vsr-scale').value;
+        if (el('settings-vsr-bitrate')) window.appSettings.vsrBitrate = el('settings-vsr-bitrate').value;
+        if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
         window.appSettings.debridProxyEnable = el('debrid-proxy-enable').checked;
         window.appSettings.debridProxyAddress = el('debrid-proxy-address-input').value.trim();
         await window.electronAPI.saveSettings(window.appSettings);
