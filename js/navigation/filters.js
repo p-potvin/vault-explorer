@@ -46,7 +46,7 @@ function renderMore() {
 }
 
 function applyFilters() {
-    if (window.currentTab === 'vault' && window.currentVaultSubtab === 'favorites') {
+    if (window.currentTab === 'files' && window.currentFilesSubtab === 'favorites') {
         if (typeof window.renderFavorites === 'function') {
             window.renderFavorites(true);
         }
@@ -56,7 +56,7 @@ function applyFilters() {
     const filterAttr = el('filter-type').value;
     const vf = window.vf;
 
-    const activeSubtab = window.currentVaultSubtab || 'all';
+    const activeSubtab = window.currentFilesSubtab || 'all';
     const currentFolder = window.getTargetFolder();
     const currentFolderType = currentFolder ? currentFolder.type : null;
     const subtabType = activeSubtab === 'collections' ? 'collection'

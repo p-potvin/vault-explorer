@@ -41,8 +41,8 @@ window.VAULT_THEMES = [
     warning_bg:   "rgba(240,185,75,0.14)",
     success:      "#6BE675",
     success_bg:   "rgba(107,230,117,0.13)",
-    info:         "#55D6FF",
-    info_bg:      "rgba(85,214,255,0.13)",
+    info:         "#4173d6",
+    info_bg:      "rgba(65,115,214,0.13)",
   },
   {
     id: "vaultwares-revisited-warm",
@@ -66,8 +66,8 @@ window.VAULT_THEMES = [
     warning_bg:   "rgba(240,185,75,0.14)",
     success:      "#6BE675",
     success_bg:   "rgba(107,230,117,0.13)",
-    info:         "#55D6FF",
-    info_bg:      "rgba(85,214,255,0.13)",
+    info:         "#4173d6",
+    info_bg:      "rgba(65,115,214,0.13)",
   }
 ];
 
