@@ -40,7 +40,7 @@ async function updateStatusBar() {
         el('status-selected').innerText = '';
     }
 
-    if (window.currentTab === 'vault' && window.allItems && window.allItems.length > 0) {
+    if (window.currentTab === 'files' && window.allItems && window.allItems.length > 0) {
         const totalSize = window.allItems.reduce((sum, item) => sum + (item.size || 0), 0);
         displayFolderSize(totalSize);
     } else if (window.currentTab === 'favorites' && window.displayedItems && window.displayedItems.length > 0) {
@@ -332,7 +332,7 @@ window.invalidateRootCache = function () { window._rootItemsCache = null; };
 
 function initNavigationListeners() {
     el('main-area').addEventListener('scroll', () => {
-        if (window.currentTab && window.currentTab !== 'vault') {
+        if (window.currentTab && window.currentTab !== 'files') {
             window.tabScrollPositions = window.tabScrollPositions || {};
             window.tabScrollPositions[window.currentTab] = el('main-area').scrollTop;
             return;
@@ -443,7 +443,7 @@ function initNavigationListeners() {
     let isDragging = false, startX, startY;
 
     area.addEventListener('mousedown', (e) => {
-        if (window.currentTab !== 'vault' && window.currentTab !== 'favorites') return;
+        if (window.currentTab !== 'files' && window.currentTab !== 'favorites') return;
         if (e.target.closest('.file-card') || e.target.closest('.toolbar') || e.target.closest('button') || e.target.closest('input')) return;
         isDragging = true; const rect = area.getBoundingClientRect();
         startX = e.clientX - rect.left + area.scrollLeft; startY = e.clientY - rect.top + area.scrollTop;
@@ -455,7 +455,7 @@ function initNavigationListeners() {
         }
     });
     area.addEventListener('mousemove', (e) => {
-        if (!isDragging || (window.currentTab !== 'vault' && window.currentTab !== 'favorites')) return;
+        if (!isDragging || (window.currentTab !== 'files' && window.currentTab !== 'favorites')) return;
         const rect = area.getBoundingClientRect();
         const curX = e.clientX - rect.left + area.scrollLeft; const curY = e.clientY - rect.top + area.scrollTop;
         const x = Math.min(startX, curX), y = Math.min(startY, curY), w = Math.abs(curX - startX), h = Math.abs(curY - startY);
