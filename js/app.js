@@ -49,7 +49,7 @@ function setLanguage(lang) {
 
   // Translate top-level application navigation tabs
   const iconStyle = "width:13px; height:13px; flex-shrink:0;";
-  if (el('tab-vault')) el('tab-vault').innerHTML = `${window.icons ? window.icons.folder('tab-icon', iconStyle) : ''}${window.translations[lang].tabVault}`;
+  if (el('tab-files')) el('tab-files').innerHTML = `${window.icons ? window.icons.folder('tab-icon', iconStyle) : ''}${window.translations[lang].tabVault}`;
   if (el('tab-favorites')) el('tab-favorites').innerHTML = `${window.icons ? window.icons.star('tab-icon', iconStyle) : ''}${window.translations[lang].tabFavorites}`;
   if (el('tab-library')) el('tab-library').innerHTML = `${window.icons ? window.icons.library('tab-icon', iconStyle) : ''}${window.translations[lang].tabLibrary}`;
   if (el('tab-tmdb')) el('tab-tmdb').innerHTML = `${window.icons ? window.icons.filmRoll('tab-icon', iconStyle) : ''}${window.translations[lang].tabMoviesSeries}`;
@@ -323,7 +323,8 @@ async function initApp() {
 
     // Default boot tab setup, deferred to run after full init
     window.vaultLoaded = false;
-    const homeTab = window.appSettings.defaultHomeTab || 'vault';
+    let homeTab = window.appSettings?.defaultHomeTab || 'files';
+    if (homeTab === 'vault') homeTab = 'files';
     window.switchTab(homeTab);
 }
 

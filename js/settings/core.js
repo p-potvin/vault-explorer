@@ -41,7 +41,7 @@ function initSettingsListeners() {
                 el('settings-opensubtitles-key').value = window.appSettings.openSubtitlesKey || '';
             }
             if (el('settings-default-home-tab')) {
-                el('settings-default-home-tab').value = window.appSettings.defaultHomeTab || 'vault';
+                el('settings-default-home-tab').value = window.appSettings.defaultHomeTab || 'files';
             }
             el('settings-stream-quality').value = window.appSettings.streamQuality || '1080p';
             el('settings-stream-lang').value = window.appSettings.streamLang || 'en';
