@@ -48,17 +48,57 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
         const iframe = el('movie-trailer-iframe');
         const btnTrailer = el('btn-watch-trailer-browser');
 
-        if (iframeWrapper && iframe) {
-            // YouTube error 152/150/101 = "embed disabled" OR an origin
-            // mismatch. main.js overrides Referer/Origin to
-            // https://www.youtube.com/ for every YouTube request, so the
-            // iframe must load from that SAME domain — the previous attempt
-            // used youtube-nocookie.com which mismatched the spoofed Referer
-            // and YouTube's player rejected it. Also: spoof a valid http
-            // origin in the query so YouTube's JS-side validator passes.
+        if (btnTrailer) {
+            btnTrailer.style.display = 'flex';
+            btnTrailer.onclick = () => {
+                if (window.electronAPI && window.electronAPI.openExternalURL) {
+                    window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailerKey}`);
+                }
+            };
+        }
+
+        if (!iframeWrapper) return;
+
+        // -----------------------------------------------------------------
+        // PRIMARY: Extract direct stream URL via yt-dlp (bypasses ALL
+        // embedding restrictions, CORS, error 152/150/101).
+        // -----------------------------------------------------------------
+        if (window.electronAPI && window.electronAPI.extractYouTubeURL) {
+            try {
+                const result = await window.electronAPI.extractYouTubeURL(trailerKey);
+                if (result && result.success && result.url) {
+                    console.log('[streaming] yt-dlp resolved direct stream, replacing iframe with native video');
+                    // Remove old iframe listener if any
+                    if (window._ytTrailerListener) {
+                        window.removeEventListener('message', window._ytTrailerListener);
+                        window._ytTrailerListener = null;
+                    }
+                    // Replace iframe with native <video> element
+                    iframeWrapper.innerHTML = '';
+                    const vid = document.createElement('video');
+                    vid.id = 'movie-trailer-iframe';
+                    vid.style.cssText = 'width:100%; height:100%; border:none; background:#000; display:block;';
+                    vid.src = result.url;
+                    vid.controls = true;
+                    vid.playsInline = true;
+                    vid.preload = 'metadata';
+                    iframeWrapper.appendChild(vid);
+                    iframeWrapper.style.display = 'block';
+                    return;
+                }
+            } catch (e) {
+                console.warn('[streaming] yt-dlp extraction failed, falling back to iframe:', e.message);
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // FALLBACK: Legacy iframe embed (for when yt-dlp is unavailable or
+        // the video has no downloadable formats). Still subject to
+        // embedding restrictions.
+        // -----------------------------------------------------------------
+        if (iframe) {
             iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
             iframe.removeAttribute('sandbox');
-
             const spoofedOrigin = 'https://www.youtube.com';
             const params = new URLSearchParams({
                 autoplay: '0', rel: '0', modestbranding: '1',
@@ -67,20 +107,15 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
                 widget_referrer: spoofedOrigin,
             });
             iframe.src = `https://www.youtube.com/embed/${trailerKey}?${params.toString()}`;
-
             iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
             iframe.setAttribute('allowfullscreen', 'true');
 
-            // YouTube embed playback errors do NOT fire iframe.onerror; they
-            // arrive as postMessage events on window from youtube(-nocookie).com.
-            // Error info codes worth treating as fatal: 2, 5, 100, 101, 150.
             if (window._ytTrailerListener) {
                 window.removeEventListener('message', window._ytTrailerListener);
             }
             const showFallback = (reason) => {
                 console.error('[streaming] YouTube embed unplayable:', reason);
-                if (iframeWrapper) iframeWrapper.style.display = 'none';
-                if (btnTrailer) btnTrailer.style.display = 'flex';
+                iframeWrapper.style.display = 'none';
                 window.showToast('Trailer blocked from embedding. Use "Watch Trailer on YouTube" to open in your browser.', 'warning');
             };
             window._ytTrailerListener = (ev) => {
@@ -93,8 +128,6 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
             };
             window.addEventListener('message', window._ytTrailerListener);
 
-            // After load, ping the iframe with the listening handshake the
-            // IFrame API expects so it'll send us onError/onStateChange events.
             iframe.onload = () => {
                 try {
                     iframe.contentWindow.postMessage(
@@ -109,14 +142,6 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
             };
 
             iframeWrapper.style.display = 'block';
-        }
-        if (btnTrailer) {
-            btnTrailer.style.display = 'flex';
-            btnTrailer.onclick = () => {
-                if (window.electronAPI && window.electronAPI.openExternalURL) {
-                    window.electronAPI.openExternalURL(`https://www.youtube.com/watch?v=${trailerKey}`);
-                }
-            };
         }
 
         // Re-draw badges with the newly active trailer key

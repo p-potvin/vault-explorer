@@ -260,7 +260,8 @@ function initPlayer() {
             }
             const trailerIframe = el('movie-trailer-iframe');
             if (trailerIframe) {
-                trailerIframe.src = '';
+                if (trailerIframe.tagName === 'VIDEO') { trailerIframe.pause(); trailerIframe.src = ''; trailerIframe.load(); }
+                else { trailerIframe.src = ''; }
             }
             if (window.electronAPI.stopLivestream) {
                 window.electronAPI.stopLivestream().catch(() => {});

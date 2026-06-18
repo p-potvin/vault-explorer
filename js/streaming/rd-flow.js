@@ -259,7 +259,7 @@ window.startRDDebridFlow = async function(torrent, movieTitle, index = 0) {
 
             // Skip on other recoverable errors
             if (response && !response.success && !response.downloading) {
-                const skipErrors = ['link_not_allowed', 'bad_token', 'magnet_error', 'error'];
+                const skipErrors = ['link_not_allowed', 'bad_token', 'magnet_error', 'error', 'Duplicate in-flight'];
                 if (skipErrors.some(err => response.error && response.error.includes(err))) {
                     console.warn(`[RD] Skipping torrent: ${response.error}`);
                     lastError = response.error;

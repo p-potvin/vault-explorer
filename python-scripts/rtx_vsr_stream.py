@@ -14,6 +14,7 @@ Usage:
 import argparse
 import io
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -36,7 +37,6 @@ except ImportError as e:
 # ---------------------------------------------------------------------------
 CHUNK_SIZE = 4096          # Bytes read from ffmpeg stdout at a time
 FFMPEG_PIX_FMT = "rgb24"   # Raw RGB bytes from decoder
-FFMPEG_ENC_FMT = "yuv420p" # NVENC expects yuv420p
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -84,9 +84,23 @@ def _build_decoder_cmd(path: str, start_time: float = 0.0):
     return cmd
 
 
-def _build_encoder_stream_cmd(width: int, height: int, fps: float):
+def _build_encoder_stream_cmd(width: int, height: int, fps: float, bitrate: str = "12M", chroma: str = "yuv420p"):
     """ffmpeg command that reads raw yuv420p on stdin and outputs
     fragmented MP4 (fMP4) suitable for MediaSource sequence mode."""
+    # Derive maxrate and bufsize from bitrate string
+    import re
+    m = re.match(r"(\d+)([MmKk]?)", bitrate)
+    if m:
+        val = int(m.group(1))
+        suffix = m.group(2).upper() if m.group(2) else "M"
+        if suffix == "K":
+            bps = val * 1000
+        else:
+            bps = val * 1000000
+    else:
+        bps = 12000000
+    maxrate = f"{int(bps * 1.25)}{suffix}" if suffix else f"{int(bps * 1.25)}"
+    bufsize = f"{int(bps * 2)}{suffix}" if suffix else f"{int(bps * 2)}"
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats",
         "-f", "rawvideo",
@@ -98,9 +112,9 @@ def _build_encoder_stream_cmd(width: int, height: int, fps: float):
         "-preset", "p1",               # lowest latency preset
         "-tune", "ll",                 # low-latency tuning
         "-rc", "cbr",
-        "-b:v", "12M",                 # 12 Mbps for 1080p→4K
-        "-maxrate", "15M",
-        "-bufsize", "24M",
+        "-b:v", bitrate,
+        "-maxrate", maxrate,
+        "-bufsize", bufsize,
         "-g", "30",                    # 1-second GOP at 30 fps
         "-movflags", "frag_keyframe+empty_moov+default_base_moof",
         "-f", "mp4",
@@ -109,12 +123,12 @@ def _build_encoder_stream_cmd(width: int, height: int, fps: float):
     return cmd
 
 
-def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str):
+def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str, chroma: str = "yuv420p"):
     """ffmpeg command for permanent file enhancement."""
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats",
         "-f", "rawvideo",
-        "-pix_fmt", FFMPEG_ENC_FMT,
+        "-pix_fmt", chroma,
         "-s", f"{width}x{height}",
         "-r", str(fps) if fps > 0 else "30",
         "-i", "-",
@@ -152,33 +166,34 @@ def _process_frame_tensor(vsr, frame_torch: torch.Tensor):
     return out
 
 
-def _tensor_to_yuv420p(tensor: torch.Tensor):
-    """Convert a (3, H, W) float32 [0,1] RGB CUDA tensor to a YUV420p byte buffer.
-    Returns bytes suitable for ffmpeg stdin."""
-    # tensor is (3, H, W), float32, [0,1], CUDA
-    rgb = (tensor * 255.0).clamp(0, 255).to(torch.uint8)  # still on CUDA
+def _tensor_to_yuv(tensor: torch.Tensor, chroma: str = "yuv420p"):
+    """Convert a (3, H, W) float32 [0,1] RGB CUDA tensor to a YUV byte buffer.
+    Supports yuv420p and yuv444p. Returns bytes suitable for ffmpeg stdin."""
+    rgb = (tensor * 255.0).clamp(0, 255).to(torch.uint8)
     rgb = rgb.to("cpu").contiguous().numpy()  # (3, H, W) uint8
 
     h, w = rgb.shape[1], rgb.shape[2]
-    # RGB → YUV using BT.709 coefficients
     r, g, b = rgb[0].astype(np.float32), rgb[1].astype(np.float32), rgb[2].astype(np.float32)
 
     y = (0.2126 * r + 0.7152 * g + 0.0722 * b).clip(0, 255).astype(np.uint8)
     u = (-0.1146 * r - 0.3854 * g + 0.5000 * b + 128.0).clip(0, 255).astype(np.uint8)
     v = (0.5000 * r - 0.4542 * g - 0.0458 * b + 128.0).clip(0, 255).astype(np.uint8)
 
-    # Downsample chroma 2x2
-    u_ds = u[::2, ::2]
-    v_ds = v[::2, ::2]
-
-    return y.tobytes() + u_ds.tobytes() + v_ds.tobytes()
+    if chroma == "yuv444p":
+        return y.tobytes() + u.tobytes() + v.tobytes()
+    # yuv420p — downsample chroma 2x2 with averaging for better quality
+    u_avg = ((u[0::2, 0::2].astype(np.uint16) + u[0::2, 1::2].astype(np.uint16) +
+              u[1::2, 0::2].astype(np.uint16) + u[1::2, 1::2].astype(np.uint16)) // 4).astype(np.uint8)
+    v_avg = ((v[0::2, 0::2].astype(np.uint16) + v[0::2, 1::2].astype(np.uint16) +
+              v[1::2, 0::2].astype(np.uint16) + v[1::2, 1::2].astype(np.uint16)) // 4).astype(np.uint8)
+    return y.tobytes() + u_avg.tobytes() + v_avg.tobytes()
 
 
 # ---------------------------------------------------------------------------
 # Pipeline worker
 # ---------------------------------------------------------------------------
 
-def _run_pipeline(video_path: str, out_target, quality_level, start_time: float = 0.0, is_stream: bool = False):
+def _run_pipeline(video_path: str, out_target, quality_level, start_time: float = 0.0, is_stream: bool = False, scale: float = 2.0, bitrate: str = "12M", chroma: str = "yuv420p"):
     """Core pipeline: decode → VSR → encode.
 
     out_target: either a file path (str) or a writable buffer (for stream mode).
@@ -192,17 +207,17 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
         print("[RTX VSR] FATAL: could not probe source video", file=sys.stderr)
         return False
 
-    out_w = src_w * 2
-    out_h = src_h * 2
+    out_w = int(src_w * scale)
+    out_h = int(src_h * scale)
 
     print(f"[RTX VSR] Source: {src_w}x{src_h} @ {fps:.2f}fps → Output: {out_w}x{out_h}", file=sys.stderr)
 
     # Build ffmpeg commands
     dec_cmd = _build_decoder_cmd(video_path, start_time)
     if is_stream:
-        enc_cmd = _build_encoder_stream_cmd(out_w, out_h, fps)
+        enc_cmd = _build_encoder_stream_cmd(out_w, out_h, fps, bitrate, chroma)
     else:
-        enc_cmd = _build_encoder_file_cmd(out_w, out_h, fps, out_target)
+        enc_cmd = _build_encoder_file_cmd(out_w, out_h, fps, out_target, chroma)
 
     # Spawn decoder
     dec_proc = subprocess.Popen(
@@ -259,8 +274,8 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
             # VSR
             out_torch = _process_frame_tensor(vsr, frame_torch)
 
-            # Tensor → YUV420p bytes → encoder stdin
-            yuv_bytes = _tensor_to_yuv420p(out_torch)
+            # Tensor → YUV bytes → encoder stdin
+            yuv_bytes = _tensor_to_yuv(out_torch, chroma)
             enc_proc.stdin.write(yuv_bytes)
 
             frame_count += 1
@@ -307,7 +322,7 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
 # Stream mode
 # ---------------------------------------------------------------------------
 
-def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH"):
+def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH", scale: float = 2.0, bitrate: str = "12M", chroma: str = "yuv420p"):
     """Stream fragmented MP4 to stdout for MediaSource consumption."""
     quality_map = {
         "LOW": nvvfx.VideoSuperRes.QualityLevel.LOW,
@@ -328,11 +343,11 @@ def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH")
         print("[RTX VSR] FATAL: could not probe source video", file=sys.stderr)
         sys.exit(1)
 
-    out_w, out_h = src_w * 2, src_h * 2
-    print(f"[RTX VSR] stream: {src_w}x{src_h} → {out_w}x{out_h} quality={quality}", file=sys.stderr)
+    out_w, out_h = int(src_w * scale), int(src_h * scale)
+    print(f"[RTX VSR] stream: {src_w}x{src_h} → {out_w}x{out_h} quality={quality} scale={scale} bitrate={bitrate}", file=sys.stderr)
 
     dec_cmd = _build_decoder_cmd(video_path, start_time)
-    enc_cmd = _build_encoder_stream_cmd(out_w, out_h, fps)
+    enc_cmd = _build_encoder_stream_cmd(out_w, out_h, fps, bitrate, chroma)
 
     dec_proc = subprocess.Popen(dec_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
     enc_proc = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
@@ -378,7 +393,7 @@ def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH")
             arr = np.transpose(arr, (2, 0, 1))
             frame_torch = torch.from_numpy(arr).to(dtype=torch.float32, device="cuda") / 255.0
             out_torch = _process_frame_tensor(vsr, frame_torch)
-            yuv_bytes = _tensor_to_yuv420p(out_torch)
+            yuv_bytes = _tensor_to_yuv(out_torch, chroma)
             enc_proc.stdin.write(yuv_bytes)
             frame_count += 1
     except BrokenPipeError:
@@ -416,7 +431,7 @@ def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH")
 # Enhance mode (permanent file)
 # ---------------------------------------------------------------------------
 
-def enhance_mode(video_path: str, output_path: str, quality: str = "HIGH"):
+def enhance_mode(video_path: str, output_path: str, quality: str = "HIGH", scale: float = 2.0, chroma: str = "yuv420p"):
     """Process entire video and save to output_path."""
     quality_map = {
         "LOW": nvvfx.VideoSuperRes.QualityLevel.LOW,
@@ -426,7 +441,7 @@ def enhance_mode(video_path: str, output_path: str, quality: str = "HIGH"):
     }
     ql = quality_map.get(quality.upper(), nvvfx.VideoSuperRes.QualityLevel.HIGH)
 
-    success = _run_pipeline(video_path, output_path, ql, start_time=0.0, is_stream=False)
+    success = _run_pipeline(video_path, output_path, ql, start_time=0.0, is_stream=False, scale=scale, chroma=chroma)
 
     if success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
         print(f"[RTX VSR] Enhanced file saved: {output_path}")
@@ -448,21 +463,26 @@ def main():
     p_stream.add_argument("video_path")
     p_stream.add_argument("--start-time", type=float, default=0.0)
     p_stream.add_argument("--quality", default="HIGH")
+    p_stream.add_argument("--scale", type=float, default=2.0)
+    p_stream.add_argument("--bitrate", default="12M")
+    p_stream.add_argument("--chroma", default="yuv420p")
 
     p_enhance = sub.add_parser("enhance", help="Enhance video file permanently")
     p_enhance.add_argument("video_path")
     p_enhance.add_argument("output_path")
     p_enhance.add_argument("--quality", default="HIGH")
+    p_enhance.add_argument("--scale", type=float, default=2.0)
+    p_enhance.add_argument("--chroma", default="yuv420p")
 
     args = parser.parse_args()
 
     if args.cmd == "stream":
-        stream_mode(args.video_path, args.start_time, args.quality)
+        stream_mode(args.video_path, args.start_time, args.quality, args.scale, args.bitrate, args.chroma)
         # nanobind leak detector causes exit code 1; force clean exit
         sys.stdout.flush()
         os._exit(0)
     elif args.cmd == "enhance":
-        enhance_mode(args.video_path, args.output_path, args.quality)
+        enhance_mode(args.video_path, args.output_path, args.quality, args.scale, args.chroma)
         sys.stdout.flush()
         os._exit(0)
 

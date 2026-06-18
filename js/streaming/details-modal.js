@@ -141,7 +141,11 @@ async function _setupMovieModal(movie) {
     if (btnStream) {
         btnStream.onclick = () => {
             el('streaming-details-modal').style.display = 'none';
-            el('movie-trailer-iframe').src = '';
+            const trailerEl = el('movie-trailer-iframe');
+            if (trailerEl) {
+                if (trailerEl.tagName === 'VIDEO') { trailerEl.pause(); trailerEl.src = ''; trailerEl.load(); }
+                else { trailerEl.src = ''; }
+            }
             window.triggerRDStream(movie.title, movie.id, 'movie');
         };
     }
@@ -317,7 +321,11 @@ async function _loadSeasonEpisodes(tvId, seasonNumber) {
 window._streamEpisode = function(tvId, seasonNumber, episodeNumber) {
     // Close the details modal
     el('streaming-details-modal').style.display = 'none';
-    el('movie-trailer-iframe').src = '';
+    const trailerEl3 = el('movie-trailer-iframe');
+    if (trailerEl3) {
+        if (trailerEl3.tagName === 'VIDEO') { trailerEl3.pause(); trailerEl3.src = ''; trailerEl3.load(); }
+        else { trailerEl3.src = ''; }
+    }
 
     window.triggerRDStream(
         _currentModalTitle,
@@ -336,7 +344,10 @@ document.addEventListener('click', (e) => {
         if (!detailsModal.contains(e.target)) {
             detailsModal.style.display = 'none';
             const trailer = document.getElementById('movie-trailer-iframe');
-            if (trailer) trailer.src = '';
+            if (trailer) {
+                if (trailer.tagName === 'VIDEO') { trailer.pause(); trailer.src = ''; trailer.load(); }
+                else { trailer.src = ''; }
+            }
         }
     }
 
@@ -357,7 +368,10 @@ document.addEventListener('keydown', (e) => {
         if (detailsModal && detailsModal.style.display === 'flex') {
             detailsModal.style.display = 'none';
             const trailer = document.getElementById('movie-trailer-iframe');
-            if (trailer) trailer.src = '';
+            if (trailer) {
+                if (trailer.tagName === 'VIDEO') { trailer.pause(); trailer.src = ''; trailer.load(); }
+                else { trailer.src = ''; }
+            }
         }
 
         const rdDialog = document.getElementById('rd-stream-dialog');

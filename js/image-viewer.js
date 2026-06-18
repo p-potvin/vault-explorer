@@ -234,18 +234,27 @@
             box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
         }
 
-        .iv-ai-btn::after {
-            content: 'Roadmap';
+        .iv-ai-btn.processing {
+            opacity: 0.5;
+            pointer-events: none;
+            cursor: wait;
+        }
+        .iv-ai-btn.processing::after {
+            content: '';
             position: absolute;
-            top: -12px;
-            right: -8px;
-            background: #e11d48;
-            color: #ffffff;
-            font-size: 7px;
-            padding: 1px 4px;
-            border-radius: 3px;
-            font-weight: 800;
-            letter-spacing: 0.02em;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            margin-top: -5px;
+            margin-left: -5px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: iv-spin 0.8s linear infinite;
+        }
+        @keyframes iv-spin {
+            to { transform: rotate(360deg); }
         }
 
         .iv-stats {
@@ -304,9 +313,9 @@
 
                     <div class="iv-ai-section">
                         <span class="iv-ai-badge">AI Core</span>
-                        <button class="iv-ai-btn" id="iv-btn-ai-upscale" title="AI Super-Resolution Roadmap">Super-Res</button>
-                        <button class="iv-ai-btn" id="iv-btn-ai-denoise" title="AI Wavelet Denoising Roadmap">Denoise</button>
-                        <button class="iv-ai-btn" id="iv-btn-ai-edge" title="Canny Edge Detection Roadmap">Edge Detect</button>
+                        <button class="iv-ai-btn" id="iv-btn-ai-upscale" title="Real-ESRGAN AI Super-Resolution (4x)">Super-Res</button>
+                        <button class="iv-ai-btn" id="iv-btn-ai-denoise" title="ImageMagick Median Denoise">Denoise</button>
+                        <button class="iv-ai-btn" id="iv-btn-ai-edge" title="ImageMagick Edge Detection">Edge Detect</button>
                     </div>
                 </div>
                 <div class="iv-stats" id="iv-stats-lbl">Image size: 1920x1080 | Zoom: 100%</div>
@@ -333,16 +342,56 @@
         const aiDenoise = el('iv-btn-ai-denoise');
         const aiEdge = el('iv-btn-ai-edge');
 
-        // Roadmap click handles
-        const showRoadmapToast = (feature) => {
-            if (window.showToast) {
-                window.showToast(`Roadmap Idea: Modular ${feature} via client-side WebGPU/WASM pipeline under active design!`, 'info');
-            }
-        };
+        // AI enhancement cache: originalPath -> enhancedPath
+        const _enhancedCache = new Map();
 
-        aiUpscale.addEventListener('click', () => showRoadmapToast('Real-ESRGAN Image Upscaling'));
-        aiDenoise.addEventListener('click', () => showRoadmapToast('Bilateral Image Denoising'));
-        aiEdge.addEventListener('click', () => showRoadmapToast('Canny Edge Detection filter'));
+        async function runEnhancement(button, ipcFn, args, successLabel) {
+            const item = imagesInGrid.find(i => i.index === currentImageIndex)?.item;
+            if (!item || !window.electronAPI) return;
+
+            const originalPath = item.path;
+            const cacheKey = `${originalPath}:${button.id}`;
+
+            if (_enhancedCache.has(cacheKey)) {
+                img.src = window.sanitizePath(_enhancedCache.get(cacheKey));
+                if (window.showToast) window.showToast(`Showing cached ${successLabel}`, 'success');
+                return;
+            }
+
+            button.classList.add('processing');
+            if (window.showToast) window.showToast(`${successLabel}… this may take a moment`, 'info');
+
+            try {
+                const result = await ipcFn(...args);
+                button.classList.remove('processing');
+
+                if (result && result.success && result.path) {
+                    _enhancedCache.set(cacheKey, result.path);
+                    img.src = window.sanitizePath(result.path);
+                    img.onload = () => {
+                        updateTransform();
+                        if (window.showToast) window.showToast(`${successLabel} complete!`, 'success');
+                    };
+                } else {
+                    if (window.showToast) window.showToast(`${successLabel} failed: ${result.error || 'Unknown'}`, 'error');
+                }
+            } catch (e) {
+                button.classList.remove('processing');
+                if (window.showToast) window.showToast(`${successLabel} error: ${e.message}`, 'error');
+            }
+        }
+
+        aiUpscale.addEventListener('click', () => {
+            runEnhancement(aiUpscale, window.electronAPI.enhanceImageRealESRGAN, [imagesInGrid.find(i => i.index === currentImageIndex)?.item?.path], 'Real-ESRGAN upscale');
+        });
+        aiDenoise.addEventListener('click', () => {
+            const path = imagesInGrid.find(i => i.index === currentImageIndex)?.item?.path;
+            runEnhancement(aiDenoise, window.electronAPI.enhanceImageMagick, [path, 'denoise'], 'Denoise');
+        });
+        aiEdge.addEventListener('click', () => {
+            const path = imagesInGrid.find(i => i.index === currentImageIndex)?.item?.path;
+            runEnhancement(aiEdge, window.electronAPI.enhanceImageMagick, [path, 'edge'], 'Edge detect');
+        });
 
         // Close logic
         const closeModal = () => {
