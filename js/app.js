@@ -323,8 +323,10 @@ async function initApp() {
 
     // Default boot tab setup, deferred to run after full init
     window.vaultLoaded = false;
+    const validTabs = ['files', 'photos', 'audio', 'albums', 'playlists', 'streaming', 'livestream', 'misc'];
     let homeTab = window.appSettings?.defaultHomeTab || 'files';
     if (homeTab === 'vault') homeTab = 'files';
+    if (!validTabs.includes(homeTab)) homeTab = 'files';
     window.switchTab(homeTab);
 }
 
