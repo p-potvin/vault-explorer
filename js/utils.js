@@ -15,7 +15,12 @@ function formatBytes(bytes) {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const unit = sizes[i];
+  const value = bytes / Math.pow(k, i);
+  if (unit === 'GB' || unit === 'TB') {
+    return parseFloat(value.toFixed(2)) + ' ' + unit;
+  }
+  return Math.round(value) + ' ' + unit;
 }
 
 function formatDuration(sec) {
@@ -293,7 +298,12 @@ function browseTabFolder(tabName) {
   }
   window.electronAPI.openDirectory().then(folderPath => {
     if (!folderPath) return;
-    const key = 'defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+    const keyMap = {
+      'music': 'defaultFolderAudio',
+      'photoalbums': 'defaultFolderAlbums',
+      'misc': 'defaultFolderMisc'
+    };
+    const key = keyMap[tabName] || ('defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
     window.appSettings[key] = folderPath;
     if (window.electronAPI.saveSettings) {
       window.electronAPI.saveSettings(window.appSettings);
@@ -306,7 +316,12 @@ function browseTabFolder(tabName) {
 }
 
 function getTabDefaultFolder(tabName) {
-  const key = 'defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+  const keyMap = {
+    'music': 'defaultFolderAudio',
+    'photoalbums': 'defaultFolderAlbums',
+    'misc': 'defaultFolderMisc'
+  };
+  const key = keyMap[tabName] || ('defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
   return window.appSettings[key] || window.appSettings.defaultFolder || null;
 }
 

@@ -37,7 +37,7 @@
         tracklist.innerHTML = '';
         const empty = window.createFolderChooserEmptyState(
             { title: 'No Audio Found', body: 'Load a folder containing audio files to see playlists and tracks.' },
-            () => window.browseTabFolder('audio')
+            () => window.browseTabFolder('music')
         );
         empty.style.padding = '40px 0';
         tracklist.appendChild(empty);

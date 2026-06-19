@@ -8,7 +8,7 @@ const MOCK_TMDB_DATA = [
         year: "2024",
         rating: "8.3",
         genres: "Sci-Fi, Adventure",
-        poster: "dune_poster.png",
+        poster: "public/poster_placeholder.svg",
         overview: "Follow the mythic journey of Paul Atreides as he unites with Chani and the Fremen while on a path of revenge against the conspirators who destroyed his family."
     },
     {
@@ -16,7 +16,7 @@ const MOCK_TMDB_DATA = [
         year: "2023",
         rating: "8.1",
         genres: "Drama, History",
-        poster: "oppenheimer_poster.png",
+        poster: "public/poster_placeholder.svg",
         overview: "The story of J. Robert Oppenheimer's role in the development of the atomic bomb during World War II."
     },
     {
@@ -24,7 +24,7 @@ const MOCK_TMDB_DATA = [
         year: "2014",
         rating: "8.4",
         genres: "Sci-Fi, Drama",
-        poster: "dune_poster.png",
+        poster: "public/poster_placeholder.svg",
         overview: "The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel."
     },
     {
@@ -32,7 +32,7 @@ const MOCK_TMDB_DATA = [
         year: "2008",
         rating: "8.6",
         genres: "Action, Crime, Drama",
-        poster: "oppenheimer_poster.png",
+        poster: "public/poster_placeholder.svg",
         overview: "When the menace known as the Joker wreaks havoc and chaos on Gotham, Batman must accept one of the greatest psychological and physical tests."
     }
 ];
@@ -218,7 +218,7 @@ window.renderTMDB = async function(query = '', append = false) {
                    <button onclick="event.stopPropagation(); window.showMediaDetails(${JSON.stringify(movie).replace(/"/g, '&quot;')})" style="position: absolute; top: 8px; left: 8px; border: none; background: rgba(0,0,0,0.8); color: var(--vault-gold); font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 4px 6.5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid var(--vault-gold); transition: all 0.2s;" title="${isTV ? 'Browse Seasons' : 'Stream Movie'}">
                       ${isTV ? tvSvg : movieSvg}
                    </button>
-                   <img class="thumbnail" src="${movie.poster}" alt="${window.escapeHtml(movie.title)}" style="object-fit: cover; width:100%; height:100%; transition: opacity 0.25s ease;" onerror="this.src='oppenheimer_poster.png'">
+                   <img class="thumbnail" src="${movie.poster}" alt="${window.escapeHtml(movie.title)}" style="object-fit: cover; width:100%; height:100%; transition: opacity 0.25s ease;" onerror="this.src='public/poster_placeholder.svg'">
                    <div class="size-badge" style="background:var(--vault-accent); color:var(--vt-primary); font-weight:800; position:absolute; bottom: 8px; left: 8px; width: 28px; height: 28px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 8.5px; line-height: 1.1; padding: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.4); text-align: center;">
                       <span>★</span>
                       <span style="margin-top:-1px;">${movie.rating}</span>

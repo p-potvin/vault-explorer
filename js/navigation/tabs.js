@@ -88,14 +88,14 @@ window.switchTab = function(tabName) {
 
     // Mark the active tab on <body> so CSS can scope tab-specific layout
     document.body.classList.remove(
-        'tab-files-active', 'tab-audio-active',
-        'tab-albums-active', 'tab-playlists-active', 'tab-streaming-active',
+        'tab-files-active', 'tab-music-active',
+        'tab-photoalbums-active', 'tab-streaming-active',
         'tab-livestream-active', 'tab-misc-active'
     );
     document.body.classList.add(`tab-${tabName}-active`);
 
     // Toggle active state on tabs
-    const tabIds = ['files','audio','albums','playlists','streaming','livestream','misc'];
+    const tabIds = ['files','music','photoalbums','misc','streaming','livestream'];
     tabIds.forEach(name => {
         const btn = el(`tab-${name}`);
         if (!btn) return;
@@ -117,9 +117,8 @@ window.switchTab = function(tabName) {
     // --- SHOW/HIDE CONTAINERS ---
     const containers = {
         'files': ['file-grid', 'favorites-grid'],
-        'audio': ['audio-container'],
-        'albums': ['albums-container'],
-        'playlists': ['playlists-container'],
+        'music': ['audio-container'],
+        'photoalbums': ['albums-container'],
         'streaming': ['tmdb-container', 'library-grid'],
         'livestream': ['livestream-container'],
         'misc': ['misc-container']
@@ -130,7 +129,7 @@ window.switchTab = function(tabName) {
         'file-grid','favorites-grid','playlist-view-container',
         'library-grid','tmdb-container','livestream-container',
         'audio-container','albums-container',
-        'playlists-container','misc-container'
+        'misc-container'
     ];
     allContainerIds.forEach(id => {
         const el_ = el(id);
@@ -199,22 +198,17 @@ window.switchTab = function(tabName) {
             if (el_) el_.style.display = (id === 'tmdb-container' || id === 'audio-container') ? 'block' : 'grid';
         });
 
-        // Load per-tab default folder on first visit (audio, albums, playlists, misc)
-        if (['audio', 'albums', 'playlists', 'misc'].includes(tabName)) {
-            if (!window.tabFolderLoaded) window.tabFolderLoaded = {};
-            if (!window.tabFolderLoaded[tabName]) {
-                const folder = typeof window.getTabDefaultFolder === 'function' ? window.getTabDefaultFolder(tabName) : null;
-                if (folder && window.loadDirectory) {
-                    const navName = folder.split(/[\\/]/).pop() || 'root';
-                    window.loadDirectory('root/' + navName, folder, true);
-                }
-                window.tabFolderLoaded[tabName] = true;
+        // Load per-tab default folder on switch (music, photoalbums, misc). Falls back to the global vault folder.
+        if (['music', 'photoalbums', 'misc'].includes(tabName)) {
+            const folder = typeof window.getTabDefaultFolder === 'function' ? window.getTabDefaultFolder(tabName) : null;
+            if (folder && window.loadDirectory && window.currentRealPath !== folder) {
+                const navName = folder.split(/[\\/]/).pop() || 'root';
+                window.loadDirectory('root/' + navName, folder, true);
             }
         }
 
-        if (tabName === 'audio' && typeof window.renderAudio === 'function') window.renderAudio();
-        if (tabName === 'albums' && typeof window.renderAlbums === 'function') window.renderAlbums();
-        if (tabName === 'playlists' && typeof window.renderPlaylists === 'function') window.renderPlaylists();
+        if (tabName === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
+        if (tabName === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
         if (tabName === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
     }
 };

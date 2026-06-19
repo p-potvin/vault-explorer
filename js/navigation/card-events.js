@@ -153,6 +153,7 @@ async function handleCardContextMenu(card, item, index) {
             window.showToast(`Queued ${targetVideos.length} previews for background generation`, 'success');
             window.electronAPI.scheduleIdlePreviews(targetVideos);
         } else {
+            console.log('[ctx-menu:generate-webm] Generating preview for:', item.path);
             window.electronAPI.generateWebm(item.path, window.currentRealPath).then(res => {
                 const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
                 const cardElement = Array.from(document.querySelectorAll('.file-card'))
@@ -216,7 +217,14 @@ async function handleCardContextMenu(card, item, index) {
     } else if (action === 'upscale-video') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
-        
+        const missingPath = targetItems.find(t => !t || !t.path);
+        if (missingPath) {
+            console.error('[ctx-menu:upscale] Missing target item path:', missingPath);
+            window.showToast('Cannot upscale: missing file path', 'error');
+            return;
+        }
+        console.log('[ctx-menu:upscale] Upscaling paths:', targetItems.map(t => t.path));
+
         window.showToast(`AI Video Upscaling started in background for ${targetItems.length} video(s)...`, 'success');
         
         targetItems.forEach(targetItem => {
@@ -378,8 +386,15 @@ async function handleCardContextMenu(card, item, index) {
     } else if (action === 'enhance-video-prompt') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
-        
-        const config = await window.showVideoEnhancementDialog(targetItems[0]);
+        const targetItem = targetItems[0];
+        if (!targetItem || !targetItem.path) {
+            console.error('[ctx-menu:enhance] Missing target item path:', targetItem);
+            window.showToast('Cannot enhance: missing file path', 'error');
+            return;
+        }
+        console.log('[ctx-menu:enhance] Enhancing path:', targetItem.path);
+
+        const config = await window.showVideoEnhancementDialog(targetItem);
         if (config && config.execute) {
             window.showToast(`AI Video Optimization pipeline started for ${targetItems.length} video(s)...`, 'success');
             targetItems.forEach(targetItem => {

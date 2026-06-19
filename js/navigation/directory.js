@@ -427,11 +427,6 @@ function initNavigationListeners() {
         window.showToast('Views refreshed successfully', 'success');
     });
 
-    el('btn-select').addEventListener('click', async () => {
-        const folderPath = await window.electronAPI.openDirectory();
-        if (folderPath) { loadDirectory('root', folderPath, false); window.showToast('Vault loaded: ' + folderPath, 'success'); }
-    });
-
     el('path-display').addEventListener('click', async () => {
         const folderPath = await window.electronAPI.openDirectory();
         if (folderPath) { loadDirectory('root', folderPath, false); window.showToast('Vault loaded: ' + folderPath, 'success'); }

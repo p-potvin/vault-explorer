@@ -343,7 +343,12 @@ window.toggleFavorite = function(filePath, btnEl) {
     
     // Save settings persistently
     window.electronAPI.saveSettings(window.appSettings);
-    
+
+    // Keep the Favorites virtual folder in sync
+    if (window.vf && typeof window.vf.syncFavorites === 'function') {
+        try { window.vf.syncFavorites(); } catch (e) { console.error('[favorites] syncFavorites failed:', e); }
+    }
+
     // Invalidate local favorites cache to ensure freshness on next tab render/filter
     window.favoriteLocalItems = null;
     

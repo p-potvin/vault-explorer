@@ -10,6 +10,104 @@ window.autoplayEnabled = (window.autoplayMode !== 'off');
 const PLAY_ICON_SVG = window.icons ? window.icons.play('', 'width:16px; height:16px; display:block;') : '';
 const PAUSE_ICON_SVG = window.icons ? window.icons.pause('', 'width:16px; height:16px; display:block;') : '';
 
+async function handlePlayerContextMenu(action, menuItem) {
+    if (!action || action === 'closed' || action === 'show' || action === 'copied') return;
+
+    const vp = el('video-player');
+    const item = window.currentPlayingItem || window.activeStreamingMedia || {};
+    const itemPath = item.path || menuItem.path;
+
+    if (action === 'play-pause') {
+        if (!vp) return;
+        if (vp.paused) vp.play().catch(() => {});
+        else vp.pause();
+    } else if (action === 'mute') {
+        if (!vp) return;
+        vp.muted = !vp.muted;
+    } else if (action.startsWith('speed:')) {
+        const speed = parseFloat(action.split(':')[1]);
+        if (vp && !isNaN(speed)) vp.playbackRate = speed;
+    } else if (action === 'pip') {
+        el('video-modal').classList.toggle('minimized');
+    } else if (action === 'fullscreen') {
+        if (!vp) return;
+        if (!document.fullscreenElement) vp.parentElement.requestFullscreen();
+        else document.exitFullscreen();
+    } else if (action === 'generate-webm') {
+        if (!itemPath) { window.showToast('No video path available', 'error'); return; }
+        window.electronAPI.generateWebm(itemPath, window.currentRealPath).then(res => {
+            if (!res.success) {
+                window.showToast('Preview failed: ' + res.error, 'error');
+            } else {
+                window.showToast('Preview generated', 'success');
+            }
+        });
+    } else if (action === 'normalize-audio') {
+        if (!itemPath) { window.showToast('No video path available', 'error'); return; }
+        window.showToast('Enhancing audio in background...', 'success');
+        window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, false).then(res => {
+            if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                window.showToast(`${menuItem.name || 'Video'}: Audio enhanced`, 'success');
+            } else {
+                window.showToast(`${menuItem.name || 'Video'}: Audio enhancement failed: ` + (res.error || 'Unknown'), 'error');
+            }
+        });
+    } else if (action === 'generate-subtitles-prompt') {
+        if (!itemPath) { window.showToast('No video path available', 'error'); return; }
+        const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
+        const langs = await window.showLanguageModal('Generate Subtitles', true, defaultLangs);
+        if (langs && langs.length > 0) {
+            if (!window.appSettings) window.appSettings = {};
+            window.appSettings.preferredASRLangs = langs;
+            window.electronAPI.saveSettings(window.appSettings);
+            window.showToast(`Generating subtitles for ${menuItem.name || 'video'}: ${langs.join(', ').toUpperCase()}`, 'success');
+            window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, true).then(res => {
+                if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                    window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');
+                    refreshDirectoryWithScrollPreservation();
+                } else {
+                    window.showToast(`${menuItem.name || 'Video'}: Subtitles failed: ` + (res.error || 'Unknown'), 'error');
+                }
+            });
+        }
+    } else if (action === 'translate-video-prompt') {
+        if (!itemPath) { window.showToast('No video path available', 'error'); return; }
+        const defaultTransLangs = (window.appSettings && window.appSettings.preferredTransLang) ? [window.appSettings.preferredTransLang] : [];
+        const lang = await window.showLanguageModal('Translate Video Track', false, defaultTransLangs);
+        if (lang && lang.length > 0) {
+            if (!window.appSettings) window.appSettings = {};
+            window.appSettings.preferredTransLang = lang[0];
+            window.electronAPI.saveSettings(window.appSettings);
+            window.showToast(`Synthesizing translation to ${lang[0].toUpperCase()} for ${menuItem.name || 'video'}...`, 'success');
+            window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, false, lang[0]).then(res => {
+                if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
+                    window.showToast(`${menuItem.name || 'Video'}: Translation complete`, 'success');
+                    refreshDirectoryWithScrollPreservation();
+                } else {
+                    window.showToast(`${menuItem.name || 'Video'}: Translation failed: ` + (res.error || 'Unknown'), 'error');
+                }
+            });
+        }
+    } else if (action === 'enhance-video-prompt') {
+        if (!itemPath) { window.showToast('No video path available', 'error'); return; }
+        const dialogItem = window.currentPlayingItem || { path: itemPath, name: menuItem.name, type: 'video' };
+        const config = await window.showVideoEnhancementDialog(dialogItem);
+        if (config && config.execute) {
+            window.showToast(`AI Video Optimization started for ${menuItem.name || 'video'}...`, 'success');
+            window.electronAPI.upscaleVideo(itemPath).then(res => {
+                if (res.success) {
+                    window.showToast(`${menuItem.name || 'Video'}: Enhancement started`, 'success');
+                } else {
+                    window.showToast(`${menuItem.name || 'Video'}: Enhancement failed: ` + (res.error || 'Unknown'), 'error');
+                }
+            });
+        }
+    } else if (action === 'properties') {
+        if (!itemPath) { window.showToast('No video path available', 'error'); return; }
+        window.showPropertiesDialog({ path: itemPath, name: menuItem.name, type: 'video' });
+    }
+}
+
 let vp = null;
 let seekArea = null;
 let seekFill = null;
@@ -344,6 +442,27 @@ function initPlayer() {
                 e.stopPropagation();
                 el('video-modal').classList.remove('minimized');
             }
+        });
+    }
+
+    // Context menu inside the video player
+    if (vp) {
+        vp.addEventListener('contextmenu', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const item = window.currentPlayingItem || window.activeStreamingMedia || {};
+            const isStreaming = !!window.activeStreamingMedia && !window.currentPlayingItem;
+            const menuItem = {
+                type: 'videoPlayer',
+                path: item.path || item.src || (vp.src ? decodeURIComponent(vp.src.replace('file:///', '').replace(/\//g, '\\')) : ''),
+                name: item.name || item.title || 'Video',
+                isStreaming,
+                isPlaying: !vp.paused,
+                isMuted: vp.muted,
+                speed: vp.playbackRate
+            };
+            const action = await window.electronAPI.showContextMenu(menuItem);
+            await handlePlayerContextMenu(action, menuItem);
         });
     }
 

@@ -185,6 +185,52 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                     { type: 'separator' },
                     { label: 'New Virtual Folder…', click: () => once('bg-new-folder') },
                 ];
+            } else if (item.type === 'videoPlayer') {
+                const isLocal = !item.isStreaming;
+                const aiSubmenu = isLocal ? [
+                    { label: 'Enhance Audio 🪄', click: () => once('normalize-audio') },
+                    { label: 'Generate Subtitles', click: () => once('generate-subtitles-prompt') },
+                    { label: 'Translate this video', click: () => once('translate-video-prompt') },
+                    { label: 'Enhance Video 🪄', click: () => once('enhance-video-prompt') }
+                ] : [];
+                templ = [
+                    { label: item.isPlaying ? 'Pause' : 'Play', click: () => once('play-pause') },
+                    { label: item.isMuted ? 'Unmute' : 'Mute', click: () => once('mute') },
+                    { type: 'separator' },
+                    { label: 'Playback Speed', submenu: [
+                        { label: '0.5x', type: 'radio', checked: item.speed === 0.5, click: () => once('speed:0.5') },
+                        { label: '0.75x', type: 'radio', checked: item.speed === 0.75, click: () => once('speed:0.75') },
+                        { label: 'Normal', type: 'radio', checked: !item.speed || item.speed === 1, click: () => once('speed:1') },
+                        { label: '1.25x', type: 'radio', checked: item.speed === 1.25, click: () => once('speed:1.25') },
+                        { label: '1.5x', type: 'radio', checked: item.speed === 1.5, click: () => once('speed:1.5') },
+                        { label: '2x', type: 'radio', checked: item.speed === 2, click: () => once('speed:2') }
+                    ]},
+                    { label: 'Picture-in-Picture', click: () => once('pip') },
+                    { label: 'Fullscreen', click: () => once('fullscreen') },
+                    { type: 'separator' }
+                ];
+                if (aiSubmenu.length > 0) {
+                    templ.push({ label: 'AI Enhancements 🪄', submenu: aiSubmenu });
+                }
+                if (isLocal) {
+                    templ.push(
+                        { label: 'Generate Preview', click: () => once('generate-webm') },
+                        { type: 'separator' },
+                        { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); once('show'); } },
+                        { label: 'Copy Path', click: () => { clipboard.writeText(item.path); once('copied'); } }
+                    );
+                } else {
+                    templ.push(
+                        { type: 'separator' },
+                        { label: 'Copy Stream URL', click: () => { clipboard.writeText(item.path || ''); once('copied'); } }
+                    );
+                }
+                if (isLocal) {
+                    templ.push(
+                        { type: 'separator' },
+                        { label: 'Properties', click: () => once('properties') }
+                    );
+                }
             }
             const menu = Menu.buildFromTemplate(templ);
             menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });

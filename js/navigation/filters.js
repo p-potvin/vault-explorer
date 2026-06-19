@@ -107,6 +107,13 @@ function applyFilters() {
         pool = [...rootFolders, ...window.allItems];
     }
 
+    // Pin the Favorites folder to the top of any folder list.
+    pool.sort((a, b) => {
+        if (a.type === 'fakeFolder' && a.name === 'Favorites') return -1;
+        if (b.type === 'fakeFolder' && b.name === 'Favorites') return 1;
+        return 0;
+    });
+
     let filteredItems = pool.filter(v => {
         if (term) {
             const hasName = v.name.toLowerCase().includes(term);
@@ -125,6 +132,8 @@ function applyFilters() {
     const sortOrder = el('btn-sort-order').dataset.order || 'desc';
 
     filteredItems.sort((a, b) => {
+        if (a.type === 'fakeFolder' && a.name === 'Favorites') return -1;
+        if (b.type === 'fakeFolder' && b.name === 'Favorites') return 1;
         if (a.type === 'fakeFolder' && b.type !== 'fakeFolder') return -1;
         if (b.type === 'fakeFolder' && a.type !== 'fakeFolder') return 1;
         let valA = a[sortBy]; let valB = b[sortBy];
@@ -143,7 +152,7 @@ function applyFilters() {
         const hasActiveFilters = term !== '' || filterAttr !== 'all';
         const ctaButton = hasActiveFilters
             ? `<button style="margin-top:16px;" onclick="document.getElementById('search-box').value=''; document.getElementById('filter-type').value='all'; window.applyFilters();">Clear Filters</button>`
-            : `<button style="margin-top:16px;" onclick="document.getElementById('btn-select').click()">Browse Vault</button>`;
+            : `<button style="margin-top:16px;" onclick="document.getElementById('path-display').click()">Browse Vault</button>`;
         el('file-grid').innerHTML = `
            <div class="empty-state" style="grid-column: 1 / -1;">
                ${window.icons ? window.icons.search('', 'width: 48px; height: 48px; margin-bottom: 12px; color: var(--vault-slate);') : ''}
@@ -176,9 +185,8 @@ function applyFilters() {
     }
 
     // Re-render the active media tab if the user is on a non-Files tab
-    if (window.currentTab === 'audio' && typeof window.renderAudio === 'function') window.renderAudio();
-    if (window.currentTab === 'albums' && typeof window.renderAlbums === 'function') window.renderAlbums();
-    if (window.currentTab === 'playlists' && typeof window.renderPlaylists === 'function') window.renderPlaylists();
+    if (window.currentTab === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
+    if (window.currentTab === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
     if (window.currentTab === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
 }
 

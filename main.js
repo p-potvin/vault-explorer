@@ -20,6 +20,69 @@ let mainWindow;
 let tray = null;
 let isQuitting = false;
 
+// Windows process cleanup helpers
+function getProcessName() {
+    return path.basename(process.execPath);
+}
+
+function killAllVaultExplorerProcesses(includeSelf = true) {
+    const execName = getProcessName();
+    // Only run process cleanup on Windows and only when the executable is the packaged app
+    if (process.platform !== 'win32' || execName.toLowerCase() !== 'vault-explorer.exe') return;
+
+    if (includeSelf) {
+        // Detached taskkill will outlive the current process and terminate the whole family
+        try {
+            child_process.spawn('taskkill', ['/F', '/IM', 'vault-explorer.exe'], {
+                detached: true,
+                windowsHide: true,
+                stdio: 'ignore'
+            }).unref();
+        } catch (err) {
+            console.error('[cleanup] Failed to spawn self-killing taskkill:', err);
+        }
+        return;
+    }
+
+    // Kill all vault-explorer processes except the current PID (startup zombie cleanup)
+    const currentPid = process.pid;
+    try {
+        child_process.spawn('powershell.exe', [
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+            `Get-Process -Name vault-explorer -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne ${currentPid} } | Stop-Process -Force -ErrorAction SilentlyContinue`
+        ], {
+            detached: true,
+            windowsHide: true,
+            stdio: 'ignore'
+        }).unref();
+    } catch (err) {
+        console.error('[cleanup] Failed to kill sibling vault-explorer processes:', err);
+    }
+}
+
+function killNodeProcesses() {
+    if (process.platform !== 'win32') return;
+    try {
+        child_process.spawn('powershell.exe', [
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+            'Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue'
+        ], {
+            detached: true,
+            windowsHide: true,
+            stdio: 'ignore'
+        }).unref();
+    } catch (err) {
+        console.error('[cleanup] Failed to kill node processes:', err);
+    }
+}
+
+function performFullAppCleanup() {
+    console.log('[main:cleanup] Full app cleanup requested');
+    utils.killAllActiveSubprocesses();
+    killNodeProcesses();
+    killAllVaultExplorerProcesses(true);
+}
+
 function createTray() {
     if (tray) return;
     const trayIconPath = path.join(__dirname, 'build', 'icon.ico');
@@ -101,20 +164,27 @@ function createWindow() {
                 return;
             }
         }
-        utils.killAllActiveSubprocesses();
+        performFullAppCleanup();
     });
 
     createTray();
 }
 
 app.whenReady().then(() => {
+    // Clean up any orphaned vault-explorer processes from a previous bad exit
+    killAllVaultExplorerProcesses(false);
+
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('before-quit', () => {
     isQuitting = true;
+    performFullAppCleanup();
 });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+    performFullAppCleanup();
+    if (process.platform !== 'darwin') app.quit();
+});
 
 // Native fullscreen toggle for the player. Document fullscreen alone leaves
 // the OS window resizable, which paints resize cursors at the screen edges.
@@ -125,9 +195,8 @@ ipcMain.handle('set-window-fullscreen', (_e, on) => {
 });
 
 // Automatic clean exit subprocess killing hooks
-app.on('before-quit', utils.killAllActiveSubprocesses);
-app.on('will-quit', utils.killAllActiveSubprocesses);
-process.on('exit', utils.killAllActiveSubprocesses);
+app.on('will-quit', performFullAppCleanup);
+process.on('exit', performFullAppCleanup);
 
 // Clip Handler for video clipping
 function registerClipHandler(ipcMain) {

@@ -8,7 +8,7 @@ function setLanguage(lang) {
   el('lang-text').innerText = (lang === 'en') ? 'EN' : 'FR';
   console.log('[i18n] Language set to:', lang);
   
-  el('btn-select').innerHTML = `${window.icons ? window.icons.folder('', 'width:12px; height:12px; display:inline-block;') : ''} <span>${window.translations[lang].browseVault}</span>`;
+  if (el('path-display')) el('path-display').title = window.translations[lang].browseVault;
   
   const filterType = el('filter-type');
   filterType.options[0].text = window.translations[lang].videos;
@@ -137,6 +137,13 @@ async function initApp() {
     if (window.vf && typeof window.vf.migrateLegacy === 'function') {
         try { window.vf.migrateLegacy(); } catch (e) { console.error('[app] vf.migrateLegacy failed:', e); }
     }
+    // Ensure default virtual folders are always present
+    if (window.vf && typeof window.vf.ensureDefaultFavorites === 'function') {
+        try { window.vf.ensureDefaultFavorites(); } catch (e) { console.error('[app] vf.ensureDefaultFavorites failed:', e); }
+    }
+    if (window.vf && typeof window.vf.syncFavorites === 'function') {
+        try { window.vf.syncFavorites(); } catch (e) { console.error('[app] vf.syncFavorites failed:', e); }
+    }
     if (window.appSettings.mutePreviews === undefined) window.appSettings.mutePreviews = false;
     if (!window.appSettings.lastPath) window.appSettings.lastPath = { navPath: 'root', realPath: '' };
     if (!window.appSettings.scrollPositions) window.appSettings.scrollPositions = {};
@@ -185,7 +192,7 @@ async function initApp() {
         const pctText = el('task-percent');
 
         // Handle Batch Preview Generation Progress
-        if (data.isBatchStart || data.isBatchProgress) {
+        if (data.isBatchStart || data.isBatchProgress || data.isBatchComplete) {
             if (badge) {
                 badge.style.display = 'inline-flex';
                 const total = data.total || 0;
@@ -195,15 +202,15 @@ async function initApp() {
                     pctText.innerText = `${completed}/${total} (${pct}%)`;
                 }
                 // Hide badge when batch is complete, has error, or is invalid
-                if (completed >= total && total > 0) {
-                    setTimeout(() => { 
-                        if (badge) badge.style.display = 'none'; 
+                if (data.isBatchComplete || (completed >= total && total > 0)) {
+                    setTimeout(() => {
+                        if (badge) badge.style.display = 'none';
                     }, 2000);
                 }
                 // Also hide if there's an error or completion without total
                 if (data.error || (data.completed > 0 && total === 0)) {
-                    setTimeout(() => { 
-                        if (badge) badge.style.display = 'none'; 
+                    setTimeout(() => {
+                        if (badge) badge.style.display = 'none';
                     }, 3000);
                 }
             }
@@ -323,9 +330,13 @@ async function initApp() {
 
     // Default boot tab setup, deferred to run after full init
     window.vaultLoaded = false;
-    const validTabs = ['files', 'photos', 'audio', 'albums', 'playlists', 'streaming', 'livestream', 'misc'];
+    const validTabs = ['files', 'music', 'photoalbums', 'misc', 'streaming', 'livestream'];
     let homeTab = window.appSettings?.defaultHomeTab || 'files';
     if (homeTab === 'vault') homeTab = 'files';
+    if (homeTab === 'photos') homeTab = 'photoalbums';
+    if (homeTab === 'audio') homeTab = 'music';
+    if (homeTab === 'albums') homeTab = 'photoalbums';
+    if (homeTab === 'playlists') homeTab = 'music';
     if (!validTabs.includes(homeTab)) homeTab = 'files';
     window.switchTab(homeTab);
 }
