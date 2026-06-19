@@ -266,6 +266,50 @@ function showConfirmDialog(message, title) {
   });
 }
 
+function createFolderChooserEmptyState(message, onChoose) {
+  const wrap = document.createElement('div');
+  wrap.className = 'empty-state';
+  wrap.style.cssText = 'padding: 60px 24px; text-align: center; color: var(--vault-slate);';
+  wrap.innerHTML = `
+    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.6;">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>
+    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--vault-text); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em;">${message.title}</h3>
+    <p style="font-size: 12px; opacity: 0.7; font-family: var(--font-mono); margin-bottom: 20px;">${message.body}</p>
+    <button class="btn-browse-tab-folder" style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 8px 16px; border-radius: 4px; font-weight: 700; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Choose Folder
+    </button>
+  `;
+  const btn = wrap.querySelector('.btn-browse-tab-folder');
+  if (btn) btn.addEventListener('click', onChoose);
+  return wrap;
+}
+
+function browseTabFolder(tabName) {
+  if (!window.electronAPI || !window.electronAPI.openDirectory) {
+    window.showToast('Folder picker not available', 'error');
+    return;
+  }
+  window.electronAPI.openDirectory().then(folderPath => {
+    if (!folderPath) return;
+    const key = 'defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+    window.appSettings[key] = folderPath;
+    if (window.electronAPI.saveSettings) {
+      window.electronAPI.saveSettings(window.appSettings);
+    }
+    const navName = folderPath.split(/[\\/]/).pop() || 'root';
+    if (window.loadDirectory) {
+      window.loadDirectory('root/' + navName, folderPath, true);
+    }
+  });
+}
+
+function getTabDefaultFolder(tabName) {
+  const key = 'defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+  return window.appSettings[key] || window.appSettings.defaultFolder || null;
+}
+
 // Bind globals for accessibility
 window.el = el;
 window.escapeHtml = escapeHtml;
@@ -277,3 +321,6 @@ window.showClipboardNotification = showClipboardNotification;
 window.attachHoverWebmToCard = attachHoverWebmToCard;
 window.killAllHoverVideos = killAllHoverVideos;
 window.showConfirmDialog = showConfirmDialog;
+window.createFolderChooserEmptyState = createFolderChooserEmptyState;
+window.browseTabFolder = browseTabFolder;
+window.getTabDefaultFolder = getTabDefaultFolder;

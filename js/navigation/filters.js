@@ -174,6 +174,12 @@ function applyFilters() {
         nextBatch.forEach((item, i) => { el('file-grid').appendChild(window.createCardElement(item, i)); });
         window.currentlyRendered = nextBatch.length;
     }
+
+    // Re-render the active media tab if the user is on a non-Files tab
+    if (window.currentTab === 'audio' && typeof window.renderAudio === 'function') window.renderAudio();
+    if (window.currentTab === 'albums' && typeof window.renderAlbums === 'function') window.renderAlbums();
+    if (window.currentTab === 'playlists' && typeof window.renderPlaylists === 'function') window.renderPlaylists();
+    if (window.currentTab === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
 }
 
 window.applyFilters = applyFilters;

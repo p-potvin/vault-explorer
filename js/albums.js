@@ -1,9 +1,12 @@
 /* ==========================================================================
-   Vault Explorer — Albums Tab (Photo Album Grid)
+   Vault Explorer — Albums/Photos Section (Unified Album Grid + Photo River)
    ========================================================================== */
 
 (function () {
     const PHOTO_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'avif', 'tiff', 'tif']);
+
+    let currentAlbum = null;
+    let currentAlbumPhotos = [];
 
     function isPhoto(item) {
         if (!item) return false;
@@ -26,18 +29,6 @@
         return Array.from(groups.values());
     }
 
-    function renderEmpty(container) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 60px 24px; text-align: center; color: var(--vault-slate);">
-                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.6;">
-                    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
-                </svg>
-                <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--vault-text); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em;">No Albums Yet</h3>
-                <p style="font-size: 12px; opacity: 0.7; font-family: var(--font-mono);">Load a folder containing images to see them grouped by album.</p>
-            </div>
-        `;
-    }
-
     function createAlbumCard(album, index) {
         const card = document.createElement('div');
         card.className = 'file-card';
@@ -58,34 +49,103 @@
             </div>
         `;
 
-        card.addEventListener('click', () => {
-            window.switchTab('photos');
-            // Filter displayedItems to this album's folder
-            const source = window.allItems || [];
-            window.displayedItems = source.filter(item => (item.folder || 'Uncategorized') === album.name && isPhoto(item));
-            if (typeof window.renderPhotos === 'function') window.renderPhotos();
-        });
-
+        card.addEventListener('click', () => showAlbumPhotos(album));
         return card;
     }
 
-    window.renderAlbums = function () {
+    function showAlbumPhotos(album) {
+        currentAlbum = album;
+        const source = window.allItems || window.displayedItems || [];
+        currentAlbumPhotos = source.filter(item => (item.folder || 'Uncategorized') === album.name && isPhoto(item));
+        renderAlbumPhotoView();
+    }
+
+    function renderAlbumPhotoView() {
+        const grid = el('albums-grid');
+        const view = el('album-photos-view');
+        const river = el('album-photos-river');
+        const title = el('album-photos-title');
+        if (!grid || !view || !river) return;
+
+        grid.style.display = 'none';
+        view.style.display = 'block';
+        if (title) title.innerText = currentAlbum ? currentAlbum.name : 'Album';
+        river.innerHTML = '';
+
+        if (currentAlbumPhotos.length === 0) {
+            river.innerHTML = `
+                <div class="empty-state" style="column-span: all; text-align: center; padding: 40px;">
+                    <p style="color: var(--vault-slate); font-family: var(--font-mono);">No photos in this album.</p>
+                </div>
+            `;
+            return;
+        }
+
+        currentAlbumPhotos.forEach((item, idx) => {
+            const thumbSrc = item.thumbnail ? window.sanitizePath(item.thumbnail) : window.sanitizePath(item.path);
+            const div = document.createElement('div');
+            div.className = 'photo-item';
+            div.dataset.index = idx;
+            div.dataset.path = item.path;
+
+            const img = document.createElement('img');
+            img.src = thumbSrc;
+            img.alt = item.name;
+            img.loading = 'lazy';
+            img.onerror = () => { img.style.display = 'none'; div.style.background = 'var(--vt-surface-alt)'; };
+
+            div.appendChild(img);
+            div.addEventListener('dblclick', () => {
+                if (typeof window.openPhotoEditor === 'function') {
+                    window.openPhotoEditor(item, currentAlbumPhotos);
+                }
+            });
+
+            river.appendChild(div);
+        });
+    }
+
+    function showAlbumGrid() {
+        const grid = el('albums-grid');
+        const view = el('album-photos-view');
+        if (grid) grid.style.display = 'grid';
+        if (view) view.style.display = 'none';
+        currentAlbum = null;
+        currentAlbumPhotos = [];
+    }
+
+    function renderAlbumGrid() {
         const container = el('albums-grid');
         if (!container) return;
+        showAlbumGrid();
+        container.innerHTML = '';
 
         const source = window.allItems || window.displayedItems || [];
         const photos = source.filter(isPhoto);
         const albums = groupByFolder(photos);
 
-        container.innerHTML = '';
-
         if (albums.length === 0) {
-            renderEmpty(container);
+            const empty = window.createFolderChooserEmptyState(
+                { title: 'No Albums Yet', body: 'Load a folder containing images to see them grouped by album.' },
+                () => window.browseTabFolder('albums')
+            );
+            container.appendChild(empty);
             return;
         }
 
         albums.forEach((album, idx) => {
             container.appendChild(createAlbumCard(album, idx));
         });
+    }
+
+    window.renderAlbums = function () {
+        renderAlbumGrid();
     };
+
+    window.showAlbumPhotos = showAlbumPhotos;
+    window.showAlbumGrid = showAlbumGrid;
+
+    // Back button listener
+    const backBtn = el('btn-back-to-albums');
+    if (backBtn) backBtn.addEventListener('click', showAlbumGrid);
 })();
