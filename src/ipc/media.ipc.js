@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
 const child_process = require('child_process');
+const utils = require('../utils');
+const { cleanupTemp, promoteTempFile } = utils;
 
 function getFullProbeMetadata(filePath) {
     return new Promise((resolve) => {
@@ -51,6 +53,9 @@ function registerMediaIpc(ipcMain) {
         if (!fs.existsSync(thumbsDir)) {
             fs.mkdirSync(thumbsDir, { recursive: true });
         }
+
+        // Remove any stale temp file from a previous interrupted run.
+        cleanupTemp(outputPath + '.tmp');
 
         // Skip redundant enhancement: check sidecar metadata
         if (fs.existsSync(metaPath) && fs.existsSync(outputPath)) {
@@ -468,14 +473,17 @@ function registerMediaIpc(ipcMain) {
         const dir = path.dirname(filePath);
         const thumbsDir = path.join(dir, '.thumbs');
         const outputPath = path.join(thumbsDir, `${baseName}_realesrgan${ext}`);
+        const tempPath = outputPath + '.tmp';
 
         if (fs.existsSync(outputPath)) {
+            cleanupTemp(tempPath);
             return { success: true, path: outputPath, skipped: true };
         }
 
         if (!fs.existsSync(thumbsDir)) {
             fs.mkdirSync(thumbsDir, { recursive: true });
         }
+        cleanupTemp(tempPath);
 
         const toolPath = resolveToolPath('realesrgan-ncnn-vulkan.exe');
         if (!toolPath) {
@@ -507,12 +515,12 @@ function registerMediaIpc(ipcMain) {
 
         try {
             await new Promise((resolve, reject) => {
-                const args = ['-i', filePath, '-o', outputPath, '-n', modelName, '-g', '0', '-m', modelsDir];
+                const args = ['-i', filePath, '-o', tempPath, '-n', modelName, '-g', '0', '-m', modelsDir];
                 const proc = child_process.spawn(toolPath, args, { cwd: toolsDir, windowsHide: true });
                 let stderr = '';
                 proc.stderr.on('data', (d) => { stderr += d.toString(); });
                 proc.on('close', (code) => {
-                    if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+                    if (code === 0 && fs.existsSync(tempPath) && fs.statSync(tempPath).size > 0) {
                         resolve();
                     } else {
                         reject(new Error(stderr.trim() || `realesrgan exited with code ${code}`));
@@ -520,8 +528,12 @@ function registerMediaIpc(ipcMain) {
                 });
                 proc.on('error', reject);
             });
+            if (!promoteTempFile(tempPath, outputPath)) {
+                return { success: false, error: 'Failed to promote RealESRGAN temp output to final path' };
+            }
             return { success: true, path: outputPath };
         } catch (e) {
+            cleanupTemp(tempPath);
             return { success: false, error: e.message };
         }
     });
@@ -543,20 +555,23 @@ function registerMediaIpc(ipcMain) {
         const thumbsDir = path.join(dir, '.thumbs');
         const opLabel = operation === 'edge' ? 'edge' : 'denoise';
         const outputPath = path.join(thumbsDir, `${baseName}_${opLabel}${ext}`);
+        const tempPath = outputPath + '.tmp';
 
         if (fs.existsSync(outputPath)) {
+            cleanupTemp(tempPath);
             return { success: true, path: outputPath, skipped: true };
         }
 
         if (!fs.existsSync(thumbsDir)) {
             fs.mkdirSync(thumbsDir, { recursive: true });
         }
+        cleanupTemp(tempPath);
 
         let magickArgs;
         if (operation === 'denoise') {
-            magickArgs = [filePath, '-median', '3', outputPath];
+            magickArgs = [filePath, '-median', '3', tempPath];
         } else if (operation === 'edge') {
-            magickArgs = [filePath, '-edge', '1', outputPath];
+            magickArgs = [filePath, '-edge', '1', tempPath];
         } else {
             return { success: false, error: `Unknown operation: ${operation}` };
         }
@@ -567,7 +582,7 @@ function registerMediaIpc(ipcMain) {
                 let stderr = '';
                 proc.stderr.on('data', (d) => { stderr += d.toString(); });
                 proc.on('close', (code) => {
-                    if (code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+                    if (code === 0 && fs.existsSync(tempPath) && fs.statSync(tempPath).size > 0) {
                         resolve();
                     } else {
                         reject(new Error(stderr.trim() || `magick exited with code ${code}`));
@@ -575,8 +590,12 @@ function registerMediaIpc(ipcMain) {
                 });
                 proc.on('error', reject);
             });
+            if (!promoteTempFile(tempPath, outputPath)) {
+                return { success: false, error: 'Failed to promote ImageMagick temp output to final path' };
+            }
             return { success: true, path: outputPath };
         } catch (e) {
+            cleanupTemp(tempPath);
             return { success: false, error: e.message };
         }
     });

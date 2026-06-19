@@ -1,5 +1,7 @@
 const child_process = require('child_process');
 const { execFile, spawn } = child_process;
+const fs = require('fs');
+const path = require('path');
 const os = require('os');
 
 // Helper to get system memory info on Windows
@@ -343,6 +345,30 @@ function getFFmpegPath() {
     return 'ffmpeg';
 }
 
+function cleanupTemp(tempPath) {
+    try {
+        if (fs.existsSync(tempPath)) {
+            fs.rmSync(tempPath, { force: true });
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
+function promoteTempFile(tempPath, finalPath) {
+    try {
+        if (fs.existsSync(finalPath)) {
+            fs.rmSync(finalPath, { force: true });
+        }
+        fs.renameSync(tempPath, finalPath);
+        return true;
+    } catch (e) {
+        console.error('[utils:promote] Failed to promote temp file:', e.message);
+        cleanupTemp(tempPath);
+        return false;
+    }
+}
+
 module.exports = {
     activeSubprocesses,
     killAllActiveSubprocesses,
@@ -353,5 +379,7 @@ module.exports = {
     PriorityQueue,
     getRobustPythonExe,
     getFFmpegPath,
-    getSystemMemoryInfo
+    getSystemMemoryInfo,
+    cleanupTemp,
+    promoteTempFile
 };

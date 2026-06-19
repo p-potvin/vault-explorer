@@ -432,7 +432,13 @@ def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH",
 # ---------------------------------------------------------------------------
 
 def enhance_mode(video_path: str, output_path: str, quality: str = "HIGH", scale: float = 2.0, chroma: str = "yuv420p"):
-    """Process entire video and save to output_path."""
+    """Process entire video and save to output_path.
+
+    Uses an atomic temp-file write: output_path.tmp is produced first, then
+    renamed to output_path only when the pipeline completes successfully.
+    A crash or cancellation therefore leaves the original final file intact
+    and only a disposable .tmp file behind.
+    """
     quality_map = {
         "LOW": nvvfx.VideoSuperRes.QualityLevel.LOW,
         "MEDIUM": nvvfx.VideoSuperRes.QualityLevel.MEDIUM,
@@ -441,12 +447,34 @@ def enhance_mode(video_path: str, output_path: str, quality: str = "HIGH", scale
     }
     ql = quality_map.get(quality.upper(), nvvfx.VideoSuperRes.QualityLevel.HIGH)
 
-    success = _run_pipeline(video_path, output_path, ql, start_time=0.0, is_stream=False, scale=scale, chroma=chroma)
+    temp_path = output_path + ".tmp"
+    # Remove any stale temp file from a previous interrupted run.
+    if os.path.exists(temp_path):
+        try:
+            os.remove(temp_path)
+        except Exception as e:
+            print(f"[RTX VSR] Warning: could not remove stale temp file {temp_path}: {e}", file=sys.stderr)
 
-    if success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-        print(f"[RTX VSR] Enhanced file saved: {output_path}")
-        sys.stdout.flush()
+    success = _run_pipeline(video_path, temp_path, ql, start_time=0.0, is_stream=False, scale=scale, chroma=chroma)
+
+    if success and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+        try:
+            os.replace(temp_path, output_path)
+            print(f"[RTX VSR] Enhanced file saved: {output_path}")
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"[RTX VSR] Failed to promote temp file to {output_path}: {e}", file=sys.stderr)
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+            sys.exit(1)
     else:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
         print(f"[RTX VSR] FAILED", file=sys.stderr)
         sys.exit(1)
 

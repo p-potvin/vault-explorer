@@ -324,15 +324,23 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
             let enhancedPath = null;
             let trickplayFolder = null;
             if (type === 'video' || type === 'encrypted') {
-                const potentialEnhanced = path.join(dir, '.thumbs', `${baseName}_enhanced${ext}`);
-                let hasEnhanced = false;
-                try {
-                    await fsPromises.access(potentialEnhanced);
-                    hasEnhanced = true;
-                } catch(e) {}
-
-                if (hasEnhanced) {
-                    enhancedPath = potentialEnhanced;
+                // Trust the sidecar metadata as the source of truth for enhancements.
+                // A file that exists without a matching completed sidecar is likely a
+                // leftover partial output from a crash and should not be exposed as enhanced.
+                if (meta && meta.enhancedPath) {
+                    try {
+                        await fsPromises.access(meta.enhancedPath);
+                        enhancedPath = meta.enhancedPath;
+                    } catch(e) {}
+                }
+                if (!enhancedPath) {
+                    const potentialEnhanced = path.join(dir, '.thumbs', `${baseName}_enhanced${ext}`);
+                    if (meta && meta.enhancements && (meta.enhancements.video || meta.enhancements.audio)) {
+                        try {
+                            await fsPromises.access(potentialEnhanced);
+                            enhancedPath = potentialEnhanced;
+                        } catch(e) {}
+                    }
                 }
             }
             if (type === 'video') {
