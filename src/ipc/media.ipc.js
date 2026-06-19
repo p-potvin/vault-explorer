@@ -30,8 +30,13 @@ function registerMediaIpc(ipcMain) {
         const scale = (typeof opts === 'object' && opts.scale) ? opts.scale : '2';
         const chroma = (typeof opts === 'object' && opts.chroma) ? opts.chroma : 'yuv420p';
         console.log('[media.ipc:upscale] RTX VSR requested for:', filePath, 'quality=', quality, 'scale=', scale);
-        if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
-            return { success: false, error: 'File not found' };
+        if (typeof filePath !== 'string') {
+            console.error('[media.ipc:upscale] Invalid filePath (not a string):', filePath);
+            return { success: false, error: 'Invalid file path' };
+        }
+        if (!fs.existsSync(filePath)) {
+            console.error('[media.ipc:upscale] File does not exist:', filePath);
+            return { success: false, error: 'File not found: ' + filePath };
         }
 
         const ext = path.extname(filePath);
@@ -62,6 +67,15 @@ function registerMediaIpc(ipcMain) {
             ? path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe')
             : path.join(__dirname, '..', '..', '.venv', 'bin', 'python');
         const scriptPath = path.join(__dirname, '..', '..', 'python-scripts', 'rtx_vsr_stream.py');
+
+        if (!fs.existsSync(pythonPath)) {
+            console.error('[media.ipc:upscale] Python interpreter not found:', pythonPath);
+            return { success: false, error: 'Python interpreter not found (.venv missing)' };
+        }
+        if (!fs.existsSync(scriptPath)) {
+            console.error('[media.ipc:upscale] RTX VSR script not found:', scriptPath);
+            return { success: false, error: 'Enhancement script not found' };
+        }
 
         return new Promise((resolve) => {
             const args = [
@@ -469,10 +483,31 @@ function registerMediaIpc(ipcMain) {
         }
 
         const toolsDir = path.dirname(toolPath);
+        const modelsDir = path.join(toolsDir, 'models');
+        if (!fs.existsSync(path.join(modelsDir, 'realesrgan-x4plus.bin'))) {
+            return { success: false, error: 'RealESRGAN model not found at tools/models/realesrgan-x4plus.bin' };
+        }
+
+        // Check for any .safetensors or Nomos model in the same models directory
+        let modelName = 'realesrgan-x4plus';
+        try {
+            const files = fs.readdirSync(modelsDir);
+            const safetensorsFile = files.find(f => f.endsWith('.safetensors'));
+            const nomosFile = files.find(f => /Nomos/i.test(f) && f.endsWith('.bin'));
+            if (safetensorsFile) {
+                modelName = path.basename(safetensorsFile, '.safetensors');
+                console.log('[media.ipc:realesrgan] Found .safetensors model:', modelName);
+            } else if (nomosFile) {
+                modelName = path.basename(nomosFile, '.bin');
+                console.log('[media.ipc:realesrgan] Found Nomos model:', modelName);
+            }
+        } catch (e) {
+            console.warn('[media.ipc:realesrgan] Could not scan models directory:', e.message);
+        }
 
         try {
             await new Promise((resolve, reject) => {
-                const args = ['-i', filePath, '-o', outputPath, '-n', 'realesrgan-x4plus', '-g', '0'];
+                const args = ['-i', filePath, '-o', outputPath, '-n', modelName, '-g', '0', '-m', modelsDir];
                 const proc = child_process.spawn(toolPath, args, { cwd: toolsDir, windowsHide: true });
                 let stderr = '';
                 proc.stderr.on('data', (d) => { stderr += d.toString(); });

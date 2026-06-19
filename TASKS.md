@@ -154,4 +154,76 @@ All empty states now include a "Choose Folder" button. Clicking it opens the sys
 <!-- ESTIMATE: 45min -->
 Each media tab (Audio, Albums, Playlists, Misc) can have its own default folder. Falls back to the global Vault folder if unset. Added settings UI section and auto-load on first tab visit.
 
-**Note (2026-06-18):** Smoke tests passed. All redesigned tabs have real content renderers. Ledger events recorded.
+### 2.13 [x] Settings folder inputs: icon inside, no browse button
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: index.html, js/settings/core.js -->
+<!-- ESTIMATE: 20min -->
+Default folder inputs now show a folder icon on the left inside the input. Removed the separate Browse button; clicking the input wrapper opens the picker.
+
+### 2.14 [x] Default Favorites virtual folder
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/navigation/virtual-folders.js, js/app.js -->
+<!-- ESTIMATE: 15min -->
+A `Favorites` collection virtual folder is created automatically on startup and is protected from removal.
+
+### 2.15 [x] Fix first-load default folder bug
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/navigation/tabs.js, js/utils.js, js/navigation/filters.js -->
+<!-- ESTIMATE: 30min -->
+Media tabs now load their own default folder on every switch, falling back to the global Vault folder. Removed the first-visit flag that could skip loading after settings changes.
+
+### 2.16 [x] Fix missing streaming poster fallback
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: public/poster_placeholder.svg, js/tmdb.js, js/streaming/details-modal.js, src/tmdb.js -->
+<!-- ESTIMATE: 15min -->
+Replaced all `oppenheimer_poster.png` and `dune_poster.png` fallbacks with a real `public/poster_placeholder.svg` asset.
+
+### 2.17 [x] Audio → Music Playlists; Albums → Photo Albums; Misc before Streaming; remove Playlists tab
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: index.html, js/navigation/tabs.js, js/navigation/filters.js, js/app.js, js/utils.js, js/settings/core.js, js/audio.js, js/albums.js -->
+<!-- ESTIMATE: 45min -->
+Renamed top tabs, removed the Playlists tab, reordered Misc before Streaming, and updated default-folder settings and startup tab validation to match the new names.
+
+### 2.18 [x] Kill all vault-explorer processes on close
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: main.js -->
+<!-- ESTIMATE: 30min -->
+Implemented Windows-only cleanup that kills all `vault-explorer.exe` processes (including the current one) when the app closes via X, tray Quit, or graceful End Task. Startup also cleans up any orphaned processes from previous bad exits.
+
+### 2.19 [x] Remove Browse button from top toolbar
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: index.html, js/navigation/directory.js, js/navigation/filters.js, js/app.js, tests/refactor_smoke_test.js, tests/comprehensive_test.js -->
+<!-- ESTIMATE: 20min -->
+Removed the standalone `Browse` button from the second toolbar. The path display now contains the folder icon on the left (matching the settings inputs) and is clickable to browse. Updated translation wiring, empty-state buttons, and smoke tests.
+
+### 2.20 [x] Pin Favorites folder, yellow star, sync favorited videos
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/navigation/virtual-folders.js, js/app.js, js/favorites.js, js/navigation/filters.js, js/navigation/card.js -->
+<!-- ESTIMATE: 30min -->
+Pinned the Favorites virtual folder to the top of folder lists. Rendered it with a yellow star icon instead of the generic folder icon. Added `vf.syncFavorites()` to keep the Favorites folder in sync with `appSettings.favorites` (videos/encrypted/streaming entries). Wired sync on startup and after every favorite toggle.
+
+### 2.21 [x] Video pills, no size decimals, inline add-to-folder menu, enhance 4058 logging
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/navigation/card.js, js/utils.js, js/navigation/virtual-folders.js, js/navigation/card-events.js, src/ipc/media.ipc.js -->
+<!-- ESTIMATE: 45min -->
+Populated the duration badge and kept the size badge for video cards. Removed decimals from `formatBytes`. Replaced the central add-to-folder modal with an inline menu anchored to the plus button: lists recent collections (Favorites pinned first), scrollable, includes a "Create new..." fallback. Added recency tracking (`lastUsed`) to virtual folders. Added defensive path logging and early `.venv`/script checks for the context-menu video enhancement flow to help diagnose ENOENT (Windows 4058).
+
+### 2.22 [x] Size decimals for GB only, Real-ESRGAN model path, idle preview fixes
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/utils.js, src/ipc/media.ipc.js, js/navigation/idle.js, src/previews.js, js/progress.js, js/app.js -->
+<!-- ESTIMATE: 45min -->
+`formatBytes` now shows decimals only for GB/TB. Real-ESRGAN image enhancement explicitly resolves and passes the `tools/models` directory so the `realesrgan-x4plus.bin` model is found; it also scans that directory for any `.safetensors` model (preferred) or `*Nomos*.bin` model and uses it when present. Rewrote the idle preview runner: after 60s of inactivity it crawls `window.allItems` for videos without `hoverWebm`, queues 10 missing previews immediately, then another 10 every 30s while still idle, until no missing previews remain. The backend PriorityQueue executes those 10 queued jobs one at a time (sequentially). Fixed the stuck "Generating Previews: 0/0 (0%)" alert by sending a final `isBatchComplete` event with real totals before resetting counters.
+
+### 2.23 [x] Harden preview generation against stale paths and atomic rename failures
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: src/previews.js, js/navigation/card-events.js -->
+<!-- ESTIMATE: 30min -->
+Improved preview generation diagnostics and robustness. Added path logging in `generateThumbAndPreview`, `generate-webm`, and the context-menu handler. Added an explicit input-video existence check in the `generate-webm` IPC handler. Kept the atomic temp-file strategy: ffmpeg writes to `.tmp` files and only renames them to the final `.jpg`/`.webm` on success; old previews are never deleted before generation. Atomic rename failures now throw instead of silently logging, and a final existence check ensures previews are actually present before reporting success. This prevents passive generation from claiming success while leaving no thumbnail/webm.
+
+### 2.24 [x] Context menu inside the video player
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: src/ipc/system.ipc.js, js/player/player.js -->
+<!-- ESTIMATE: 45min -->
+Added a native right-click context menu inside the video player. It includes playback controls (Play/Pause, Mute, Playback Speed, Picture-in-Picture, Fullscreen), local file operations (Show in Explorer, Copy Path, Properties), and AI Enhancements (Enhance Audio, Generate Subtitles, Translate, Enhance Video) plus Generate Preview. Streaming sources get only playback controls and Copy Stream URL. The `handlePlayerContextMenu` helper in `js/player/player.js` dispatches the selected action, reusing existing language/enhancement dialogs and IPC endpoints.
+
+**Note (2026-06-19):** Smoke tests passed. All redesigned tabs have real content renderers. Ledger events recorded.

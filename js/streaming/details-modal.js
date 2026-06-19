@@ -39,7 +39,7 @@ window.showMediaDetails = async function(movie) {
     el('streaming-details-genres').textContent = movie.genres || '—';
     el('streaming-details-rating').textContent = `★ ${movie.rating || '—'}`;
     el('streaming-details-overview').textContent = movie.overview || '';
-    el('streaming-details-poster').src = movie.poster || 'oppenheimer_poster.png';
+    el('streaming-details-poster').src = movie.poster || 'public/poster_placeholder.svg';
 
     // Reset action containers
     const movieActions = el('movie-actions-container');

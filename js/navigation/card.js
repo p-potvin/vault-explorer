@@ -48,7 +48,12 @@ function createCardElement(item, index) {
 
     let thumbHtml = '';
     if (item.type === 'fakeFolder') {
-        thumbHtml = window.icons ? window.icons.folder('', 'width:50px; height:50px; stroke:#fff; stroke-width:2;') : '';
+        const isFavorites = item.name === 'Favorites';
+        thumbHtml = window.icons
+            ? (isFavorites
+                ? window.icons.star('', 'width:50px; height:50px; display:block; margin:auto;', '#E5A93B', '#E5A93B')
+                : window.icons.folder('', 'width:50px; height:50px; stroke:#fff; stroke-width:2;'))
+            : '';
     } else if (item.type === 'encrypted') {
         thumbHtml = window.icons ? window.icons.lock('', 'width:50px; height:50px; stroke:var(--vault-accent); stroke-width:2; margin: auto;') : '';
     } else if (item.type === 'audio') {
@@ -79,8 +84,9 @@ function createCardElement(item, index) {
         thumbHtml = `${noteIcon}<div class="audio-waveform">${bars}</div>`;
     } else {
         const thumbSrc = item.isStreaming ? item.thumbnail : (window.sanitizePath(item.thumbnail) || 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle">NO THUMB</text></svg>');
+        const durationStr = (item.duration && item.duration > 0) ? window.formatDuration(item.duration) : '';
         thumbHtml = `<img class="thumbnail" loading="lazy" src='${thumbSrc}' alt="${window.escapeHtml(item.name)} thumbnail"><img class="trickplay" alt="">
-                  <div class="duration-badge"></div>`;
+                  <div class="duration-badge" style="display: ${durationStr ? 'block' : 'none'};">${durationStr}</div>`;
     }
 
     let sizeBadgeHtml = '';
@@ -148,7 +154,7 @@ function createCardElement(item, index) {
     if (plusBtn) {
         plusBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            window.showAddToFolderDialog(item);
+            showAddToFolderMenu(item, plusBtn);
         });
     }
 
@@ -346,6 +352,139 @@ function createCardElement(item, index) {
     });
 
     return card;
+}
+
+function showAddToFolderMenu(item, anchorEl) {
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+    const expectedType = (item.type === 'image') ? 'album'
+                       : (item.type === 'audio') ? 'playlist'
+                       : 'collection';
+    const typeLabel = expectedType === 'album' ? (t.album || 'Album')
+                     : expectedType === 'playlist' ? (t.playlist || 'Playlist')
+                     : (t.collection || 'Collection');
+
+    const folders = (window.vf ? window.vf.list({ type: expectedType }) : [])
+        .slice()
+        .sort((a, b) => {
+            if (a.name === 'Favorites') return -1;
+            if (b.name === 'Favorites') return 1;
+            return (b.lastUsed || 0) - (a.lastUsed || 0);
+        })
+        .map(f => ({ ...f, label: f.parentId
+            ? `${window.buildNavPath(f.parentId).replace(/^root\/?/, '')}/${f.name}`
+            : f.name }));
+
+    const existing = document.getElementById('add-to-folder-inline-menu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.id = 'add-to-folder-inline-menu';
+    menu.style.cssText = `
+        position: fixed;
+        z-index: 2147483647;
+        background: var(--vault-card-bg, rgba(25, 20, 35, 0.98));
+        border: 1px solid var(--vault-border);
+        border-radius: 6px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+        padding: 6px 0;
+        min-width: 180px;
+        max-width: 260px;
+        max-height: 220px;
+        overflow-y: auto;
+        font-family: var(--font-sans), system-ui;
+        color: var(--vault-text);
+    `;
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--vault-slate); padding: 4px 12px 8px; border-bottom: 1px solid var(--vault-border); margin-bottom: 4px;';
+    header.innerText = `${t.addToFolder || 'Add to'} ${typeLabel}`;
+    menu.appendChild(header);
+
+    if (folders.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding: 8px 12px; font-size: 11px; color: var(--vault-slate); font-style: italic;';
+        empty.innerText = t.noFolders || 'No folders yet';
+        menu.appendChild(empty);
+    } else {
+        folders.forEach(folder => {
+            const row = document.createElement('button');
+            row.style.cssText = `
+                display: flex; align-items: center; gap: 8px;
+                width: 100%; text-align: left; background: transparent; border: none;
+                color: var(--vault-text); cursor: pointer; padding: 7px 12px;
+                font-size: 12px; font-family: inherit; transition: background 0.15s;
+            `;
+            row.addEventListener('mouseenter', () => row.style.background = 'rgba(255,255,255,0.06)');
+            row.addEventListener('mouseleave', () => row.style.background = 'transparent');
+            row.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const res = window.vf.addItems(folder.id, [item]);
+                menu.remove();
+                if (res.added > 0) {
+                    window.showToast(`${t.addedToFolder || 'Added to'} "${folder.name}"`, 'success');
+                    window.applyFilters();
+                } else if (res.rejected > 0) {
+                    const want = folder.type === 'album' ? (t.images || 'images') : folder.type === 'playlist' ? (t.audioFiles || 'audio files') : (t.videos || 'videos');
+                    window.showToast(`"${folder.name}" ${t.onlyAccepts || 'only accepts'} ${want}`, 'error');
+                } else {
+                    window.showToast(t.alreadyInFolder || 'Already in folder', 'info');
+                }
+            });
+            const icon = folder.name === 'Favorites'
+                ? window.icons.star('', 'width:12px; height:12px;', '#E5A93B', '#E5A93B')
+                : window.icons.folder('', 'width:12px; height:12px; stroke:var(--vault-slate); stroke-width:2;');
+            row.innerHTML = `${icon}<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${window.escapeHtml(folder.label)}</span>`;
+            menu.appendChild(row);
+        });
+    }
+
+    const createRow = document.createElement('button');
+    createRow.style.cssText = `
+        display: flex; align-items: center; gap: 8px;
+        width: 100%; text-align: left; background: transparent; border: none;
+        border-top: 1px solid var(--vault-border); color: var(--vault-accent); cursor: pointer;
+        padding: 7px 12px; font-size: 12px; font-family: inherit; margin-top: 4px;
+        transition: background 0.15s;
+    `;
+    createRow.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>${t.createNewFolder || 'Create new...'}</span>`;
+    createRow.addEventListener('mouseenter', () => createRow.style.background = 'rgba(255,255,255,0.06)');
+    createRow.addEventListener('mouseleave', () => createRow.style.background = 'transparent');
+    createRow.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.remove();
+        if (typeof window.showAddToFolderDialog === 'function') window.showAddToFolderDialog(item);
+    });
+    menu.appendChild(createRow);
+
+    document.body.appendChild(menu);
+
+    const rect = anchorEl.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    let top = rect.bottom + 6;
+    let left = rect.left;
+    if (left + menuRect.width > window.innerWidth) {
+        left = Math.max(4, rect.right - menuRect.width);
+    }
+    if (top + menuRect.height > window.innerHeight) {
+        top = Math.max(4, rect.top - menuRect.height - 6);
+    }
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+
+    const closeMenu = (e) => {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu, true);
+            document.removeEventListener('keydown', onKey);
+        }
+    };
+    const onKey = (e) => {
+        if (e.key === 'Escape') { menu.remove(); document.removeEventListener('click', closeMenu, true); document.removeEventListener('keydown', onKey); }
+    };
+    setTimeout(() => {
+        document.addEventListener('click', closeMenu, true);
+        document.addEventListener('keydown', onKey);
+    }, 0);
 }
 
 window.createCardElement = createCardElement;

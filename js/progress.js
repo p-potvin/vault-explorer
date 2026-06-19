@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showZone();
 
-            if (data.isBatchStart || data.isBatchProgress) {
+            if (data.isBatchStart || data.isBatchProgress || data.isBatchComplete) {
                 // Batch Preview Generation
                 if (spinner) spinner.style.display = 'none';
                 if (barContainer) barContainer.style.display = 'block';
@@ -42,9 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
                 if (barFill) barFill.style.width = pct + '%';
-                
-                if (completed >= total && total > 0) {
-                    text.innerText = window.currentLang === 'fr' 
+
+                if (data.isBatchComplete || (completed >= total && total > 0)) {
+                    text.innerText = window.currentLang === 'fr'
                         ? `Aperçus synchronisés !`
                         : `Previews fully synchronized!`;
                     scheduleHide(3000);

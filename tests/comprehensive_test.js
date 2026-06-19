@@ -80,13 +80,13 @@ async function runTests() {
     console.log('[Test Step 2] Executing Language Toggle i18n Workflow...');
     const initialLangText = (await window.locator('#lang-text').innerText()).toUpperCase();
     console.log(`  -> Initial Lang Button Text: "${initialLangText}"`);
-    const initialBrowseText = (await window.locator('#btn-select').innerText()).toLowerCase();
-    console.log(`  -> Initial Browse Vault Text: "${initialBrowseText}"`);
+    const initialBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
+    console.log(`  -> Initial Browse Vault Title: "${initialBrowseTitle}"`);
 
     if (initialLangText.includes('EN')) {
-        assert.equal(initialBrowseText, 'browse', 'Initial English button text mismatch');
+        assert.ok(initialBrowseTitle.includes('browse'), 'Initial English browse title mismatch');
     } else {
-        assert.equal(initialBrowseText, 'parcourir', 'Initial Quebecois button text mismatch');
+        assert.ok(initialBrowseTitle.includes('parcourir'), 'Initial Quebecois browse title mismatch');
     }
 
     // Click to toggle language to the opposite
@@ -94,13 +94,13 @@ async function runTests() {
     await window.locator('#lang-trigger').click();
     await window.waitForTimeout(500);
 
-    const toggledBrowseText = (await window.locator('#btn-select').innerText()).toLowerCase();
-    console.log(`  -> Toggled Browse Vault Text: "${toggledBrowseText}"`);
-    
+    const toggledBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
+    console.log(`  -> Toggled Browse Vault Title: "${toggledBrowseTitle}"`);
+
     if (initialLangText.includes('EN')) {
-        assert.equal(toggledBrowseText, 'parcourir', 'Quebecois translation failed to apply on #btn-select');
+        assert.ok(toggledBrowseTitle.includes('parcourir'), 'Quebecois translation failed to apply on #path-display');
     } else {
-        assert.equal(toggledBrowseText, 'browse', 'English translation failed to apply on #btn-select');
+        assert.ok(toggledBrowseTitle.includes('browse'), 'English translation failed to apply on #path-display');
     }
 
     // Click back to restore initial language state
@@ -108,13 +108,13 @@ async function runTests() {
     await window.locator('#lang-trigger').click();
     await window.waitForTimeout(500);
 
-    const restoredBrowseText = (await window.locator('#btn-select').innerText()).toLowerCase();
-    console.log(`  -> Restored Browse Vault Text: "${restoredBrowseText}"`);
-    
+    const restoredBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
+    console.log(`  -> Restored Browse Vault Title: "${restoredBrowseTitle}"`);
+
     if (initialLangText.includes('EN')) {
-        assert.equal(restoredBrowseText, 'browse', 'Failed to restore English state');
+        assert.ok(restoredBrowseTitle.includes('browse'), 'Failed to restore English state');
     } else {
-        assert.equal(restoredBrowseText, 'parcourir', 'Failed to restore Quebecois state');
+        assert.ok(restoredBrowseTitle.includes('parcourir'), 'Failed to restore Quebecois state');
     }
     console.log('  -> Language Toggle i18n verified successfully.');
 

@@ -43,14 +43,11 @@ function initSettingsListeners() {
             if (el('settings-default-home-tab')) {
                 el('settings-default-home-tab').value = window.appSettings.defaultHomeTab || 'files';
             }
-            if (el('settings-default-folder-albums')) {
-                el('settings-default-folder-albums').value = window.appSettings.defaultFolderAlbums || '';
+            if (el('settings-default-folder-photoalbums')) {
+                el('settings-default-folder-photoalbums').value = window.appSettings.defaultFolderAlbums || '';
             }
-            if (el('settings-default-folder-audio')) {
-                el('settings-default-folder-audio').value = window.appSettings.defaultFolderAudio || '';
-            }
-            if (el('settings-default-folder-playlists')) {
-                el('settings-default-folder-playlists').value = window.appSettings.defaultFolderPlaylists || '';
+            if (el('settings-default-folder-music')) {
+                el('settings-default-folder-music').value = window.appSettings.defaultFolderAudio || '';
             }
             if (el('settings-default-folder-misc')) {
                 el('settings-default-folder-misc').value = window.appSettings.defaultFolderMisc || '';
@@ -68,28 +65,19 @@ function initSettingsListeners() {
     });
   }
 
-  const btnBrowseFolder = el('settings-btn-browse-folder');
-  if (btnBrowseFolder) {
-      btnBrowseFolder.addEventListener('click', async () => {
+  // Clickable folder inputs (icon + readonly input)
+  const folderInputWrappers = document.querySelectorAll('.settings-folder-input');
+  folderInputWrappers.forEach(wrapper => {
+      const targetId = wrapper.dataset.target;
+      if (!targetId) return;
+      const target = el(targetId);
+      if (!target) return;
+      wrapper.addEventListener('click', async () => {
           const folderPath = await window.electronAPI.openDirectory();
           if (folderPath) {
-              el('settings-default-folder').value = folderPath;
+              target.value = folderPath;
           }
       });
-  }
-
-  // Tab-specific default folder browse buttons
-  const tabFolderIds = ['albums', 'audio', 'playlists', 'misc'];
-  tabFolderIds.forEach(tab => {
-      const btn = el('settings-btn-browse-' + tab);
-      if (btn) {
-          btn.addEventListener('click', async () => {
-              const folderPath = await window.electronAPI.openDirectory();
-              if (folderPath) {
-                  el('settings-default-folder-' + tab).value = folderPath;
-              }
-          });
-      }
   });
 
   const themeTrigger = el('theme-trigger');
@@ -147,14 +135,11 @@ function initSettingsListeners() {
         if (el('settings-default-home-tab')) {
             window.appSettings.defaultHomeTab = el('settings-default-home-tab').value;
         }
-        if (el('settings-default-folder-albums')) {
-            window.appSettings.defaultFolderAlbums = el('settings-default-folder-albums').value.trim() || undefined;
+        if (el('settings-default-folder-photoalbums')) {
+            window.appSettings.defaultFolderAlbums = el('settings-default-folder-photoalbums').value.trim() || undefined;
         }
-        if (el('settings-default-folder-audio')) {
-            window.appSettings.defaultFolderAudio = el('settings-default-folder-audio').value.trim() || undefined;
-        }
-        if (el('settings-default-folder-playlists')) {
-            window.appSettings.defaultFolderPlaylists = el('settings-default-folder-playlists').value.trim() || undefined;
+        if (el('settings-default-folder-music')) {
+            window.appSettings.defaultFolderAudio = el('settings-default-folder-music').value.trim() || undefined;
         }
         if (el('settings-default-folder-misc')) {
             window.appSettings.defaultFolderMisc = el('settings-default-folder-misc').value.trim() || undefined;

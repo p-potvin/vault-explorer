@@ -16,7 +16,7 @@ const GLOBALS = [
 
 const DOM_IDS = [
     'file-grid', 'video-modal', 'video-player', 'search-box',
-    'filter-type', 'sort-by', 'btn-select', 'btn-refresh',
+    'filter-type', 'sort-by', 'path-display', 'btn-refresh',
     'btn-back', 'settings-panel', 'tab-files', 'tab-streaming',
     'tab-livestream', 'subtab-files-all', 'status-items',
 ];

@@ -227,7 +227,7 @@
         );
         if (dupe) return { ok: false, error: 'A folder with this name already exists here' };
 
-        const folder = { id: newId(), name, type, parentId };
+        const folder = { id: newId(), name, type, parentId, lastUsed: Date.now() };
         vf.folders.push(folder);
         save();
         return { ok: true, folder };
@@ -252,8 +252,12 @@
     }
 
     function remove(id) {
+        const folder = get(id);
+        if (!folder) return 0;
+        if (folder.name.toLowerCase() === 'favorites' && (folder.parentId || null) === null && folder.type === 'collection') {
+            return 0;
+        }
         const vf = store();
-        if (!get(id)) return 0;
         const ids = new Set([id, ...descendants(id)]);
         vf.folders = vf.folders.filter(f => !ids.has(f.id));
         ids.forEach(rid => { delete vf.items[rid]; });
@@ -308,7 +312,10 @@
             if (itemType && !accept.has(itemType)) { rejected++; continue; }
             if (!bucket.includes(p)) { bucket.push(p); added++; }
         }
-        if (added) save();
+        if (added) {
+            folder.lastUsed = Date.now();
+            save();
+        }
         return { added, rejected };
     }
 
@@ -338,10 +345,51 @@
         return removed;
     }
 
+    // ── Default folders ──────────────────────────────────────────────────────
+    function ensureDefaultFavorites() {
+        const vf = store();
+        const exists = vf.folders.some(f =>
+            f.name.toLowerCase() === 'favorites' &&
+            (f.parentId || null) === null &&
+            f.type === 'collection'
+        );
+        if (!exists) {
+            const folder = { id: newId(), name: 'Favorites', type: 'collection', parentId: null, lastUsed: Date.now() };
+            vf.folders.push(folder);
+            save();
+        }
+    }
+
+    function syncFavorites() {
+        const favFolder = byName('Favorites', null, 'collection');
+        if (!favFolder) return { ok: false };
+        const favPaths = Array.isArray(window.appSettings.favorites) ? window.appSettings.favorites : [];
+        const accept = ACCEPTS['collection'] || new Set();
+        const lookup = window.allItems && window.allItems.length
+            ? new Map(window.allItems.map(i => [i.path, i.type]))
+            : null;
+        const validPaths = favPaths.filter(p => {
+            if (!p || typeof p !== 'string') return false;
+            const itemType = p.startsWith('tmdb://') ? 'video' : (lookup ? lookup.get(p) : null);
+            // Keep paths we cannot resolve yet; drop paths whose type is known and rejected.
+            if (itemType && !accept.has(itemType)) return false;
+            return true;
+        });
+        const vf = store();
+        const before = new Set(vf.items[favFolder.id] || []);
+        const after = new Set(validPaths);
+        const toAdd = [...after].filter(p => !before.has(p));
+        const toRemove = [...before].filter(p => !after.has(p));
+        if (!toAdd.length && !toRemove.length) return { ok: true, added: 0, removed: 0 };
+        vf.items[favFolder.id] = validPaths.slice();
+        save();
+        return { ok: true, added: toAdd.length, removed: toRemove.length };
+    }
+
     // ── Export ──────────────────────────────────────────────────────────────
     window.vf = {
         VERSION, TYPES, ACCEPTS,
-        migrateLegacy,
+        migrateLegacy, ensureDefaultFavorites, syncFavorites,
         list, get, byName, itemsOf, descendants, breadcrumb,
         create, rename, remove, move,
         itemAccepts, addItems, removeItems, pruneMissing,

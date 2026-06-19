@@ -33,7 +33,9 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
     const duration = await utils.getVideoDuration(videoPath);
     const hasAudio = await utils.checkAudioStream(videoPath);
-    
+
+    console.log(`[main:preview] Input: ${videoPath} -> thumb: ${thumbPath}, webm: ${hoverWebmPath}, force=${force}`);
+
     const bothExist = fs.existsSync(thumbPath) && fs.existsSync(hoverWebmPath);
     if (bothExist && !force) {
         console.log(`[main:preview] Skipping: both thumbnail and preview exist for ${videoPath}`);
@@ -48,7 +50,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         }
         return;
     }
-    
+
     // Atomic-write strategy: ffmpeg writes to .tmp paths so a failed run
     // can NEVER destroy a pre-existing thumbnail or webm preview. Only at
     // the very end do we rename .tmp -> final. Any prior versions stay
@@ -232,13 +234,18 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         const thumbTmpOk = fs.existsSync(thumbWritePath);
         const webmTmpOk = fs.existsSync(webmWritePath);
         if (thumbTmpOk && webmTmpOk) {
-            try { fs.renameSync(thumbWritePath, thumbPath); } catch(e) { console.error('[preview] thumb rename failed:', e.message); }
-            try { fs.renameSync(webmWritePath, hoverWebmPath); } catch(e) { console.error('[preview] webm rename failed:', e.message); }
+            try { fs.renameSync(thumbWritePath, thumbPath); } catch(e) { throw new Error(`thumb rename failed: ${e.message}`); }
+            try { fs.renameSync(webmWritePath, hoverWebmPath); } catch(e) { throw new Error(`webm rename failed: ${e.message}`); }
         } else {
             console.warn(`[preview] Partial output (thumb=${thumbTmpOk} webm=${webmTmpOk}). Keeping originals; discarding temp.`);
             try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch(_) {}
             try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch(_) {}
             throw new Error('FFmpeg produced incomplete output (originals preserved)');
+        }
+
+        // Final sanity check: ensure the renamed files actually exist
+        if (!fs.existsSync(thumbPath) || !fs.existsSync(hoverWebmPath)) {
+            throw new Error(`Atomic rename succeeded but final preview files are missing: thumb=${thumbPath}, webm=${hoverWebmPath}`);
         }
 
         if (finalSender && !finalSender.isDestroyed()) {
@@ -304,10 +311,6 @@ function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
         } finally {
             activeQueuePaths.delete(videoPath);
             completedBatchCount++;
-            if (completedBatchCount >= totalBatchCount) {
-                totalBatchCount = 0;
-                completedBatchCount = 0;
-            }
             const activeWin = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
             if (activeWin && !activeWin.webContents.isDestroyed()) {
                 activeWin.webContents.send('generate-webm-progress', {
@@ -316,6 +319,18 @@ function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
                     completed: completedBatchCount
                 });
             }
+            if (completedBatchCount >= totalBatchCount) {
+                // Send one final completion event with the actual totals before resetting
+                if (activeWin && !activeWin.webContents.isDestroyed()) {
+                    activeWin.webContents.send('generate-webm-progress', {
+                        isBatchComplete: true,
+                        total: totalBatchCount,
+                        completed: completedBatchCount
+                    });
+                }
+                totalBatchCount = 0;
+                completedBatchCount = 0;
+            }
         }
     });
 }
@@ -323,6 +338,13 @@ function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
 
 function registerPreviewHandlers(ipcMain) {
     ipcMain.handle('generate-webm', async (event, videoPath, vaultRoot) => {
+        if (typeof videoPath !== 'string' || !videoPath) {
+            return { success: false, error: 'Missing video path' };
+        }
+        if (!fs.existsSync(videoPath)) {
+            console.error('[main:generate-webm] Input video does not exist:', videoPath);
+            return { success: false, error: 'Video not found: ' + videoPath };
+        }
         const ext = path.extname(videoPath);
         const base = path.basename(videoPath, ext);
         const thumbsDir = path.join(path.dirname(videoPath), '.thumbs');
@@ -331,7 +353,7 @@ function registerPreviewHandlers(ipcMain) {
         }
         const thumbPath = path.join(thumbsDir, `${base}.jpg`);
         const webmPath = path.join(thumbsDir, `${base}.webm`);
-        
+
         console.log(`[main:generate-webm] Manual extraction requested for: ${base}`);
         try {
             await generateThumbAndPreview(videoPath, thumbPath, webmPath, event.sender, true);

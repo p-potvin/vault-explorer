@@ -127,7 +127,7 @@
         if (albums.length === 0) {
             const empty = window.createFolderChooserEmptyState(
                 { title: 'No Albums Yet', body: 'Load a folder containing images to see them grouped by album.' },
-                () => window.browseTabFolder('albums')
+                () => window.browseTabFolder('photoalbums')
             );
             container.appendChild(empty);
             return;
