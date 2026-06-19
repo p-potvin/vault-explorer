@@ -26,19 +26,6 @@
         return Array.from(groups.values());
     }
 
-    function renderEmpty(container) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 60px 24px; text-align: center; color: var(--vault-slate);">
-                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.6;">
-                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                </svg>
-                <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--vault-text); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em;">No Playlists Yet</h3>
-                <p style="font-size: 12px; opacity: 0.7; font-family: var(--font-mono);">Load a folder containing audio files to see them grouped by playlist.</p>
-            </div>
-        `;
-    }
-
     function createPlaylistCard(pl, index) {
         const card = document.createElement('div');
         card.className = 'file-card';
@@ -89,7 +76,11 @@
         container.innerHTML = '';
 
         if (playlists.length === 0) {
-            renderEmpty(container);
+            const empty = window.createFolderChooserEmptyState(
+                { title: 'No Playlists Yet', body: 'Load a folder containing audio files to see them grouped by playlist.' },
+                () => window.browseTabFolder('playlists')
+            );
+            container.appendChild(empty);
             return;
         }
 

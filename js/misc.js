@@ -19,18 +19,6 @@
         return MEDIA_EXTS.has(ext);
     }
 
-    function renderEmpty(container) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 60px 24px; text-align: center; color: var(--vault-slate);">
-                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.6;">
-                    <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
-                </svg>
-                <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--vault-text); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em;">Nothing Here</h3>
-                <p style="font-size: 12px; opacity: 0.7; font-family: var(--font-mono);">No uncategorized files found. Everything in this folder is a recognized media type.</p>
-            </div>
-        `;
-    }
-
     function createFileCard(item, index) {
         const card = document.createElement('div');
         card.className = 'file-card';
@@ -72,7 +60,11 @@
         container.innerHTML = '';
 
         if (misc.length === 0) {
-            renderEmpty(container);
+            const empty = window.createFolderChooserEmptyState(
+                { title: 'Nothing Here', body: 'No uncategorized files found. Load a folder to browse non-media files.' },
+                () => window.browseTabFolder('misc')
+            );
+            container.appendChild(empty);
             return;
         }
 

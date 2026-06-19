@@ -70,10 +70,88 @@ Implement the green upward-animating clipboard toast, the properties modal, and 
 <!-- ESTIMATE: 30min -->
 Write and run Playwright tests for `index.html` using Electron. Establish visual regression baselines and verify hover, focus states, titlebar arrangements, and bilingual text lengths.
 
-**Note (2026-05-30):** Started smoke-testing with Gemini Code Assist integration. Created draft PR #34 to test Gemini Code Assist for GitHub. CodeQL checks in-progress; no Gemini bot response observed yet. Branch: `vw-codex-gemini-test`.
+**Note (2026-05-30):** Started smoke-testing with Gemini Code Assist integration. Created draft PR #34 to test Gemini Code Assist for GitHub. CodeQL checks in-progress; no Gemini bot response yet. Branch: `vw-codex-gemini-test`.
 
 ### 3t [ ] Run GUI Visual Regression
 <!-- TASK_TYPE: LOCAL -->
 <!-- FILE_SCOPE: tests/gui.spec.js -->
 <!-- BLOCKS_ON: 1, 2 -->
 Execute `toHaveScreenshot` and verify contrast ratios and bilingual alignment.
+
+---
+
+## Phase 2: Redesigned Tabs & Media UX (in progress)
+
+### 2.1 [x] Fix startup bug from stale `vault` tab
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/app.js, js/navigation/tabs.js, js/settings/core.js, js/navigation/directory.js, js/navigation/idle.js -->
+Replaced old `vault` tab references with `files`, added backward-compat redirect, and fixed the window startup failure.
+
+### 2.2 [x] Photos tab + Photo Editor
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/photos.js, js/photo-editor.js, index.html -->
+- Photos tab: masonry river layout for images, double-click opens editor.
+- Photo Editor: modal with canvas, zoom, filmstrip, rotate, flip, brightness/contrast/saturation, grayscale/sepia/invert, reset, save-to-download.
+
+### 2.3 [x] Audio tab + Audio Bottom Bar
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/audio.js, js/audio-bar.js, index.html -->
+- Audio tab: sidebar playlists, tracklist, double-click to play.
+- Audio Bottom Bar: play/pause, prev/next, seek, volume, real HTML5 audio playback.
+
+### 2.4 [x] Albums, Playlists, and Misc tabs
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/albums.js, js/playlists.js, js/misc.js, index.html -->
+- Albums: image groups by folder, clickable cards that jump to Photos filtered by album.
+- Playlists: audio groups by folder, clickable cards that jump to Audio filtered by playlist.
+- Misc: non-media/uncategorized files grid with document icons.
+
+### 2.5 [ ] Next: Video player context menu
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/player/player.js, index.html -->
+<!-- ESTIMATE: 45min -->
+Right-click menu on the video canvas for speed, audio track, subtitles, PiP, clip start/end markers.
+
+### 2.6 [ ] Settings panel segmentation
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/settings/core.js, index.html -->
+<!-- ESTIMATE: 45min -->
+Break the monolithic settings panel into tabbed sections (General, Playback, Appearance, Shortcuts, Network).
+
+### 2.7 [ ] Custom icon set integration
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/icons.js, index.html, css -->
+<!-- ESTIMATE: 60min -->
+Replace generic inline SVGs with the VaultWares custom icon set where appropriate.
+
+### 2.8 [ ] Keyboard shortcut mapper
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/navigation/keybindings.js, js/settings/core.js -->
+<!-- ESTIMATE: 60min -->
+Allow users to view and rebind keyboard shortcuts from the settings panel.
+
+### 2.9 [x] Default home tab setting (Vault/Files)
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/app.js, js/settings/core.js, index.html -->
+<!-- ESTIMATE: 15min -->
+Default boot tab is `files` (Vault). Updated settings dropdown to include all redesigned tabs and added validation so legacy/invalid values fall back to Vault safely.
+
+### 2.10 [x] Hide Photos tab; unify Albums/Photos section
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/albums.js, js/photos.js, index.html, js/navigation/tabs.js -->
+<!-- ESTIMATE: 45min -->
+Removed Photos from top-level navigation. Albums tab now hosts both the album grid and a photo river view with a "Back to Albums" button. Deleted standalone `photos-container` from layout.
+
+### 2.11 [x] Empty states with folder chooser
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/utils.js, js/albums.js, js/audio.js, js/playlists.js, js/misc.js -->
+<!-- ESTIMATE: 30min -->
+All empty states now include a "Choose Folder" button. Clicking it opens the system picker, loads the folder, and saves it as the tab-specific default.
+
+### 2.12 [x] Per-tab default folders
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: js/utils.js, js/navigation/tabs.js, js/navigation/filters.js, js/settings/core.js, index.html -->
+<!-- ESTIMATE: 45min -->
+Each media tab (Audio, Albums, Playlists, Misc) can have its own default folder. Falls back to the global Vault folder if unset. Added settings UI section and auto-load on first tab visit.
+
+**Note (2026-06-18):** Smoke tests passed. All redesigned tabs have real content renderers. Ledger events recorded.
