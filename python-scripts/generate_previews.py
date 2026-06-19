@@ -214,6 +214,9 @@ def main():
                         continue
                 video_files.append(os.path.join(root, file))
                 
+    # Process newest files first so recently added content gets previews fastest
+    video_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    
     total_files = len(video_files)
     print(f"Found {total_files} video files to check.")
     
