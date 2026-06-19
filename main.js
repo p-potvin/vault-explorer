@@ -206,17 +206,18 @@ function createWindow() {
     createTray();
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
     // Clean up any orphaned vault-explorer processes from a previous bad exit
     killAllVaultExplorerProcesses(false);
 
-    // Remove leftover .tmp files from previous crashes/kills before any new work starts.
-    await cleanupAllVaultTempFiles().catch(err => {
-        console.warn('[main:cleanup] Startup temp-file cleanup failed:', err.message);
-    });
-
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+
+    // Remove leftover .tmp files from previous crashes/kills in the background.
+    // This runs after the window is created so startup is never blocked by I/O.
+    cleanupAllVaultTempFiles().catch(err => {
+        console.warn('[main:cleanup] Startup temp-file cleanup failed:', err.message);
+    });
 });
 app.on('before-quit', () => {
     isQuitting = true;
