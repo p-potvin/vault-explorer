@@ -254,10 +254,18 @@ def main():
     enhanced_dir = os.path.join(os.path.dirname(video_path), '.enhanced')
     os.makedirs(enhanced_dir, exist_ok=True)
     output_path = os.path.join(enhanced_dir, os.path.basename(video_path))
+    temp_output_path = output_path + ".tmp"
     
     duration = get_video_duration(video_path)
     temp_dir = os.path.join(enhanced_dir, f"temp_norm_{int(time.time())}")
     os.makedirs(temp_dir, exist_ok=True)
+    
+    # Remove any stale temp output from a previous interrupted run.
+    if os.path.exists(temp_output_path):
+        try:
+            os.remove(temp_output_path)
+        except Exception as e:
+            print(f"[audio_normalize] Warning: could not remove stale temp output {temp_output_path}: {e}")
     
     # Check if we should apply on top of an existing enhanced copy
     source_path = video_path
@@ -366,7 +374,7 @@ def main():
             "-map", "[out_a]",
             "-c:v", "h264_nvenc", "-preset", "p6", "-rc", "constqp", "-qp", "26",
             "-c:a", "aac", "-b:a", "320k", "-ac", "2",
-            output_path
+            temp_output_path
         ]
         
         try:
@@ -378,9 +386,18 @@ def main():
             for arg in ["-preset", "p6", "-rc", "constqp", "-qp", "26"]:
                 if arg in ffmpeg_args: ffmpeg_args.remove(arg)
             ffmpeg_args.extend(["-crf", "23"])
+            ffmpeg_args[-1] = temp_output_path
             run_command_with_progress(ffmpeg_args, "Encoding Normalized Audio (CPU)", 65, 25, duration)
             
-        # Write Subtitles if requested
+        # Atomic promotion: only make the enhanced copy visible once encoding succeeded.
+        if not os.path.exists(temp_output_path) or os.path.getsize(temp_output_path) == 0:
+            raise RuntimeError("Encoding produced no output file")
+        try:
+            os.replace(temp_output_path, output_path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to promote temp output to {output_path}: {e}")
+
+        # Write Subtitles if requested (after rename so paths match the final copy)
         if args.transcribe:
             report_progress(95, "Writing subtitle tracks...")
             original_base = os.path.splitext(video_path)[0]
@@ -434,6 +451,11 @@ def main():
         print(f"JSON_STATUS:{json.dumps({'status': 'SUCCESS', 'path': output_path})}")
         
     except Exception as e:
+        if os.path.exists(temp_output_path):
+            try:
+                os.remove(temp_output_path)
+            except Exception:
+                pass
         print(f"JSON_STATUS:{json.dumps({'status': 'FAILED', 'error': str(e)})}")
         sys.exit(1)
     finally:

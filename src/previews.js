@@ -429,8 +429,10 @@ async function enhanceImageThumbnail(imagePath, sender) {
     const dir  = path.dirname(imagePath);
     const thumbsDir = path.join(dir, '.thumbs');
     const outPath = path.join(thumbsDir, `${base}_enhanced.jpg`);
+    const tempPath = outPath + '.tmp';
 
     if (fs.existsSync(outPath)) {
+        utils.cleanupTemp(tempPath);
         if (sender && !sender.isDestroyed()) {
             sender.send('image-enhanced', { original: imagePath, enhanced: outPath });
         }
@@ -445,6 +447,7 @@ async function enhanceImageThumbnail(imagePath, sender) {
         console.error(`[previews:enhance] Failed to create .thumbs dir: ${e.message}`);
         return;
     }
+    utils.cleanupTemp(tempPath);
 
     // ImageMagick pipeline: adaptive-sharpen → saturation +20% → sigmoidal contrast
     const args = [
@@ -453,15 +456,18 @@ async function enhanceImageThumbnail(imagePath, sender) {
         '-modulate', '100,120',
         '-sigmoidal-contrast', '3x50%',
         '-quality', '88',
-        outPath
+        tempPath
     ];
 
     try {
         await utils.runLowPriorityProcess('magick', args);
-        if (fs.existsSync(outPath) && sender && !sender.isDestroyed()) {
-            sender.send('image-enhanced', { original: imagePath, enhanced: outPath });
+        if (fs.existsSync(tempPath) && fs.statSync(tempPath).size > 0) {
+            if (utils.promoteTempFile(tempPath, outPath) && sender && !sender.isDestroyed()) {
+                sender.send('image-enhanced', { original: imagePath, enhanced: outPath });
+            }
         }
     } catch (e) {
+        utils.cleanupTemp(tempPath);
         console.warn(`[previews:enhance] magick failed for ${base}: ${e.message}. Is ImageMagick installed?`);
     }
 }

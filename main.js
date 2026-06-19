@@ -83,6 +83,42 @@ function performFullAppCleanup() {
     killAllVaultExplorerProcesses(true);
 }
 
+async function cleanupStaleTempFiles(vaultPath) {
+    // Remove any .tmp files left behind by a previous crash or kill. These are
+    // intentionally disposable: the atomic-write logic only renames them to the
+    // final output on success, so a leftover .tmp is always safe to delete.
+    const subDirs = ['.thumbs', '.enhanced'];
+    for (const sub of subDirs) {
+        const dir = path.join(vaultPath, sub);
+        if (!fs.existsSync(dir)) continue;
+        try {
+            const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.isFile() && entry.name.endsWith('.tmp')) {
+                    const tmpPath = path.join(dir, entry.name);
+                    try {
+                        await fsPromises.unlink(tmpPath);
+                        console.log('[main:cleanup] Removed stale temp file:', tmpPath);
+                    } catch (e) {
+                        console.warn('[main:cleanup] Could not remove stale temp file:', tmpPath, e.message);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[main:cleanup] Failed to scan for stale temp files in', dir, e.message);
+        }
+    }
+}
+
+async function cleanupAllVaultTempFiles() {
+    const settings = loadSettings();
+    const folders = settings.folders || [];
+    for (const folder of folders) {
+        if (!folder || !folder.path) continue;
+        await cleanupStaleTempFiles(folder.path);
+    }
+}
+
 function createTray() {
     if (tray) return;
     const trayIconPath = path.join(__dirname, 'build', 'icon.ico');
@@ -170,9 +206,14 @@ function createWindow() {
     createTray();
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     // Clean up any orphaned vault-explorer processes from a previous bad exit
     killAllVaultExplorerProcesses(false);
+
+    // Remove leftover .tmp files from previous crashes/kills before any new work starts.
+    await cleanupAllVaultTempFiles().catch(err => {
+        console.warn('[main:cleanup] Startup temp-file cleanup failed:', err.message);
+    });
 
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

@@ -220,6 +220,12 @@ Populated the duration badge and kept the size badge for video cards. Removed de
 <!-- ESTIMATE: 30min -->
 Improved preview generation diagnostics and robustness. Added path logging in `generateThumbAndPreview`, `generate-webm`, and the context-menu handler. Added an explicit input-video existence check in the `generate-webm` IPC handler. Kept the atomic temp-file strategy: ffmpeg writes to `.tmp` files and only renames them to the final `.jpg`/`.webm` on success; old previews are never deleted before generation. Atomic rename failures now throw instead of silently logging, and a final existence check ensures previews are actually present before reporting success. This prevents passive generation from claiming success while leaving no thumbnail/webm.
 
+### 2.25 [x] Harden AI enhancements against crashes with atomic temp files and stale temp cleanup
+<!-- TASK_TYPE: LOCAL -->
+<!-- FILE_SCOPE: src/ipc/media.ipc.js, src/previews.js, src/scanner.js, src/utils.js, main.js, python-scripts/rtx_vsr_stream.py, python-scripts/audio_normalize.py -->
+<!-- ESTIMATE: 60min -->
+Made every enhancement path crash-safe by writing to `.tmp` files first and only renaming them to the final output on success. Updated RTX VSR (`python-scripts/rtx_vsr_stream.py`) and audio normalization/subtitles/translation (`python-scripts/audio_normalize.py`) to use atomic temp files. Hardened image enhancements (Real-ESRGAN, ImageMagick, thumbnail enhancement) in `src/ipc/media.ipc.js` and `src/previews.js`. Added reusable `cleanupTemp` / `promoteTempFile` helpers in `src/utils.js`. Updated `src/scanner.js` to treat `meta.json` as the source of truth for `enhancedPath`, so an existing partial file is never exposed as a completed enhancement. Added startup cleanup in `main.js` that removes stale `.tmp` files from `.thumbs` and `.enhanced` under every configured vault folder. Smoke test and Python syntax check passed.
+
 ### 2.24 [x] Context menu inside the video player
 <!-- TASK_TYPE: LOCAL -->
 <!-- FILE_SCOPE: src/ipc/system.ipc.js, js/player/player.js -->
