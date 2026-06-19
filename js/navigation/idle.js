@@ -20,7 +20,13 @@
 
     function findMissingPreviews() {
         const all = Array.isArray(window.allItems) ? window.allItems : [];
-        return all.filter(item => item && item.type === 'video' && !item.hoverWebm && item.path);
+        return all
+            .filter(item => item && item.type === 'video' && !item.hoverWebm && item.path)
+            .sort((a, b) => {
+                const ta = a.modified ? new Date(a.modified).getTime() : 0;
+                const tb = b.modified ? new Date(b.modified).getTime() : 0;
+                return tb - ta; // newest first
+            });
     }
 
     function queueBatch(missing) {
