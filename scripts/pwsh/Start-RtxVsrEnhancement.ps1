@@ -13,16 +13,18 @@ param(
 
     [switch]$SkipExisting,
 
-    [string[]]$Extensions = @('.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv')
+    [string[]]$Extensions = @('.mp4', '.mkv', '.avi', '.mov', '.webm', '.wmv')
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
+$CanonicalProjectRoot = "C:\Users\Administrator\Desktop\Github Repos\vault-explorer"
 $PythonScript = Join-Path (Join-Path $ProjectRoot 'python-scripts') 'rtx_vsr_stream.py'
 
 if (-not (Test-Path $PythonScript)) {
-    Write-Error "Could not locate rtx_vsr_stream.py at $PythonScript"
-    exit 1
+    Write-Error "Could not locate rtx_vsr_stream.py at $PythonScript.\n Falling back to $CanonicalProjectRoot"
+    $ProjectRoot = $CanonicalProjectRoot;
+	$PythonScript = Join-Path (Join-Path $ProjectRoot 'python-scripts') 'rtx_vsr_stream.py'
 }
 
 if (-not (Test-Path $Folder)) {
