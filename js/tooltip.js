@@ -1,115 +1,157 @@
-// js/tooltip.js — Centralized theme-aware tooltip system using event delegation.
+// js/tooltip.js - Centralized Windows-style tooltip system using event delegation.
 
 document.addEventListener('DOMContentLoaded', () => {
-    let tooltipEl = document.getElementById('global-tooltip');
+    let tooltipEl = document.getElementById('win-tooltip');
     if (!tooltipEl) {
         tooltipEl = document.createElement('div');
-        tooltipEl.id = 'global-tooltip';
-        tooltipEl.className = 'vw-tooltip';
+        tooltipEl.id = 'win-tooltip';
+        tooltipEl.className = 'win-tooltip-hidden';
+        tooltipEl.setAttribute('aria-hidden', 'true');
         document.body.appendChild(tooltipEl);
     }
 
     let activeTarget = null;
+    let pendingTarget = null;
     let showTimeout = null;
-    let hideTimeout = null;
+    let mouseMoveHideTimeout = null;
+    let suppressedTitleTarget = null;
+    let suppressedTitle = '';
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+
+    const getTooltipText = (target) => {
+        return target.getAttribute('data-tooltip') || target.getAttribute('title') || '';
+    };
+
+    const suppressNativeTitle = (target) => {
+        const title = target.getAttribute('title');
+        if (!title) return;
+
+        suppressedTitleTarget = target;
+        suppressedTitle = title;
+        target.setAttribute('data-tooltip-native-title', title);
+        target.removeAttribute('title');
+    };
+
+    const restoreNativeTitle = () => {
+        if (!suppressedTitleTarget) return;
+
+        if (!suppressedTitleTarget.hasAttribute('title')) {
+            suppressedTitleTarget.setAttribute('title', suppressedTitle);
+        }
+        suppressedTitleTarget.removeAttribute('data-tooltip-native-title');
+        suppressedTitleTarget = null;
+        suppressedTitle = '';
+    };
 
     const showTooltip = (target) => {
-        const text = target.getAttribute('data-tooltip');
+        const text = getTooltipText(target);
         if (!text) return;
 
-        // Clear any pending hide or show
-        if (hideTimeout) clearTimeout(hideTimeout);
         if (showTimeout) clearTimeout(showTimeout);
+        restoreNativeTitle();
+        suppressNativeTitle(target);
+        pendingTarget = target;
 
-        // Add 50ms delay to prevent tooltip from blocking video preview instantly
         showTimeout = setTimeout(() => {
+            if (pendingTarget !== target || !target.matches(':hover')) {
+                hideTooltip();
+                return;
+            }
+
             tooltipEl.textContent = text;
-            tooltipEl.classList.add('visible');
+            tooltipEl.classList.remove('win-tooltip-hidden');
+            tooltipEl.classList.add('win-tooltip-visible');
+            tooltipEl.setAttribute('aria-hidden', 'false');
             activeTarget = target;
+            pendingTarget = null;
             positionTooltip(target);
-        }, 50);
+        }, 400);
     };
 
     const hideTooltip = () => {
         if (showTimeout) clearTimeout(showTimeout);
-        tooltipEl.classList.remove('visible');
+        showTimeout = null;
+        if (mouseMoveHideTimeout) clearTimeout(mouseMoveHideTimeout);
+        mouseMoveHideTimeout = null;
+        tooltipEl.classList.remove('win-tooltip-visible');
+        tooltipEl.classList.add('win-tooltip-hidden');
+        tooltipEl.setAttribute('aria-hidden', 'true');
         activeTarget = null;
+        pendingTarget = null;
+        restoreNativeTitle();
+    };
+
+    const debounceMouseMoveHide = () => {
+        if (mouseMoveHideTimeout) clearTimeout(mouseMoveHideTimeout);
+        mouseMoveHideTimeout = setTimeout(() => {
+            mouseMoveHideTimeout = null;
+            hideTooltip();
+        }, 50);
     };
 
     const positionTooltip = (target) => {
-        if (!activeTarget || !tooltipEl.classList.contains('visible')) return;
+        if (!activeTarget || !tooltipEl.classList.contains('win-tooltip-visible')) return;
 
         const targetRect = target.getBoundingClientRect();
-        
-        // Use offsetWidth/Height to trigger layout/reflow if rect is 0 (newly visible)
         const tooltipWidth = tooltipEl.offsetWidth || 120;
         const tooltipHeight = tooltipEl.offsetHeight || 28;
 
-        // Position tooltip centered above the target element by default
         let left = targetRect.left + (targetRect.width - tooltipWidth) / 2;
         let top = targetRect.top - tooltipHeight - 6;
 
-        // Viewport boundary check: top edge overflow
         if (top < 8) {
-            // Position below the target instead
             top = targetRect.bottom + 6;
         }
 
-        // Viewport boundary check: left edge overflow
         if (left < 8) {
             left = 8;
         }
 
-        // Viewport boundary check: right edge overflow
         if (left + tooltipWidth > window.innerWidth - 8) {
             left = window.innerWidth - tooltipWidth - 8;
         }
 
-        tooltipEl.style.left = `${left}px`;
-        tooltipEl.style.top = `${top}px`;
+        if (top + tooltipHeight > window.innerHeight - 8) {
+            top = window.innerHeight - tooltipHeight - 8;
+        }
+
+        tooltipEl.style.left = `${left + window.scrollX}px`;
+        tooltipEl.style.top = `${top + window.scrollY}px`;
     };
 
-    // Event delegation for hover (mouseenter/mouseleave behavior via mouseover/mouseout)
     document.body.addEventListener('mouseover', (e) => {
-        const target = e.target.closest('[data-tooltip]');
+        const target = e.target.closest('[data-tooltip], [title]');
         if (target && target !== activeTarget) {
             showTooltip(target);
         }
     });
 
     document.body.addEventListener('mouseout', (e) => {
-        if (activeTarget) {
+        const currentTarget = activeTarget || pendingTarget;
+        if (currentTarget) {
             const relatedTarget = e.relatedTarget;
-            // Hide only if the mouse left the target and isn't going into a child of the target
-            if (!relatedTarget || (!activeTarget.contains(relatedTarget) && relatedTarget !== activeTarget)) {
-                hideTooltip();
+            if (!relatedTarget || (!currentTarget.contains(relatedTarget) && relatedTarget !== currentTarget)) {
+                debounceMouseMoveHide();
             }
         }
     });
 
-    // Support keyboard focus for accessibility
-    document.body.addEventListener('focusin', (e) => {
-        const target = e.target.closest('[data-tooltip]');
-        if (target && target !== activeTarget) {
-            showTooltip(target);
+    document.body.addEventListener('mousemove', (e) => {
+        const moved = Math.abs(e.clientX - lastPointerX) > 1 || Math.abs(e.clientY - lastPointerY) > 1;
+        lastPointerX = e.clientX;
+        lastPointerY = e.clientY;
+
+        if (activeTarget && moved) {
+            debounceMouseMoveHide();
         }
     });
 
-    document.body.addEventListener('focusout', (e) => {
-        if (activeTarget) {
-            if (showTimeout) clearTimeout(showTimeout);
-            if (hideTimeout) clearTimeout(hideTimeout);
-            tooltipEl.classList.remove('visible');
-            activeTarget = null;
-        }
-    });
-
-    // Re-position on window resize or scroll
     window.addEventListener('resize', () => {
-        if (activeTarget) positionTooltip(activeTarget);
+        hideTooltip();
     });
 
     document.addEventListener('scroll', () => {
-        if (activeTarget) positionTooltip(activeTarget);
-    }, true); // Use capture to detect scroll events on overflow containers
+        hideTooltip();
+    }, true);
 });

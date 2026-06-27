@@ -21,7 +21,7 @@ Running with default directory: "${process.cwd()}"
 }
 
 const TARGET_DIR = targetPathArg ? path.resolve(targetPathArg) : process.cwd();
-const VIDEO_EXTS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'];
+const VIDEO_EXTS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.wmv'];
 
 function findVideosSync(dir) {
     let results = [];
@@ -71,6 +71,7 @@ async function start() {
     const videos = findVideosSync(TARGET_DIR);
     console.log(`Found ${videos.length} videos. Commencing preview generation...\n`);
 
+	let erroredFilenames = [];
     let count = 0;
     for (const vidPath of videos) {
         const dir = path.dirname(vidPath);
@@ -120,6 +121,7 @@ async function start() {
                 ]);
                 console.log(`  -> Created thumbnail: ${baseName}.jpg`);
             } catch (err) {
+				erroredFilenames.push(vidPath);
                 console.error(`  -> Failed to create thumbnail: ${err.message}`);
             }
         }
@@ -169,11 +171,21 @@ async function start() {
                 }
                 console.log(`  -> Created WebM preview: ${baseName}.webm`);
             } catch (err) {
+				if (erroredFilenames.at(-1) != vidPath) erroredFilenames.push(vidPath);
                 console.error(`  -> Failed to create WebM preview: ${err.message}`);
             }
         }
     }
 
+	if (erroredFilenames.length > 0) {
+		console.log(`\nAll the following files have failed, usually due to a corrupted stream: `);
+		let i = 0;
+		erroredFilenames.forEach((filename) => {
+			console.log(`\n#${i}: ${filename}`);
+			++i;
+		});
+	}
+	
     console.log(`\nAll previews fully synchronized inside the directory structures!`);
 }
 
