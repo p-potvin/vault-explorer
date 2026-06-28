@@ -33,8 +33,10 @@ try {
                 const key = parts[0].trim();
                 const value = parts.slice(1).join('=').trim();
                 if (key) {
-                    envConfig[key] = value;
-                    process.env[key] = value;
+                    if (!process.env[key]) {
+                        process.env[key] = value;
+                    }
+                    envConfig[key] = process.env[key];
                 }
             }
         });
@@ -520,11 +522,9 @@ function registerTmdbHandlers(ipcMain) {
             }
             
             const results = (data.Search || []).map(item => {
-                // Determine high-resolution OMDb poster API URL
                 let poster = 'public/poster_placeholder.svg';
                 if (item.Poster && item.Poster !== 'N/A') {
-                    // Use OMDb Poster API endpoint directly
-                    poster = `http://img.omdbapi.com/?i=${item.imdbID}&h=600&apikey=${OMDB_API_KEY}`;
+                    poster = item.Poster;
                 }
                 
                 return {
@@ -568,11 +568,8 @@ function registerTmdbHandlers(ipcMain) {
                 throw new Error(data.Error || 'Movie not found in OMDb');
             }
             
-            // Format to match standard TMDB details structure for frontend parity
             let poster = 'public/poster_placeholder.svg';
-            if (data.imdbID) {
-                poster = `http://img.omdbapi.com/?i=${data.imdbID}&h=600&apikey=${OMDB_API_KEY}`;
-            } else if (data.Poster && data.Poster !== 'N/A') {
+            if (data.Poster && data.Poster !== 'N/A') {
                 poster = data.Poster;
             }
             

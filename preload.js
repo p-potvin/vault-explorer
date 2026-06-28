@@ -65,6 +65,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testDebridProxy: (proxy) => ipcRenderer.invoke('rd-test-proxy', proxy),
   onDownloadProgress: (cb) => ipcRenderer.on('rd-download-progress', (_, data) => cb(data)),
   offDownloadProgress: () => ipcRenderer.removeAllListeners('rd-download-progress'),
+  
+  // Usenet API
+  searchUsenet: (data) => ipcRenderer.invoke('search-usenet', data),
+  verifyUsenetHealth: (data) => ipcRenderer.invoke('verify-usenet-health', data),
+  streamUsenetNzb: (data) => ipcRenderer.invoke('stream-usenet-nzb', data),
+  getStreamingMode: () => ipcRenderer.invoke('get-streaming-mode'),
+
   startLivestream: (data) => ipcRenderer.invoke('start-livestream', data),
   stopLivestream: () => ipcRenderer.invoke('stop-livestream'),
   onLivestreamLog: (cb) => ipcRenderer.on('livestream-log', (_, data) => cb(data)),

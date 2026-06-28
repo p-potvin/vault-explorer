@@ -89,9 +89,19 @@ function scoreTorrent(torrent, preferredQuality, preferredLang) {
 
     const text = `${torrent.quality || ''} ${torrent.desc || ''} ${torrent.type || ''}`.toLowerCase();
 
-    // ── Real-Debrid verified cache (HIGHEST priority) ───────────────────────
-    if (torrent.isRDCached)   score += 10000;
-    else if (torrent.cached)  score += 1000;
+    // ── Usenet / Real-Debrid verified cache (HIGHEST priority) ──────────────
+    if (torrent.isUsenet) {
+        if (torrent.health === 'healthy') {
+            score += 10000;
+        } else if (torrent.cached) {
+            score += 1000;
+        } else if (torrent.health === 'unhealthy' || torrent.isPassworded) {
+            score -= 100000;
+        }
+    } else {
+        if (torrent.isRDCached)   score += 10000;
+        else if (torrent.cached)  score += 1000;
+    }
 
     // ── Reject bad release types (HEAVY penalty) ────────────────────────────
     if (BAD_RELEASE_RE.test(text)) score -= 10000;
@@ -148,10 +158,12 @@ function scoreTorrent(torrent, preferredQuality, preferredLang) {
     }
 
     // ── Seeder health (log curve, sharp penalty for dead torrents) ──────────
-    const seeds = parseInt(torrent.seeds, 10) || 0;
-    if      (seeds === 0) score -= 30;
-    else if (seeds < 5)   score -= 10;
-    else                  score += Math.min(15, Math.log2(seeds + 1) * 2);
+    if (!torrent.isUsenet) {
+        const seeds = parseInt(torrent.seeds, 10) || 0;
+        if      (seeds === 0) score -= 30;
+        else if (seeds < 5)   score -= 10;
+        else                  score += Math.min(15, Math.log2(seeds + 1) * 2);
+    }
 
     // ── Size sanity (filter fake 4K, oversized remuxes for streaming) ───────
     const bytes = _parseSize(torrent.size);

@@ -2,50 +2,66 @@
 // Part of the streaming feature, split out of the former monolithic js/streaming.js.
 
 async function _fetchAndInjectTrailer(tmdbId, mediaType) {
+    const iframeWrapper = el('movie-trailer-wrapper');
+    const loadingEl = el('movie-trailer-loading');
+    
+    if (iframeWrapper) iframeWrapper.style.display = 'block';
+    if (loadingEl) loadingEl.style.display = 'flex';
+    
     try {
         let trailerKey = null;
+        const cacheKey = `${mediaType}_${tmdbId}`;
+        window._trailerKeyCache = window._trailerKeyCache || new Map();
 
-        // 1. Try KinoCheck Premium API handler first
-        if (window.electronAPI && window.electronAPI.getKinoCheckTrailer) {
-            console.log(`[streaming] Attempting KinoCheck Premium for TMDB ID: ${tmdbId}`);
-            const kcResult = await window.electronAPI.getKinoCheckTrailer({ tmdbId, mediaType });
-            if (kcResult && kcResult.success && kcResult.key) {
-                console.log(`[streaming] KinoCheck successfully resolved trailer key:`, kcResult.key);
-                trailerKey = kcResult.key;
-            } else {
-                console.warn(`[streaming] KinoCheck premium lookup skipped or empty:`, kcResult ? kcResult.error : 'No response');
+        if (window._trailerKeyCache.has(cacheKey)) {
+            trailerKey = window._trailerKeyCache.get(cacheKey);
+        } else {
+            // 1. Try KinoCheck Premium API handler first
+            if (window.electronAPI && window.electronAPI.getKinoCheckTrailer) {
+                console.log(`[streaming] Attempting KinoCheck Premium for TMDB ID: ${tmdbId}`);
+                const kcResult = await window.electronAPI.getKinoCheckTrailer({ tmdbId, mediaType });
+                if (kcResult && kcResult.success && kcResult.key) {
+                    console.log(`[streaming] KinoCheck successfully resolved trailer key:`, kcResult.key);
+                    trailerKey = kcResult.key;
+                } else {
+                    console.warn(`[streaming] KinoCheck premium lookup skipped or empty:`, kcResult ? kcResult.error : 'No response');
+                }
             }
-        }
 
-        // 2. Fallback to TMDB videos endpoint if KinoCheck didn't resolve a key
-        if (!trailerKey) {
-            console.log(`[streaming] Falling back to TMDB video lookup for TMDB ID: ${tmdbId}`);
-            const type = mediaType === 'tv' ? 'tv' : 'movie';
-            const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/videos?language=en-US`;
-            const TMDB_BEARER_TOKEN = await _getTMDBToken();
-            if (TMDB_BEARER_TOKEN) {
-                const res = await fetch(url, {
-                    headers: { accept: 'application/json', Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    const trailer = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube') || data.results?.[0];
-                    if (trailer && trailer.key) {
-                        trailerKey = trailer.key;
+            // 2. Fallback to TMDB videos endpoint if KinoCheck didn't resolve a key
+            if (!trailerKey) {
+                console.log(`[streaming] Falling back to TMDB video lookup for TMDB ID: ${tmdbId}`);
+                const type = mediaType === 'tv' ? 'tv' : 'movie';
+                const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/videos?language=en-US`;
+                const TMDB_BEARER_TOKEN = await _getTMDBToken();
+                if (TMDB_BEARER_TOKEN) {
+                    const res = await fetch(url, {
+                        headers: { accept: 'application/json', Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const trailer = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube') || data.results?.[0];
+                        if (trailer && trailer.key) {
+                            trailerKey = trailer.key;
+                        }
                     }
                 }
+            }
+
+            if (trailerKey) {
+                window._trailerKeyCache.set(cacheKey, trailerKey);
             }
         }
 
         if (!trailerKey) {
             console.warn('[streaming] No trailer could be resolved from KinoCheck or TMDB fallback.');
+            if (iframeWrapper) iframeWrapper.style.display = 'none';
+            if (loadingEl) loadingEl.style.display = 'none';
             return;
         }
 
         window._currentTrailerKey = trailerKey;
 
-        const iframeWrapper = el('movie-trailer-wrapper');
-        const iframe = el('movie-trailer-iframe');
         const btnTrailer = el('btn-watch-trailer-browser');
 
         if (btnTrailer) {
@@ -73,8 +89,10 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
                         window.removeEventListener('message', window._ytTrailerListener);
                         window._ytTrailerListener = null;
                     }
-                    // Replace iframe with native <video> element
-                    iframeWrapper.innerHTML = '';
+                    
+                    // Remove any existing video or iframe, keeping the loading element
+                    iframeWrapper.querySelectorAll('video, iframe').forEach(e => e.remove());
+                    
                     const vid = document.createElement('video');
                     vid.id = 'movie-trailer-iframe';
                     vid.style.cssText = 'width:100%; height:100%; border:none; background:#000; display:block;';
@@ -82,6 +100,26 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
                     vid.controls = true;
                     vid.playsInline = true;
                     vid.preload = 'metadata';
+                    
+                    // Hide loading indicator when video metadata is loaded
+                    vid.addEventListener('loadedmetadata', () => {
+                        if (loadingEl) loadingEl.style.display = 'none';
+                    });
+                    
+                    // Restore persisted current time if available
+                    if (window._persistedTrailerTime) {
+                        const targetTime = window._persistedTrailerTime;
+                        window._persistedTrailerTime = 0; // reset
+                        const restoreTime = () => {
+                            vid.currentTime = targetTime;
+                        };
+                        if (vid.readyState >= 1) {
+                            restoreTime();
+                        } else {
+                            vid.addEventListener('loadedmetadata', restoreTime, { once: true });
+                        }
+                    }
+                    
                     iframeWrapper.appendChild(vid);
                     iframeWrapper.style.display = 'block';
                     return;
@@ -96,6 +134,17 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
         // the video has no downloadable formats). Still subject to
         // embedding restrictions.
         // -----------------------------------------------------------------
+        // Recreate the iframe if it was removed or isn't a native iframe
+        let iframe = el('movie-trailer-iframe');
+        if (!iframe || iframe.tagName !== 'IFRAME') {
+            if (iframe) iframe.remove();
+            iframe = document.createElement('iframe');
+            iframe.id = 'movie-trailer-iframe';
+            iframe.style.cssText = 'width: 100%; height: 100%; border: none;';
+            iframe.setAttribute('allowfullscreen', 'true');
+            iframeWrapper.appendChild(iframe);
+        }
+
         if (iframe) {
             iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
             iframe.removeAttribute('sandbox');
@@ -106,6 +155,22 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
                 origin: spoofedOrigin,
                 widget_referrer: spoofedOrigin,
             });
+            
+            // Hide loading element when the iframe finishes loading
+            iframe.onload = () => {
+                if (loadingEl) loadingEl.style.display = 'none';
+                try {
+                    iframe.contentWindow.postMessage(
+                        JSON.stringify({ event: 'listening', id: trailerKey, channel: 'widget' }),
+                        '*'
+                    );
+                    iframe.contentWindow.postMessage(
+                        JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onError'] }),
+                        '*'
+                    );
+                } catch (_) { /* cross-origin write — non-fatal */ }
+            };
+            
             iframe.src = `https://www.youtube.com/embed/${trailerKey}?${params.toString()}`;
             iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
             iframe.setAttribute('allowfullscreen', 'true');
@@ -116,6 +181,7 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
             const showFallback = (reason) => {
                 console.error('[streaming] YouTube embed unplayable:', reason);
                 iframeWrapper.style.display = 'none';
+                if (loadingEl) loadingEl.style.display = 'none';
                 window.showToast('Trailer blocked from embedding. Use "Watch Trailer on YouTube" to open in your browser.', 'warning');
             };
             window._ytTrailerListener = (ev) => {
@@ -128,19 +194,6 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
             };
             window.addEventListener('message', window._ytTrailerListener);
 
-            iframe.onload = () => {
-                try {
-                    iframe.contentWindow.postMessage(
-                        JSON.stringify({ event: 'listening', id: trailerKey, channel: 'widget' }),
-                        '*'
-                    );
-                    iframe.contentWindow.postMessage(
-                        JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onError'] }),
-                        '*'
-                    );
-                } catch (_) { /* cross-origin write — non-fatal */ }
-            };
-
             iframeWrapper.style.display = 'block';
         }
 
@@ -151,6 +204,8 @@ async function _fetchAndInjectTrailer(tmdbId, mediaType) {
     } catch (e) {
         // Trailers are optional — fail silently
         console.warn('[streaming] Failed to fetch trailer:', e.message);
+        if (iframeWrapper) iframeWrapper.style.display = 'none';
+        if (loadingEl) loadingEl.style.display = 'none';
     }
 }
 

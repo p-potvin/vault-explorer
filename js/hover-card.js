@@ -81,6 +81,13 @@ window.showPremiumHoverCard = function(card, movie) {
         if (e.target.closest('.actions-row')) return;
         e.preventDefault();
         e.stopPropagation();
+        
+        // Save current trailer playback time if playing
+        const vid = popup.querySelector('video');
+        if (vid) {
+            window._persistedTrailerTime = vid.currentTime;
+        }
+        
         window.showMediaDetails(movie);
         window.hidePremiumHoverCard();
     };
@@ -111,6 +118,9 @@ window.showPremiumHoverCard = function(card, movie) {
     popup.innerHTML = `
       <div class="media-container" style="position:relative; width:100%; height:180px; background:#111; overflow:hidden;">
         <img class="poster" src="${movie.poster}" alt="${window.escapeHtml(title)}" style="width:100%; height:100%; object-fit:cover; transition:opacity 0.3s;" />
+        <div class="premium-trailer-loading-spinner" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:10; pointer-events:none; background:rgba(0,0,0,0.5); border-radius:50%; padding:8px;">
+            <svg class="spinner-inline" viewBox="0 0 24 24" fill="none" stroke="var(--vault-accent, #B07CFF)" stroke-width="3" style="width:20px; height:20px; animation: spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke-dasharray="35 35"></circle></svg>
+        </div>
         <div class="trailer-iframe-container" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; transition:opacity 0.5s; pointer-events:none;"></div>
       </div>
       <div class="details-container" style="padding:14px; background:linear-gradient(180deg, rgba(20,18,30,0.95), rgba(11,8,19,0.99)); color:#fff; text-align:left; border-top:1px solid rgba(255,255,255,0.06); font-family: var(--font-sans);">
@@ -201,6 +211,13 @@ window.showPremiumHoverCard = function(card, movie) {
     btnDet.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
+        
+        // Save current trailer playback time if playing
+        const vid = popup.querySelector('video');
+        if (vid) {
+            window._persistedTrailerTime = vid.currentTime;
+        }
+        
         window.hidePremiumHoverCard();
         window.showMediaDetails(movie);
     });
@@ -232,12 +249,21 @@ window.showPremiumHoverCard = function(card, movie) {
         card.style.visibility = 'hidden';
     });
     
+    window._trailerKeyCache = window._trailerKeyCache || new Map();
+    
     window.premiumHoverState.trailerTimeout = setTimeout(async () => {
         const iframeContainer = popup.querySelector('.trailer-iframe-container');
         if (!iframeContainer) return;
         
+        const spinner = popup.querySelector('.premium-trailer-loading-spinner');
+        if (spinner) spinner.style.display = 'block';
+        
         let trailerKey = '';
-        if (movie.id) {
+        const cacheKey = `${movie.media_type}_${movie.id}`;
+        
+        if (window._trailerKeyCache.has(cacheKey)) {
+            trailerKey = window._trailerKeyCache.get(cacheKey);
+        } else if (movie.id) {
             try {
                 // Try KinoCheck first
                 if (window.electronAPI && window.electronAPI.getKinoCheckTrailer) {
@@ -259,6 +285,10 @@ window.showPremiumHoverCard = function(card, movie) {
                             trailerKey = trailer.key;
                         }
                     }
+                }
+                
+                if (trailerKey) {
+                    window._trailerKeyCache.set(cacheKey, trailerKey);
                 }
             } catch (e) {
                 console.error('[HoverCard] Failed to fetch trailer key:', e);
@@ -283,11 +313,19 @@ window.showPremiumHoverCard = function(card, movie) {
             const vid = document.createElement('video');
             vid.style.cssText = 'width:100%; height:100%; border:none; background:#000; display:block; transform:scale(1.02); pointer-events:none;';
             vid.src = directUrl;
-            vid.muted = true;
+            vid.muted = false;
             vid.autoplay = true;
             vid.loop = true;
             vid.playsInline = true;
-            vid.preload = 'metadata';
+            vid.preload = 'auto';
+            
+            const hideSpinner = () => {
+                if (spinner) spinner.style.display = 'none';
+            };
+            vid.addEventListener('playing', hideSpinner);
+            vid.addEventListener('canplay', hideSpinner);
+            vid.addEventListener('loadeddata', hideSpinner);
+            
             iframeContainer.appendChild(vid);
             iframeContainer.style.opacity = '1';
             return;
@@ -296,14 +334,22 @@ window.showPremiumHoverCard = function(card, movie) {
         // ── FALLBACK: legacy iframe embed ──
         let embedUrl;
         if (trailerKey) {
-            embedUrl = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1`;
+            embedUrl = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1`;
         } else {
-            embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(title + ' ' + (year || '') + ' official trailer')}&autoplay=1&mute=1&controls=0&modestbranding=1&rel=0`;
+            embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(title + ' ' + (year || '') + ' official trailer')}&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0`;
         }
 
-        iframeContainer.innerHTML = `<iframe src="${embedUrl}" style="width:100%; height:100%; border:none; transform: scale(1.02); pointer-events:none;" allow="autoplay; encrypted-media"></iframe>`;
+        iframeContainer.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.src = embedUrl;
+        iframe.style.cssText = 'width:100%; height:100%; border:none; transform: scale(1.02); pointer-events:none;';
+        iframe.allow = 'autoplay; encrypted-media';
+        iframe.onload = () => {
+            if (spinner) spinner.style.display = 'none';
+        };
+        iframeContainer.appendChild(iframe);
         iframeContainer.style.opacity = '1';
-    }, 850);
+    }, 350);
 };
 
 window.hidePremiumHoverCard = function() {

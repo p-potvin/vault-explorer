@@ -416,14 +416,20 @@ function registerMediaIpc(ipcMain) {
     // Uses yt-dlp to get the actual video file URL, bypassing all embedding
     // restrictions, CORS issues, and error 152/150/101.
     // ---------------------------------------------------------------------------
+    const ytUrlCache = new Map();
+
     ipcMain.handle('extract-youtube-url', async (_event, videoId) => {
         if (!videoId || typeof videoId !== 'string') {
             return { success: false, error: 'Invalid video ID' };
         }
+        if (ytUrlCache.has(videoId)) {
+            console.log(`[media.ipc:youtube] Returning cached stream URL for ${videoId}`);
+            return { success: true, url: ytUrlCache.get(videoId) };
+        }
         const ytDlp = 'yt-dlp';
         const url = `https://www.youtube.com/watch?v=${videoId}`;
-        // Request a 720p-or-lower combined audio+video format for reliable playback
-        const args = ['--format', 'best[height<=720]', '--get-url', url];
+        // Request progressive combined formats (22 for 720p, 18 for 360p) for native <video> tag playback
+        const args = ['--format', '22/18/best', '--get-url', url];
         console.log(`[media.ipc:youtube] Extracting stream URL via yt-dlp for ${videoId}`);
         return new Promise((resolve) => {
             const proc = child_process.spawn(ytDlp, args, {
@@ -439,6 +445,11 @@ function registerMediaIpc(ipcMain) {
                 const streamUrl = lines[lines.length - 1];
                 if (code === 0 && streamUrl && streamUrl.startsWith('http')) {
                     console.log(`[media.ipc:youtube] Extracted stream URL for ${videoId}`);
+                    if (ytUrlCache.size > 100) {
+                        const firstKey = ytUrlCache.keys().next().value;
+                        ytUrlCache.delete(firstKey);
+                    }
+                    ytUrlCache.set(videoId, streamUrl);
                     resolve({ success: true, url: streamUrl });
                 } else {
                     console.warn(`[media.ipc:youtube] yt-dlp failed for ${videoId}:`, stderr.trim() || `exit ${code}`);
