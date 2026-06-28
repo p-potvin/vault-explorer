@@ -19,7 +19,9 @@
     "build": {
         "appId": "com.vaultwares.vaultexplorer",
         "icon": "build/icon.ico",
+        "useGitIgnore": false,
         "files": [
+            ".env",
             "main.js",
             "preload.js",
             "index.html",

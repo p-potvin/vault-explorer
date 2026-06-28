@@ -2,11 +2,46 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, Tray, sessi
 const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
-const child_process = require('child_process');
-const { execFile } = child_process;
+
+// Load environment variables at early startup
+function loadEnv() {
+    const envPaths = [
+        path.join(process.cwd(), '.env'),
+        path.join(path.dirname(process.execPath), '.env'),
+        path.join(__dirname, '.env'),
+        path.join(__dirname, '..', '.env')
+    ];
+    for (const envPath of envPaths) {
+        try {
+            if (fs.existsSync(envPath)) {
+                console.log('[ENV] Loading environment variables from:', envPath);
+                const envContent = fs.readFileSync(envPath, 'utf8');
+                envContent.split(/\r?\n/).forEach(line => {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed.startsWith('#')) return;
+                    const parts = line.split('=');
+                    if (parts.length >= 2) {
+                        const key = parts[0].trim();
+                        const value = parts.slice(1).join('=').trim();
+                        if (key && !process.env[key]) {
+                            process.env[key] = value;
+                        }
+                    }
+                });
+                break;
+            }
+        } catch (e) {
+            console.error('[ENV] Failed to load .env from:', envPath, e);
+        }
+    }
+}
+loadEnv();
 
 // Import modular files
 const utils = require('./src/utils');
+
+const child_process = require('child_process');
+const { execFile } = child_process;
 const cryptoHandlers = require('./src/crypto');
 const previewHandlers = require('./src/previews');
 const normalizationHandlers = require('./src/normalization');
@@ -15,6 +50,8 @@ const tmdbHandlers = require('./src/tmdb');
 const realDebridHandlers = require('./src/realdebrid');
 const livestreamHandlers = require('./src/livestream');
 const watchHistoryHandlers = require('./src/watch-history');
+const usenetHandlers = require('./src/usenet');
+
 
 let mainWindow;
 let tray = null;
@@ -161,14 +198,19 @@ function createWindow() {
     session.defaultSession.webRequest.onBeforeSendHeaders(
         { urls: youtubeUrls },
         (details, callback) => {
-            // Set both Referer and Origin to youtube.com to bypass embedding restrictions
-            details.requestHeaders['Referer'] = 'https://www.youtube.com/';
-            details.requestHeaders['Origin'] = 'https://www.youtube.com';
-            details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-            // Remove any existing origin that might conflict
-            delete details.requestHeaders['referer'];
-            delete details.requestHeaders['origin'];
-            callback({ cancel: false, requestHeaders: details.requestHeaders });
+            const headers = details.requestHeaders || {};
+            // Clean up any casing variations of Referer and Origin
+            for (const key of Object.keys(headers)) {
+                const lowerKey = key.toLowerCase();
+                if (lowerKey === 'referer' || lowerKey === 'origin') {
+                    delete headers[key];
+                }
+            }
+            // Set required YouTube headers to spoof a request from YouTube itself
+            headers['Referer'] = 'https://www.youtube.com/';
+            headers['Origin'] = 'https://www.youtube.com';
+            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+            callback({ cancel: false, requestHeaders: headers });
         }
     );
 
@@ -176,14 +218,14 @@ function createWindow() {
     session.defaultSession.webRequest.onHeadersReceived(
         { urls: youtubeUrls },
         (details, callback) => {
-            const responseHeaders = { ...details.responseHeaders };
-            // Remove security headers that block iframe embedding
-            delete responseHeaders['x-frame-options'];
-            delete responseHeaders['X-Frame-Options'];
-            delete responseHeaders['content-security-policy'];
-            delete responseHeaders['Content-Security-Policy'];
-            delete responseHeaders['x-content-security-policy'];
-            delete responseHeaders['X-Content-Security-Policy'];
+            const responseHeaders = details.responseHeaders || {};
+            // Remove security headers that block iframe embedding case-insensitively
+            for (const key of Object.keys(responseHeaders)) {
+                const lowerKey = key.toLowerCase();
+                if (lowerKey === 'x-frame-options' || lowerKey === 'content-security-policy' || lowerKey === 'x-content-security-policy') {
+                    delete responseHeaders[key];
+                }
+            }
             callback({ cancel: false, responseHeaders });
         }
     );
@@ -401,10 +443,11 @@ function loadSettings() {
             if (settings.mutePreviews === undefined) {
                 settings.mutePreviews = false;
             }
+            settings.tmdbBearerToken = process.env.TMDB_BEARER_TOKEN;
             return settings;
         }
     } catch (e) { }
-    return { folders: [], mutePreviews: false };
+    return { folders: [], mutePreviews: false, tmdbBearerToken: process.env.TMDB_BEARER_TOKEN };
 }
 async function saveSettings(settings) {
     try {
@@ -436,6 +479,7 @@ normalizationHandlers.registerNormalizationHandlers(ipcMain);
 scannerHandlers.registerScannerHandlers(ipcMain);
 tmdbHandlers.registerTmdbHandlers(ipcMain);
 realDebridHandlers.registerRealDebridHandlers(ipcMain);
+usenetHandlers.registerUsenetHandlers(ipcMain, app);
 livestreamHandlers.registerLivestreamHandlers(ipcMain);
 watchHistoryHandlers.registerWatchHistoryHandlers(ipcMain, app);
 

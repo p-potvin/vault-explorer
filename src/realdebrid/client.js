@@ -33,8 +33,10 @@ try {
                 const key = parts[0].trim();
                 const value = parts.slice(1).join('=').trim();
                 if (key) {
-                    envConfig[key] = value;
-                    process.env[key] = value;
+                    if (!process.env[key]) {
+                        process.env[key] = value;
+                    }
+                    envConfig[key] = process.env[key];
                 }
             }
         });

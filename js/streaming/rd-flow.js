@@ -26,6 +26,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
     const loadingStatus = el('rd-loading-status');
     const statusText = el('rd-status-text');
     const torrentsList = el('rd-torrents-list');
+    const titleTextEl = el('rd-stream-title-text');
 
     if (!dialog || !loadingStatus || !statusText || !torrentsList) return;
 
@@ -39,9 +40,34 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
     const chooseManuallyBtn = el('btn-rd-choose-manually');
     if (chooseManuallyBtn) chooseManuallyBtn.style.display = 'none';
 
+    // Fetch streaming mode from backend first to update title/status
+    let streamingMode = 'torrent-only';
+    try {
+        streamingMode = await window.electronAPI.getStreamingMode();
+    } catch(err) {
+        console.warn('[streaming] Could not retrieve streaming mode, using default torrent-only', err);
+    }
+
+    if (titleTextEl) {
+        if (streamingMode === 'usenet-only') {
+            titleTextEl.textContent = 'Usenet Streaming Client';
+        } else if (streamingMode === 'hybrid') {
+            titleTextEl.textContent = 'Hybrid Streaming Client';
+        } else {
+            titleTextEl.textContent = 'Real-Debrid Streaming Client';
+        }
+    }
+
     const isTV = mediaType === 'tv';
     const epLabel = isTV && season != null ? ` S${String(season).padStart(2,'0')}E${String(episode || 1).padStart(2,'0')}` : '';
-    statusText.innerHTML = `${window.icons ? window.icons.search('tab-icon spinner-inline', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Scraping Torrentio index for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
+
+    if (streamingMode === 'usenet-only') {
+        statusText.innerHTML = `${window.icons ? window.icons.search('tab-icon spinner-inline', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Scraping Usenet index for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
+    } else if (streamingMode === 'hybrid') {
+        statusText.innerHTML = `${window.icons ? window.icons.search('tab-icon spinner-inline', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Scraping Torrents & Usenet for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
+    } else {
+        statusText.innerHTML = `${window.icons ? window.icons.search('tab-icon spinner-inline', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Scraping Torrentio index for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>...`;
+    }
 
     const preferredQuality = getPreferredQuality();
     const preferredLang = getPreferredLang();
@@ -69,42 +95,100 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
             return;
         }
 
-        // Pass season/episode for TV shows so the backend queries the correct Torrentio endpoint
-        const response = await window.electronAPI.searchTorrents({
-            movieTitle,
-            tmdbId,
-            mediaType,
-            season: season || 1,
-            episode: episode || 1
-        });
+        let torrents = [];
+        let title = movieTitle;
+
+        if (streamingMode === 'usenet-only') {
+            const usenetResponse = await window.electronAPI.searchUsenet({
+                movieTitle,
+                tmdbId,
+                mediaType,
+                season: season || 1,
+                episode: episode || 1
+            });
+            if (usenetResponse && usenetResponse.success) {
+                torrents = (usenetResponse.streams || []).map(s => ({ ...s, isUsenet: true }));
+                title = usenetResponse.title || movieTitle;
+            }
+        } else if (streamingMode === 'hybrid') {
+            const [torrentResponse, usenetResponse] = await Promise.all([
+                window.electronAPI.searchTorrents({
+                    movieTitle,
+                    tmdbId,
+                    mediaType,
+                    season: season || 1,
+                    episode: episode || 1
+                }).catch(e => ({ success: false, torrents: [] })),
+                window.electronAPI.searchUsenet({
+                    movieTitle,
+                    tmdbId,
+                    mediaType,
+                    season: season || 1,
+                    episode: episode || 1
+                }).catch(e => ({ success: false, streams: [] }))
+            ]);
+
+            let tList = [];
+            if (torrentResponse && torrentResponse.success && torrentResponse.torrents) {
+                tList = torrentResponse.torrents.map(t => ({ ...t, isUsenet: false }));
+                title = torrentResponse.title || movieTitle;
+            }
+            let uList = [];
+            if (usenetResponse && usenetResponse.success && usenetResponse.streams) {
+                uList = usenetResponse.streams.map(s => ({ ...s, isUsenet: true }));
+                if (!title) title = usenetResponse.title || movieTitle;
+            }
+            torrents = [...tList, ...uList];
+        } else {
+            // torrent-only
+            const torrentResponse = await window.electronAPI.searchTorrents({
+                movieTitle,
+                tmdbId,
+                mediaType,
+                season: season || 1,
+                episode: episode || 1
+            });
+            if (torrentResponse && torrentResponse.success && torrentResponse.torrents) {
+                torrents = torrentResponse.torrents.map(t => ({ ...t, isUsenet: false }));
+                title = torrentResponse.title || movieTitle;
+            }
+        }
 
         // Cancel output if a different movie was opened in the meantime
         if (currentRequestNum !== _torrentRequestCounter) {
-            console.log(`[streaming] Cancelled outdated torrent search results for: ${movieTitle}`);
+            console.log(`[streaming] Cancelled outdated search results for: ${movieTitle}`);
             return;
         }
 
-        if (!response || !response.success || !response.torrents || response.torrents.length === 0) {
+        if (torrents.length === 0) {
             loadingStatus.querySelector('.spinner').style.display = 'none';
-            statusText.innerHTML = `${window.icons ? window.icons.close('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px; stroke:var(--vault-signal-alert);') : ''} No torrent sources found for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>.`;
+            statusText.innerHTML = `${window.icons ? window.icons.close('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px; stroke:var(--vault-signal-alert);') : ''} No media sources found for:<br><strong>${window.escapeHtml(movieTitle)}${epLabel}</strong>.`;
             return;
         }
 
-        // ── Check Real-Debrid cache status for all torrents (single batched call) ──
-        const apiKey = window.appSettings?.rdApiKey;
-        const cachedSet = await checkRDCachedBatch(
-            response.torrents.map(t => t.hash).filter(Boolean),
-            apiKey
-        );
-        const torrentsWithCacheStatus = response.torrents.map(t => ({
-            ...t,
-            isRDCached: t.hash ? cachedSet.has(t.hash.toLowerCase()) : false
-        }));
+        // ── Check Real-Debrid cache status for all p2p torrents only ──
+        const torrentItems = torrents.filter(t => !t.isUsenet);
+        const usenetItems = torrents.filter(t => t.isUsenet);
 
-        // ── Rank torrents by user's quality + language prefs ────────────────
-        const ranked = rankTorrents(torrentsWithCacheStatus);
+        let torrentsWithCacheStatus = [];
+        if (torrentItems.length > 0) {
+            const apiKey = window.appSettings?.rdApiKey;
+            const cachedSet = await checkRDCachedBatch(
+                torrentItems.map(t => t.hash).filter(Boolean),
+                apiKey
+            );
+            torrentsWithCacheStatus = torrentItems.map(t => ({
+                ...t,
+                isRDCached: t.hash ? cachedSet.has(t.hash.toLowerCase()) : false
+            }));
+        }
+
+        const mergedList = [...torrentsWithCacheStatus, ...usenetItems];
+
+        // ── Rank torrents/nzbs by user's quality + language prefs ────────────────
+        const ranked = rankTorrents(mergedList);
         window.currentTorrentList = ranked;
-        window.currentMovieTitle = response.title;
+        window.currentMovieTitle = title;
 
         // ── Always pre-render the ranked list (hidden) so the "Choose
         //    Manually" escape hatch in the loading screen has something to
@@ -116,7 +200,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
         const header = document.createElement('div');
         header.style.cssText = 'font-weight:700; font-size:12px; color:#fff; margin-bottom:6px; font-family:var(--font-mono); display:flex; justify-content:space-between; align-items:center;';
         header.innerHTML = `
-            <span>Available streams for "<em>${window.escapeHtml(response.title)}${epLabel}</em>"</span>
+            <span>Available streams for "<em>${window.escapeHtml(title)}${epLabel}</em>"</span>
             <span style="font-size:9.5px; color:var(--vault-slate); font-weight:500;">
                 Ranked: ${preferredQuality} · ${preferredLang.toUpperCase()}
             </span>`;
@@ -137,8 +221,15 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
                 </div>
                 <div style="font-size:10px; color:#eee; text-align:left; margin:2px 0; font-weight:500; font-family:var(--font-sans); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;">${window.escapeHtml(t.desc || '')}</div>
                 <div style="display:flex; gap:15px; font-size:9.5px; color:var(--vault-slate); margin-top:2px;">
+                    ${t.isUsenet ? `
+                    <span style="display:inline-flex; align-items:center; gap:4.5px;">
+                        <span style="display:inline-block; width:5.5px; height:5.5px; border-radius:50%; background:${t.health === 'healthy' ? 'var(--vault-signal-online, #6BE675)' : (t.health === 'unhealthy' ? 'var(--vault-signal-alert, #FF6B7A)' : 'var(--vault-slate, #888)')};"></span>
+                        Health: ${t.health ? t.health.toUpperCase() : 'UNKNOWN'} ${t.completionPercent ? '(' + t.completionPercent + '%)' : ''}
+                    </span>
+                    ` : `
                     <span style="display:inline-flex; align-items:center; gap:4.5px;"><span style="display:inline-block; width:5.5px; height:5.5px; border-radius:50%; background:var(--vault-signal-online, #6BE675); box-shadow: 0 0 5px var(--vault-signal-online);"></span> Seeds: ${t.seeds}</span>
                     <span style="display:inline-flex; align-items:center; gap:4.5px;"><span style="display:inline-block; width:5.5px; height:5.5px; border-radius:50%; background:var(--vault-signal-alert, #FF6B7A); box-shadow: 0 0 5px var(--vault-signal-alert);"></span> Peers: ${t.peers}</span>
+                    `}
                 </div>`;
 
             btn.addEventListener('mouseenter', () => {
@@ -149,24 +240,171 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
                 btn.style.borderColor = 'var(--vault-border)';
                 btn.style.background = 'var(--vault-warm-card,#252535)';
             });
-            btn.addEventListener('click', () => window.startRDDebridFlow(t, response.title, idx));
+            
+            if (t.isUsenet) {
+                btn.addEventListener('click', () => window.startUsenetStreamFlow(t, title, idx));
+            } else {
+                btn.addEventListener('click', () => window.startRDDebridFlow(t, title, idx));
+            }
 
             torrentsList.appendChild(btn);
         });
 
         // ── Auto-start the best result ─────────────────────────────────────
-        // The user wants the highest-quality cached stream within their
-        // settings to play immediately. The flow will fall through up to 5
-        // ranked alternatives if the first fails (handled by startRDDebridFlow).
         statusText.innerHTML = `${window.icons ? window.icons.lightning('tab-icon spinner-inline', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Auto-selecting best ${preferredQuality} ${preferredLang !== 'en' ? preferredLang.toUpperCase() + ' ' : ''}stream...`;
         await new Promise(r => setTimeout(r, 400));
         if (currentRequestNum !== _torrentRequestCounter) return;
-        window.startRDDebridFlow(ranked[0], response.title, 0);
+        
+        const bestItem = ranked[0];
+        if (bestItem.isUsenet) {
+            window.startUsenetStreamFlow(bestItem, title, 0);
+        } else {
+            window.startRDDebridFlow(bestItem, title, 0);
+        }
 
     } catch (e) {
         console.error('[streaming] triggerRDStream failed:', e);
         loadingStatus.querySelector('.spinner').style.display = 'none';
-        statusText.innerText = 'Error scraping torrent index.';
+        statusText.innerText = streamingMode === 'usenet-only' ? 'Error scraping Usenet indexers.' : (streamingMode === 'hybrid' ? 'Error scraping media indexes.' : 'Error scraping torrent index.');
+    }
+};
+
+window.startUsenetStreamFlow = async function(usenetItem, movieTitle, index = 0) {
+    const loadingStatus = el('rd-loading-status');
+    const statusText = el('rd-status-text');
+    const torrentsList = el('rd-torrents-list');
+
+    torrentsList.style.display = 'none';
+    loadingStatus.style.display = 'block';
+    loadingStatus.querySelector('.spinner').style.display = 'block';
+    statusText.innerHTML = `${window.icons ? window.icons.lightning('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Verifying Usenet stream completion & health...<br><span style="font-size:10px; color:var(--vault-slate);">Checking message segments on NNTP provider</span>`;
+
+    const chooseManuallyBtn = el('btn-rd-choose-manually');
+    if (chooseManuallyBtn) {
+        chooseManuallyBtn.style.display = 'block';
+        chooseManuallyBtn.onclick = () => {
+            window.activeRDFlowId = null;
+            loadingStatus.style.display = 'none';
+            torrentsList.style.display = 'flex';
+            chooseManuallyBtn.style.display = 'none';
+        };
+    }
+
+    const currentFlowId = Math.random();
+    window.activeRDFlowId = currentFlowId;
+
+    const allStreams = window.currentTorrentList || [];
+    let startIndex = index;
+    if (usenetItem && !index) {
+        startIndex = allStreams.findIndex(s => s.guid === usenetItem.guid || s.downloadUrl === usenetItem.downloadUrl);
+    }
+
+    const streamsToTry = [...allStreams].slice(startIndex);
+
+    try {
+        const maxAttempts = Math.min(streamsToTry.length, 5);
+        let lastError = null;
+        let successfulStream = null;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const currentItem = streamsToTry[attempt];
+            if (!currentItem) break;
+            
+            // Fallback to torrent if the next ranked item is a torrent
+            if (!currentItem.isUsenet) {
+                if (window.activeRDFlowId !== currentFlowId) return;
+                window.startRDDebridFlow(currentItem, movieTitle, startIndex + attempt);
+                return;
+            }
+
+            if (attempt > 0) {
+                statusText.innerHTML = `${window.icons ? window.icons.lightning('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Verifying Usenet stream completion & health...<br><span style="font-size:10px; color:var(--vault-slate);">Attempt ${attempt + 1}/${maxAttempts}: ${currentItem.quality} ${currentItem.desc || ''}</span>`;
+            }
+
+            // 1. Verify health and password
+            const healthResult = await window.electronAPI.verifyUsenetHealth({
+                downloadUrl: currentItem.downloadUrl,
+                guid: currentItem.guid
+            });
+
+            if (window.activeRDFlowId !== currentFlowId) {
+                console.log('[Usenet] Flow cancelled during health check');
+                return;
+            }
+
+            if (!healthResult || healthResult.health === 'unhealthy' || healthResult.isPassworded) {
+                console.warn(`[Usenet] Stream ${currentItem.desc} is unhealthy or passworded:`, healthResult);
+                lastError = healthResult ? (healthResult.isPassworded ? 'Password-protected NZB' : healthResult.reason) : 'Health verification failed';
+                currentItem.health = 'unhealthy';
+                currentItem.isPassworded = healthResult ? healthResult.isPassworded : false;
+                continue;
+            }
+
+            currentItem.health = 'healthy';
+            currentItem.completionPercent = healthResult.completionPercent;
+
+            // 2. Add to WebDAV bridge and stream
+            statusText.innerHTML = `${window.icons ? window.icons.lightning('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Initiating WebDAV stream mount...<br><span style="font-size:10px; color:var(--vault-slate);">Adding NZB to NzbDAV and resolving largest video file</span>`;
+
+            const streamResult = await window.electronAPI.streamUsenetNzb({
+                downloadUrl: currentItem.downloadUrl,
+                title: currentItem.desc
+            });
+
+            if (window.activeRDFlowId !== currentFlowId) {
+                console.log('[Usenet] Flow cancelled during stream resolution');
+                return;
+            }
+
+            if (streamResult && streamResult.success) {
+                successfulStream = streamResult;
+                break;
+            }
+
+            lastError = streamResult ? streamResult.error : 'Failed to mount WebDAV stream';
+            console.warn(`[Usenet] Stream mount failed for ${currentItem.desc}:`, lastError);
+        }
+
+        if (window.activeRDFlowId !== currentFlowId) return;
+
+        if (!successfulStream) {
+            loadingStatus.querySelector('.spinner').style.display = 'none';
+            statusText.innerHTML = `${window.icons ? window.icons.close('', 'width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px; stroke:var(--vault-signal-alert);') : ''} Usenet Stream Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(lastError || 'No healthy Usenet streams found')}</strong>`;
+
+            const retryBtn = document.createElement('button');
+            retryBtn.innerText = window.currentLang === 'fr' ? 'Retour aux Flux' : 'Back to Streams';
+            retryBtn.style.cssText = 'margin-top: 15px; background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;';
+            retryBtn.addEventListener('click', () => {
+                loadingStatus.style.display = 'none';
+                torrentsList.style.display = 'flex';
+            });
+            statusText.appendChild(retryBtn);
+            return;
+        }
+
+        // SUCCESS!
+        el('rd-stream-dialog').style.display = 'none';
+        const bd = el('rd-stream-backdrop');
+        if (bd) bd.style.display = 'none';
+        if (window.activeStreamingMedia) {
+            window.activeStreamingMedia.quality = usenetItem.quality || '';
+        }
+        window.playStream(successfulStream.streamUrl, movieTitle);
+        window.showToast('Usenet stream loaded successfully via WebDAV bridge!', 'success');
+
+    } catch (e) {
+        console.error('Usenet streaming workflow failed:', e);
+        loadingStatus.querySelector('.spinner').style.display = 'none';
+        statusText.innerHTML = `${window.icons ? window.icons.close('', 'width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px; stroke:var(--vault-signal-alert);') : ''} Usenet Workflow Error:<br><strong style="color:var(--vault-signal-alert, #FF6B7A); font-size:11px; display: block; margin-top: 6px; line-height: 1.4;">${window.escapeHtml(e.message || e)}</strong>`;
+
+        const retryBtn = document.createElement('button');
+        retryBtn.innerText = window.currentLang === 'fr' ? 'Retour aux Flux' : 'Back to Streams';
+        retryBtn.style.cssText = 'margin-top: 15px; background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;';
+        retryBtn.addEventListener('click', () => {
+            loadingStatus.style.display = 'none';
+            torrentsList.style.display = 'flex';
+        });
+        statusText.appendChild(retryBtn);
     }
 };
 

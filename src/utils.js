@@ -67,6 +67,17 @@ child_process.execFile = function () {
     return proc;
 };
 
+const originalExec = child_process.exec;
+child_process.exec = function () {
+    const proc = originalExec.apply(this, arguments);
+    activeSubprocesses.add(proc);
+    const clean = () => { activeSubprocesses.delete(proc); };
+    proc.on('close', clean);
+    proc.on('exit', clean);
+    proc.on('error', clean);
+    return proc;
+};
+
 // On Windows proc.kill('SIGKILL') only signals the immediate child — any
 // grandchild process (ffmpeg's helpers, Python's spawned workers) is left
 // orphaned and shows up as "Vault Explorer is still running" zombies.

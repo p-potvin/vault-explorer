@@ -74,7 +74,7 @@ async function loadDirectory(navPath, realPath, useCache = false) {
         ? (realPath || (window.translations[window.currentLang].noFolderSelected || 'No folder selected...')) 
         : getDisplayPath(navPath);
     el('path-display').innerText = displayPath;
-    el('path-display').title = realPath ? "Click to change Vault folder" : "Click to browse for a folder";
+    el('path-display').title = realPath ? "Click to browse / change Vault folder" : "Click to browse for a folder";
 
     if (el('btn-new-folder')) { el('btn-new-folder').disabled = false; el('btn-new-folder').style.display = 'inline-flex'; }
     if (el('btn-new-folder')) el('btn-new-folder').title = "Create virtual folder";
