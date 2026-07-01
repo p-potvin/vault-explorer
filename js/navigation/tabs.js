@@ -6,6 +6,11 @@ window.currentTab = 'files';
 
 window.switchTab = function(tabName) {
     if (tabName === 'vault') tabName = 'files';
+    
+    if (window.currentTab === 'streaming' && tabName !== 'streaming') {
+        if (typeof window.destroyTrailer === 'function') window.destroyTrailer();
+    }
+    
     window.currentTab = tabName;
 
     if (tabName === 'livestream') {
@@ -171,7 +176,7 @@ window.switchTab = function(tabName) {
                 window.vaultLoaded = true;
                 console.log('[Lazy Load] First time entering Files Tab, performing directory load...');
                 if (window.appSettings.lastPath && window.appSettings.lastPath.realPath) {
-                    window.loadDirectory(window.appSettings.lastPath.navPath, window.appSettings.lastPath.realPath, true);
+                    window.loadDirectory(window.appSettings.lastPath.navPath, window.appSettings.lastPath.realPath, true, window.appSettings.lastPath.folderId);
                 } else if (window.appSettings.defaultFolder) {
                     window.loadDirectory('root/' + window.appSettings.defaultFolder.split(/[\\/]/).pop(), window.appSettings.defaultFolder, true);
                 } else {

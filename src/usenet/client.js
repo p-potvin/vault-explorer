@@ -5,9 +5,13 @@ const path = require('path');
 let envConfig = {};
 try {
     const envPaths = [
+        path.join(process.cwd(), '.env'),
+        path.join(path.dirname(process.execPath), '.env'),
+        process.resourcesPath ? path.join(process.resourcesPath, '.env') : null,
+        path.join(__dirname, '.env'),
         path.join(__dirname, '..', '.env'),
         path.join(__dirname, '..', '..', '.env')
-    ];
+    ].filter(Boolean);
     for (const envPath of envPaths) {
         if (fs.existsSync(envPath)) {
             const envContent = fs.readFileSync(envPath, 'utf8');
@@ -24,6 +28,7 @@ try {
                     }
                 }
             });
+            break;
         }
     }
 } catch (e) {

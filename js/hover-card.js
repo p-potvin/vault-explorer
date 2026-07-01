@@ -84,11 +84,12 @@ window.showPremiumHoverCard = function(card, movie) {
         
         // Save current trailer playback time if playing
         const vid = popup.querySelector('video');
+        let currentTime = 0;
         if (vid) {
-            window._persistedTrailerTime = vid.currentTime;
+            currentTime = vid.currentTime;
         }
         
-        window.showMediaDetails(movie);
+        window.showMediaDetails(movie, currentTime);
         window.hidePremiumHoverCard();
     };
     
@@ -214,12 +215,13 @@ window.showPremiumHoverCard = function(card, movie) {
         
         // Save current trailer playback time if playing
         const vid = popup.querySelector('video');
+        let currentTime = 0;
         if (vid) {
-            window._persistedTrailerTime = vid.currentTime;
+            currentTime = vid.currentTime;
         }
         
         window.hidePremiumHoverCard();
-        window.showMediaDetails(movie);
+        window.showMediaDetails(movie, currentTime);
     });
     
     const rect = card.getBoundingClientRect();
@@ -296,12 +298,14 @@ window.showPremiumHoverCard = function(card, movie) {
         }
         
         // ── PRIMARY: yt-dlp direct stream (bypasses embed restrictions) ──
-        let directUrl = null;
-        if (trailerKey && window.electronAPI && window.electronAPI.extractYouTubeURL) {
+        window._directTrailerUrlCache = window._directTrailerUrlCache || {};
+        let directUrl = window._directTrailerUrlCache[trailerKey];
+        if (!directUrl && trailerKey && window.electronAPI && window.electronAPI.extractYouTubeURL) {
             try {
                 const result = await window.electronAPI.extractYouTubeURL(trailerKey);
                 if (result && result.success && result.url) {
                     directUrl = result.url;
+                    window._directTrailerUrlCache[trailerKey] = directUrl;
                 }
             } catch (e) {
                 console.warn('[HoverCard] yt-dlp extraction failed:', e.message);

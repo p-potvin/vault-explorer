@@ -64,11 +64,29 @@ function clearSearchBox() {
     if (cb) cb.style.display = 'none';
 }
 
-async function loadDirectory(navPath, realPath, useCache = false) {
+async function loadDirectory(navPath, realPath, useCache = false, targetFolderId = undefined) {
     if (!realPath && navPath !== 'root') return;
-    window.currentNavPath = navPath;
+    
+    let newFolderId = null;
+    if (targetFolderId !== undefined) {
+        newFolderId = targetFolderId;
+    } else {
+        if (navPath === 'root') {
+            newFolderId = null;
+        } else if (realPath === window.currentRealPath) {
+            newFolderId = window.currentFolderId;
+        } else {
+            newFolderId = null;
+        }
+    }
+    
+    if (newFolderId && (!window.vf || !window.vf.get(newFolderId))) {
+        newFolderId = null;
+    }
+    
+    window.currentFolderId = newFolderId;
+    window.currentNavPath = window.currentFolderId ? window.buildNavPath(window.currentFolderId) : navPath;
     window.currentRealPath = realPath || '';
-    window.currentFolderId = null;
 
     const displayPath = navPath === 'root' 
         ? (realPath || (window.translations[window.currentLang].noFolderSelected || 'No folder selected...')) 
@@ -85,10 +103,9 @@ async function loadDirectory(navPath, realPath, useCache = false) {
     el('btn-back').title = "Already at root vault level";
 
     clearSearchBox();
-    el('main-area').scrollTop = 0;
 
     if (realPath) {
-        window.appSettings.lastPath = { navPath, realPath };
+        window.appSettings.lastPath = { navPath: window.currentNavPath, realPath, folderId: window.currentFolderId };
         window.electronAPI.saveSettings(window.appSettings);
     }
 
@@ -224,7 +241,6 @@ async function navigateTo(target, realPath) {
     window.currentRealPath = realPath;
     el('path-display').innerText = getDisplayPath(window.currentNavPath);
     clearSearchBox();
-    el('main-area').scrollTop = 0;
 
     if (!folderId) {
         el('btn-back').style.display = 'none';
@@ -338,6 +354,8 @@ function initNavigationListeners() {
             return;
         }
         window.scrollPositions[window.currentNavPath] = el('main-area').scrollTop;
+        window.renderedCounts = window.renderedCounts || {};
+        window.renderedCounts[window.currentNavPath] = window.currentlyRendered;
         window.appSettings.scrollPositions = window.scrollPositions;
         window.electronAPI.saveSettings(window.appSettings);
 

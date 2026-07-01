@@ -70,6 +70,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   searchUsenet: (data) => ipcRenderer.invoke('search-usenet', data),
   verifyUsenetHealth: (data) => ipcRenderer.invoke('verify-usenet-health', data),
   streamUsenetNzb: (data) => ipcRenderer.invoke('stream-usenet-nzb', data),
+  getUsenetStatus: (nzoId) => ipcRenderer.invoke('get-usenet-status', nzoId),
+  finalizeUsenetStream: (data) => ipcRenderer.invoke('finalize-usenet-stream', data),
+  moveUsenetToDrive: (data) => ipcRenderer.invoke('move-usenet-to-drive', data),
   getStreamingMode: () => ipcRenderer.invoke('get-streaming-mode'),
 
   startLivestream: (data) => ipcRenderer.invoke('start-livestream', data),

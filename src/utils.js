@@ -155,7 +155,15 @@ function runLowPriorityProcess(command, args) {
             activeFfmpegCount++;
         }
 
-        const child = spawn(command, args, { windowsHide: true });
+        // Auto-resolve full path if command is ffmpeg or ffprobe and they aren't on PATH
+        let execCmd = command;
+        if (command === 'ffmpeg') {
+            execCmd = getFFmpegPath();
+        } else if (command === 'ffprobe') {
+            execCmd = getFFmpegPath().replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe');
+        }
+
+        const child = spawn(execCmd, args, { windowsHide: true });
 
         // Track FFmpeg processes
         if (command.toLowerCase().includes('ffmpeg') || command.toLowerCase().includes('ffprobe')) {
@@ -222,7 +230,8 @@ function runLowPriorityProcess(command, args) {
 
 function getVideoDuration(videoPath) {
     return new Promise((resolve) => {
-        execFile('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (err, stdout) => {
+        const ffprobe = getFFmpegPath().replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe');
+        execFile(ffprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (err, stdout) => {
             if (err) resolve(0);
             else {
                 const dur = parseFloat(stdout.trim());
@@ -234,7 +243,8 @@ function getVideoDuration(videoPath) {
 
 function checkAudioStream(videoPath) {
     return new Promise((resolve) => {
-        execFile('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (_err, stdout) => {
+        const ffprobe = getFFmpegPath().replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe');
+        execFile(ffprobe, ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], (_err, stdout) => {
             resolve(!!stdout.trim());
         });
     });

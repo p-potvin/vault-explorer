@@ -1,6 +1,8 @@
 // src/usenet/stream.js - Integrates NzbDAV WebDAV streaming bridge
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
+const os = require('os');
 const { fetchWithTimeout } = require("./client");
 
 // We read configuration
@@ -73,67 +75,114 @@ async function streamUsenetNzb(event, { downloadUrl, title }) {
         const nzoId = data.nzo_ids && data.nzo_ids[0];
         console.log(`[Usenet-Stream] Added NZB to NzbDAV, NZO ID: ${nzoId}`);
 
-        // 2. Poll the queue to find the folder name (filename) matching the NZO ID
-        let folderName = null;
-        let attempts = 0;
-        const maxAttempts = 10;
+        // Return immediately with the downloading state, just like RD flow
+        return {
+            success: true,
+            downloading: true,
+            status: 'downloading',
+            progress: 0,
+            nzoId: nzoId,
+            title
+        };
+
+    } catch (err) {
+        console.error('[Usenet-Stream] Error initiating SABnzbd download:', err);
+        return {
+            success: false,
+            error: err.message || 'Failed to initiate Usenet download'
+        };
+    }
+}
+
+/**
+ * Polls the SABnzbd queue/history for the status of an NZO ID.
+ */
+async function getUsenetStatus(event, nzoId) {
+    if (!NZBDAV_URL) return { success: false, error: 'NZBDAV_URL missing' };
+    
+    try {
+        let apiBase = NZBDAV_URL.replace(/\/$/, '');
+        let queueUrl = `${apiBase}/api?mode=queue&output=json`;
+        if (NZBDAV_API_KEY) queueUrl += `&apikey=${NZBDAV_API_KEY}`;
         
-        while (attempts < maxAttempts) {
-            attempts++;
-            console.log(`[Usenet-Stream] Polling queue for NZO ID ${nzoId} (attempt ${attempts}/${maxAttempts})`);
-            
-            let queueUrl = `${apiBase}/api?mode=queue&output=json`;
+        let qRes = await fetchWithTimeout(queueUrl, {}, 5000);
+        if (!qRes.ok) {
+            queueUrl = `${apiBase}/sabnzbd/api?mode=queue&output=json`;
             if (NZBDAV_API_KEY) queueUrl += `&apikey=${NZBDAV_API_KEY}`;
-            
-            let qRes = await fetchWithTimeout(queueUrl, {}, 5000);
-            if (!qRes.ok) {
-                queueUrl = `${apiBase}/sabnzbd/api?mode=queue&output=json`;
-                if (NZBDAV_API_KEY) queueUrl += `&apikey=${NZBDAV_API_KEY}`;
-                qRes = await fetchWithTimeout(queueUrl, {}, 5000);
-            }
+            qRes = await fetchWithTimeout(queueUrl, {}, 5000);
+        }
 
-            if (qRes.ok) {
-                const qData = await qRes.json();
-                const queue = qData.queue || {};
-                const slots = queue.slots || [];
-                const matchedSlot = slots.find(slot => slot.nzo_id === nzoId);
-                if (matchedSlot && matchedSlot.filename) {
-                    folderName = matchedSlot.filename;
-                    break;
-                }
-            }
+        if (qRes.ok) {
+            const qData = await qRes.json();
+            const queue = qData.queue || {};
+            const slots = queue.slots || [];
+            const matchedSlot = slots.find(slot => slot.nzo_id === nzoId);
             
-            // Check history as well in case it completed instantly
-            let historyUrl = `${apiBase}/api?mode=history&output=json`;
+            if (matchedSlot) {
+                return {
+                    success: true,
+                    status: matchedSlot.status === 'Paused' ? 'paused' : 'downloading',
+                    progress: parseFloat(matchedSlot.percentage || 0),
+                    speed: parseFloat((matchedSlot.mb || 0) * 1024 * 1024) / (parseFloat(matchedSlot.timeleft || 1) * 60 || 1), // Approximate bytes/sec if needed, though SABnzbd provides speed globally
+                    mbleft: matchedSlot.mbleft,
+                    mb: matchedSlot.mb,
+                    filename: matchedSlot.filename
+                };
+            }
+        }
+        
+        // Not in queue, check history
+        let historyUrl = `${apiBase}/api?mode=history&output=json`;
+        if (NZBDAV_API_KEY) historyUrl += `&apikey=${NZBDAV_API_KEY}`;
+        let hRes = await fetchWithTimeout(historyUrl, {}, 5000);
+        if (!hRes.ok) {
+            historyUrl = `${apiBase}/sabnzbd/api?mode=history&output=json`;
             if (NZBDAV_API_KEY) historyUrl += `&apikey=${NZBDAV_API_KEY}`;
-            let hRes = await fetchWithTimeout(historyUrl, {}, 5000);
-            if (!hRes.ok) {
-                historyUrl = `${apiBase}/sabnzbd/api?mode=history&output=json`;
-                if (NZBDAV_API_KEY) historyUrl += `&apikey=${NZBDAV_API_KEY}`;
-                hRes = await fetchWithTimeout(historyUrl, {}, 5000);
-            }
+            hRes = await fetchWithTimeout(historyUrl, {}, 5000);
+        }
+        
+        if (hRes.ok) {
+            const hData = await hRes.json();
+            const history = hData.history || {};
+            const slots = history.slots || [];
+            const matchedSlot = slots.find(slot => slot.nzo_id === nzoId);
             
-            if (hRes.ok) {
-                const hData = await hRes.json();
-                const history = hData.history || {};
-                const slots = history.slots || [];
-                const matchedSlot = slots.find(slot => slot.nzo_id === nzoId);
-                if (matchedSlot && matchedSlot.name) {
-                    folderName = matchedSlot.name;
-                    break;
+            if (matchedSlot) {
+                if (matchedSlot.status === 'Completed') {
+                    return {
+                        success: true,
+                        status: 'downloaded',
+                        progress: 100,
+                        filename: matchedSlot.name
+                    };
+                } else if (matchedSlot.status === 'Failed') {
+                    return {
+                        success: false,
+                        status: 'error',
+                        error: matchedSlot.fail_message || 'SABnzbd download failed'
+                    };
                 }
             }
-
-            await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        
+        return { success: true, status: 'unknown', progress: 0 };
+    } catch (e) {
+        console.error('[Usenet-Stream] Error polling status:', e);
+        return { success: false, error: e.message };
+    }
+}
 
+/**
+ * Once completed, fetches the WebDAV URL for the extracted file.
+ */
+async function finalizeUsenetStream(event, { nzoId, folderName, title }) {
+    try {
         if (!folderName) {
-            // Fallback: use title of NZB or title parameter as the folder name
             folderName = title || 'Unknown';
-            console.log(`[Usenet-Stream] Could not match NZO ID in queue, falling back to title: ${folderName}`);
+            console.log(`[Usenet-Stream] No folder name provided, falling back to title: ${folderName}`);
         }
 
-        console.log(`[Usenet-Stream] Folder name in WebDAV: ${folderName}`);
+        console.log(`[Usenet-Stream] Finalizing WebDAV stream for folder: ${folderName}`);
 
         // 3. Perform PROPFIND on the WebDAV directory to find files
         // WebDAV URL configuration
@@ -218,7 +267,9 @@ async function streamUsenetNzb(event, { downloadUrl, title }) {
         return {
             success: true,
             streamUrl,
-            title
+            title,
+            nzoId,
+            folderName
         };
 
     } catch (err) {
@@ -230,13 +281,52 @@ async function streamUsenetNzb(event, { downloadUrl, title }) {
     }
 }
 
+/**
+ * Moves completed Usenet download folder to Google Drive immediately using rclone over SSH.
+ */
+async function moveUsenetToDrive(event, { folderName, nzoId }) {
+    if (!folderName) {
+        return { success: false, error: 'Folder name is required' };
+    }
+
+    return new Promise((resolve) => {
+        const sshKeyPath = path.join(os.homedir(), '.ssh', 'tube-site-vps');
+        const escapedFolder = folderName.replace(/"/g, '\\"');
+        // Command moves directory contents to Google Drive under 'usenet' subfolder and deletes empty source directories
+        const command = `ssh -o StrictHostKeyChecking=no -i "${sshKeyPath}" ubuntu@100.67.25.118 "sudo rclone move \\"/srv/vw-media/data/downloads/usenet/complete/${escapedFolder}\\" \\"gdrive:VaultWares/media/usenet/${escapedFolder}\\" --delete-empty-src-dirs && sudo rm -rf \\"/srv/vw-media/data/downloads/usenet/complete/${escapedFolder}\\""`;
+
+        console.log(`[Usenet-Stream] Triggering immediate move to Drive for: ${folderName}`);
+        exec(command, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`[Usenet-Stream] Failed to move Usenet folder to Google Drive: ${stderr || error.message}`);
+                resolve({ success: false, error: stderr || error.message });
+            } else {
+                console.log(`[Usenet-Stream] Successfully moved Usenet folder to Google Drive: ${stdout}`);
+                resolve({ success: true });
+            }
+        });
+    });
+}
+
 function registerUsenetStreamHandlers(ipcMain) {
     ipcMain.handle('stream-usenet-nzb', async (event, params) => {
         return await streamUsenetNzb(event, params);
+    });
+    ipcMain.handle('get-usenet-status', async (event, nzoId) => {
+        return await getUsenetStatus(event, nzoId);
+    });
+    ipcMain.handle('finalize-usenet-stream', async (event, params) => {
+        return await finalizeUsenetStream(event, params);
+    });
+    ipcMain.handle('move-usenet-to-drive', async (event, params) => {
+        return await moveUsenetToDrive(event, params);
     });
 }
 
 module.exports = {
     streamUsenetNzb,
+    getUsenetStatus,
+    finalizeUsenetStream,
+    moveUsenetToDrive,
     registerUsenetStreamHandlers
 };

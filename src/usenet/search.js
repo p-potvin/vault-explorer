@@ -55,6 +55,28 @@ async function searchUsenet(event, { movieTitle, tmdbId, mediaType, season, epis
             }
         }
 
+        const cacheKey = `search:${itemMediaType}:${imdbId || movieTitle}:${season || ''}:${episode || ''}`;
+        const cachedSearch = cache.get(cacheKey);
+        if (cachedSearch && cachedSearch.streams) {
+            console.log(`[Usenet] Returning cached search results for query: ${cacheKey}`);
+            const updatedStreams = cachedSearch.streams.map(s => {
+                const uniqueId = s.guid || s.downloadUrl;
+                const cachedResult = cache.get(uniqueId);
+                return {
+                    ...s,
+                    cached: !!cachedResult,
+                    health: cachedResult ? cachedResult.health : s.health,
+                    isPassworded: cachedResult ? cachedResult.isPassworded : s.isPassworded
+                };
+            });
+            return {
+                success: true,
+                title: movieTitle,
+                streams: updatedStreams,
+                fromCache: true
+            };
+        }
+
         const url = `${PROWLARR_URL}/api/v1/search?query=${encodeURIComponent(queryStr)}&indexerIds=-1&categories=${categories}&type=${type}&apikey=${PROWLARR_API_KEY}`;
         console.log(`[Usenet] Querying Prowlarr: ${url.replace(PROWLARR_API_KEY, '<api_key>')}`);
 
@@ -107,6 +129,10 @@ async function searchUsenet(event, { movieTitle, tmdbId, mediaType, season, epis
             if (!a.cached && b.cached) return 1;
             return 0; // maintain Prowlarr's default sorting order otherwise
         });
+
+        // Cache search results for 12 hours to avoid hitting indexer limits
+        const SEARCH_CACHE_TTL = 12 * 60 * 60 * 1000;
+        cache.set(cacheKey, { streams: sortedStreams }, SEARCH_CACHE_TTL);
 
         return {
             success: true,

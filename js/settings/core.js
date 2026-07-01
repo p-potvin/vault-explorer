@@ -25,6 +25,8 @@ function initSettingsListeners() {
         const panel = el('settings-panel');
         const isOpening = panel.style.display === 'none';
         panel.style.display = isOpening ? 'flex' : 'none';
+        const backdrop = el('settings-backdrop');
+        if (backdrop) backdrop.style.display = isOpening ? 'block' : 'none';
         if (isOpening) {
             pillTagLoad(window.appSettings.globExclusions || []);
             el('settings-default-folder').value = window.appSettings.defaultFolder || '';
@@ -60,7 +62,28 @@ function initSettingsListeners() {
             if (el('settings-vsr-chroma')) el('settings-vsr-chroma').value = window.appSettings.vsrChroma || 'yuv420p';
             el('debrid-proxy-enable').checked = window.appSettings.debridProxyEnable === true;
             el('debrid-proxy-address-input').value = window.appSettings.debridProxyAddress || '';
+            if (el('settings-streaming-mode')) el('settings-streaming-mode').value = window.appSettings.streamingMode || 'torrent-only';
             document.getElementById('pill-tag-input-glob').focus();
+        }
+    });
+
+    // Close on backdrop or outside click without saving
+    const backdrop = el('settings-backdrop');
+    if (backdrop) {
+        backdrop.addEventListener('click', () => {
+            el('settings-panel').style.display = 'none';
+            backdrop.style.display = 'none';
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        const panel = el('settings-panel');
+        if (panel && panel.style.display === 'flex') {
+            if (!panel.contains(e.target) && !trigger.contains(e.target)) {
+                panel.style.display = 'none';
+                const backdrop = el('settings-backdrop');
+                if (backdrop) backdrop.style.display = 'none';
+            }
         }
     });
   }
@@ -146,6 +169,9 @@ function initSettingsListeners() {
         }
         window.appSettings.streamQuality = el('settings-stream-quality').value;
         window.appSettings.streamLang = el('settings-stream-lang').value;
+        if (el('settings-streaming-mode')) {
+            window.appSettings.streamingMode = el('settings-streaming-mode').value;
+        }
         if (el('settings-vsr-quality')) window.appSettings.vsrQuality = el('settings-vsr-quality').value;
         if (el('settings-vsr-scale')) window.appSettings.vsrScale = el('settings-vsr-scale').value;
         if (el('settings-vsr-bitrate')) window.appSettings.vsrBitrate = el('settings-vsr-bitrate').value;
@@ -155,6 +181,8 @@ function initSettingsListeners() {
         await window.electronAPI.saveSettings(window.appSettings);
         showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
         el('settings-panel').style.display = 'none';
+        const backdrop = el('settings-backdrop');
+        if (backdrop) backdrop.style.display = 'none';
         
         if (hasStructuralChange) {
             console.log('[settings] Structural change detected (exclusions/folder). Reloading directory...');

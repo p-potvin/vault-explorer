@@ -564,6 +564,18 @@ function initPlayer() {
             }
         }
         
+        
+        // Trigger post-playback Usenet cleanup before clearing active media state
+        if (window.activeStreamingMedia && window.activeStreamingMedia.isUsenet) {
+            const { folderName, nzoId } = window.activeStreamingMedia;
+            if (folderName && nzoId) {
+                console.log(`[Player] Closing Usenet playback, launching remote drive transfer for ${folderName}...`);
+                window.electronAPI.moveUsenetToDrive({ folderName, nzoId }).catch(err => {
+                    console.error('[Player] Failed to trigger Usenet cleanup IPC:', err);
+                });
+            }
+        }
+
         // Reset active streaming media cache + any in-flight RD/quality-switch
         // state. If we leave these set, the NEXT stream attempt can race against
         // a stale flow id or seek to the previous movie's pause position.
@@ -1121,13 +1133,6 @@ function initPlayer() {
                     if (!document.fullscreenElement) vp.parentElement.requestFullscreen();
                     else document.exitFullscreen();
                     break;
-                case 'escape':
-                    if (e.ctrlKey || e.shiftKey) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        el('video-modal').classList.toggle('minimized');
-                    }
-                    break;
                 case 'c':
                     if (!e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
                         e.preventDefault();
@@ -1199,8 +1204,7 @@ function initPlayer() {
         if (sbm && !e.target.closest('.subtitle-dropdown-container')) sbm.style.display = 'none';
     });
 
-    // Esc closes the player. Shift+Q toggles PiP/minimized mode so playback
-    // continues while the user does something else.
+    // Esc toggles PiP/minimized mode. Shift+Q closes the player.
     document.addEventListener('keydown', (e) => {
         const modal = el('video-modal');
         if (!modal || modal.style.display !== 'flex') return;
@@ -1208,12 +1212,15 @@ function initPlayer() {
         const t = e.target;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
         if (e.key === 'Escape' && !e.shiftKey && !e.ctrlKey) {
-            el('close-modal').click();
+            e.preventDefault();
+            e.stopPropagation();
+            modal.classList.toggle('minimized');
         } else if (e.shiftKey && (e.key === 'Q' || e.key === 'q')) {
             e.preventDefault();
-            modal.classList.toggle('minimized');
+            e.stopPropagation();
+            el('close-modal').click();
         }
-    });
+    }, true);
 
     // Auto-hide controls when cursor hovers the app titlebar (above the player)
     const titlebarEl = document.querySelector('.titlebar');
