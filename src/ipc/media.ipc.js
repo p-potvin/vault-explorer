@@ -429,7 +429,7 @@ function registerMediaIpc(ipcMain) {
         const ytDlp = 'yt-dlp';
         const url = `https://www.youtube.com/watch?v=${videoId}`;
         // Request progressive combined formats (22 for 720p, 18 for 360p) for native <video> tag playback
-        const args = ['--format', '22/18/best', '--get-url', url];
+        const args = ['--format', '22/18/best', '--no-playlist', '--no-warnings', '--no-check-certificates', '--extractor-args', 'youtube:player_client=android,web', '--get-url', url];
         console.log(`[media.ipc:youtube] Extracting stream URL via yt-dlp for ${videoId}`);
         return new Promise((resolve) => {
             const proc = child_process.spawn(ytDlp, args, {

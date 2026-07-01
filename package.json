@@ -1,6 +1,6 @@
 {
     "name": "vault-explorer",
-    "version": "1.1.8",
+    "version": "2.0.10",
     "description": "Re-discover the joys of browsing your files on a christmas morning or a rainy tuesday at work.",
     "main": "main.js",
     "scripts": {
@@ -19,9 +19,7 @@
     "build": {
         "appId": "com.vaultwares.vaultexplorer",
         "icon": "build/icon.ico",
-        "useGitIgnore": false,
         "files": [
-            ".env",
             "main.js",
             "preload.js",
             "index.html",
@@ -49,6 +47,15 @@
             "!node_modules/@electron/rebuild/**",
             "!node_modules/dmg-builder/**"
         ],
+        "extraResources": [
+            {
+                "from": ".env",
+                "to": ".env",
+                "filter": [
+                    ".env"
+                ]
+            }
+        ],
         "asarUnpack": [
             "tools/**",
             "python-scripts/**"
@@ -59,7 +66,7 @@
         "nsis": {
             "oneClick": false,
             "allowToChangeInstallationDirectory": true,
-            "artifactName": "vault-explorer-${version}-setup.${ext}"
+            "artifactName": "vault-explorer-setup-${version}.${ext}"
         }
     },
     "dependencies": {

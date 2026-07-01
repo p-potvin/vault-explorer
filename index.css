@@ -1893,3 +1893,18 @@ body.clip-mode-active #btn-clip {
 #photo-editor-modal.open {
   display: flex;
 }
+
+/* Custom Added Keyframes for Streaming UI */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes successBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+.success-bounce {
+  animation: successBounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}

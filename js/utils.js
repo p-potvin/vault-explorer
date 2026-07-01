@@ -190,6 +190,7 @@ function attachHoverWebmToCard(card, hoverWebmPath) {
   card.addEventListener('mouseenter', () => {
        clearTimeout(wT);
        wT = setTimeout(() => {
+          if (!document.body.contains(card) || card.offsetParent === null) return;
           if (window.hoverAudioPreview) {
               try { window.hoverAudioPreview.pause(); } catch(e) {}
               window.hoverAudioPreview = null;

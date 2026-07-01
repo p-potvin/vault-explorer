@@ -167,14 +167,15 @@ function applyFilters() {
         window.selectedIndices.clear(); window.lastSelectedIndex = -1;
 
         let countToRender = window.PAGE_SIZE;
-        if (window.restoringVaultTab && window.vaultCurrentlyRendered) {
-            countToRender = window.vaultCurrentlyRendered;
-            window.restoringVaultTab = false;
-            window.vaultCurrentlyRendered = null;
-        } else {
-            window.vaultCurrentlyRendered = null;
-            window.restoringVaultTab = false;
+        
+        window.renderedCounts = window.renderedCounts || {};
+        const savedRendered = window.renderedCounts[window.currentNavPath];
+        if (savedRendered && savedRendered > window.PAGE_SIZE) {
+            countToRender = savedRendered;
         }
+        
+        // Ensure we don't render more than the filtered pool
+        countToRender = Math.min(countToRender, window.displayedItems.length);
 
         window.currentlyRendered = 0;
         window.updateStatusBar();
@@ -182,6 +183,13 @@ function applyFilters() {
         const nextBatch = window.displayedItems.slice(0, countToRender);
         nextBatch.forEach((item, i) => { el('file-grid').appendChild(window.createCardElement(item, i)); });
         window.currentlyRendered = nextBatch.length;
+        
+        requestAnimationFrame(() => {
+            const savedScroll = (window.scrollPositions && window.scrollPositions[window.currentNavPath]) || 0;
+            if (el('main-area')) {
+                el('main-area').scrollTop = savedScroll;
+            }
+        });
     }
 
     // Re-render the active media tab if the user is on a non-Files tab

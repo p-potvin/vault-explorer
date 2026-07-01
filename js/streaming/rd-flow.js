@@ -43,7 +43,7 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
     // Fetch streaming mode from backend first to update title/status
     let streamingMode = 'torrent-only';
     try {
-        streamingMode = await window.electronAPI.getStreamingMode();
+        streamingMode = window.appSettings.streamingMode || await window.electronAPI.getStreamingMode();
     } catch(err) {
         console.warn('[streaming] Could not retrieve streaming mode, using default torrent-only', err);
     }
@@ -216,7 +216,14 @@ window.triggerRDStream = async function(movieTitle, tmdbId = null, mediaType = '
             btn.innerHTML = `
                 ${isBest ? `<span style="position:absolute; top:6px; right:8px; background:var(--vault-accent); color:var(--vt-primary); font-size:8px; font-weight:800; padding:2px 6px; border-radius:3px; font-family:var(--font-mono); text-transform:uppercase;">Best Match</span>` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; width:100%; padding-right:${isBest ? '80px' : '0'};">
-                    <strong style="color:var(--vault-accent); font-family:var(--font-mono); font-size:11px;">${window.escapeHtml(t.quality)} <span style="color:var(--vault-slate); font-weight:400;">(${window.escapeHtml(t.type.substring(0, 30).toUpperCase())})</span></strong>
+                    <strong style="color:var(--vault-accent); font-family:var(--font-mono); font-size:11px; display:inline-flex; align-items:center; gap:6px;">
+                        ${t.isUsenet 
+                            ? `<span title="Usenet NZB" style="display:inline-flex; align-items:center; gap:4px; background:rgba(168,85,247,0.15); color:#c084fc; font-size:8.5px; font-weight:800; padding:2px 5px; border-radius:3px; font-family:var(--font-mono); text-transform:uppercase; border:1px solid rgba(168,85,247,0.3);"><svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-top:-1px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg> NZB</span>` 
+                            : `<span title="Torrent Torrent" style="display:inline-flex; align-items:center; gap:4px; background:rgba(59,130,246,0.15); color:#60a5fa; font-size:8.5px; font-weight:800; padding:2px 5px; border-radius:3px; font-family:var(--font-mono); text-transform:uppercase; border:1px solid rgba(59,130,246,0.3);"><svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-top:-1px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> P2P</span>`
+                        }
+                        ${window.escapeHtml(t.quality)} 
+                        <span style="color:var(--vault-slate); font-weight:400; font-size:9.5px;">(${window.escapeHtml(t.type.substring(0, 30).toUpperCase())})</span>
+                    </strong>
                     <span style="font-size:9.5px; color:var(--vault-slate); font-weight:600; display:inline-flex; align-items:center; gap:3.5px;">${window.icons ? window.icons.folder('', 'width:10px; height:10px; display:inline-block; vertical-align:middle;') : ''} ${window.escapeHtml(t.size)}</span>
                 </div>
                 <div style="font-size:10px; color:#eee; text-align:left; margin:2px 0; font-weight:500; font-family:var(--font-sans); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;">${window.escapeHtml(t.desc || '')}</div>
@@ -357,12 +364,103 @@ window.startUsenetStreamFlow = async function(usenetItem, movieTitle, index = 0)
             }
 
             if (streamResult && streamResult.success) {
-                successfulStream = streamResult;
-                break;
+                if (streamResult.downloading) {
+                    let progress = streamResult.progress || 0;
+                    let status = streamResult.status || 'downloading';
+                    let speed = streamResult.speed || 0;
+                    const nzoId = streamResult.nzoId;
+
+                    statusText.innerHTML = `
+                        <div style="text-align: center; width: 100%;">
+                            <span style="font-size: 13px; font-weight: 700; color: var(--vault-accent, #F5B929); display: block; margin-bottom: 8px;">${window.icons ? window.icons.cloud('', 'width:14px; height:14px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} Downloading NZB via SABnzbd...</span>
+                            <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin: 12px 0;">
+                                <div style="width: ${progress}%; height: 100%; background: linear-gradient(90deg, var(--vault-accent, #F5B929), #FF6B7A); border-radius: 4px; transition: width 0.4s ease;"></div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #fff; margin-bottom: 6px; font-family: var(--font-mono);">
+                                <span>Progress: <strong>${progress}%</strong></span>
+                                <span>Speed: <strong>${formatSpeed(speed)}</strong></span>
+                            </div>
+                            <div style="font-size: 10.5px; color: var(--vault-slate); text-align: left; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 6px; margin-top: 6px;">
+                                Status: <strong style="color: #fff; text-transform: uppercase;">${status.replace('_', ' ')}</strong>
+                            </div>
+                        </div>
+                    `;
+
+                    while (status !== 'downloaded') {
+                        if (window.activeRDFlowId !== currentFlowId || el('rd-stream-dialog').style.display === 'none') {
+                            console.log('[Usenet] Downloading flow aborted.');
+                            return;
+                        }
+
+                        await new Promise(r => setTimeout(r, 3500));
+
+                        if (window.activeRDFlowId !== currentFlowId || el('rd-stream-dialog').style.display === 'none') {
+                            console.log('[Usenet] Downloading flow aborted post-sleep.');
+                            return;
+                        }
+
+                        const poll = await window.electronAPI.getUsenetStatus(nzoId);
+                        if (window.activeRDFlowId !== currentFlowId) {
+                            console.log('[Usenet] Flow cancelled post getUsenetStatus.');
+                            return;
+                        }
+
+                        if (!poll || (!poll.success && status !== 'downloading')) {
+                            throw new Error(poll ? poll.error : 'Polling SABnzbd failed');
+                        }
+
+                        if (poll.success) {
+                            status = poll.status;
+                            progress = poll.progress || 0;
+                            speed = poll.speed || 0;
+
+                            if (status === 'downloaded') {
+                                statusText.innerHTML = `${window.icons ? window.icons.lightning('tab-icon', 'width:13px; height:13px; display:inline-block; vertical-align:middle; color:var(--vault-accent); margin-right:4px;') : ''} <span style="color:var(--vault-accent);">Download finished!</span> Extracting and mounting WebDAV stream...`;
+                                
+                                const finalRes = await window.electronAPI.finalizeUsenetStream({
+                                    nzoId: nzoId,
+                                    folderName: poll.filename,
+                                    title: currentItem.desc
+                                });
+                                
+                                if (window.activeRDFlowId !== currentFlowId) return;
+                                
+                                if (finalRes && finalRes.success) {
+                                    successfulStream = finalRes;
+                                    break;
+                                } else {
+                                    lastError = finalRes?.error || 'Failed to mount WebDAV stream after download';
+                                    console.warn(`[Usenet] Final mount failed, trying next...`);
+                                    break;
+                                }
+                            } else if (status === 'error') {
+                                throw new Error(`SABnzbd download failed: ${poll.error}`);
+                            } else {
+                                // Update progress UI
+                                statusText.querySelector('.spinner') && (statusText.querySelector('.spinner').style.display = 'none');
+                                const pb = statusText.querySelector('div > div > div');
+                                if (pb) pb.style.width = `${progress}%`;
+                                const spans = statusText.querySelectorAll('div > span > strong');
+                                if (spans.length >= 2) {
+                                    spans[0].innerText = `${progress}%`;
+                                    spans[1].innerText = formatSpeed(speed);
+                                }
+                                const statStr = statusText.querySelector('div > strong');
+                                if (statStr) statStr.innerText = status.toUpperCase();
+                            }
+                        }
+                    }
+                } else {
+                    successfulStream = streamResult;
+                }
+                
+                if (successfulStream && successfulStream.success) {
+                    break;
+                }
             }
 
-            lastError = streamResult ? streamResult.error : 'Failed to mount WebDAV stream';
-            console.warn(`[Usenet] Stream mount failed for ${currentItem.desc}:`, lastError);
+            lastError = (streamResult && streamResult.error) ? streamResult.error : lastError;
+            console.warn(`[Usenet] Stream attempt failed for ${currentItem.desc}:`, lastError);
         }
 
         if (window.activeRDFlowId !== currentFlowId) return;
@@ -388,6 +486,9 @@ window.startUsenetStreamFlow = async function(usenetItem, movieTitle, index = 0)
         if (bd) bd.style.display = 'none';
         if (window.activeStreamingMedia) {
             window.activeStreamingMedia.quality = usenetItem.quality || '';
+            window.activeStreamingMedia.isUsenet = true;
+            window.activeStreamingMedia.nzoId = successfulStream.nzoId;
+            window.activeStreamingMedia.folderName = successfulStream.folderName;
         }
         window.playStream(successfulStream.streamUrl, movieTitle);
         window.showToast('Usenet stream loaded successfully via WebDAV bridge!', 'success');

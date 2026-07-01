@@ -103,6 +103,14 @@ window.updateProviderButtonsUI = updateProviderButtonsUI;
 window.updateSubtabsUI = updateSubtabsUI;
 
 window.renderTMDB = async function(query = '', append = false) {
+    if (!append) {
+        const detailsModal = document.getElementById('streaming-details-modal');
+        if (detailsModal) detailsModal.style.display = 'none';
+        if (typeof window.destroyTrailer === 'function') {
+            window.destroyTrailer();
+        }
+    }
+
     if (window.tmdbIsFetching && append) {
         console.log('[TMDB] Fetch already in progress, ignoring duplicate load-more call.');
         return;

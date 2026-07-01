@@ -13,7 +13,7 @@ let _currentModalMediaType = null;
  * Open the streaming-details-modal for a media item from the TMDB card grid.
  * @param {object} movie - The media object from the card grid (has id, title, media_type, etc.)
  */
-window.showMediaDetails = async function(movie) {
+window.showMediaDetails = async function(movie, startAtTime = 0) {
     const modal = el('streaming-details-modal');
     if (!modal) return;
 
@@ -25,6 +25,7 @@ window.showMediaDetails = async function(movie) {
     _currentModalTitle = movie.title;
     _currentModalMediaType = movie.media_type;
     window._currentTrailerKey = null;
+    window._persistedTrailerTime = startAtTime;
 
     // Show modal immediately with available data
     modal.style.display = 'flex';
@@ -89,6 +90,20 @@ window.showMediaDetails = async function(movie) {
                 added = true;
             }
             
+            // Jump animation
+            btnLib.style.transition = 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s, border-color 0.2s';
+            btnLib.style.transform = 'scale(1.1)';
+            btnLib.style.background = 'rgba(245,185,41,0.3)';
+            btnLib.style.borderColor = 'var(--vault-gold)';
+            setTimeout(() => {
+                btnLib.style.transform = 'scale(1)';
+                btnLib.style.background = added ? 'rgba(245,185,41,0.15)' : 'rgba(255,255,255,0.06)';
+                btnLib.style.borderColor = added ? 'var(--vault-gold)' : 'var(--vault-border)';
+                btnLib.innerHTML = added 
+                    ? `${minusSvg}<span>${window.currentLang === 'fr' ? 'Retirer de la bibliothèque' : 'Remove from Library'}</span>` 
+                    : `${plusSvg}<span>${window.currentLang === 'fr' ? 'Ajouter à la bibliothèque' : 'Add to Library'}</span>`;
+            }, 200);
+            
             // Save settings persistently
             window.electronAPI.saveSettings(window.appSettings);
             
@@ -118,13 +133,6 @@ window.showMediaDetails = async function(movie) {
                     }
                 });
             }
-            
-            // Visual feedback on the detail modal button itself
-            btnLib.innerHTML = added 
-                ? `${minusSvg}<span>${window.currentLang === 'fr' ? 'Retirer de la bibliothèque' : 'Remove from Library'}</span>` 
-                : `${plusSvg}<span>${window.currentLang === 'fr' ? 'Ajouter à la bibliothèque' : 'Add to Library'}</span>`;
-            btnLib.style.background = added ? 'rgba(245,185,41,0.15)' : 'rgba(255,255,255,0.06)';
-            btnLib.style.borderColor = added ? 'var(--vault-gold)' : 'var(--vault-border)';
         };
     }
 
@@ -198,13 +206,22 @@ async function _setupTVModal(movie) {
                 window.showToast(window.currentLang === 'fr' ? 'Série ajoutée aux suivis' : 'Followed Show', 'success');
                 followed = true;
             }
-            window.electronAPI.saveSettings(window.appSettings);
             
-            btnFollow.innerHTML = followed
-                ? `${minusSvg}<span>${window.currentLang === 'fr' ? 'Ne plus suivre' : 'Unfollow Show'}</span>`
-                : `${plusSvg}<span>${window.currentLang === 'fr' ? 'Suivre la série' : 'Follow Show'}</span>`;
-            btnFollow.style.background = followed ? 'rgba(245,185,41,0.15)' : 'rgba(255,255,255,0.06)';
-            btnFollow.style.borderColor = followed ? 'var(--vault-gold)' : 'var(--vault-border)';
+            // Jump animation
+            btnFollow.style.transition = 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s, border-color 0.2s';
+            btnFollow.style.transform = 'scale(1.1)';
+            btnFollow.style.background = 'rgba(245,185,41,0.3)';
+            btnFollow.style.borderColor = 'var(--vault-gold)';
+            setTimeout(() => {
+                btnFollow.style.transform = 'scale(1)';
+                btnFollow.style.background = followed ? 'rgba(245,185,41,0.15)' : 'rgba(255,255,255,0.06)';
+                btnFollow.style.borderColor = followed ? 'var(--vault-gold)' : 'var(--vault-border)';
+                btnFollow.innerHTML = followed
+                    ? `${minusSvg}<span>${window.currentLang === 'fr' ? 'Ne plus suivre' : 'Unfollow Show'}</span>`
+                    : `${plusSvg}<span>${window.currentLang === 'fr' ? 'Suivre la série' : 'Follow Show'}</span>`;
+            }, 200);
+
+            window.electronAPI.saveSettings(window.appSettings);
         };
     }
 
@@ -367,10 +384,8 @@ document.addEventListener('keydown', (e) => {
         const detailsModal = document.getElementById('streaming-details-modal');
         if (detailsModal && detailsModal.style.display === 'flex') {
             detailsModal.style.display = 'none';
-            const trailer = document.getElementById('movie-trailer-iframe');
-            if (trailer) {
-                if (trailer.tagName === 'VIDEO') { trailer.pause(); trailer.src = ''; trailer.load(); }
-                else { trailer.src = ''; }
+            if (typeof window.destroyTrailer === 'function') {
+                window.destroyTrailer();
             }
         }
 

@@ -8,9 +8,10 @@ function loadEnv() {
     const envPaths = [
         path.join(process.cwd(), '.env'),
         path.join(path.dirname(process.execPath), '.env'),
+        process.resourcesPath ? path.join(process.resourcesPath, '.env') : null,
         path.join(__dirname, '.env'),
         path.join(__dirname, '..', '.env')
-    ];
+    ].filter(Boolean);
     for (const envPath of envPaths) {
         try {
             if (fs.existsSync(envPath)) {

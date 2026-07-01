@@ -143,3 +143,14 @@ imports/
 **/__pycache__/
 *.wav
 scratch/
+
+
+
+# custom
+logs/
+.devin/
+.cursor/
+.gemini/
+.claude/
+.agents/
+.Jules/
