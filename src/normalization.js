@@ -24,12 +24,16 @@ function getPythonExe() {
 }
 
 function registerNormalizationHandlers(ipcMain) {
-    ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe, translateTo }) => {
+    ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe, translateTo, volumeBoost = 1.5 }) => {
         console.log(`[main:normalize] Starting audio normalization for ${videoPath}`);
         return new Promise((resolve) => {
             const pythonScript = path.join("C:\\Users\\Administrator\\desktop\\github repos\\vault-explorer\\", 'python-scripts', 'audio_normalize.py');
 
             const pythonExe = getPythonExe();
+            const parsedVolumeBoost = Number.parseFloat(volumeBoost);
+            const normalizedVolumeBoost = Number.isFinite(parsedVolumeBoost)
+                ? Math.min(2.5, Math.max(1, parsedVolumeBoost))
+                : 1.5;
 
             const args = ['-u', pythonScript, videoPath];
             if (vaultRoot) {
@@ -41,6 +45,7 @@ function registerNormalizationHandlers(ipcMain) {
             if (translateTo) {
                 args.push('--translate-to', translateTo);
             }
+            args.push('--volume-boost', String(normalizedVolumeBoost));
 
             console.log(`[main:normalize] Spawning: ${pythonExe} ${args.join(' ')}`);
             const env = { ...process.env };
@@ -60,7 +65,7 @@ function registerNormalizationHandlers(ipcMain) {
                         const data = JSON.parse(jsonStr);
                         if (data && typeof data.percent === 'number' && data.label) {
                             if (event.sender && !event.sender.isDestroyed()) {
-                                event.sender.send('normalize-progress', { percent: data.percent, label: data.label });
+                                event.sender.send('normalize-progress', { videoPath, percent: data.percent, label: data.label });
                             }
                             return;
                         }
@@ -90,7 +95,7 @@ function registerNormalizationHandlers(ipcMain) {
                     const percent = parseInt(matches[1], 10);
                     const label = matches[2].trim();
                     if (event.sender && !event.sender.isDestroyed()) {
-                        event.sender.send('normalize-progress', { percent, label });
+                        event.sender.send('normalize-progress', { videoPath, percent, label });
                     }
                 }
             };

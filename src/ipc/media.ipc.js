@@ -580,7 +580,7 @@ function registerMediaIpc(ipcMain) {
 
         let magickArgs;
         if (operation === 'denoise') {
-            magickArgs = [filePath, '-median', '3', tempPath];
+            magickArgs = [filePath, '-statistic', 'Median', '3', tempPath];
         } else if (operation === 'edge') {
             magickArgs = [filePath, '-edge', '1', tempPath];
         } else {

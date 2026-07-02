@@ -35,10 +35,20 @@ async function handlePlayerContextMenu(action, menuItem) {
         else document.exitFullscreen();
     } else if (action === 'generate-webm') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
-        window.electronAPI.generateWebm(itemPath, window.currentRealPath).then(res => {
+        window.electronAPI.generateWebm(itemPath, window.currentRealPath).then(async res => {
             if (!res.success) {
                 window.showToast('Preview failed: ' + res.error, 'error');
             } else {
+                if (typeof window.updateSingleVideoCard === 'function') {
+                    await window.updateSingleVideoCard(itemPath);
+                } else if (window.electronAPI && typeof window.electronAPI.scanSpecificFiles === 'function') {
+                    const newItems = await window.electronAPI.scanSpecificFiles([itemPath]);
+                    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+                    if (newItems && newItems.length > 0) {
+                        const idx = window.displayedItems.findIndex(i => normPath(i.path) === normPath(itemPath));
+                        if (idx !== -1) window.displayedItems[idx] = newItems[0];
+                    }
+                }
                 window.showToast('Preview generated', 'success');
             }
         });
@@ -94,7 +104,10 @@ async function handlePlayerContextMenu(action, menuItem) {
         const config = await window.showVideoEnhancementDialog(dialogItem);
         if (config && config.execute) {
             window.showToast(`AI Video Optimization started for ${menuItem.name || 'video'}...`, 'success');
-            window.electronAPI.upscaleVideo(itemPath).then(res => {
+            const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
+            const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
+            const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
+            window.electronAPI.upscaleVideo({ path: itemPath, quality: vsrQuality, scale: vsrScale, chroma: vsrChroma }).then(res => {
                 if (res.success) {
                     window.showToast(`${menuItem.name || 'Video'}: Enhancement started`, 'success');
                 } else {

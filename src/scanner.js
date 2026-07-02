@@ -152,9 +152,6 @@ async function saveCache(cache) {
 
 async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
     const output = [];
-    if (!vaultRoot && filesArray.length > 0) {
-        vaultRoot = path.dirname(filesArray[0]);
-    }
     let thumbsDir = vaultRoot ? path.join(vaultRoot, '.thumbs') : null;
     if (thumbsDir) {
         try {

@@ -72,6 +72,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             '-vf', "select='eq(pict_type,I)'",
             '-vframes', '1',
             '-q:v', '2',
+            '-f', 'image2',
             thumbWritePath,
             '-loglevel', 'error'
         ]);
@@ -83,6 +84,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-i', videoPath,
                 '-vframes', '1',
                 '-q:v', '2',
+                '-f', 'image2',
                 thumbWritePath,
                 '-loglevel', 'error'
             ]);
@@ -97,6 +99,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-i', videoPath,
                 '-vframes', '1',
                 '-q:v', '2',
+                '-f', 'image2',
                 thumbWritePath,
                 '-loglevel', 'error'
             ]);
@@ -138,6 +141,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                         '-ac', '2',
                         '-c:a', 'libvorbis',
                         '-b:a', '64k',
+                        '-f', 'webm',
                         webmWritePath,
                         '-loglevel', 'error'
                     ]);
@@ -156,6 +160,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                     '-b:v', '1M',
                     '-speed', '4',
                     '-an',
+                    '-f', 'webm',
                     webmWritePath,
                     '-loglevel', 'error'
                 ]);
@@ -194,7 +199,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                         '-c:a', 'libvorbis',
                         '-b:a', '64k'
                     );
-                    audioArgs.push(webmWritePath, '-loglevel', 'error');
+                    audioArgs.push('-f', 'webm', webmWritePath, '-loglevel', 'error');
                     
                     await runFfmpegPromise(audioArgs);
                     success = true;
@@ -220,7 +225,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                     '-speed', '4',
                     '-an'
                 );
-                silentArgs.push(webmWritePath, '-loglevel', 'error');
+                silentArgs.push('-f', 'webm', webmWritePath, '-loglevel', 'error');
                 
                 await runFfmpegPromise(silentArgs);
             }
