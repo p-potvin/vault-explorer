@@ -231,11 +231,13 @@ def main():
     parser.add_argument("vault_root", nargs="?", default=None, help="Root vault path")
     parser.add_argument("--transcribe", action="store_true", default=False, help="Enable speech transcription")
     parser.add_argument("--translate-to", default=None, help="Spoken translation target language (SAPI)")
+    parser.add_argument("--volume-boost", type=float, default=1.5, help="Vocal mix multiplier; 1.5 is approximately +50%")
     
     args = parser.parse_args()
     
     video_path = os.path.abspath(args.video_path)
     vault_root = os.path.abspath(args.vault_root) if args.vault_root else os.path.dirname(video_path)
+    vocal_mix_weight = min(2.5, max(1.0, float(args.volume_boost or 1.5)))
     
     if not os.path.exists(video_path):
         print(f"Error: Video file {video_path} does not exist.")
@@ -363,7 +365,7 @@ def main():
             f"[0:a]aformat=channel_layouts=stereo,dynaudnorm=f=250:g=31:p=0.95:m=100[bg_norm];"
             f"[bg_norm]volume={bg_volume}[bg];"
             f"[1:a]aformat=channel_layouts=stereo,highpass=f=100,dynaudnorm=f=250:g=31:p=0.95:m=100[voc];"
-            f"[bg][voc]amix=inputs=2:weights=1 1.5:duration=first:normalize=0,aformat=channel_layouts=stereo[out_a]"
+            f"[bg][voc]amix=inputs=2:weights=1 {vocal_mix_weight}:duration=first:normalize=0,aformat=channel_layouts=stereo[out_a]"
         )
         
         ffmpeg_args = [

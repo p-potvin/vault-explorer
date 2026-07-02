@@ -310,8 +310,15 @@ window.initKeybindingsAndFolderListeners = function() {
                     });
                     if (res.success) {
                         window.showToast(`Pasted ${res.count} file(s)`, 'success');
+                        if (window.currentFolderId && Array.isArray(res.pastedPaths)) {
+                            window.vf.addItems(window.currentFolderId, res.pastedPaths);
+                        }
                         if (window._clipboard.mode === 'cut') window._clipboard = { paths: [], mode: 'copy' };
-                        window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+                        if (window.currentFolderId) {
+                            window.navigateTo(window.currentFolderId, window.currentRealPath);
+                        } else {
+                            window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
+                        }
                     } else {
                         window.showToast('Paste failed: ' + res.error, 'error');
                     }

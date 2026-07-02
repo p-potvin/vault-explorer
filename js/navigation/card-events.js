@@ -154,7 +154,7 @@ async function handleCardContextMenu(card, item, index) {
             window.electronAPI.scheduleIdlePreviews(targetVideos);
         } else {
             console.log('[ctx-menu:generate-webm] Generating preview for:', item.path);
-            window.electronAPI.generateWebm(item.path, window.currentRealPath).then(res => {
+            window.electronAPI.generateWebm(item.path, window.currentRealPath).then(async res => {
                 const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
                 const cardElement = Array.from(document.querySelectorAll('.file-card'))
                     .find(c => normPath(c.dataset.path) === normPath(item.path));
@@ -164,6 +164,8 @@ async function handleCardContextMenu(card, item, index) {
                 }
                 if (!res.success) {
                     window.showToast('Preview failed: ' + res.error, 'error');
+                } else {
+                    await updateSingleVideoCard(item.path);
                 }
             });
         }

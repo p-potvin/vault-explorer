@@ -215,6 +215,13 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
     return new Promise((resolve) => {
         const existing = document.getElementById('asr-generation-context-menu');
         if (existing) existing.remove();
+        const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+        const clampVolumeBoost = (value) => {
+            const parsed = Number.parseFloat(value);
+            if (!Number.isFinite(parsed)) return 1.5;
+            return Math.min(2.5, Math.max(1, parsed));
+        };
+        let volumeBoost = clampVolumeBoost(window.appSettings && window.appSettings.asrVolumeBoost);
 
         const menu = document.createElement('div');
         menu.id = 'asr-generation-context-menu';
@@ -229,7 +236,7 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
             backdrop-filter: blur(8px);
             font-family: var(--font-body), sans-serif;
             color: var(--vault-text, #fff);
-            width: 220px;
+            width: 240px;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -237,7 +244,7 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
 
         const title = document.createElement('div');
         title.style.cssText = 'font-size:10px; font-weight:700; text-transform:uppercase; color:var(--vault-gold); letter-spacing:0.05em; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.08); user-select:none;';
-        title.textContent = 'Generate Subtitles';
+        title.textContent = t.asrGenerateSubtitles || 'Generate Subtitles';
         menu.appendChild(title);
 
         const listContainer = document.createElement('div');
@@ -320,8 +327,46 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
 
         const showMore = document.createElement('div');
         showMore.style.cssText = 'font-size:10px; color:var(--vault-accent); cursor:pointer; text-align:center; padding:6px 0; border-top:1px dashed rgba(255,255,255,0.08); margin-top:4px; font-weight:600; user-select:none;';
-        showMore.textContent = 'Show more...';
+        showMore.textContent = t.asrShowMore || 'Show more...';
         menu.appendChild(showMore);
+
+        const boostWrap = document.createElement('div');
+        boostWrap.style.cssText = 'border-top:1px solid rgba(255,255,255,0.08); padding-top:8px; display:flex; flex-direction:column; gap:6px;';
+
+        const boostLabel = document.createElement('label');
+        boostLabel.htmlFor = 'asr-volume-boost';
+        boostLabel.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:10px; color:var(--vault-text); font-weight:700; text-transform:uppercase; user-select:none;';
+
+        const boostText = document.createElement('span');
+        boostText.textContent = t.asrVolumeBoost || 'Voice boost';
+
+        const boostValue = document.createElement('span');
+        boostValue.id = 'asr-volume-boost-value';
+        boostValue.style.cssText = 'color:var(--vault-accent); font-family:var(--font-mono); white-space:nowrap;';
+
+        const formatBoost = (value) => `+${Math.round((value - 1) * 100)}%`;
+        boostValue.textContent = formatBoost(volumeBoost);
+
+        boostLabel.appendChild(boostText);
+        boostLabel.appendChild(boostValue);
+
+        const boostSlider = document.createElement('input');
+        boostSlider.id = 'asr-volume-boost';
+        boostSlider.type = 'range';
+        boostSlider.min = '1';
+        boostSlider.max = '2.5';
+        boostSlider.step = '0.1';
+        boostSlider.value = String(volumeBoost);
+        boostSlider.title = t.asrVolumeBoostHint || 'Boost mixed vocals for clearer subtitles';
+        boostSlider.style.cssText = 'width:100%; accent-color:var(--vault-accent); cursor:pointer;';
+        boostSlider.addEventListener('input', () => {
+            volumeBoost = clampVolumeBoost(boostSlider.value);
+            boostValue.textContent = formatBoost(volumeBoost);
+        });
+
+        boostWrap.appendChild(boostLabel);
+        boostWrap.appendChild(boostSlider);
+        menu.appendChild(boostWrap);
 
         function adjustPosition() {
             // Force layout reflow by checking offsetWidth/offsetHeight
@@ -329,7 +374,10 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
             const menuHeight = menu.offsetHeight || menu.getBoundingClientRect().height || 280;
 
             const rect = anchorEl.getBoundingClientRect();
-            let left = rect.left;
+            // Right-align the menu with the anchor button so it hangs from the
+            // right edge (matches the subtitles dropdown's `right:0` layout in
+            // the video bottom bar).
+            let left = rect.right - menuWidth;
             let top = rect.bottom + 8;
 
             // Horizontal bounds check
@@ -340,16 +388,22 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
                 left = 12;
             }
 
-            // Vertical bounds check: if it goes below the window, position it above the anchor
+            // Vertical bounds check: prefer opening upward when the anchor is
+            // in the bottom bar (typical case for the player).
             if (top + menuHeight > window.innerHeight) {
                 const spaceAbove = rect.top;
                 const spaceBelow = window.innerHeight - rect.bottom;
-                
+
                 if (spaceAbove > spaceBelow) {
                     top = rect.top - menuHeight - 8;
                 } else {
                     top = rect.bottom + 8;
                 }
+            } else if (rect.top > window.innerHeight * 0.6) {
+                // Anchor sits in the lower 40% of the viewport — open upward
+                // even if there's room below, so the menu doesn't cover the
+                // playback controls.
+                top = rect.top - menuHeight - 8;
             }
 
             // Final clamp to prevent clipping off the screen entirely
@@ -362,6 +416,8 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
 
             menu.style.left = `${left}px`;
             menu.style.top = `${top}px`;
+            menu.style.right = 'auto';
+            menu.style.bottom = 'auto';
         }
 
         showMore.addEventListener('click', (e) => {
@@ -376,7 +432,7 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
         
         const cancelBtn = document.createElement('button');
         cancelBtn.style.cssText = 'background:transparent; border:1px solid var(--vault-border, rgba(255,255,255,0.15)); color:var(--vault-text, #fff); font-size:10px; font-weight:600; padding:4px 8px; border-radius:4px; cursor:pointer; font-family:var(--font-mono);';
-        cancelBtn.textContent = 'Cancel';
+        cancelBtn.textContent = t.cancel || 'Cancel';
         
         const cleanup = () => {
             menu.remove();
@@ -390,11 +446,11 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
 
         const applyBtn = document.createElement('button');
         applyBtn.style.cssText = 'background:var(--vault-accent); color:var(--vault-accent-text, #0b0813); border:none; font-size:10px; font-weight:700; padding:4px 10px; border-radius:4px; cursor:pointer; font-family:var(--font-mono);';
-        applyBtn.textContent = 'Generate';
+        applyBtn.textContent = t.generate || 'Generate';
         applyBtn.addEventListener('click', () => {
             const chosen = Array.from(selectedCodes);
             cleanup();
-            resolve(chosen);
+            resolve({ langs: chosen, volumeBoost });
         });
 
         btnRow.appendChild(cancelBtn);
@@ -491,10 +547,17 @@ function initSubtitleListeners() {
             }
 
             const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
-            const langs = await showAsrContextMenu(optGen, defaultLangs);
+            // Anchor to the persistent CC button because optGen is inside the
+            // subtitles-menu that we just hid — a hidden element reports a
+            // zero-size bounding rect and the ASR menu ends up top-left.
+            const asrAnchor = el('btn-subtitles') || optGen;
+            const asrConfig = await showAsrContextMenu(asrAnchor, defaultLangs);
+            const langs = Array.isArray(asrConfig) ? asrConfig : (asrConfig && asrConfig.langs);
+            const volumeBoost = Array.isArray(asrConfig) ? 1.5 : (asrConfig && asrConfig.volumeBoost) || 1.5;
             if (langs && langs.length > 0) {
                 if (!window.appSettings) window.appSettings = {};
                 window.appSettings.preferredASRLangs = langs;
+                window.appSettings.asrVolumeBoost = volumeBoost;
                 window.electronAPI.saveSettings(window.appSettings);
 
                 window.showToast(`AI Vocal Isolation & Transcription started for "${itemName}"...`, 'success');
@@ -514,7 +577,7 @@ function initSubtitleListeners() {
                 window.electronAPI.onNormalizeProgress(progressHandler);
 
                 try {
-                    const res = await window.electronAPI.normalizeAudio(videoPath, window.currentRealPath, true);
+                    const res = await window.electronAPI.normalizeAudio(videoPath, window.currentRealPath, true, null, { volumeBoost });
                     subBtn.disabled = false;
                     subBtn.innerHTML = originalContent;
 

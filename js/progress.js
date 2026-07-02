@@ -64,10 +64,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     text.innerText = filename ? `${baseLabel} (${filename})` : baseLabel;
                 } else {
                     if (spinner) spinner.style.display = 'none';
-                    text.innerText = window.currentLang === 'fr' 
-                        ? `Aperçu généré !`
-                        : `Preview generated!`;
-                    scheduleHide(2000);
+                    if (data.error) {
+                        const filename = data.videoPath ? data.videoPath.split(/[\\/]/).pop() : '';
+                        const failLabel = window.currentLang === 'fr'
+                            ? `Échec de l'aperçu`
+                            : `Preview failed`;
+                        text.innerText = filename ? `${failLabel}: ${filename}` : `${failLabel}: ${data.error}`;
+                        scheduleHide(4000);
+                    } else {
+                        text.innerText = window.currentLang === 'fr'
+                            ? `Aperçu généré !`
+                            : `Preview generated!`;
+                        scheduleHide(2000);
+                    }
                 }
             }
         });

@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadSubtitleTrack: (data) => ipcRenderer.invoke('download-subtitle-track', data),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
-  normalizeAudio: (videoPath, vaultRoot, transcribe, translateTo) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe, translateTo }),
+  normalizeAudio: (videoPath, vaultRoot, transcribe, translateTo, options = {}) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe, translateTo, volumeBoost: options.volumeBoost }),
   onNormalizeProgress: (cb) => ipcRenderer.on('normalize-progress', (_, data) => cb(data)),
   offNormalizeProgress: () => ipcRenderer.removeAllListeners('normalize-progress'),
   onUpscaleProgress: (cb) => ipcRenderer.on('upscale-progress', (_, data) => cb(data)),
