@@ -125,7 +125,9 @@ function applyFilters() {
         if (filterAttr === 'video') return v.type === 'video' || v.type === 'encrypted';
         if (filterAttr === 'image') return v.type === 'image';
         if (filterAttr === 'audio') return v.type === 'audio';
-        return true;
+        // 'All' on the Videos/Files grid shows media only — non-media lives in
+        // the Others tab (renderMisc reads window.allItems directly).
+        return v.type !== 'other';
     });
 
     const sortBy = el('sort-by').value;

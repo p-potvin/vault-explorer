@@ -8,6 +8,17 @@ let upscaleAppending = false;
 let upscaleOrigSrc  = '';
 let upscaleOrigTime = 0;
 let upscaleChunkCount = 0;
+let upscaleVpErrorHandler = null;
+
+// Tear down upscaling on failure: show one clear error, revert to the original
+// video, drop the badge, and reset the toggle button so it isn't stuck "active".
+function endUpscaleWithError(msg) {
+    window.showToast(msg, 'error');
+    stopUpscaleMode();
+    upscaleActive = false;
+    const btn = el('btn-upscale');
+    if (btn) btn.classList.remove('active');
+}
 
 function isUpscaleActive() {
     return upscaleActive;
@@ -66,15 +77,33 @@ async function startUpscaleMode() {
         } else if (type === 'processing') {
             upscaleSetStatus(`⬆ RTX VSR  ·  ${chunk} frames  ·  buffering…`, '#0d1117');
         } else if (type === 'done') {
+            // "done" with zero chunks means the encoder produced nothing (e.g.
+            // RTX VSR SDK unavailable). endOfStream() here would throw the
+            // DEMUXER "endOfStream before HAVE_METADATA" error — so fail cleanly.
+            if (upscaleChunkCount === 0) {
+                endUpscaleWithError('Upscaler produced no video — RTX VSR may be unavailable on this machine.');
+                return;
+            }
             upscaleSetStatus('⬆ RTX VSR  ·  complete', '#155724');
             if (upscaleMS && upscaleMS.readyState === 'open') {
                 try { upscaleMS.endOfStream(); } catch(_) {}
             }
+            // Auto-dismiss the badge so it doesn't linger as a fake "success".
+            setTimeout(() => { const b = el('upscale-badge'); if (b) b.remove(); }, 4000);
         } else if (type === 'chunk-error') {
+            const detail = error ? String(error).split(/\r?\n/).filter(Boolean).pop() : 'unknown';
             console.warn('[upscale] chunk error:', error || chunk);
-            window.showToast('RTX VSR stream error: ' + (error || 'unknown'), 'error');
+            endUpscaleWithError('RTX VSR failed: ' + detail);
         }
     });
+
+    // A MediaSource/demuxer failure surfaces on the <video> element — catch it
+    // so we revert to the original source instead of stranding a broken stream.
+    upscaleVpErrorHandler = () => {
+        if (!upscaleActive) return;
+        endUpscaleWithError('Playback error during upscaling (stream could not be demuxed).');
+    };
+    vp.addEventListener('error', upscaleVpErrorHandler);
 
     window.electronAPI.onUpscaleChunk(({ chunk, buffer }) => {
         upscaleChunkCount++;
@@ -132,7 +161,13 @@ function stopUpscaleMode() {
     window.electronAPI.stopUpscaleStream();
     window.electronAPI.offUpscaleChunk();
     window.electronAPI.offUpscaleStatus();
-    if (upscaleMS) {
+    if (vp && upscaleVpErrorHandler) {
+        vp.removeEventListener('error', upscaleVpErrorHandler);
+        upscaleVpErrorHandler = null;
+    }
+    // Only close the stream if the demuxer actually initialised — calling
+    // endOfStream() before HAVE_METADATA is itself a source of the DEMUXER error.
+    if (upscaleMS && upscaleMS.readyState === 'open' && upscaleChunkCount > 0) {
         try { upscaleMS.endOfStream(); } catch(_) {}
     }
     upscaleMS   = null;

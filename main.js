@@ -47,11 +47,8 @@ const cryptoHandlers = require('./src/crypto');
 const previewHandlers = require('./src/previews');
 const normalizationHandlers = require('./src/normalization');
 const scannerHandlers = require('./src/scanner');
-const tmdbHandlers = require('./src/tmdb');
-const realDebridHandlers = require('./src/realdebrid');
-const livestreamHandlers = require('./src/livestream');
+const liveSubtitlesHandlers = require('./src/live-subtitles');
 const watchHistoryHandlers = require('./src/watch-history');
-const usenetHandlers = require('./src/usenet');
 
 
 let mainWindow;
@@ -63,15 +60,18 @@ function getProcessName() {
     return path.basename(process.execPath);
 }
 
-function killAllVaultExplorerProcesses(includeSelf = true) {
+function killAllOwnProcesses(includeSelf = true) {
+    // Kill only processes sharing OUR OWN executable image name. Critically, do
+    // NOT run in dev: there the image is electron.exe, shared with every other
+    // Electron app (this used to hardcode vault-explorer.exe / kill all node.exe,
+    // so testing a sibling Electron app — e.g. vault-streaming — killed us).
     const execName = getProcessName();
-    // Only run process cleanup on Windows and only when the executable is the packaged app
-    if (process.platform !== 'win32' || execName.toLowerCase() !== 'vault-explorer.exe') return;
+    const lower = execName.toLowerCase();
+    if (process.platform !== 'win32' || lower === 'electron.exe' || !lower.startsWith('vault')) return;
 
     if (includeSelf) {
-        // Detached taskkill will outlive the current process and terminate the whole family
         try {
-            child_process.spawn('taskkill', ['/F', '/IM', 'vault-explorer.exe'], {
+            child_process.spawn('taskkill', ['/F', '/IM', execName], {
                 detached: true,
                 windowsHide: true,
                 stdio: 'ignore'
@@ -82,43 +82,29 @@ function killAllVaultExplorerProcesses(includeSelf = true) {
         return;
     }
 
-    // Kill all vault-explorer processes except the current PID (startup zombie cleanup)
+    const baseName = execName.replace(/\.exe$/i, '');
     const currentPid = process.pid;
     try {
         child_process.spawn('powershell.exe', [
             '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
-            `Get-Process -Name vault-explorer -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne ${currentPid} } | Stop-Process -Force -ErrorAction SilentlyContinue`
+            `Get-Process -Name '${baseName}' -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne ${currentPid} } | Stop-Process -Force -ErrorAction SilentlyContinue`
         ], {
             detached: true,
             windowsHide: true,
             stdio: 'ignore'
         }).unref();
     } catch (err) {
-        console.error('[cleanup] Failed to kill sibling vault-explorer processes:', err);
-    }
-}
-
-function killNodeProcesses() {
-    if (process.platform !== 'win32') return;
-    try {
-        child_process.spawn('powershell.exe', [
-            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
-            'Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue'
-        ], {
-            detached: true,
-            windowsHide: true,
-            stdio: 'ignore'
-        }).unref();
-    } catch (err) {
-        console.error('[cleanup] Failed to kill node processes:', err);
+        console.error('[cleanup] Failed to kill sibling processes:', err);
     }
 }
 
 function performFullAppCleanup() {
     console.log('[main:cleanup] Full app cleanup requested');
+    // Old code called killNodeProcesses() which nuked EVERY node.exe on the
+    // machine — removed. killAllActiveSubprocesses kills our tracked trees.
+    try { liveSubtitlesHandlers.shutdownLiveSubtitles(); } catch (e) { /* noop */ }
     utils.killAllActiveSubprocesses();
-    killNodeProcesses();
-    killAllVaultExplorerProcesses(true);
+    killAllOwnProcesses(true);
 }
 
 async function cleanupStaleTempFiles(vaultPath) {
@@ -233,6 +219,23 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
+    mainWindow.webContents.on('did-finish-load', () => {
+        const args = process.argv.slice(1);
+        let targetFile = null;
+        for (const arg of args) {
+            if (!arg.startsWith('--') && fs.existsSync(arg)) {
+                const stat = fs.statSync(arg);
+                if (stat.isFile()) {
+                    targetFile = arg;
+                    break;
+                }
+            }
+        }
+        if (targetFile) {
+            mainWindow.webContents.send('open-initial-file', targetFile);
+        }
+    });
+
     mainWindow.on('close', (e) => {
         if (!isQuitting) {
             const settings = loadSettings();
@@ -251,7 +254,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
     // Clean up any orphaned vault-explorer processes from a previous bad exit
-    killAllVaultExplorerProcesses(false);
+    killAllOwnProcesses(false);
 
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
@@ -285,7 +288,7 @@ process.on('exit', performFullAppCleanup);
 
 // Clip Handler for video clipping
 function registerClipHandler(ipcMain) {
-    ipcMain.handle('clipVideo', async (event, { inputPath, outputFormat, startTime, duration, quality }) => {
+    ipcMain.handle('clipVideo', async (event, { inputPath, outputFormat, startTime, duration, quality, edits = {} }) => {
         try {
             console.log('[main:clip] Clipping video:', { inputPath, outputFormat, startTime, duration, quality });
 
@@ -318,24 +321,84 @@ function registerClipHandler(ipcMain) {
             const ext = outputFormat === 'gif' ? 'gif' : outputFormat;
             const outputName = `${fileName}_clip_${Date.now()}.${ext}`;
             
-            // Default output to user's Videos folder or Desktop
-            let outputDir;
-            try {
-                outputDir = app.getPath('videos');
-                if (!fs.existsSync(outputDir)) throw new Error('videos dir missing');
-            } catch (_) {
-                outputDir = app.getPath('desktop');
+            // Pick a genuinely WRITABLE output dir. existsSync is not enough on
+            // Windows — redirected/placeholder known folders (e.g. a OneDrive
+            // Videos folder) report as existing but reject writes, which is what
+            // produced the "No such file or directory" ffmpeg error. Verify with a
+            // real write test. Desktop first to match the "Save to Desktop" button.
+            const safeGetPath = (name) => { try { return app.getPath(name); } catch (_) { return null; } };
+            const pickWritableDir = (candidates) => {
+                for (const dir of candidates) {
+                    if (!dir) continue;
+                    try {
+                        fs.mkdirSync(dir, { recursive: true });
+                        const probe = path.join(dir, `.clipwrite_${Date.now()}.tmp`);
+                        fs.writeFileSync(probe, 'x');
+                        fs.unlinkSync(probe);
+                        return dir;
+                    } catch (_) { /* try next */ }
+                }
+                return null;
+            };
+            const outputDir = pickWritableDir([
+                safeGetPath('desktop'), safeGetPath('videos'), safeGetPath('downloads'), app.getPath('temp'),
+            ]);
+            if (!outputDir) {
+                return { success: false, error: 'No writable output folder found (Desktop/Videos/Downloads/Temp all failed).' };
             }
             const outputPath = path.join(outputDir, outputName);
             
             // Build -vf filter chain — collect filters, join at end
             const vfFilters = [];
-            
+            const afFilters = [];
+
+            // ── User edits from the clip modal (crop / rotate / filters / AI /
+            // speed). Geometry first, then effects, then speed, then quality.
+            const e = edits || {};
+            const arMap = { '16:9': 16 / 9, '4:3': 4 / 3, '1:1': 1, '9:16': 9 / 16 };
+            if (e.cropAspect && arMap[e.cropAspect]) {
+                const ar = arMap[e.cropAspect].toFixed(6);
+                // Centered crop to the target aspect (escaped commas inside min()).
+                vfFilters.push(`crop=min(iw\\,ih*${ar}):min(ih\\,iw/${ar})`);
+            }
+            if (e.rotate === 90) vfFilters.push('transpose=1');
+            else if (e.rotate === 180) vfFilters.push('transpose=1', 'transpose=1');
+            else if (e.rotate === 270) vfFilters.push('transpose=2');
+
+            const aiSet = new Set(Array.isArray(e.ai) ? e.ai : []);
+            if (aiSet.has('denoise')) vfFilters.push('hqdn3d');
+            if (aiSet.has('stabilize')) vfFilters.push('deshake');
+            if (aiSet.has('color')) vfFilters.push('eq=contrast=1.08:brightness=0.03:saturation=1.15');
+            // mci (motion-compensated) interpolation is extremely slow and can
+            // appear to hang; blend is fast and fine for a clip enhancement.
+            if (aiSet.has('frame')) vfFilters.push('minterpolate=fps=60:mi_mode=blend');
+
+            const filterPresets = {
+                grayscale: 'hue=s=0',
+                sepia: 'colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131',
+                vibrant: 'eq=saturation=1.6',
+                vintage: 'curves=preset=vintage',
+                sharpen: 'unsharp=5:5:1.0',
+            };
+            if (e.filter && filterPresets[e.filter]) vfFilters.push(filterPresets[e.filter]);
+
+            if (aiSet.has('upscale')) vfFilters.push('scale=iw*2:ih*2:flags=lanczos');
+
+            const speed = Number(e.speed) || 1;
+            if (speed > 0 && speed !== 1) {
+                vfFilters.push(`setpts=${(1 / speed).toFixed(4)}*PTS`);
+                // atempo only accepts 0.5–2.0, so chain factors to reach the target.
+                let remaining = speed;
+                while (remaining > 2.0 + 1e-6) { afFilters.push('atempo=2.0'); remaining /= 2; }
+                while (remaining < 0.5 - 1e-6) { afFilters.push('atempo=0.5'); remaining *= 2; }
+                afFilters.push(`atempo=${remaining.toFixed(4)}`);
+            }
+
             // Format-specific video filters
             if (outputFormat === 'gif') {
                 vfFilters.push('fps=15', 'scale=trunc(iw/2)*2:trunc(ih/2)*2');
             }
-            
+
             // Quality/scale filters
             if (quality !== 'original') {
                 const scaleMap = { '1080p': '1920:-2', '720p': '1280:-2', '480p': '854:-2' };
@@ -351,7 +414,11 @@ function registerClipHandler(ipcMain) {
             
             // Output format specific codec options
             if (outputFormat === 'webm') {
-                ffmpegArgs.push('-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0');
+                // Default libvpx-vp9 is single-threaded on the slowest deadline —
+                // a few seconds of clip can take minutes and look hung. row-mt +
+                // cpu-used make it many times faster at negligible quality cost.
+                ffmpegArgs.push('-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0',
+                    '-row-mt', '1', '-cpu-used', '4', '-deadline', 'good');
                 ffmpegArgs.push('-c:a', 'libopus', '-b:a', '128k');
             } else if (outputFormat === 'mp4') {
                 ffmpegArgs.push('-c:v', 'libx264', '-crf', '23', '-preset', 'fast');
@@ -363,6 +430,10 @@ function registerClipHandler(ipcMain) {
             // Apply combined -vf chain (single flag, avoids conflicts)
             if (vfFilters.length > 0) {
                 ffmpegArgs.push('-vf', vfFilters.join(','));
+            }
+            // Audio tempo for speed changes (GIF has no audio).
+            if (afFilters.length > 0 && outputFormat !== 'gif') {
+                ffmpegArgs.push('-af', afFilters.join(','));
             }
             
             // Force overwrite + output
@@ -386,12 +457,22 @@ function registerClipHandler(ipcMain) {
                 ffmpegProc.stdout.on('data', () => {});
             }
             
+            const totalMs = (Number(duration) || 0) * 1000;
             ffmpegProc.stderr.on('data', (data) => {
-                stderrData += data.toString();
-                // ffmpeg progress lines include time= in stderr
-                const timeMatch = stderrData.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
-                if (timeMatch && event.sender && !event.sender.isDestroyed()) {
-                    event.sender.send('clip-progress', { currentTime: timeMatch[1] });
+                const chunk = data.toString();
+                stderrData += chunk;
+                // Parse the LATEST time= from THIS chunk (matching the accumulated
+                // buffer always returned the first value, freezing the display).
+                const times = chunk.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/g);
+                if (times && times.length && event.sender && !event.sender.isDestroyed()) {
+                    const cur = times[times.length - 1].split('=')[1];
+                    let percent = null;
+                    const m = cur.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+                    if (m && totalMs > 0) {
+                        const ms = (+m[1] * 3600 + +m[2] * 60 + +m[3]) * 1000 + +m[4] * 10;
+                        percent = Math.min(99, Math.round((ms / totalMs) * 100));
+                    }
+                    event.sender.send('clip-progress', { currentTime: cur, percent });
                 }
             });
             
@@ -437,6 +518,14 @@ function registerClipHandler(ipcMain) {
 
 // Load / Save Settings
 const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
+// Seeded once into the user-editable "Glob Exclusions" pills in Settings when
+// the user has never set any. Junk/code-artifact files the hardcoded directory
+// skip-list can't catch (repo TREES are skipped by the .git marker in scanner).
+const DEFAULT_GLOB_EXCLUSIONS = [
+    '*.log', '*.tmp', '*.part', '*.crdownload', '*.lock',
+    '*.map', '*.pyc', '*.dll', '*.pdb', '*.obj',
+];
+
 function loadSettings() {
     try {
         if (fs.existsSync(settingsPath)) {
@@ -444,11 +533,17 @@ function loadSettings() {
             if (settings.mutePreviews === undefined) {
                 settings.mutePreviews = false;
             }
-            settings.tmdbBearerToken = process.env.TMDB_BEARER_TOKEN;
+            // One-time seed (flagged so a user who later clears every pill on
+            // purpose isn't re-seeded on the next launch).
+            if (!settings.globExclusionsSeeded && (!settings.globExclusions || settings.globExclusions.length === 0)) {
+                settings.globExclusions = DEFAULT_GLOB_EXCLUSIONS;
+                settings.globExclusionsSeeded = true;
+                try { fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8'); } catch (_) { }
+            }
             return settings;
         }
     } catch (e) { }
-    return { folders: [], mutePreviews: false, tmdbBearerToken: process.env.TMDB_BEARER_TOKEN };
+    return { folders: [], mutePreviews: false, globExclusions: DEFAULT_GLOB_EXCLUSIONS, globExclusionsSeeded: true };
 }
 async function saveSettings(settings) {
     try {
@@ -478,10 +573,7 @@ previewHandlers.registerPreviewHandlers(ipcMain);
 previewHandlers.registerImageEnhanceHandler(ipcMain);
 normalizationHandlers.registerNormalizationHandlers(ipcMain);
 scannerHandlers.registerScannerHandlers(ipcMain);
-tmdbHandlers.registerTmdbHandlers(ipcMain);
-realDebridHandlers.registerRealDebridHandlers(ipcMain);
-usenetHandlers.registerUsenetHandlers(ipcMain, app);
-livestreamHandlers.registerLivestreamHandlers(ipcMain);
+liveSubtitlesHandlers.registerLiveSubtitlesHandlers(ipcMain);
 watchHistoryHandlers.registerWatchHistoryHandlers(ipcMain, app);
 
 // Register Clip Handler

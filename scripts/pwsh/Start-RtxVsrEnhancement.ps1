@@ -85,7 +85,7 @@ foreach ($File in $Files) {
     $Processed++
     Write-Host "[$Processed/$($Files.Count)] $($File.FullName) -> $OutputPath" -ForegroundColor Cyan
 
-    $ArgsList = @("-u", $PythonScript, "enhance", $File.FullName, $OutputPath, "--quality", $Quality, "--scale", $Scale, "--chroma", $Chroma)
+    $ArgsList = @("-u", $PythonScript, "enhance", "-i ", $File.FullName, $OutputPath, "--quality", $Quality, "--scale", $Scale, "--chroma", $Chroma)
 
     try {
         & $PythonExe $ArgsList

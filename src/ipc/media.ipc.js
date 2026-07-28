@@ -11,7 +11,9 @@ function getFullProbeMetadata(filePath) {
     return new Promise((resolve) => {
         child_process.execFile('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', filePath], (err, stdout) => {
             if (err) {
-                console.error('[media.ipc:ffprobe] Failed to probe:', err);
+                // Not every probed file is real media (e.g. a TypeScript .ts that
+                // slipped through classification) — log one quiet line, not a stack.
+                console.warn(`[media.ipc:ffprobe] Not probeable: ${filePath}`);
                 resolve(null);
             } else {
                 try {

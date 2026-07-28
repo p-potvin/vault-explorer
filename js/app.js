@@ -50,14 +50,6 @@ function setLanguage(lang) {
   // Translate top-level application navigation tabs
   const iconStyle = "width:13px; height:13px; flex-shrink:0;";
   if (el('tab-files')) el('tab-files').innerHTML = `${window.icons ? window.icons.folder('tab-icon', iconStyle) : ''}${window.translations[lang].tabVault}`;
-  if (el('tab-favorites')) el('tab-favorites').innerHTML = `${window.icons ? window.icons.star('tab-icon', iconStyle) : ''}${window.translations[lang].tabFavorites}`;
-  if (el('tab-library')) el('tab-library').innerHTML = `${window.icons ? window.icons.library('tab-icon', iconStyle) : ''}${window.translations[lang].tabLibrary}`;
-  if (el('tab-tmdb')) el('tab-tmdb').innerHTML = `${window.icons ? window.icons.filmRoll('tab-icon', iconStyle) : ''}${window.translations[lang].tabMoviesSeries}`;
-  if (el('tab-livestream')) el('tab-livestream').innerHTML = `${window.icons ? window.icons.lightning('tab-icon', iconStyle) : ''}${window.translations[lang].tabLivestream}`;
-
-  // Translate TMDB subtabs
-  if (el('subtab-movies')) el('subtab-movies').innerText = window.translations[lang].tabMovies;
-  if (el('subtab-series')) el('subtab-series').innerText = window.translations[lang].tabSeries;
 
   if (!window.currentRealPath) {
     el('path-display').innerText = window.translations[lang].noFolderSelected;
@@ -175,14 +167,13 @@ async function initApp() {
         setLanguage('en');
     }
 
-    // Initialize player, settings, tab clicks, navigation keybindings, TMDB search and livestream components
+    // Initialize player, settings, tab clicks, navigation keybindings, and livestream components
     window.initPlayer();
     window.initSettingsListeners();
     window.initTabListeners();
     window.initNavigationListeners();
     window.initKeybindingsAndFolderListeners();
-    window.initTMDBListeners();
-    window.initLivestreamListeners();
+    // Streaming (TMDB) and Livestream tabs were extracted out of this app.
 
     // ── WebM Real-time Progress Tracking ─────────────────────────────────────
     window.electronAPI.onWebmProgress((data) => {
@@ -330,7 +321,7 @@ async function initApp() {
 
     // Default boot tab setup, deferred to run after full init
     window.vaultLoaded = false;
-    const validTabs = ['files', 'music', 'photoalbums', 'misc', 'streaming', 'livestream'];
+    const validTabs = ['files', 'music', 'photoalbums', 'misc'];
     let homeTab = window.appSettings?.defaultHomeTab || 'files';
     if (homeTab === 'vault') homeTab = 'files';
     if (homeTab === 'photos') homeTab = 'photoalbums';
@@ -339,6 +330,46 @@ async function initApp() {
     if (homeTab === 'playlists') homeTab = 'music';
     if (!validTabs.includes(homeTab)) homeTab = 'files';
     window.switchTab(homeTab);
+
+    // Warm-load the live-subtitles ASR model ~3s after the UI settles, so the
+    // first "Live Subtitles" click is instant instead of paying the ~29s model
+    // load. Fire-and-forget; the daemon loads in the background.
+    if (window.electronAPI && typeof window.electronAPI.warmLiveSubtitles === 'function') {
+        setTimeout(() => {
+            window.electronAPI.warmLiveSubtitles().catch(() => {});
+        }, 3000);
+    }
+
+    // ── Handle CLI Initial File ──────────────────────────────────────────────
+    if (window.electronAPI && typeof window.electronAPI.onInitialFile === 'function') {
+        window.electronAPI.onInitialFile((filePath) => {
+            console.log('[app] Received initial file from CLI:', filePath);
+            
+            // Switch to files tab since the player lives there
+            if (typeof window.switchTab === 'function') {
+                window.switchTab('files');
+            }
+            
+            // Wait a tick for player/DOM init
+            setTimeout(() => {
+                const isVideo = /\.(mp4|webm|mkv|avi|mov)$/i.test(filePath);
+                if (isVideo) {
+                    const item = {
+                        path: filePath,
+                        name: filePath.split(/[\\/]/).pop(),
+                        type: 'video'
+                    };
+                    if (!window.displayedItems) window.displayedItems = [];
+                    window.displayedItems.push(item);
+                    
+                    if (typeof window.playItem === 'function') {
+                        // Play the item we just added
+                        window.playItem(window.displayedItems.length - 1);
+                    }
+                }
+            }, 500);
+        });
+    }
 }
 
 // Kickstart app when page loads

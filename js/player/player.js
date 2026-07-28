@@ -206,6 +206,10 @@ async function playItem(idx) {
     const qCont = el('quality-dropdown-container');
     if (qCont) qCont.style.display = 'none';
 
+    // A live subtitle session is bound to the previous file — end it before we
+    // swap sources so its cues don't bleed onto the new video.
+    if (typeof window.stopLiveSubtitles === 'function') window.stopLiveSubtitles(true);
+
     window.currentPlayingIndex = idx;
     window.currentPlayingItem = itm;
     trickFrames = [];
@@ -374,9 +378,7 @@ function initPlayer() {
                 if (trailerIframe.tagName === 'VIDEO') { trailerIframe.pause(); trailerIframe.src = ''; trailerIframe.load(); }
                 else { trailerIframe.src = ''; }
             }
-            if (window.electronAPI.stopLivestream) {
-                window.electronAPI.stopLivestream().catch(() => {});
-            }
+            if (typeof window.stopLiveSubtitles === 'function') window.stopLiveSubtitles(true);
         });
     }
 
@@ -491,7 +493,10 @@ function initPlayer() {
         el('video-ended-overlay').style.display = 'none';
         if (el('titlebar-video-title')) el('titlebar-video-title').style.display = 'none';
         if (window.autoplayTimer) { clearInterval(window.autoplayTimer); window.autoplayTimer = null; }
-        
+
+        // Stop any running live ASR subtitle session and drop its track.
+        if (typeof window.stopLiveSubtitles === 'function') window.stopLiveSubtitles(true);
+
         // Remove all track elements from video element and clear subtitle list
         vp.querySelectorAll('track').forEach(t => t.remove());
         const trackList = el('subtitle-tracks-list');
@@ -574,18 +579,6 @@ function initPlayer() {
                     }
                     window.electronAPI.saveSettings(window.appSettings).catch(() => {});
                 }
-            }
-        }
-        
-        
-        // Trigger post-playback Usenet cleanup before clearing active media state
-        if (window.activeStreamingMedia && window.activeStreamingMedia.isUsenet) {
-            const { folderName, nzoId } = window.activeStreamingMedia;
-            if (folderName && nzoId) {
-                console.log(`[Player] Closing Usenet playback, launching remote drive transfer for ${folderName}...`);
-                window.electronAPI.moveUsenetToDrive({ folderName, nzoId }).catch(err => {
-                    console.error('[Player] Failed to trigger Usenet cleanup IPC:', err);
-                });
             }
         }
 

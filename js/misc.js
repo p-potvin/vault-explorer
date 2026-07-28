@@ -50,6 +50,10 @@
         return card;
     }
 
+    // Paginated render: a vault can contain thousands of non-media files (code
+    // repos, docs…) and building every card at once froze the first load.
+    const PAGE = 120;
+
     window.renderMisc = function () {
         const container = el('misc-grid');
         if (!container) return;
@@ -68,8 +72,26 @@
             return;
         }
 
-        misc.forEach((item, idx) => {
-            container.appendChild(createFileCard(item, idx));
-        });
+        let rendered = 0;
+        const renderChunk = () => {
+            const frag = document.createDocumentFragment();
+            const end = Math.min(rendered + PAGE, misc.length);
+            for (let i = rendered; i < end; i++) frag.appendChild(createFileCard(misc[i], i));
+            rendered = end;
+
+            const oldBtn = el('misc-load-more');
+            if (oldBtn) oldBtn.remove();
+            container.appendChild(frag);
+
+            if (rendered < misc.length) {
+                const btn = document.createElement('button');
+                btn.id = 'misc-load-more';
+                btn.textContent = `Load more (${misc.length - rendered} remaining)`;
+                btn.style.cssText = 'grid-column: 1 / -1; margin: 16px auto; background: transparent; border: 1px solid var(--vault-accent); color: var(--vault-accent); padding: 8px 24px; border-radius: 4px; cursor: pointer; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;';
+                btn.addEventListener('click', renderChunk);
+                container.appendChild(btn);
+            }
+        };
+        renderChunk();
     };
 })();

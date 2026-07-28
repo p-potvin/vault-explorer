@@ -54,15 +54,10 @@ function initSettingsListeners() {
             if (el('settings-default-folder-misc')) {
                 el('settings-default-folder-misc').value = window.appSettings.defaultFolderMisc || '';
             }
-            el('settings-stream-quality').value = window.appSettings.streamQuality || '1080p';
-            el('settings-stream-lang').value = window.appSettings.streamLang || 'en';
             if (el('settings-vsr-quality')) el('settings-vsr-quality').value = window.appSettings.vsrQuality || 'HIGH';
             if (el('settings-vsr-scale')) el('settings-vsr-scale').value = window.appSettings.vsrScale || '2';
             if (el('settings-vsr-bitrate')) el('settings-vsr-bitrate').value = window.appSettings.vsrBitrate || '12M';
             if (el('settings-vsr-chroma')) el('settings-vsr-chroma').value = window.appSettings.vsrChroma || 'yuv420p';
-            el('debrid-proxy-enable').checked = window.appSettings.debridProxyEnable === true;
-            el('debrid-proxy-address-input').value = window.appSettings.debridProxyAddress || '';
-            if (el('settings-streaming-mode')) el('settings-streaming-mode').value = window.appSettings.streamingMode || 'torrent-only';
             document.getElementById('pill-tag-input-glob').focus();
         }
     });
@@ -167,17 +162,10 @@ function initSettingsListeners() {
         if (el('settings-default-folder-misc')) {
             window.appSettings.defaultFolderMisc = el('settings-default-folder-misc').value.trim() || undefined;
         }
-        window.appSettings.streamQuality = el('settings-stream-quality').value;
-        window.appSettings.streamLang = el('settings-stream-lang').value;
-        if (el('settings-streaming-mode')) {
-            window.appSettings.streamingMode = el('settings-streaming-mode').value;
-        }
         if (el('settings-vsr-quality')) window.appSettings.vsrQuality = el('settings-vsr-quality').value;
         if (el('settings-vsr-scale')) window.appSettings.vsrScale = el('settings-vsr-scale').value;
         if (el('settings-vsr-bitrate')) window.appSettings.vsrBitrate = el('settings-vsr-bitrate').value;
         if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
-        window.appSettings.debridProxyEnable = el('debrid-proxy-enable').checked;
-        window.appSettings.debridProxyAddress = el('debrid-proxy-address-input').value.trim();
         await window.electronAPI.saveSettings(window.appSettings);
         showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
         el('settings-panel').style.display = 'none';
@@ -210,7 +198,6 @@ function initSettingsListeners() {
 
   // Sub-panels were split into their own modules for maintainability.
   initBenchmarkDashboard();
-  initDebridDownloader();
 }
 
 window.initSettingsListeners = initSettingsListeners;

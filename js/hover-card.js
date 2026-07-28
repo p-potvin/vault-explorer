@@ -275,8 +275,9 @@ window.showPremiumHoverCard = function(card, movie) {
                     }
                 }
                 
-                // Fallback to TMDB
-                if (!trailerKey) {
+                // Fallback to TMDB (streaming-only path; APIs removed with the
+                // Streaming tab — guard so this can never throw if reached).
+                if (!trailerKey && window.electronAPI.getTMDBTV && window.electronAPI.getTMDBMovie) {
                     const res = movie.media_type === 'tv'
                         ? await window.electronAPI.getTMDBTV({ id: movie.id, language: window.currentLang === 'fr' ? 'fr-FR' : 'en-US' })
                         : await window.electronAPI.getTMDBMovie({ id: movie.id, language: window.currentLang === 'fr' ? 'fr-FR' : 'en-US' });
