@@ -5,11 +5,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   scanDirectory: (dirPath) => ipcRenderer.invoke('scan-directory', dirPath),
   getCachedDirectory: (dirPath) => ipcRenderer.invoke('get-cached-directory', dirPath),
   scanSpecificFiles: (arr) => ipcRenderer.invoke('scan-specific-files', arr),
-  getEverythingSize: (dirPath) => ipcRenderer.invoke('get-everything-size', dirPath),
   getTrickplaySprites: (folder) => ipcRenderer.invoke('get-trickplay-sprites', folder),
   getFileSize: (p) => ipcRenderer.invoke('get-file-size', p),
   openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
+  saveEditedImage: (data) => ipcRenderer.invoke('save-edited-image', data),
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   showContextMenu: (item) => ipcRenderer.invoke('show-context-menu', item),
   generateWebm: (p, vaultRoot) => ipcRenderer.invoke('generate-webm', p, vaultRoot),
@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTheme: (t) => ipcRenderer.invoke('set-theme', t),
   setWindowFullScreen: (on) => ipcRenderer.invoke('set-window-fullscreen', !!on),
   scheduleIdlePreviews: (items) => ipcRenderer.invoke('schedule-idle-previews', items),
+  generateIdlePreviewBatch: (items) => ipcRenderer.invoke('generate-idle-preview-batch', items),
   pasteFiles: (data) => ipcRenderer.invoke('paste-files', data),
   zipSelection: (data) => ipcRenderer.invoke('zip-selection', data),
   getFileProperties: (p) => ipcRenderer.invoke('get-file-properties', p),
@@ -47,40 +48,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation }),
   revertEnhancements: (p) => ipcRenderer.invoke('revert-enhancements', p),
   
-  // TMDB / KinoCheck API
-  searchTMDB: (query, page = 1, language = 'en-US') => ipcRenderer.invoke('search-tmdb', { query, page, language }),
-  discoverTMDB: (providerId, mediaType, page = 1, language = 'en-US') => ipcRenderer.invoke('discover-tmdb', { providerId, mediaType, page, language }),
-  getTMDBMovie: (data) => ipcRenderer.invoke('get-tmdb-movie', data),
-  getTMDBTV: (data) => ipcRenderer.invoke('get-tmdb-tv', data),
-  getTMDBTVSeason: (data) => ipcRenderer.invoke('get-tmdb-tv-season', data),
-  getKinoCheckTrailer: (data) => ipcRenderer.invoke('get-kinocheck-trailer', data),
+  // Live streaming ASR subtitles (Parakeet)
+  warmLiveSubtitles: () => ipcRenderer.invoke('warm-live-subtitles'),
+  startLiveSubtitles: (data) => ipcRenderer.invoke('start-live-subtitles', data),
+  stopLiveSubtitles: () => ipcRenderer.invoke('stop-live-subtitles'),
+  onLiveSubtitleCue: (cb) => ipcRenderer.on('live-subtitle-cue', (_, data) => cb(data)),
+  offLiveSubtitleCue: () => ipcRenderer.removeAllListeners('live-subtitle-cue'),
+  onLiveSubtitleStatus: (cb) => ipcRenderer.on('live-subtitle-status', (_, data) => cb(data)),
+  offLiveSubtitleStatus: () => ipcRenderer.removeAllListeners('live-subtitle-status'),
 
-  searchOMDb: (query, page = 1) => ipcRenderer.invoke('search-omdb', { query, page }),
-  getOMDbDetails: (data) => ipcRenderer.invoke('get-omdb-details', data),
-  searchTorrents: (movieTitle) => ipcRenderer.invoke('search-torrents', movieTitle),
-  streamRDTorrent: (data) => ipcRenderer.invoke('rd-stream-torrent', data),
-  getTorrentStatus: (torrentId) => ipcRenderer.invoke('rd-torrent-status', torrentId),
-  debridURL: (data) => ipcRenderer.invoke('rd-unrestrict-url', data),
-  downloadDebridFile: (data) => ipcRenderer.invoke('rd-download-file', data),
-  testDebridProxy: (proxy) => ipcRenderer.invoke('rd-test-proxy', proxy),
-  onDownloadProgress: (cb) => ipcRenderer.on('rd-download-progress', (_, data) => cb(data)),
-  offDownloadProgress: () => ipcRenderer.removeAllListeners('rd-download-progress'),
-  
-  // Usenet API
-  searchUsenet: (data) => ipcRenderer.invoke('search-usenet', data),
-  verifyUsenetHealth: (data) => ipcRenderer.invoke('verify-usenet-health', data),
-  streamUsenetNzb: (data) => ipcRenderer.invoke('stream-usenet-nzb', data),
-  getUsenetStatus: (nzoId) => ipcRenderer.invoke('get-usenet-status', nzoId),
-  finalizeUsenetStream: (data) => ipcRenderer.invoke('finalize-usenet-stream', data),
-  moveUsenetToDrive: (data) => ipcRenderer.invoke('move-usenet-to-drive', data),
-  getStreamingMode: () => ipcRenderer.invoke('get-streaming-mode'),
-
-  startLivestream: (data) => ipcRenderer.invoke('start-livestream', data),
-  stopLivestream: () => ipcRenderer.invoke('stop-livestream'),
-  onLivestreamLog: (cb) => ipcRenderer.on('livestream-log', (_, data) => cb(data)),
-  offLivestreamLog: () => ipcRenderer.removeAllListeners('livestream-log'),
-  onLivestreamVisualizer: (cb) => ipcRenderer.on('livestream-visualizer', (_, data) => cb(data)),
-  offLivestreamVisualizer: () => ipcRenderer.removeAllListeners('livestream-visualizer'),
   openExternalURL: (url) => ipcRenderer.invoke('open-external-url', url),
   
   // Watch History API
@@ -102,5 +78,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Video Clipping API
   clipVideo: (data) => ipcRenderer.invoke('clipVideo', data),
   onClipProgress: (cb) => ipcRenderer.on('clip-progress', (_, data) => cb(data)),
-  offClipProgress: () => ipcRenderer.removeAllListeners('clip-progress')
+  offClipProgress: () => ipcRenderer.removeAllListeners('clip-progress'),
+  onInitialFile: (cb) => ipcRenderer.on('open-initial-file', (_, data) => cb(data))
 });

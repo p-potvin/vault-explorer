@@ -11,21 +11,6 @@ function displayFolderSize(bytes) {
 }
 
 async function updateStatusBar() {
-    if (window.currentTab === 'tmdb') {
-        const resultsCount = el('tmdb-results-grid') ? el('tmdb-results-grid').querySelectorAll('.tmdb-movie-card').length : 0;
-        el('status-items').innerText = `${resultsCount} items`;
-        el('status-selected').innerText = '';
-        el('status-size').innerText = '';
-        return;
-    }
-
-    if (window.currentTab === 'livestream') {
-        el('status-items').innerText = '';
-        el('status-selected').innerText = '';
-        el('status-size').innerText = '';
-        return;
-    }
-
     el('status-items').innerText = `${window.displayedItems.length} items`;
     if (window.selectedIndices.size > 0) {
         let size = 0;
@@ -104,7 +89,11 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
 
     clearSearchBox();
 
-    if (realPath) {
+    // Persist lastPath ONLY for Files-tab loads. Music/Photos/Others auto-load
+    // their own default folders through this same function — saving those
+    // overwrote lastPath, so the Videos tab would boot into e.g. the music
+    // folder (no videos → "initial load is always empty").
+    if (realPath && (!window.currentTab || window.currentTab === 'files')) {
         window.appSettings.lastPath = { navPath: window.currentNavPath, realPath, folderId: window.currentFolderId };
         window.electronAPI.saveSettings(window.appSettings);
     }
@@ -151,6 +140,14 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                 window.allItems = freshItems;
                 if (navPath === 'root') window._rootItemsCache = freshItems;
                 window.applyFilters();
+
+                // Content is rendered — hide the loading overlay NOW. The
+                // per-video duration probe below sleeps 150ms/video and used to
+                // run inside the try, so the "Refreshing..." overlay stayed up
+                // (and covered the content) until every video was probed.
+                if (bypassTimeout) clearTimeout(bypassTimeout);
+                if (bypassBtn) bypassBtn.style.display = 'none';
+                el('loading').style.display = 'none';
 
                 if (freshItems && freshItems.length > 0) {
                     const totalSize = freshItems.reduce((sum, item) => sum + (item.size || 0), 0);

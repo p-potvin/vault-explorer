@@ -70,6 +70,22 @@ def _probe_video(path: str):
         return {"width": 0, "height": 0, "fps": 0.0, "duration": 0.0}
 
 
+def _read_exact(stream, n):
+    """Read exactly n bytes from a raw (bufsize=0) pipe.
+
+    stream.read(n) on an unbuffered pipe returns whatever is currently
+    available (often ~64KB) — far less than one raw video frame — so treating
+    a short read as EOF made both pipelines exit after zero frames.
+    """
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = stream.read(n - len(buf))
+        if not chunk:
+            break
+        buf.extend(chunk)
+    return bytes(buf)
+
+
 def _build_decoder_cmd(path: str, start_time: float = 0.0):
     """ffmpeg command that outputs raw RGB24 frames on stdout."""
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats"]
@@ -77,6 +93,7 @@ def _build_decoder_cmd(path: str, start_time: float = 0.0):
         cmd += ["-ss", str(start_time)]
     cmd += [
         "-i", path,
+        "-map", "0:v:0",           # FIX: Select only the video stream, ignoring audio/subtitles
         "-pix_fmt", FFMPEG_PIX_FMT,
         "-f", "rawvideo",
         "-",
@@ -99,15 +116,21 @@ def _build_encoder_stream_cmd(width: int, height: int, fps: float, bitrate: str 
             bps = val * 1000000
     else:
         bps = 12000000
-    maxrate = f"{int(bps * 1.25)}{suffix}" if suffix else f"{int(bps * 1.25)}"
-    bufsize = f"{int(bps * 2)}{suffix}" if suffix else f"{int(bps * 2)}"
+    # bps is already expanded to raw bits/s — re-appending the M/K suffix
+    # multiplied it a second time (6M -> maxrate "7500000M" = 7.5 Tbps), which
+    # made nvenc refuse to open and the stream produce zero frames.
+    maxrate = str(int(bps * 1.25))
+    bufsize = str(int(bps * 2))
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats",
         "-f", "rawvideo",
-        "-pix_fmt", FFMPEG_ENC_FMT,
+        # stdin carries YUV from _tensor_to_yuv, not RGB — must match `chroma`
+        # (rgb24 here made the encoder mis-frame the byte stream).
+        "-pix_fmt", chroma,
         "-s", f"{width}x{height}",
         "-r", str(fps) if fps > 0 else "30",
         "-i", "-",                     # stdin
+        "-f", "mp4",                   # FIX 1: Force FFmpeg to use the MP4 muxer despite the .tmp extension
         "-c:v", "h264_nvenc",
         "-preset", "p1",               # lowest latency preset
         "-tune", "ll",                 # low-latency tuning
@@ -131,7 +154,8 @@ def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str, 
         "-pix_fmt", chroma,
         "-s", f"{width}x{height}",
         "-r", str(fps) if fps > 0 else "30",
-        "-i", "-",
+        "-i", "-", 
+        "-f", "mp4",                   # FIX 1: Force FFmpeg to use the MP4 muxer despite the .tmp extension
         "-c:v", "h264_nvenc",
         "-preset", "p4",               # balanced quality/speed
         "-rc", "vbr",
@@ -143,6 +167,7 @@ def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str, 
         "-y", out_path,
     ]
     return cmd
+
 
 
 # ---------------------------------------------------------------------------
@@ -214,10 +239,14 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
 
     # Build ffmpeg commands
     dec_cmd = _build_decoder_cmd(video_path, start_time)
+    print(f"[RTX VSR] dec_cmd {dec_cmd}: v {video_path} st {start_time}", file=sys.stderr)
+    
     if is_stream:
         enc_cmd = _build_encoder_stream_cmd(out_w, out_h, fps, bitrate, chroma)
     else:
         enc_cmd = _build_encoder_file_cmd(out_w, out_h, fps, out_target, chroma)
+
+    print(f"[RTX VSR] enc_cmd {enc_cmd}: o {out_target} ch {chroma}", file=sys.stderr)
 
     # Spawn decoder
     dec_proc = subprocess.Popen(
@@ -236,13 +265,7 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
         bufsize=0,
     )
 
-    # Load VSR on GPU
-    vsr = _create_vsr(quality_level, out_w, out_h)
-
-    frame_bytes = src_w * src_h * 3
-    frame_count = 0
-    error_flag = [False]
-
+    # FIX: Start logging threads HERE before loading VSR
     def read_decoder_stderr():
         for line in iter(dec_proc.stderr.readline, b""):
             line_str = line.decode("utf-8", errors="ignore").strip()
@@ -260,15 +283,24 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
     dec_err_thread.start()
     enc_err_thread.start()
 
+    # Load VSR on GPU (This takes a few seconds, during which FFmpeg errors could happen)
+    vsr = _create_vsr(quality_level, out_w, out_h)
+
+    print(f"[RTX VSR] vsr {vsr}: o {out_target} ch {chroma}", file=sys.stderr)
+
+    frame_bytes = src_w * src_h * 3
+    frame_count = 0
+    error_flag = [False]
+
     try:
         while True:
-            raw = dec_proc.stdout.read(frame_bytes)
+            raw = _read_exact(dec_proc.stdout, frame_bytes)
             if not raw or len(raw) < frame_bytes:
                 break
 
             # RGB24 → torch tensor (3, H, W), float32, [0,1], CUDA
             arr = np.frombuffer(raw, dtype=np.uint8).reshape((src_h, src_w, 3))
-            arr = np.transpose(arr, (2, 0, 1))  # (3, H, W)
+            arr = np.ascontiguousarray(np.transpose(arr, (2, 0, 1)))  # (3, H, W), contiguous for nvvfx
             frame_torch = torch.from_numpy(arr).to(dtype=torch.float32, device="cuda") / 255.0
 
             # VSR
@@ -385,12 +417,12 @@ def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH",
 
     try:
         while not stopped[0]:
-            raw = dec_proc.stdout.read(frame_bytes)
+            raw = _read_exact(dec_proc.stdout, frame_bytes)
             if not raw or len(raw) < frame_bytes:
                 break
 
             arr = np.frombuffer(raw, dtype=np.uint8).reshape((src_h, src_w, 3))
-            arr = np.transpose(arr, (2, 0, 1))
+            arr = np.ascontiguousarray(np.transpose(arr, (2, 0, 1)))
             frame_torch = torch.from_numpy(arr).to(dtype=torch.float32, device="cuda") / 255.0
             out_torch = _process_frame_tensor(vsr, frame_torch)
             yuv_bytes = _tensor_to_yuv(out_torch, chroma)

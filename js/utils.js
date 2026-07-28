@@ -311,7 +311,14 @@ function browseTabFolder(tabName) {
     }
     const navName = folderPath.split(/[\\/]/).pop() || 'root';
     if (window.loadDirectory) {
-      window.loadDirectory('root/' + navName, folderPath, true);
+      // Render the tab's view AFTER the scan resolves — renderAudio/renderAlbums/
+      // renderMisc read window.allItems, which loadDirectory populates async, so
+      // rendering before it finished left Music/Photos/Others empty.
+      Promise.resolve(window.loadDirectory('root/' + navName, folderPath, true)).then(() => {
+        if (tabName === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
+        else if (tabName === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
+        else if (tabName === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
+      });
     }
   });
 }

@@ -209,25 +209,54 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             }
 
             if (!success) {
-                const silentArgs = ['-y', '-threads', '2'];
-                let filterStr = '';
-                for (let i = 0; i < numClips; i++) {
-                    const seekTime = interval * i;
-                    silentArgs.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
-                    filterStr += `[${i}:v]`;
+                try {
+                    const silentArgs = ['-y', '-threads', '2'];
+                    let filterStr = '';
+                    for (let i = 0; i < numClips; i++) {
+                        const seekTime = interval * i;
+                        silentArgs.push('-ss', seekTime.toFixed(2), '-t', clipDuration.toFixed(2), '-i', videoPath);
+                        filterStr += `[${i}:v]`;
+                    }
+                    filterStr += `concat=n=${numClips}:v=1:a=0[outv];[outv]scale=320:-2[outv_scaled]`;
+                    silentArgs.push('-filter_complex', filterStr);
+                    silentArgs.push('-map', '[outv_scaled]');
+                    silentArgs.push(
+                        '-c:v', 'libvpx',
+                        '-b:v', '1M',
+                        '-speed', '4',
+                        '-an'
+                    );
+                    silentArgs.push('-f', 'webm', webmWritePath, '-loglevel', 'error');
+
+                    await runFfmpegPromise(silentArgs);
+                    success = true;
+                } catch (e) {
+                    console.warn(`[main:webm-preview] Multi-clip concat failed, falling back to single-clip preview:`, e.message);
                 }
-                filterStr += `concat=n=${numClips}:v=1:a=0[outv];[outv]scale=320:-2[outv_scaled]`;
-                silentArgs.push('-filter_complex', filterStr);
-                silentArgs.push('-map', '[outv_scaled]');
-                silentArgs.push(
+            }
+
+            // Last-resort fallback: a single continuous clip from ~30% in. The
+            // 8-clip concat filter is fragile on live-captured / variable-format
+            // MP4s (broken timestamps, open-GOP), which is why those previews
+            // failed every cycle. A single-segment encode has no concat graph to
+            // trip over and almost always succeeds.
+            if (!success) {
+                const seek = Math.max(1, duration * 0.3);
+                await runFfmpegPromise([
+                    '-y',
+                    '-threads', '2',
+                    '-ss', seek.toFixed(2),
+                    '-t', '8',
+                    '-i', videoPath,
+                    '-an',
+                    '-vf', 'scale=320:-2',
                     '-c:v', 'libvpx',
                     '-b:v', '1M',
                     '-speed', '4',
-                    '-an'
-                );
-                silentArgs.push('-f', 'webm', webmWritePath, '-loglevel', 'error');
-                
-                await runFfmpegPromise(silentArgs);
+                    '-f', 'webm',
+                    webmWritePath,
+                    '-loglevel', 'error'
+                ]);
             }
         }
         
@@ -423,6 +452,76 @@ function registerPreviewHandlers(ipcMain) {
             }
         }
         return true;
+    });
+
+    // Idle auto-generation batch: unlike schedule-idle-previews (fire-and-forget
+    // into the background queue), this awaits each of the (up to 10) targeted
+    // videos and returns a per-file success summary. The renderer's idle runner
+    // uses that summary to (a) refresh ONLY these cards and (b) stop generating
+    // the moment a whole batch produces nothing — instead of re-spamming the
+    // same unprocessable files every cycle.
+    ipcMain.handle('generate-idle-preview-batch', async (event, items) => {
+        const empty = { succeeded: 0, failed: 0, skipped: false, results: [] };
+        if (!Array.isArray(items) || items.length === 0) return empty;
+
+        // Reuse the cloud-backed skip guard.
+        const firstPath = (items[0] && items[0].path) ? items[0].path.toLowerCase() : '';
+        if (firstPath.includes('icloud photos') || firstPath.includes('onedrive') ||
+            firstPath.includes('icloud drive') || firstPath.includes('dropbox') ||
+            firstPath.includes('google drive') || firstPath.includes('creative cloud')) {
+            console.log(`[main:previews] Skipping idle batch for cloud-backed folder: ${path.dirname(items[0].path)}`);
+            return { ...empty, skipped: true };
+        }
+
+        const batch = items.slice(0, 10).filter(i => i && i.type === 'video' && i.path);
+        const results = [];
+        let succeeded = 0;
+        let failed = 0;
+
+        for (const item of batch) {
+            const ext = path.extname(item.path);
+            const base = path.basename(item.path, ext);
+            const thumbsDir = path.join(path.dirname(item.path), '.thumbs');
+            const thumbPath = path.join(thumbsDir, `${base}.jpg`);
+            const webmPath = path.join(thumbsDir, `${base}.webm`);
+
+            if (!fs.existsSync(item.path)) {
+                console.warn(`[main:previews] idle skip (source missing): ${base}`);
+                failed++;
+                results.push({ path: item.path, success: false, reason: 'source-missing' });
+                continue;
+            }
+            // Already generated — count as success so the card can refresh, no re-encode.
+            if (fs.existsSync(thumbPath) && fs.existsSync(webmPath)) {
+                console.log(`[main:previews] idle already-exists: ${base}`);
+                succeeded++;
+                results.push({ path: item.path, success: true, thumbnail: thumbPath, hoverWebm: webmPath });
+                continue;
+            }
+
+            try {
+                if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
+                console.log(`[main:previews] idle generating: ${base}`);
+                await generateThumbAndPreview(item.path, thumbPath, webmPath, event.sender, false);
+                const ok = fs.existsSync(thumbPath) && fs.existsSync(webmPath);
+                if (ok) {
+                    console.log(`[main:previews] idle OK: ${base}`);
+                    succeeded++;
+                    results.push({ path: item.path, success: true, thumbnail: thumbPath, hoverWebm: webmPath });
+                } else {
+                    console.warn(`[main:previews] idle incomplete output: ${base}`);
+                    failed++;
+                    results.push({ path: item.path, success: false, reason: 'incomplete-output' });
+                }
+            } catch (e) {
+                console.error(`[main:previews] idle FAILED: ${base} — ${e.message}`);
+                failed++;
+                results.push({ path: item.path, success: false, reason: e.message });
+            }
+        }
+
+        console.log(`[main:previews] Idle batch done — ${succeeded} ok, ${failed} failed of ${batch.length}.`);
+        return { succeeded, failed, skipped: false, results };
     });
 }
 

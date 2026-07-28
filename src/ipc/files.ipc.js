@@ -31,6 +31,27 @@ function safeOpenFile(filePath) {
 }
 
 function registerFilesIpc(ipcMain, mainWindow) {
+    // Save an edited photo (from the photo editor canvas) next to the original
+    // as <name>_edited.png (numbered if taken). Never overwrites the source.
+    ipcMain.handle('save-edited-image', async (_event, { originalPath, dataUrl }) => {
+        try {
+            if (!originalPath || !dataUrl || !dataUrl.startsWith('data:image/png;base64,')) {
+                return { success: false, error: 'Invalid image payload' };
+            }
+            const dir = path.dirname(originalPath);
+            const base = path.basename(originalPath, path.extname(originalPath));
+            let outPath = path.join(dir, `${base}_edited.png`);
+            let n = 2;
+            while (fs.existsSync(outPath)) outPath = path.join(dir, `${base}_edited_${n++}.png`);
+            const buf = Buffer.from(dataUrl.slice('data:image/png;base64,'.length), 'base64');
+            await fsPromises.writeFile(outPath, buf);
+            return { success: true, outputPath: outPath };
+        } catch (e) {
+            console.error('[files.ipc:save-edited-image]', e.message);
+            return { success: false, error: e.message };
+        }
+    });
+
     // Open File
     ipcMain.handle('open-file', async (_event, filePath) => {
         console.log('[files.ipc:open] Opening:', filePath);

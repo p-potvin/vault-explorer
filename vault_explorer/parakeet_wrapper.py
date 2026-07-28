@@ -127,23 +127,49 @@ class ParakeetTranscriber:
         # --- Optimization: Search for local .nemo file in HF cache to bypass remote checks ---
         if not (model_name.endswith(".nemo") and os.path.exists(model_name)):
             import glob
+            # First preference: a .nemo downloaded by the app on first run
+            # (VAULT_MODEL_DIR points at userData/models in packaged builds).
+            candidates = []
+            model_dir = os.environ.get("VAULT_MODEL_DIR")
+            if model_dir:
+                candidates.append(os.path.join(model_dir, "parakeet-tdt-0.6b-v3.nemo"))
+
             hf_cache_pattern = os.path.expanduser("~/.cache/huggingface/hub/models--nvidia--parakeet-tdt-0.6b-v3/snapshots/*/*.nemo")
             # Also check without 'models--' prefix as seen in some versions
             hf_cache_pattern_alt = os.path.expanduser("~/.cache/huggingface/hub/parakeet-tdt-0.6b-v3/snapshots/*/*.nemo")
-            
-            local_models = glob.glob(hf_cache_pattern) + glob.glob(hf_cache_pattern_alt)
-            if local_models:
-                model_name = local_models[0]
-                self.logger.info(f"Found local model in HF cache: {model_name}")
+            candidates += glob.glob(hf_cache_pattern) + glob.glob(hf_cache_pattern_alt)
+
+            local_model = next((c for c in candidates if c and os.path.exists(c)), None)
+            if local_model:
+                model_name = local_model
+                self.logger.info(f"Found local model: {model_name}")
 
         # --- Optimization: Restore natively from the resolved local .nemo file if present ---
         # Windows has PermissionErrors when extracting/restoring directly from directories via restore_from.
         # Restoring directly from the .nemo file is highly optimized and 100% robust on Windows.
+        # Fast path: if the .nemo has been pre-extracted into the repo
+        # (tools/models/parakeet-tdt-0.6b-v3/), restore from that directory to
+        # skip the ~13s tar-unpack of the 2.5 GB archive on every cold load.
+        extracted_dir = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "tools", "models", "parakeet-tdt-0.6b-v3"))
+        use_extracted = ("parakeet-tdt-0.6b-v3" in model_name
+                         and os.path.isfile(os.path.join(extracted_dir, "model_config.yaml")))
+
         if model_name.endswith(".nemo") and os.path.exists(model_name):
-            msg = f"Step 0: Restoring model from local path..."
-            if status_callback: status_callback(msg)
-            self.logger.info(f"Loading model from local .nemo archive: {model_name}")
-            self.model = nemo_asr.models.ASRModel.restore_from(model_name)
+            if use_extracted:
+                from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+                msg = "Step 0: Restoring model from pre-extracted dir..."
+                if status_callback: status_callback(msg)
+                self.logger.info(f"Loading from pre-extracted dir: {extracted_dir}")
+                connector = SaveRestoreConnector()
+                connector.model_extracted_dir = extracted_dir
+                self.model = nemo_asr.models.ASRModel.restore_from(
+                    restore_path=model_name, save_restore_connector=connector)
+            else:
+                msg = f"Step 0: Restoring model from local path..."
+                if status_callback: status_callback(msg)
+                self.logger.info(f"Loading model from local .nemo archive: {model_name}")
+                self.model = nemo_asr.models.ASRModel.restore_from(model_name)
         else:
             msg = f"Step 0: Loading model from cache/remote..."
             if status_callback: status_callback(msg)

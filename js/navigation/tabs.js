@@ -6,16 +6,13 @@ window.currentTab = 'files';
 
 window.switchTab = function(tabName) {
     if (tabName === 'vault') tabName = 'files';
-    
-    if (window.currentTab === 'streaming' && tabName !== 'streaming') {
-        if (typeof window.destroyTrailer === 'function') window.destroyTrailer();
-    }
-    
-    window.currentTab = tabName;
 
-    if (tabName === 'livestream') {
-        if (window.loadLivestreamSettingsOnce) window.loadLivestreamSettingsOnce();
-    }
+    // Close the full-screen photo editor if open — otherwise the tab switch
+    // happens invisibly behind it and looks like the tabs are dead.
+    const peModal = el('photo-editor-modal');
+    if (peModal && peModal.style.display === 'flex') peModal.style.display = 'none';
+
+    window.currentTab = tabName;
 
     // --- FORCE CLEANUP OF ACTIVE MEDIA PROCESSES & SOUNDS ---
     const vm = el('video-modal');
@@ -47,38 +44,6 @@ window.switchTab = function(tabName) {
         if (mainImg) mainImg.style.display = 'block';
     });
 
-    // Cleanup active Spoken Translator run and player when leaving tab
-    if (window.isStreamPlaying) {
-        try {
-            if (window.isTranslationActive) {
-                window.electronAPI.stopLivestream();
-                window.electronAPI.offLivestreamLog();
-                window.electronAPI.offLivestreamVisualizer();
-                window.isTranslationActive = false;
-            }
-            const audioEl = el('livestream-audio');
-            if (audioEl) {
-                audioEl.pause();
-                audioEl.src = '';
-            }
-            window.isStreamPlaying = false;
-
-            const btnToggle = el('btn-livestream-toggle');
-            if (btnToggle) {
-                btnToggle.disabled = false;
-                btnToggle.style.background = 'var(--vault-gold)';
-                btnToggle.style.color = '#0b0813';
-                btnToggle.querySelector('span').innerText = 'Start Player';
-            }
-            const statusLbl = el('livestream-status-lbl');
-            if (statusLbl) statusLbl.innerText = 'STANDBY';
-            const consoleBox = el('livestream-console');
-            if (consoleBox) consoleBox.innerHTML += '\n\n[System] Stream disconnected due to tab switch.\n';
-        } catch(e) {
-            console.error('Error stopping livestream during tab switch:', e);
-        }
-    }
-
     // --- AUDIO BOTTOM BAR VISIBILITY ---
     const audioBar = el('audio-bottom-bar');
     if (audioBar) {
@@ -94,13 +59,12 @@ window.switchTab = function(tabName) {
     // Mark the active tab on <body> so CSS can scope tab-specific layout
     document.body.classList.remove(
         'tab-files-active', 'tab-music-active',
-        'tab-photoalbums-active', 'tab-streaming-active',
-        'tab-livestream-active', 'tab-misc-active'
+        'tab-photoalbums-active', 'tab-misc-active'
     );
     document.body.classList.add(`tab-${tabName}-active`);
 
     // Toggle active state on tabs
-    const tabIds = ['files','music','photoalbums','misc','streaming','livestream'];
+    const tabIds = ['files','music','photoalbums','misc'];
     tabIds.forEach(name => {
         const btn = el(`tab-${name}`);
         if (!btn) return;
@@ -124,15 +88,12 @@ window.switchTab = function(tabName) {
         'files': ['file-grid', 'favorites-grid'],
         'music': ['audio-container'],
         'photoalbums': ['albums-container'],
-        'streaming': ['tmdb-container', 'library-grid'],
-        'livestream': ['livestream-container'],
         'misc': ['misc-container']
     };
 
     // Hide all known content containers first
     const allContainerIds = [
         'file-grid','favorites-grid','playlist-view-container',
-        'library-grid','tmdb-container','livestream-container',
         'audio-container','albums-container',
         'misc-container'
     ];
@@ -144,14 +105,12 @@ window.switchTab = function(tabName) {
     const toolbar = document.querySelector('.toolbar');
     const subNavBar = el('sub-nav-bar');
     const subNavFiles = el('sub-nav-files');
-    const subNavStreaming = el('sub-nav-streaming');
 
     // Sub-nav visibility
     if (subNavBar) {
-        if (tabName === 'files' || tabName === 'streaming') {
+        if (tabName === 'files') {
             subNavBar.style.display = 'flex';
-            if (subNavFiles) subNavFiles.style.display = (tabName === 'files') ? 'flex' : 'none';
-            if (subNavStreaming) subNavStreaming.style.display = (tabName === 'streaming') ? 'flex' : 'none';
+            if (subNavFiles) subNavFiles.style.display = 'flex';
         } else {
             subNavBar.style.display = 'none';
         }
@@ -159,9 +118,8 @@ window.switchTab = function(tabName) {
 
     if (toolbar) toolbar.style.display = (tabName === 'files') ? 'flex' : 'none';
 
-    // Default subtabs
+    // Default subtab
     if (!window.currentFilesSubtab) window.currentFilesSubtab = 'all';
-    if (!window.currentStreamingSubtab) window.currentStreamingSubtab = 'discover';
 
     // Show relevant container(s)
     if (tabName === 'files') {
@@ -175,8 +133,15 @@ window.switchTab = function(tabName) {
             if (!window.vaultLoaded) {
                 window.vaultLoaded = true;
                 console.log('[Lazy Load] First time entering Files Tab, performing directory load...');
-                if (window.appSettings.lastPath && window.appSettings.lastPath.realPath) {
-                    window.loadDirectory(window.appSettings.lastPath.navPath, window.appSettings.lastPath.realPath, true, window.appSettings.lastPath.folderId);
+                // Ignore a lastPath that points at another tab's default folder —
+                // older builds saved lastPath from Music/Photos/Others loads, which
+                // booted the Videos tab into e.g. the music folder (looked empty).
+                const s = window.appSettings || {};
+                const otherTabFolders = [s.defaultFolderAudio, s.defaultFolderAlbums, s.defaultFolderMisc].filter(Boolean);
+                const lp = s.lastPath && s.lastPath.realPath && !otherTabFolders.includes(s.lastPath.realPath)
+                    ? s.lastPath : null;
+                if (lp) {
+                    window.loadDirectory(lp.navPath, lp.realPath, true, lp.folderId);
                 } else if (window.appSettings.defaultFolder) {
                     window.loadDirectory('root/' + window.appSettings.defaultFolder.split(/[\\/]/).pop(), window.appSettings.defaultFolder, true);
                 } else {
@@ -186,35 +151,31 @@ window.switchTab = function(tabName) {
                 window.applyFilters();
             }
         }
-    } else if (tabName === 'streaming') {
-        if (window.currentStreamingSubtab === 'discover') {
-            const tmdbContainer = el('tmdb-container');
-            if (tmdbContainer) tmdbContainer.style.display = 'block';
-            if (typeof window.renderTMDB === 'function') window.renderTMDB();
-        } else if (window.currentStreamingSubtab === 'library') {
-            const libGrid = el('library-grid');
-            if (libGrid) libGrid.style.display = 'grid';
-            if (typeof window.renderLibrary === 'function') window.renderLibrary();
-        }
     } else {
         const ids = containers[tabName] || [];
         ids.forEach(id => {
             const el_ = el(id);
-            if (el_) el_.style.display = (id === 'tmdb-container' || id === 'audio-container') ? 'block' : 'grid';
+            if (el_) el_.style.display = (id === 'audio-container') ? 'block' : 'grid';
         });
 
-        // Load per-tab default folder on switch (music, photoalbums, misc). Falls back to the global vault folder.
-        if (['music', 'photoalbums', 'misc'].includes(tabName)) {
-            const folder = typeof window.getTabDefaultFolder === 'function' ? window.getTabDefaultFolder(tabName) : null;
-            if (folder && window.loadDirectory && window.currentRealPath !== folder) {
-                const navName = folder.split(/[\\/]/).pop() || 'root';
-                window.loadDirectory('root/' + navName, folder, true);
-            }
-        }
+        const renderTabContent = () => {
+            if (tabName === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
+            if (tabName === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
+            if (tabName === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
+        };
 
-        if (tabName === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
-        if (tabName === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
-        if (tabName === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
+        // Load this tab's default folder on switch, THEN render. renderAudio /
+        // renderAlbums read window.displayedItems, which loadDirectory populates
+        // asynchronously — rendering before the load resolved showed stale/empty
+        // content (the Music/Photos "not loading" bug). Wait for the load first.
+        const folder = (['music', 'photoalbums', 'misc'].includes(tabName) && typeof window.getTabDefaultFolder === 'function')
+            ? window.getTabDefaultFolder(tabName) : null;
+        if (folder && window.loadDirectory && window.currentRealPath !== folder) {
+            const navName = folder.split(/[\\/]/).pop() || 'root';
+            Promise.resolve(window.loadDirectory('root/' + navName, folder, true)).then(renderTabContent);
+        } else {
+            renderTabContent();
+        }
     }
 };
 
@@ -261,35 +222,14 @@ window.switchFilesSubtab = function(subtab) {
     }
 };
 
-window.switchStreamingSubtab = function(subtab) {
-    window.currentStreamingSubtab = subtab;
-
-    const pills = document.querySelectorAll('#sub-nav-streaming .sub-nav-pill');
-    pills.forEach(pill => {
-        const id = pill.id;
-        const targetId = `subtab-streaming-${subtab}`;
-        if (id === targetId) {
-            pill.classList.add('active');
-            pill.style.background = 'var(--vault-accent)';
-            pill.style.color = 'var(--vt-primary)';
-            pill.style.border = 'none';
-            pill.style.opacity = '1';
-        } else {
-            pill.classList.remove('active');
-            pill.style.background = 'transparent';
-            pill.style.color = 'var(--vault-text)';
-            pill.style.border = '1px solid var(--vault-border)';
-            pill.style.opacity = '0.8';
-        }
-    });
-
-    window.switchTab('streaming');
-};
-
 window.initTabListeners = function() {
     console.log('[tabs] Initializing top navigation tab click listeners...');
 
-    const tabIds = ['files','photos','audio','albums','playlists','streaming','livestream','misc'];
+    // IDs must match the actual tab buttons in index.html (tab-files, tab-music,
+    // tab-photoalbums, tab-misc). This list previously used legacy names
+    // ('photos','audio','albums','playlists'), so the Music and Photos buttons
+    // never received click listeners — the "tabs don't work" bug.
+    const tabIds = ['files','music','photoalbums','misc'];
     tabIds.forEach(name => {
         const btn = el(`tab-${name}`);
         if (btn) btn.addEventListener('click', () => window.switchTab(name));
@@ -298,14 +238,10 @@ window.initTabListeners = function() {
     // Files subtab listeners
     const subtabAll = el('subtab-files-all');
     const subtabColls = el('subtab-files-collections');
+    const subtabFavs = el('subtab-files-favorites');
     if (subtabAll) subtabAll.addEventListener('click', () => window.switchFilesSubtab('all'));
     if (subtabColls) subtabColls.addEventListener('click', () => window.switchFilesSubtab('collections'));
-
-    // Streaming subtab listeners
-    const subtabDisc = el('subtab-streaming-discover');
-    const subtabLib = el('subtab-streaming-library');
-    if (subtabDisc) subtabDisc.addEventListener('click', () => window.switchStreamingSubtab('discover'));
-    if (subtabLib) subtabLib.addEventListener('click', () => window.switchStreamingSubtab('library'));
+    if (subtabFavs) subtabFavs.addEventListener('click', () => window.switchFilesSubtab('favorites'));
 
     // Audio bottom bar close
     const audioBarClose = el('audio-bar-close');

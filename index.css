@@ -1388,6 +1388,13 @@ video::cue {
   border-radius: 4px;
 }
 
+/* Shrink subtitles in Picture-in-Picture: the mini player is a fraction of the
+   size, so the full-size cue font is oversized. The variable cascades from the
+   modal down to the <video> and is picked up by ::cue. */
+#video-modal.minimized {
+  --sub-font-size: 11px;
+}
+
 .sort-option:hover,
 .sort-order-option:hover {
   background: var(--vault-hover) !important;
@@ -1892,6 +1899,19 @@ body.clip-mode-active #btn-clip {
 
 #photo-editor-modal.open {
   display: flex;
+}
+
+/* The toolbar icons collapsed to 0 width inside the flex buttons (the SVG
+   width attribute lost to flex shrinking), rendering blank squares. Pin them. */
+#photo-editor-modal .photo-tool svg {
+  width: 18px !important;
+  height: 18px !important;
+  flex-shrink: 0;
+}
+#photo-editor-modal .photo-tool-bottom svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0;
 }
 
 /* Custom Added Keyframes for Streaming UI */

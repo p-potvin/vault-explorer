@@ -47,7 +47,16 @@ async function findVideosAsync(dir, exclusionRegexes = [], rootDir = dir, visite
 
     try {
         const entries = await fsPromises.readdir(dir, { withFileTypes: true });
-        
+
+        // Skip whole source-code trees: a directory containing .git (dir, or
+        // file for worktrees/submodules) is a repository, never vault media.
+        // The vault root itself is exempt so pointing a tab at a repo on
+        // purpose still works.
+        if (dir !== rootDir && entries.some(e => e.name === '.git')) {
+            console.log(`[scanner:find] Skipping repository tree: ${dir}`);
+            return results;
+        }
+
         for (const d of entries) {
             try {
                 const fullPath = path.join(dir, d.name);
@@ -176,12 +185,23 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
         try {
             const ext = path.extname(res).toLowerCase();
             let type = 'other';
-            if (['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv'].includes(ext)) type = 'video';
-            else if (['.jpg', '.png', '.jpeg', '.gif', '.webp'].includes(ext)) type = 'image';
-            else if (['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac', '.wma'].includes(ext)) type = 'audio';
+            if (['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts', '.m2ts'].includes(ext)) type = 'video';
+            else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif', '.avif', '.tiff', '.tif', '.svg', '.ico'].includes(ext)) type = 'image';
+            else if (['.mp3', '.flac', '.wav', '.aac', '.ogg', '.m4a', '.opus', '.wma', '.aiff', '.ape'].includes(ext)) type = 'audio';
             else if (ext === '.enc') type = 'encrypted';
-            
-            if (type !== 'video' && type !== 'image' && type !== 'audio' && type !== 'encrypted') return;
+            // Everything else is kept as type 'other' so the Others tab can browse
+            // non-media files. Media tabs filter to their own types; the Videos
+            // grid excludes 'other'. (Previously non-media was dropped here.)
+
+            // '.ts' is ambiguous: MPEG transport stream vs TypeScript source. Real
+            // TS video segments are megabytes; code files are kilobytes. Size-gate
+            // so ffprobe never gets pointed at source code (which spams errors).
+            if (ext === '.ts' && type === 'video') {
+                try {
+                    const tsStat = await fsPromises.stat(res);
+                    if (tsStat.size < 2 * 1024 * 1024) type = 'other';
+                } catch (_) { type = 'other'; }
+            }
 
             const dir = path.dirname(res);
             const name = path.basename(res);
@@ -665,5 +685,6 @@ function registerScannerHandlers(ipcMain) {
 module.exports = {
     findVideosAsync,
     _processFileNodes,
+    globToRegex,
     registerScannerHandlers
 };

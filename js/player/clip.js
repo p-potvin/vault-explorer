@@ -374,6 +374,8 @@ function startClipMode() {
     window.clipState.endTime = Math.min(duration, currentTime);
     window.clipState.previewTime = currentTime;
     window.clipState.videoDuration = duration;
+    // Reset per-clip edits (applied to the ffmpeg export).
+    window.clipState.edits = { rotate: 0, speed: 1, filter: 'none', cropAspect: null, ai: [] };
     
     // Position markers (check if elements exist)
     const startPct = (window.clipState.startTime / duration) * 100;
@@ -712,7 +714,8 @@ function getClipData() {
         startTime: window.clipState.startTime,
         endTime: window.clipState.endTime,
         duration: window.clipState.endTime - window.clipState.startTime,
-        videoSource: window.clipState.videoElement ? window.clipState.videoElement.src : null
+        videoSource: window.clipState.videoElement ? window.clipState.videoElement.src : null,
+        edits: window.clipState.edits || { rotate: 0, speed: 1, filter: 'none', cropAspect: null, ai: [] }
     };
 }
 
@@ -840,28 +843,66 @@ function showClipEditingDialog(clipData) {
     
     const previewVideo = document.createElement('video');
     previewVideo.src = clipData.videoSource;
+    previewVideo.muted = true;
+    previewVideo.playsInline = true;
     previewVideo.style.cssText = `
         width: 100%;
         max-height: 240px;
         display: block;
+        object-fit: contain;
+        transition: filter 0.15s;
     `;
-    previewVideo.currentTime = clipData.startTime;
-    previewVideo.muted = true;
-    
-    // Add trim overlay to show the selected region
-    const trimOverlay = document.createElement('div');
-    trimOverlay.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(to right, rgba(0,0,0,0.7), transparent, rgba(0,0,0,0.7));
-        pointer-events: none;
-    `;
-    
+
+    // Loop-play only the trimmed [start, end] region so the modal shows the
+    // actual clip (not a static frame).
+    const loopToStart = () => {
+        try { previewVideo.currentTime = clipData.startTime; previewVideo.play().catch(() => {}); } catch (_) {}
+    };
+    previewVideo.addEventListener('loadedmetadata', loopToStart);
+    previewVideo.addEventListener('timeupdate', () => {
+        if (previewVideo.currentTime >= clipData.endTime || previewVideo.currentTime < clipData.startTime - 0.15) {
+            previewVideo.currentTime = clipData.startTime;
+        }
+    });
+    if (previewVideo.readyState >= 1) loopToStart();
+
+    // Live-reflect the edit buttons (rotate / filter / speed / crop) on the
+    // preview via CSS so the user sees the result before exporting. Exposed so
+    // the edit handlers can refresh it while the dialog is open.
+    window._refreshClipPreview = function () {
+        const ed = (window.clipState && window.clipState.edits) || {};
+        const css = [];
+        const fm = { grayscale: 'grayscale(1)', sepia: 'sepia(1)', vibrant: 'saturate(1.6)',
+                     vintage: 'sepia(0.4) contrast(1.1) saturate(1.2)', sharpen: 'contrast(1.15)' };
+        if (fm[ed.filter]) css.push(fm[ed.filter]);
+        const ai = Array.isArray(ed.ai) ? ed.ai : [];
+        if (ai.includes('color')) css.push('contrast(1.08) saturate(1.15) brightness(1.03)');
+        if (ai.includes('denoise')) css.push('blur(0.3px)');
+        previewVideo.style.filter = css.join(' ') || 'none';
+        previewVideo.style.transform = ed.rotate ? `rotate(${ed.rotate}deg)` : 'none';
+        previewVideo.playbackRate = Number(ed.speed) || 1;
+        // Crop preview: shape the VIDEO element (height-capped) — shaping the
+        // container by aspect-ratio made tall crops (9:16) balloon the dialog.
+        const arMap = { '16:9': '16 / 9', '4:3': '4 / 3', '1:1': '1 / 1', '9:16': '9 / 16' };
+        previewContainer.style.textAlign = 'center';
+        if (ed.cropAspect && arMap[ed.cropAspect]) {
+            previewVideo.style.aspectRatio = arMap[ed.cropAspect];
+            previewVideo.style.objectFit = 'cover';
+            previewVideo.style.width = 'auto';
+            previewVideo.style.height = '240px';
+            previewVideo.style.margin = '0 auto';
+            previewVideo.style.maxWidth = '100%';
+        } else {
+            previewVideo.style.aspectRatio = '';
+            previewVideo.style.objectFit = 'contain';
+            previewVideo.style.width = '100%';
+            previewVideo.style.height = '';
+            previewVideo.style.margin = '';
+        }
+    };
+    window._refreshClipPreview();
+
     previewContainer.appendChild(previewVideo);
-    previewContainer.appendChild(trimOverlay);
     previewSection.appendChild(previewLabel);
     previewSection.appendChild(previewContainer);
     
@@ -905,12 +946,11 @@ function showClipEditingDialog(clipData) {
     
     // Add editing option buttons
     const editingButtons = [
-        { id: 'trim', name: 'Trim', icon: '✂️', action: () => adjustClipBounds(clipData) },
-        { id: 'crop', name: 'Crop', icon: '🟪', action: () => showCropDialog(clipData) },
-        { id: 'rotate', name: 'Rotate', icon: '🔄', action: () => rotateClip(clipData) },
-        { id: 'filters', name: 'Filters', icon: '🎨', action: () => showFiltersDialog(clipData) },
-        { id: 'ai-enhance', name: 'AI Enhance', icon: '✨', action: () => showAIEnhancements(clipData) },
-        { id: 'speed', name: 'Speed', icon: '⚡', action: () => adjustPlaybackSpeed(clipData) }
+        { id: 'trim', name: 'Trim', icon: '✂️', action: adjustClipBounds },
+        { id: 'crop', name: 'Crop', icon: '🟪', action: showCropDialog },
+        { id: 'rotate', name: 'Rotate', icon: '🔄', action: rotateClip },
+        { id: 'filters', name: 'Filters', icon: '🎨', action: showFiltersDialog },
+        { id: 'speed', name: 'Speed', icon: '⚡', action: adjustPlaybackSpeed }
     ];
     
     editingButtons.forEach(btn => {
@@ -932,7 +972,7 @@ function showClipEditingDialog(clipData) {
             font-weight: 600;
         `;
         button.innerHTML = `<span style="font-size: 18px;">${btn.icon}</span><span>${btn.name}</span>`;
-        button.onclick = btn.action;
+        button.onclick = () => btn.action(clipData, button);
         button.onmouseenter = () => {
             button.style.background = 'rgba(22, 19, 32, 0.12)';
         };
@@ -953,7 +993,7 @@ function showClipEditingDialog(clipData) {
     `;
     
     const aiTitle = document.createElement('div');
-    aiTitle.textContent = 'AI Enhancements:';
+    aiTitle.textContent = 'AI Enhancements (applied to the exported file):';
     aiTitle.style.cssText = `font-size: 11px; text-transform: uppercase; color: var(--vault-slate); font-weight: bold; margin-bottom: 8px;`;
     
     const aiOptionsGrid = document.createElement('div');
@@ -964,11 +1004,11 @@ function showClipEditingDialog(clipData) {
     `;
     
     const aiButtons = [
-        { name: 'Upscale', description: '4K', action: () => applyAIUpscale(clipData) },
-        { name: 'Stabilize', description: 'Shaky video', action: () => applyAISabilization(clipData) },
-        { name: 'Denoise', description: 'Remove noise', action: () => applyAIDenoise(clipData) },
-        { name: 'Color', description: 'Auto-color', action: () => applyAIColorCorrection(clipData) },
-        { name: 'Frame', description: 'Interpolate', action: () => applyAIFrameInterpolation(clipData) }
+        { name: 'Upscale', description: '2x', action: applyAIUpscale },
+        { name: 'Stabilize', description: 'Shaky video', action: applyAISabilization },
+        { name: 'Denoise', description: 'Remove noise', action: applyAIDenoise },
+        { name: 'Color', description: 'Auto-color', action: applyAIColorCorrection },
+        { name: 'Frame', description: 'Interpolate', action: applyAIFrameInterpolation }
     ];
     
     aiButtons.forEach(btn => {
@@ -990,7 +1030,7 @@ function showClipEditingDialog(clipData) {
             font-weight: 600;
         `;
         button.innerHTML = `<span>${btn.name}</span><span style="font-size: 10px; opacity: 0.7;">${btn.description}</span>`;
-        button.onclick = btn.action;
+        button.onclick = () => btn.action(clipData, button);
         button.onmouseenter = () => {
             button.style.background = 'linear-gradient(135deg, rgba(245, 185, 41, 0.3), rgba(245, 185, 41, 0.2))';
         };
@@ -1065,50 +1105,78 @@ function showClipEditingDialog(clipData) {
     document.body.appendChild(dialogEl);
 }
 
-// Placeholder functions for editing options
-function adjustClipBounds(clipData) {
-    window.showToast('Trim mode already active - drag the markers to adjust', 'info');
+// ── Editing options — each click cycles a setting stored in clipState.edits,
+// which is applied to the ffmpeg export. Clicking a button updates its label
+// and toasts the new value.
+function _edits() {
+    if (!window.clipState.edits) window.clipState.edits = { rotate: 0, speed: 1, filter: 'none', cropAspect: null, ai: [] };
+    return window.clipState.edits;
+}
+function _setBtnLabel(button, text, active) {
+    if (button) {
+        const span = button.querySelector('span:last-child');
+        if (span) span.textContent = text;
+        button.style.borderColor = active ? 'var(--vault-accent)' : 'var(--vault-border)';
+        button.style.boxShadow = active ? '0 0 0 1px var(--vault-accent) inset' : '';
+    }
+    // Reflect the change on the live modal preview.
+    if (typeof window._refreshClipPreview === 'function') window._refreshClipPreview();
 }
 
-function showCropDialog(clipData) {
-    window.showToast('Crop feature - Coming soon!', 'info');
+function adjustClipBounds(clipData, button) {
+    // Trim = the marker-drag mode on the seek bar; the dialog covers it, so
+    // close the dialog and let the user drag, then press Save Clip again.
+    const dlg = document.getElementById('clip-editing-dialog');
+    if (dlg) dlg.remove();
+    window.showToast('Drag the gold start/end markers on the seek bar, then press Save Clip again', 'info');
 }
 
-function rotateClip(clipData) {
-    window.showToast('Rotate feature - Coming soon!', 'info');
+function showCropDialog(clipData, button) {
+    const options = [null, '16:9', '1:1', '9:16', '4:3'];
+    const e = _edits();
+    e.cropAspect = options[(options.indexOf(e.cropAspect) + 1) % options.length];
+    _setBtnLabel(button, e.cropAspect ? `Crop ${e.cropAspect}` : 'Crop', !!e.cropAspect);
+    window.showToast(e.cropAspect ? `Crop to ${e.cropAspect} (center)` : 'Crop off', 'info');
 }
 
-function showFiltersDialog(clipData) {
-    window.showToast('Filters feature - Coming soon!', 'info');
+function rotateClip(clipData, button) {
+    const e = _edits();
+    e.rotate = (e.rotate + 90) % 360;
+    _setBtnLabel(button, e.rotate ? `Rotate ${e.rotate}°` : 'Rotate', !!e.rotate);
+    window.showToast(`Rotation: ${e.rotate}°`, 'info');
 }
 
-function adjustPlaybackSpeed(clipData) {
-    window.showToast('Speed adjustment - Coming soon!', 'info');
+function showFiltersDialog(clipData, button) {
+    const presets = ['none', 'grayscale', 'sepia', 'vibrant', 'vintage', 'sharpen'];
+    const e = _edits();
+    e.filter = presets[(presets.indexOf(e.filter) + 1) % presets.length];
+    const on = e.filter !== 'none';
+    _setBtnLabel(button, on ? e.filter[0].toUpperCase() + e.filter.slice(1) : 'Filters', on);
+    window.showToast(on ? `Filter: ${e.filter}` : 'Filter off', 'info');
 }
 
-function applyAIUpscale(clipData) {
-    window.showToast('AI Upscale applied (simulated)', 'success');
+function adjustPlaybackSpeed(clipData, button) {
+    const speeds = [1, 0.5, 0.25, 1.5, 2, 4];
+    const e = _edits();
+    e.speed = speeds[(speeds.indexOf(e.speed) + 1) % speeds.length];
+    _setBtnLabel(button, e.speed !== 1 ? `Speed ${e.speed}x` : 'Speed', e.speed !== 1);
+    window.showToast(`Playback speed: ${e.speed}x`, 'info');
 }
 
-function applyAISabilization(clipData) {
-    window.showToast('AI Stabilization applied (simulated)', 'success');
+// AI enhancements map to real ffmpeg filters on export; each toggles on/off.
+function _toggleAi(id, label, button) {
+    const e = _edits();
+    const i = e.ai.indexOf(id);
+    const on = i === -1;
+    if (on) e.ai.push(id); else e.ai.splice(i, 1);
+    _setBtnLabel(button, on ? `✓ ${label}` : label, on);
+    window.showToast(`${label} ${on ? 'enabled' : 'disabled'} for export`, on ? 'success' : 'info');
 }
-
-function applyAIDenoise(clipData) {
-    window.showToast('AI Denoise applied (simulated)', 'success');
-}
-
-function applyAIColorCorrection(clipData) {
-    window.showToast('AI Color Correction applied (simulated)', 'success');
-}
-
-function applyAIFrameInterpolation(clipData) {
-    window.showToast('AI Frame Interpolation applied (simulated)', 'success');
-}
-
-function showAIEnhancements(clipData) {
-    window.showToast('AI Enhancements dialog - Coming soon!', 'info');
-}
+function applyAIUpscale(clipData, button) { _toggleAi('upscale', 'Upscale', button); }
+function applyAISabilization(clipData, button) { _toggleAi('stabilize', 'Stabilize', button); }
+function applyAIDenoise(clipData, button) { _toggleAi('denoise', 'Denoise', button); }
+function applyAIColorCorrection(clipData, button) { _toggleAi('color', 'Color', button); }
+function applyAIFrameInterpolation(clipData, button) { _toggleAi('frame', 'Frame', button); }
 
 // ============================================================================
 // EXPORT DIALOG
@@ -1385,30 +1453,48 @@ function exportClipToDesktop(clipData, format, quality) {
     const duration = clipData.duration;
     
     console.log('[Clip] Exporting clip:', { videoPath, outputFormat, startTime, duration, quality });
-    window.showToast(`Exporting clip: ${formatClipDuration(duration)} (${outputFormat.toUpperCase()})...`, 'info');
-    
+
+    // Visible export progress indicator (VP9/webm can take a while — without
+    // this the export looks frozen).
+    const showExportProgress = (pct, t) => {
+        let elp = document.getElementById('clip-export-progress');
+        if (!elp) {
+            elp = document.createElement('div');
+            elp.id = 'clip-export-progress';
+            elp.style.cssText = 'position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:rgba(11,8,19,0.96); border:1px solid var(--vault-accent); color:var(--vault-text); padding:10px 18px; border-radius:8px; font-family:var(--font-mono); font-size:12px; z-index:11000; box-shadow:0 8px 30px rgba(0,0,0,0.5); min-width:220px; text-align:center;';
+            document.body.appendChild(elp);
+        }
+        const label = (pct != null) ? `${pct}%` : (t || '…');
+        elp.innerHTML = `Exporting clip (${outputFormat.toUpperCase()}) — ${label}`;
+    };
+    const clearExportProgress = () => { const p = document.getElementById('clip-export-progress'); if (p) p.remove(); };
+    showExportProgress(0);
+
     // Send to main process for ffmpeg processing
     if (window.electronAPI && window.electronAPI.clipVideo) {
         // Listen for progress events
         if (window.electronAPI.onClipProgress) {
             window.electronAPI.offClipProgress();
             window.electronAPI.onClipProgress((data) => {
-                console.log('[Clip] Progress:', data.currentTime);
+                showExportProgress(data.percent, data.currentTime);
             });
         }
-        
+
         return window.electronAPI.clipVideo({
             inputPath: videoPath,
             outputFormat: outputFormat,
             startTime: startTime,
             duration: duration,
-            quality: quality
+            quality: quality,
+            edits: clipData.edits || (window.clipState.edits || {})
         }).then(result => {
-            // Cleanup progress listener
+            // Cleanup progress listener + overlay
             if (window.electronAPI.offClipProgress) window.electronAPI.offClipProgress();
-            
+            clearExportProgress();
+
             if (result.success) {
                 const sizeMB = result.outputSize ? (result.outputSize / (1024 * 1024)).toFixed(1) : '?';
+                window._lastClipExportPath = result.outputPath || null;
                 window.showToast(`✓ Clip saved (${sizeMB} MB): ${result.outputPath}`, 'success');
                 return result;
             } else {
@@ -1417,6 +1503,7 @@ function exportClipToDesktop(clipData, format, quality) {
             }
         }).catch(err => {
             if (window.electronAPI.offClipProgress) window.electronAPI.offClipProgress();
+            clearExportProgress();
             console.error('[Clip] Export error:', err);
             window.showToast(`Export failed: ${err.message}`, 'error');
             throw err;
@@ -1646,7 +1733,6 @@ function shareToPlatform(platform, clipData, format, quality, message) {
         messenger: 'Messenger'
     };
     
-    // Simulate sharing
     if (window.electronAPI && window.electronAPI.shareClip) {
         window.electronAPI.shareClip({ platform, clipData, format, quality, message })
             .then(() => {
@@ -1656,14 +1742,12 @@ function shareToPlatform(platform, clipData, format, quality, message) {
                 window.showToast(`Failed to share: ${err.message}`, 'error');
             });
     } else {
-        // Fallback: copy to clipboard
-        const clipInfo = `Clip: ${clipData.duration}s from ${new Date(clipData.startTime * 1000).toISOString()}`;
-        const fullMessage = message ? `${message}\n${clipInfo}` : clipInfo;
-        navigator.clipboard.writeText(fullMessage).then(() => {
-            window.showToast(`Copied to clipboard (${platformNames[platform] || platform} link simulated)`, 'success');
-        }).catch(() => {
-            window.showToast(`Clip ready to share on ${platformNames[platform] || platform}!`, 'success');
-        });
+        // No platform integration wired — be honest: reveal the exported file so
+        // the user can drag/drop it into the target app themselves.
+        window.showToast(`${platformNames[platform] || platform} sharing isn't configured — opening the exported clip instead.`, 'info');
+        if (window._lastClipExportPath && window.electronAPI && window.electronAPI.showInFolder) {
+            window.electronAPI.showInFolder(window._lastClipExportPath);
+        }
     }
 }
 
@@ -1894,8 +1978,11 @@ function publishToPlatform(platform, clipData, format, quality, caption) {
                 window.showToast(`Failed to publish: ${err.message}`, 'error');
             });
     } else {
-        // Fallback
-        window.showToast(`Clip ready to publish on ${platformNames[platform] || platform}!`, 'success');
+        // No platform integration wired — reveal the exported file instead.
+        window.showToast(`${platformNames[platform] || platform} publishing isn't configured — opening the exported clip instead.`, 'info');
+        if (window._lastClipExportPath && window.electronAPI && window.electronAPI.showInFolder) {
+            window.electronAPI.showInFolder(window._lastClipExportPath);
+        }
     }
 }
 
