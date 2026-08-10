@@ -225,6 +225,11 @@ def create_synthesized_audio_track(segments, duration, output_path, target_lang)
         print(f"[translation] Wave writing failed: {wav_err}")
         return False
 
+def external_subtitle_code(language):
+    code = str(language or '').strip().lower()
+    return 'fr' if code in {'qc', 'fr-ca', 'ca-fr'} else code
+
+
 def main():
     parser = argparse.ArgumentParser(description="Real-time Demucs + FFmpeg dynaudnorm audio normalization")
     parser.add_argument("video_path", help="Path to video file")
@@ -421,6 +426,13 @@ def main():
                 utils.write_srt(original_base + ".en.srt", dummy_segs, dummy_texts)
                 utils.write_srt(normalized_base + ".srt", dummy_segs, dummy_texts)
                 utils.write_srt(normalized_base + ".en.srt", dummy_segs, dummy_texts)
+
+                if args.translate_to and translated_segments:
+                    external_code = external_subtitle_code(args.translate_to)
+                    trans_segs = [DummySeg(idx, s['start'], s['end'], s['text']) for idx, s in enumerate(translated_segments)]
+                    trans_texts = [s['text'] for s in translated_segments]
+                    utils.write_srt(original_base + f".{external_code}.srt", trans_segs, trans_texts)
+                    utils.write_srt(normalized_base + f".{external_code}.srt", trans_segs, trans_texts)
             except Exception as sub_err:
                 print(f"[subtitles] Failed using media-processing helper: {sub_err}")
                 
@@ -441,7 +453,7 @@ def main():
         if args.transcribe:
             meta['enhancements']['subtitles'] = ["en"]
         if args.translate_to:
-            meta['enhancements']['translation'] = [args.translate_to]
+            meta['enhancements']['translation'] = [external_subtitle_code(args.translate_to)]
             
         try:
             with open(meta_path, 'w', encoding='utf-8') as f:
