@@ -7,7 +7,7 @@
 //   {
 //     version: 2,
 //     folders: [ { id, name, type, parentId } ],   // parentId null = root
-//     items:   { [id]: ["C:\\abs\\path.mkv", "tmdb://metadata:{...}", ...] }
+//     items:   { [id]: ["C:\\abs\\path.mkv", "legacy://metadata:{...}", ...] }
 //   }
 //
 // Public API (window.vf):
@@ -39,8 +39,8 @@
 
     const ACCEPTS = {
         collection: new Set(['video', 'encrypted']),
-        album:      new Set(['image']),
-        playlist:   new Set(['audio']),
+        album: new Set(['image']),
+        playlist: new Set(['audio']),
     };
 
     function newId() {
@@ -126,8 +126,8 @@
             const fromContents = legacyContents && Array.isArray(legacyContents[key]) ? legacyContents[key] : null;
             const fromItems = Array.isArray(lf.items) ? lf.items : null;
             const list = fromContents && fromContents.length ? fromContents
-                       : fromItems && fromItems.length ? fromItems
-                       : [];
+                : fromItems && fromItems.length ? fromItems
+                    : [];
             if (list.length) newItems[id] = list.slice();
         }
 
@@ -301,11 +301,7 @@
         for (const raw of list) {
             const p = (typeof raw === 'string') ? raw : (raw && raw.path);
             if (!p) continue;
-            // Type-check only when we can resolve the item's type. Streaming
-            // tmdb:// entries are videos by definition (Library only allows movies/TV).
-            const itemType = (p.startsWith('tmdb://')) ? 'video'
-                : (raw && raw.type) ? raw.type
-                : (lookup ? lookup.get(p) : null);
+            const itemType = (raw && raw.type) ? raw.type : (lookup ? lookup.get(p) : null);
             if (itemType && !accept.has(itemType)) { rejected++; continue; }
             if (!bucket.includes(p)) { bucket.push(p); added++; }
         }
@@ -335,7 +331,7 @@
         Object.keys(vf.items).forEach(id => {
             const bucket = vf.items[id];
             const before = bucket.length;
-            vf.items[id] = bucket.filter(p => p.startsWith('tmdb://') || existingPathSet.has(p));
+            vf.items[id] = bucket.filter(p => existingPathSet.has(p));
             removed += before - vf.items[id].length;
         });
         if (removed) save();

@@ -19,9 +19,9 @@ function writeBenchmark(entry) {
     fs.appendFileSync(benchmarkPath, row, 'utf8');
 }
 
-async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false) {
+async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false, silent = false) {
     const activeWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    const finalSender = sender || (activeWindow ? activeWindow.webContents : null);
+    const finalSender = silent ? null : (sender || (activeWindow ? activeWindow.webContents : null));
     
     if (finalSender && !finalSender.isDestroyed()) {
         finalSender.send('generate-webm-progress', {
@@ -502,7 +502,7 @@ function registerPreviewHandlers(ipcMain) {
             try {
                 if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
                 console.log(`[main:previews] idle generating: ${base}`);
-                await generateThumbAndPreview(item.path, thumbPath, webmPath, event.sender, false);
+                await generateThumbAndPreview(item.path, thumbPath, webmPath, event.sender, false, true);
                 const ok = fs.existsSync(thumbPath) && fs.existsSync(webmPath);
                 if (ok) {
                     console.log(`[main:previews] idle OK: ${base}`);

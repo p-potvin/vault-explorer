@@ -27,7 +27,7 @@ function getFullProbeMetadata(filePath) {
 }
 
 function registerMediaIpc(ipcMain) {
-    // RTX VSR Video Upscale (permanent enhancement → .thumbs folder)
+    // RTX VSR Video Upscale (permanent enhancement → .enhanced folder)
     ipcMain.handle('upscale-video', async (event, opts) => {
         const filePath = typeof opts === 'string' ? opts : (opts && opts.path);
         const quality = (typeof opts === 'object' && opts.quality) ? opts.quality : 'HIGH';
@@ -47,13 +47,13 @@ function registerMediaIpc(ipcMain) {
         const dir = path.dirname(filePath);
         const name = path.basename(filePath);
         const baseName = path.basename(filePath, ext);
-        const thumbsDir = path.join(dir, '.thumbs');
-        const outputPath = path.join(thumbsDir, `${baseName}_enhanced${ext}`);
+        const enhancedDir = path.join(dir, '.enhanced');
+        const outputPath = path.join(enhancedDir, `${baseName}_enhanced${ext}`);
         const metaPath = filePath + '.meta.json';
 
-        // Ensure .thumbs directory exists
-        if (!fs.existsSync(thumbsDir)) {
-            fs.mkdirSync(thumbsDir, { recursive: true });
+        // Ensure .enhanced directory exists
+        if (!fs.existsSync(enhancedDir)) {
+            fs.mkdirSync(enhancedDir, { recursive: true });
         }
 
         // Remove any stale temp file from a previous interrupted run.
@@ -64,10 +64,10 @@ function registerMediaIpc(ipcMain) {
             try {
                 const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
                 if (meta.enhancements && meta.enhancements.video === true) {
-                    console.log('[media.ipc:upscale] Skipping redundant enhancement (already in .thumbs):', filePath);
+                    console.log('[media.ipc:upscale] Skipping redundant enhancement (already in .enhanced):', filePath);
                     return { success: true, path: outputPath, skipped: true };
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
 
         const pythonPath = process.platform === 'win32'
@@ -134,7 +134,7 @@ function registerMediaIpc(ipcMain) {
                         if (fs.existsSync(metaPath)) {
                             try {
                                 meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                            } catch (e) {}
+                            } catch (e) { }
                         }
                         if (!meta.enhancements) {
                             meta.enhancements = { audio: false, video: false, subtitles: [], translation: [] };
@@ -142,7 +142,7 @@ function registerMediaIpc(ipcMain) {
                         meta.enhancements.video = true;
                         meta.enhancedPath = outputPath;
                         fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-                    } catch (e) {}
+                    } catch (e) { }
                     resolve({ success: true, path: outputPath });
                 } else {
                     resolve({ success: false, error: errorData.trim() || `RTX VSR exited with code ${code}` });
@@ -159,7 +159,7 @@ function registerMediaIpc(ipcMain) {
         const dir = path.dirname(filePath);
         const ext = path.extname(filePath);
         const baseName = path.basename(filePath, ext);
-        const enhancedFile = path.join(dir, '.thumbs', `${baseName}_enhanced${ext}`);
+        const enhancedFile = path.join(dir, '.enhanced', `${baseName}_enhanced${ext}`);
         const metaPath = filePath + '.meta.json';
 
         try {
@@ -172,7 +172,7 @@ function registerMediaIpc(ipcMain) {
                     meta.enhancements = { audio: false, video: false, subtitles: [], translation: [] };
                     delete meta.enhancedPath;
                     fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-                } catch (e) {}
+                } catch (e) { }
             }
             return { success: true };
         } catch (err) {
@@ -282,7 +282,7 @@ function registerMediaIpc(ipcMain) {
 
         // Kill any existing process
         if (upscaleStreamProcess) {
-            try { upscaleStreamProcess.kill('SIGKILL'); } catch(e) {}
+            try { upscaleStreamProcess.kill('SIGKILL'); } catch (e) { }
             upscaleStreamProcess = null;
         }
         upscaleStreamEvent = event;
@@ -403,8 +403,8 @@ function registerMediaIpc(ipcMain) {
             try {
                 // On Windows SIGKILL doesn't exist; use kill() which terminates the tree
                 upscaleStreamProcess.kill('SIGKILL');
-            } catch(e) {
-                try { upscaleStreamProcess.kill(); } catch(e2) {}
+            } catch (e) {
+                try { upscaleStreamProcess.kill(); } catch (e2) { }
             }
             upscaleStreamProcess = null;
             upscaleStreamEvent = null;
@@ -420,7 +420,7 @@ function registerMediaIpc(ipcMain) {
     // ---------------------------------------------------------------------------
     const ytUrlCache = new Map();
 
-    ipcMain.handle('extract-youtube-url', async (_event, videoId) => {
+    ipcMain.handle('retired-media-url', async (_event, videoId) => {
         if (!videoId || typeof videoId !== 'string') {
             return { success: false, error: 'Invalid video ID' };
         }
@@ -484,8 +484,8 @@ function registerMediaIpc(ipcMain) {
         const ext = path.extname(filePath);
         const baseName = path.basename(filePath, ext);
         const dir = path.dirname(filePath);
-        const thumbsDir = path.join(dir, '.thumbs');
-        const outputPath = path.join(thumbsDir, `${baseName}_realesrgan${ext}`);
+        const enhancedDir = path.join(dir, '.enhanced');
+        const outputPath = path.join(enhancedDir, `${baseName}_realesrgan${ext}`);
         const tempPath = outputPath + '.tmp';
 
         if (fs.existsSync(outputPath)) {
@@ -493,8 +493,8 @@ function registerMediaIpc(ipcMain) {
             return { success: true, path: outputPath, skipped: true };
         }
 
-        if (!fs.existsSync(thumbsDir)) {
-            fs.mkdirSync(thumbsDir, { recursive: true });
+        if (!fs.existsSync(enhancedDir)) {
+            fs.mkdirSync(enhancedDir, { recursive: true });
         }
         cleanupTemp(tempPath);
 
@@ -565,9 +565,9 @@ function registerMediaIpc(ipcMain) {
         const ext = path.extname(filePath);
         const baseName = path.basename(filePath, ext);
         const dir = path.dirname(filePath);
-        const thumbsDir = path.join(dir, '.thumbs');
+        const enhancedDir = path.join(dir, '.enhanced');
         const opLabel = operation === 'edge' ? 'edge' : 'denoise';
-        const outputPath = path.join(thumbsDir, `${baseName}_${opLabel}${ext}`);
+        const outputPath = path.join(enhancedDir, `${baseName}_${opLabel}${ext}`);
         const tempPath = outputPath + '.tmp';
 
         if (fs.existsSync(outputPath)) {
@@ -575,8 +575,8 @@ function registerMediaIpc(ipcMain) {
             return { success: true, path: outputPath, skipped: true };
         }
 
-        if (!fs.existsSync(thumbsDir)) {
-            fs.mkdirSync(thumbsDir, { recursive: true });
+        if (!fs.existsSync(enhancedDir)) {
+            fs.mkdirSync(enhancedDir, { recursive: true });
         }
         cleanupTemp(tempPath);
 

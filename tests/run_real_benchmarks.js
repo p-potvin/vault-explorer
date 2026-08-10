@@ -1,4 +1,4 @@
-const { _electron: electron } = require('playwright');
+const { _electron: electron } = require('patchright');
 const path = require('path');
 const fs = require('fs');
 const assert = require('assert');
@@ -11,7 +11,7 @@ async function runRealBenchmarks() {
     const appPath = path.resolve(__dirname, '..');
     const videoPath = 'C:\\Users\\Administrator\\Desktop\\Agent Vaultwares files\\NVIDIA_USD_Cosmos_Pipeline.mp4';
     const imagePath = 'C:\\Users\\Administrator\\Desktop\\Agent Vaultwares files\\Gemini.jpg';
-    
+
     if (!fs.existsSync(videoPath)) {
         console.error(`Error: Source video file not found at: ${videoPath}`);
         process.exit(1);
@@ -40,7 +40,7 @@ async function runRealBenchmarks() {
     const firstWindow = await electronApp.firstWindow();
     await firstWindow.waitForTimeout(3000);
     const windows = electronApp.windows();
-    
+
     let window = firstWindow;
     for (let i = 0; i < windows.length; i++) {
         const title = await windows[i].title();
@@ -61,7 +61,7 @@ async function runRealBenchmarks() {
 
     console.log('\n[Benchmark Phase 1] Starting Audio Normalization, Vocal Isolation & AI ASR Transcription...');
     const audioStart = Date.now();
-    
+
     const audioResult = await window.evaluate(async (params) => {
         console.log('[Renderer] Starting audio enhancement from evaluation context...');
         return await window.electronAPI.normalizeAudio(params.videoPath, params.vaultRoot, true, 'qc');
@@ -69,13 +69,13 @@ async function runRealBenchmarks() {
 
     const audioEnd = Date.now();
     const audioDurationSec = ((audioEnd - audioStart) / 1000).toFixed(2);
-    
+
     console.log(`\n[Benchmark Phase 1 Complete] Result:`, audioResult);
     console.log(`[Benchmark Phase 1 Duration] ${audioDurationSec} seconds`);
 
     console.log('\n[Benchmark Phase 2] Starting GPU-Accelerated RealESRGAN Vulkan Super-Resolution...');
     const videoStart = Date.now();
-    
+
     const videoResult = await window.evaluate(async (pathVal) => {
         console.log('[Renderer] Starting GPU upscale from evaluation context...');
         return await window.electronAPI.upscaleVideo(pathVal);
@@ -83,7 +83,7 @@ async function runRealBenchmarks() {
 
     const videoEnd = Date.now();
     const videoDurationSec = ((videoEnd - videoStart) / 1000).toFixed(2);
-    
+
     console.log(`\n[Benchmark Phase 2 Complete] Result:`, videoResult);
     console.log(`[Benchmark Phase 2 Duration] ${videoDurationSec} seconds`);
 
@@ -122,7 +122,7 @@ async function runRealBenchmarks() {
     const mdReport = `
 # Vault Explorer Hardware Enhancement Benchmark Report
 
-Executed on local hardware via Playwright automated pipeline validation.
+Executed on local hardware via Patchright automated pipeline validation.
 
 ## Performance Metrics
 

@@ -10,10 +10,13 @@
 //   • On success we update window.allItems so a finished video isn't seen as
 //     "missing" again (the per-card DOM refresh is handled by app.js).
 
-(function() {
+(function () {
     const IDLE_MS = 60000;
     const BATCH_INTERVAL_MS = 120000; // 2 minutes between batches
     const BATCH_SIZE = 10;
+    const idleLog = (...args) => { if (window.appSettings?.devMode === true) console.log(...args); };
+    const idleWarn = (...args) => { if (window.appSettings?.devMode === true) console.warn(...args); };
+    const idleError = (...args) => { if (window.appSettings?.devMode === true) console.error(...args); };
 
     let idleTimeout = null;
     let nextBatchTimeout = null;
@@ -66,13 +69,13 @@
 
         const missing = findMissingPreviews();
         if (missing.length === 0) {
-            console.log('[Idle Previews] No videos missing previews. Idle runner stopped.');
+            idleLog('[Idle Previews] No videos missing previews. Idle runner stopped.');
             stopRunner();
             return;
         }
 
         const batch = missing.slice(0, BATCH_SIZE);
-        console.log(`[Idle Previews] Generating batch of ${batch.length} preview(s).`);
+        idleLog(`[Idle Previews] Generating batch of ${batch.length} preview(s).`);
         running = true;
         let result = null;
         try {
@@ -82,25 +85,27 @@
             const timeout = new Promise((resolve) => setTimeout(() => resolve({ timedOut: true }), 10 * 60 * 1000));
             result = await Promise.race([window.electronAPI.generateIdlePreviewBatch(batch), timeout]);
             if (result && result.timedOut) {
-                console.warn('[Idle Previews] Batch timed out after 10 min — stopping idle generation.');
+                idleWarn('[Idle Previews] Batch timed out after 10 min — stopping idle generation.');
                 batch.forEach(item => failedPaths.add(item.path));
                 result = null;
             }
         } catch (e) {
-            console.error('[Idle Previews] Batch call failed:', e && e.message);
+            idleError('[Idle Previews] Batch call failed:', e && e.message);
         }
         running = false;
 
-        console.log('[Idle Previews] Batch result:', result
-            ? { succeeded: result.succeeded, failed: result.failed, skipped: result.skipped,
-                results: (result.results || []).map(r => ({ file: (r.path || '').split(/[\\/]/).pop(), success: r.success, reason: r.reason })) }
+        idleLog('[Idle Previews] Batch result:', result
+            ? {
+                succeeded: result.succeeded, failed: result.failed, skipped: result.skipped,
+                results: (result.results || []).map(r => ({ file: (r.path || '').split(/[\\/]/).pop(), success: r.success, reason: r.reason }))
+            }
             : null);
 
         if (!isIdle) return; // user became active mid-batch
 
         // Cloud-backed folder or no usable result — don't keep trying.
         if (!result || result.skipped) {
-            console.log('[Idle Previews] Batch skipped/unavailable. Idle runner stopped.');
+            idleLog('[Idle Previews] Batch skipped/unavailable. Idle runner stopped.');
             stopRunner();
             return;
         }
@@ -117,7 +122,7 @@
         // Hard stop: a batch that produced nothing means these files can't be
         // processed — bail instead of spamming the same failures next cycle.
         if ((result.succeeded || 0) === 0) {
-            console.warn('[Idle Previews] Batch produced no previews — stopping idle generation.');
+            idleWarn('[Idle Previews] Batch produced no previews — stopping idle generation.');
             stopRunner();
             return;
         }
@@ -126,7 +131,7 @@
         if (findMissingPreviews().length > 0) {
             scheduleNextBatch();
         } else {
-            console.log('[Idle Previews] All videos have previews. Idle runner stopped.');
+            idleLog('[Idle Previews] All videos have previews. Idle runner stopped.');
             stopRunner();
         }
     }
@@ -142,7 +147,7 @@
         stopRunner();
         idleTimeout = setTimeout(() => {
             if (window.currentTab === 'files') {
-                console.log('[Idle Previews] User idle 60s. Starting preview crawl.');
+                idleLog('[Idle Previews] User idle 60s. Starting preview crawl.');
                 startRunner();
             }
         }, IDLE_MS);

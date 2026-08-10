@@ -4,65 +4,65 @@ window.appSettings = { folders: [] };
 window.currentLang = 'en';
 
 function setLanguage(lang) {
-  window.currentLang = lang;
-  el('lang-text').innerText = (lang === 'en') ? 'EN' : 'FR';
-  console.log('[i18n] Language set to:', lang);
-  
-  if (el('path-display')) el('path-display').title = window.translations[lang].browseVault;
-  
-  const filterType = el('filter-type');
-  filterType.options[0].text = window.translations[lang].videos;
-  filterType.options[1].text = window.translations[lang].images;
-  filterType.options[2].text = window.translations[lang].music;
-  filterType.options[3].text = window.translations[lang].allFiles;
-  
-  el('search-box').placeholder = window.translations[lang].searchPlaceholder;
-  if (el('btn-new-folder')) el('btn-new-folder').title = window.translations[lang].addFolder;
-  el('btn-refresh').title = window.translations[lang].refresh;
-  if (el('sort-label')) el('sort-label').innerText = window.translations[lang].sortLabel;
-  
-  const sortBy = el('sort-by');
-  sortBy.options[0].text = window.translations[lang].dateModified;
-  sortBy.options[1].text = window.translations[lang].name;
-  sortBy.options[2].text = window.translations[lang].size;
-  sortBy.options[3].text = window.translations[lang].type;
-  sortBy.options[4].text = window.translations[lang].duration;
-  
-  window.updateSortOrderButtonUI();
-  el('loading-text').innerText = window.translations[lang].scanning;
-  
-  const dialogLabel = document.querySelector('#fake-folder-dialog label');
-  if (dialogLabel) dialogLabel.innerText = window.translations[lang].enterFolderName;
-  if (el('btn-cancel-folder')) el('btn-cancel-folder').innerText = window.translations[lang].cancel;
-  if (el('btn-create-folder')) el('btn-create-folder').innerText = window.translations[lang].create;
-  
-  if (el('theme-btn-text')) el('theme-btn-text').innerText = window.translations[lang].theme;
-  const themeHeader = document.querySelector('.theme-panel-header');
-  if (themeHeader) themeHeader.innerText = window.translations[lang].theme;
-  
-  if (el('settings-btn-text')) el('settings-btn-text').innerText = window.translations[lang].settings;
-  const sHeader = document.querySelector('.settings-panel-header');
-  if (sHeader) sHeader.innerText = window.translations[lang].settings;
-  if (el('glob-exclusions-label')) el('glob-exclusions-label').innerText = window.translations[lang].globExclusionsLabel;
-  if (el('settings-btn-save')) el('settings-btn-save').innerText = window.translations[lang].save;
-  if (el('label-mute-previews')) el('label-mute-previews').innerText = window.translations[lang].mutePreviews;
+    window.currentLang = lang;
+    if (el('lang-text')) el('lang-text').innerText = (lang === 'en') ? 'EN' : 'FR';
+    console.log('[i18n] Language set to:', lang);
 
-  // Translate top-level application navigation tabs
-  const iconStyle = "width:13px; height:13px; flex-shrink:0;";
-  if (el('tab-files')) el('tab-files').innerHTML = `${window.icons ? window.icons.folder('tab-icon', iconStyle) : ''}${window.translations[lang].tabVault}`;
+    if (el('path-display')) el('path-display').title = window.translations[lang].browseVault;
 
-  if (!window.currentRealPath) {
-    el('path-display').innerText = window.translations[lang].noFolderSelected;
-  }
-  
-  const emptyStateH3 = document.querySelector('#file-grid .empty-state h3');
-  const emptyStateP = document.querySelector('#file-grid .empty-state p');
-  const emptyStateBtn = document.querySelector('#file-grid .empty-state button');
-  if (emptyStateH3) emptyStateH3.innerText = window.translations[lang].vaultEmpty;
-  if (emptyStateP) emptyStateP.innerText = window.translations[lang].clickBrowse;
-  if (emptyStateBtn) emptyStateBtn.innerText = window.translations[lang].browseVault;
-  
-  window.updateStatusBar();
+    const filterType = el('filter-type');
+    filterType.options[0].text = window.translations[lang].videos;
+    filterType.options[1].text = window.translations[lang].images;
+    filterType.options[2].text = window.translations[lang].music;
+    filterType.options[3].text = window.translations[lang].allFiles;
+
+    el('search-box').placeholder = window.translations[lang].searchPlaceholder;
+    if (el('btn-new-folder')) el('btn-new-folder').title = window.translations[lang].addFolder;
+    el('btn-refresh').title = window.translations[lang].refresh;
+    if (el('sort-label')) el('sort-label').innerText = window.translations[lang].sortLabel;
+
+    const sortBy = el('sort-by');
+    sortBy.options[0].text = window.translations[lang].dateModified;
+    sortBy.options[1].text = window.translations[lang].name;
+    sortBy.options[2].text = window.translations[lang].size;
+    sortBy.options[3].text = window.translations[lang].type;
+    sortBy.options[4].text = window.translations[lang].duration;
+
+    window.updateSortOrderButtonUI();
+    el('loading-text').innerText = window.translations[lang].scanning;
+
+    const dialogLabel = document.querySelector('#fake-folder-dialog label');
+    if (dialogLabel) dialogLabel.innerText = window.translations[lang].enterFolderName;
+    if (el('btn-cancel-folder')) el('btn-cancel-folder').innerText = window.translations[lang].cancel;
+    if (el('btn-create-folder')) el('btn-create-folder').innerText = window.translations[lang].create;
+
+    if (el('theme-btn-text')) el('theme-btn-text').innerText = window.translations[lang].theme;
+    const themeHeader = document.querySelector('.theme-panel-header');
+    if (themeHeader) themeHeader.innerText = window.translations[lang].theme;
+
+    if (el('settings-btn-text')) el('settings-btn-text').innerText = window.translations[lang].settings;
+    const sHeader = document.querySelector('.settings-panel-header');
+    if (sHeader) sHeader.innerText = window.translations[lang].settings;
+    if (el('glob-exclusions-label')) el('glob-exclusions-label').innerText = window.translations[lang].globExclusionsLabel;
+    if (el('settings-btn-save')) el('settings-btn-save').innerText = window.translations[lang].save;
+    if (el('label-mute-previews')) el('label-mute-previews').innerText = window.translations[lang].mutePreviews;
+
+    // Translate top-level application navigation tabs
+    const iconStyle = "width:13px; height:13px; flex-shrink:0;";
+    if (el('tab-files')) el('tab-files').innerHTML = `${window.icons ? window.icons.folder('tab-icon', iconStyle) : ''}${window.translations[lang].tabVault}`;
+
+    if (!window.currentRealPath) {
+        el('path-display').innerText = window.translations[lang].noFolderSelected;
+    }
+
+    const emptyStateH3 = document.querySelector('#file-grid .empty-state h3');
+    const emptyStateP = document.querySelector('#file-grid .empty-state p');
+    const emptyStateBtn = document.querySelector('#file-grid .empty-state button');
+    if (emptyStateH3) emptyStateH3.innerText = window.translations[lang].vaultEmpty;
+    if (emptyStateP) emptyStateP.innerText = window.translations[lang].clickBrowse;
+    if (emptyStateBtn) emptyStateBtn.innerText = window.translations[lang].browseVault;
+
+    window.updateStatusBar();
 }
 
 function updateSortOrderButtonUI() {
@@ -106,15 +106,15 @@ async function initApp() {
             getTheme: async () => ({ success: true, theme: 'golden-slate' }),
             setTheme: async (t) => ({ success: true }),
             findSubtitles: async (p) => [],
-            onWebmProgress: (cb) => {},
-            onNormalizeProgress: (cb) => {},
-            offNormalizeProgress: () => {},
-            offUpscaleChunk: () => {},
-            offUpscaleStatus: () => {},
-            onUpscaleStatus: (cb) => {},
-            onUpscaleChunk: (cb) => {},
+            onWebmProgress: (cb) => { },
+            onNormalizeProgress: (cb) => { },
+            offNormalizeProgress: () => { },
+            offUpscaleChunk: () => { },
+            offUpscaleStatus: () => { },
+            onUpscaleStatus: (cb) => { },
+            onUpscaleChunk: (cb) => { },
             startUpscaleStream: async () => ({ success: true }),
-            stopUpscaleStream: () => {},
+            stopUpscaleStream: () => { },
             encryptFiles: async () => ({ success: true }),
             decryptFiles: async () => ({ success: true }),
             pasteFiles: async () => ({ success: true }),
@@ -139,7 +139,7 @@ async function initApp() {
     if (window.appSettings.mutePreviews === undefined) window.appSettings.mutePreviews = false;
     if (!window.appSettings.lastPath) window.appSettings.lastPath = { navPath: 'root', realPath: '' };
     if (!window.appSettings.scrollPositions) window.appSettings.scrollPositions = {};
-    
+
     window.scrollPositions = window.appSettings.scrollPositions;
 
     const subSize = window.appSettings.subFontSize || '20px';
@@ -173,7 +173,7 @@ async function initApp() {
     window.initTabListeners();
     window.initNavigationListeners();
     window.initKeybindingsAndFolderListeners();
-    // Streaming (TMDB) and Livestream tabs were extracted out of this app.
+    // Catalog and livestream surfaces were extracted out of this app.
 
     // ── WebM Real-time Progress Tracking ─────────────────────────────────────
     window.electronAPI.onWebmProgress((data) => {
@@ -214,7 +214,7 @@ async function initApp() {
             const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
             const card = Array.from(document.querySelectorAll('.file-card'))
                 .find(c => normPath(c.dataset.path) === normPath(videoPath));
-                
+
             if (card) {
                 let overlay = card.querySelector('.webm-loading-overlay');
                 if (percent < 100) {
@@ -272,7 +272,7 @@ async function initApp() {
             if (!badge) return;
 
             badge.style.display = 'inline-flex';
-            
+
             // Get the label span (second child span)
             const labelSpan = badge.querySelector('span:nth-child(2)');
             if (labelSpan) {
@@ -296,14 +296,14 @@ async function initApp() {
 
     // Focus Lost (Window Blur) -> Pause hover webms cleanly
     window.addEventListener('blur', () => {
-         console.log('[window] Blur focus lost: pausing previews.');
-         if (window.killAllHoverVideos) {
-             window.killAllHoverVideos();
-         }
-         document.querySelectorAll('.file-card').forEach(card => {
-             const mainImg = card.querySelector('.thumbnail');
-             if (mainImg) mainImg.style.display = 'block';
-         });
+        console.log('[window] Blur focus lost: pausing previews.');
+        if (window.killAllHoverVideos) {
+            window.killAllHoverVideos();
+        }
+        document.querySelectorAll('.file-card').forEach(card => {
+            const mainImg = card.querySelector('.thumbnail');
+            if (mainImg) mainImg.style.display = 'block';
+        });
     });
 
     // Failsafe: Clear task badge after 5 minutes to prevent stuck messages
@@ -321,7 +321,7 @@ async function initApp() {
 
     // Default boot tab setup, deferred to run after full init
     window.vaultLoaded = false;
-    const validTabs = ['files', 'music', 'photoalbums', 'misc'];
+    const validTabs = ['files', 'music', 'photoalbums'];
     let homeTab = window.appSettings?.defaultHomeTab || 'files';
     if (homeTab === 'vault') homeTab = 'files';
     if (homeTab === 'photos') homeTab = 'photoalbums';
@@ -336,7 +336,7 @@ async function initApp() {
     // load. Fire-and-forget; the daemon loads in the background.
     if (window.electronAPI && typeof window.electronAPI.warmLiveSubtitles === 'function') {
         setTimeout(() => {
-            window.electronAPI.warmLiveSubtitles().catch(() => {});
+            window.electronAPI.warmLiveSubtitles().catch(() => { });
         }, 3000);
     }
 
@@ -344,12 +344,12 @@ async function initApp() {
     if (window.electronAPI && typeof window.electronAPI.onInitialFile === 'function') {
         window.electronAPI.onInitialFile((filePath) => {
             console.log('[app] Received initial file from CLI:', filePath);
-            
+
             // Switch to files tab since the player lives there
             if (typeof window.switchTab === 'function') {
                 window.switchTab('files');
             }
-            
+
             // Wait a tick for player/DOM init
             setTimeout(() => {
                 const isVideo = /\.(mp4|webm|mkv|avi|mov)$/i.test(filePath);
@@ -361,7 +361,7 @@ async function initApp() {
                     };
                     if (!window.displayedItems) window.displayedItems = [];
                     window.displayedItems.push(item);
-                    
+
                     if (typeof window.playItem === 'function') {
                         // Play the item we just added
                         window.playItem(window.displayedItems.length - 1);

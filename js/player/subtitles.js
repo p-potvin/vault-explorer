@@ -1,4 +1,23 @@
-// subtitles.js — manages subtitle track finding, downloading OpenSubtitles srt sidecars, and subtitle menu populating/track selection.
+// subtitles.js — manages local subtitle tracks, AI live captions, and track selection.
+
+window.SUBTITLE_CUE_LINE = -4;
+
+function raiseTrackCues(track) {
+    if (!track) return;
+    const apply = () => {
+        if (!track.cues || !track.cues.length) return false;
+        for (let i = 0; i < track.cues.length; i++) {
+            try { track.cues[i].line = window.SUBTITLE_CUE_LINE; } catch (_) { /* ignore */ }
+        }
+        return true;
+    };
+    if (apply()) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+        if (apply() || ++tries > 20) clearInterval(timer);
+    }, 150);
+}
+window.raiseTrackCues = raiseTrackCues;
 
 async function selectSubtitleTrack(trackIdx) {
     const vp = el('video-player');
@@ -19,57 +38,16 @@ async function selectSubtitleTrack(trackIdx) {
         vp.textTracks[i].mode = 'disabled';
     }
 
-    // Toggle subtitle padding class on video wrapper
-    const videoWrapper = document.querySelector('.video-wrapper');
-    if (videoWrapper) {
-        if (trackIdx >= 0 && vp.textTracks[trackIdx]) {
-            videoWrapper.classList.add('subtitles-active');
-        } else {
-            videoWrapper.classList.remove('subtitles-active');
-        }
-    }
-
-    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
     if (trackIdx >= 0 && vp.textTracks[trackIdx]) {
-        const trackEl = vp.querySelectorAll('track')[trackIdx];
-        if (trackEl && trackEl.dataset.opensubtitles === "true" && trackEl.dataset.downloaded === "false") {
-            window.showToast(t.downloadingSubtitles || 'Downloading subtitles...', 'success');
-            try {
-                const fileId = trackEl.dataset.fileId;
-                const lang = trackEl.dataset.lang;
-                const videoPath = trackEl.dataset.videoPath;
-
-                const localPath = await window.electronAPI.downloadSubtitleTrack({ fileId, lang, videoPath });
-                if (localPath) {
-                    trackEl.src = window.sanitizePath(localPath);
-                    trackEl.dataset.downloaded = "true";
-                    window.showToast(t.subtitlesReady || 'Subtitles ready', 'success');
-
-                    vp.textTracks[trackIdx].mode = 'disabled';
-                    setTimeout(() => {
-                        const vpReal = el('video-player');
-                        if (vpReal && vpReal.textTracks[trackIdx]) {
-                            vpReal.textTracks[trackIdx].mode = 'showing';
-                        }
-                    }, 50);
-                } else {
-                    throw new Error("Empty path");
-                }
-            } catch (err) {
-                console.error("OpenSubtitles download failed:", err);
-                window.showToast(t.downloadFailed || 'Download failed', 'error');
-                return;
-            }
-        }
-
         vp.textTracks[trackIdx].mode = 'showing';
+        if (typeof window.raiseTrackCues === 'function') window.raiseTrackCues(vp.textTracks[trackIdx]);
     }
 
     const btn = el('btn-subtitles');
     if (btn) {
         btn.classList.toggle('active', trackIdx >= 0);
         // Show only 2-letter language code in button
-        const rawLang = (trackIdx >= 0 && vp.textTracks[trackIdx]) 
+        const rawLang = (trackIdx >= 0 && vp.textTracks[trackIdx])
             ? (vp.textTracks[trackIdx].language || vp.textTracks[trackIdx].label || 'CC')
             : 'CC';
         const ccText = rawLang.substring(0, 2).toUpperCase();
@@ -111,27 +89,18 @@ function selectSubtitleByIndex(idx) {
     const sub = window._allAvailableSubtitles[idx];
     const vp = el('video-player');
     if (!vp) return;
-    
+
     // Remove all existing tracks
     vp.querySelectorAll('track').forEach(t => t.remove());
-    
+
     // Create and load the selected subtitle
     const track = document.createElement('track');
     track.kind = 'subtitles';
     track.label = sub.label || `Track ${idx + 1}`;
-    track.srclang = sub.lang || '';
-    if (sub.isOpenSubtitles) {
-        track.dataset.opensubtitles = "true";
-        track.dataset.fileId = sub.fileId || '';
-        track.dataset.lang = sub.lang || '';
-        track.dataset.videoPath = sub.videoPath || '';
-        track.dataset.downloaded = "false";
-        track.src = "";
-    } else {
-        track.src = window.sanitizePath(sub.path);
-    }
+    track.srclang = sub.lang || 'und';
+    track.src = window.sanitizePath(sub.path);
     vp.appendChild(track);
-    
+
     // Set it as showing
     const trackIndex = vp.textTracks.length - 1;
     selectSubtitleTrack(trackIndex);
@@ -150,13 +119,20 @@ function refreshSubtitlesList() {
             const opt = document.createElement('div');
             opt.className = 'subtitle-option';
             opt.dataset.idx = idx;
-            opt.dataset.isOpensubtitles = sub.isOpenSubtitles ? 'true' : 'false';
-            opt.dataset.fileId = sub.fileId || '';
-            opt.dataset.lang = sub.lang || '';
+            opt.dataset.lang = sub.lang || 'und';
             opt.dataset.path = sub.path || '';
             opt.dataset.label = sub.label || '';
-            opt.style.cssText = 'padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;';
-            opt.textContent = sub.label || `Track ${idx + 1}`;
+
+            const label = document.createElement('span');
+            label.className = 'subtitle-option-label';
+            label.textContent = sub.path ? sub.path.split(/[\\\\/]/).pop() : `Track ${idx + 1}`;
+
+            const languagePill = document.createElement('span');
+            languagePill.className = 'subtitle-language-pill';
+            languagePill.title = sub.label || 'Original';
+            languagePill.textContent = sub.label || 'Original';
+
+            opt.append(label, languagePill);
 
             // Active iff this idx matches the renderer's explicit selection.
             const isActive = window._selectedSubtitleIdx === idx;
@@ -207,6 +183,7 @@ function refreshSubtitlesList() {
         offOption.style.fontWeight = offActive ? '600' : 'normal';
         offOption.onclick = (e) => {
             e.stopPropagation();
+            if (window._liveSubActive) window.stopLiveSubtitles(true);
             window._selectedSubtitleIdx = -1;
             selectSubtitleTrack(-1);
             el('subtitles-menu').style.display = 'none';
@@ -256,7 +233,7 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
 
         const languages = [
             { code: 'en', name: 'English (EN)' },
-            { code: 'qc', name: 'French / Québécois (FR)' },
+            { code: 'qc', name: 'Québécois (QC)' },
             { code: 'es', name: 'Spanish (ES)' },
             { code: 'de', name: 'German (DE)' },
             { code: 'it', name: 'Italian (IT)' },
@@ -432,11 +409,11 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
 
         const btnRow = document.createElement('div');
         btnRow.style.cssText = 'display:flex; justify-content:flex-end; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:6px; margin-top:4px;';
-        
+
         const cancelBtn = document.createElement('button');
         cancelBtn.style.cssText = 'background:transparent; border:1px solid var(--vault-border, rgba(255,255,255,0.15)); color:var(--vault-text, #fff); font-size:10px; font-weight:600; padding:4px 8px; border-radius:4px; cursor:pointer; font-family:var(--font-mono);';
         cancelBtn.textContent = t.cancel || 'Cancel';
-        
+
         const cleanup = () => {
             menu.remove();
             document.removeEventListener('mousedown', onMouseDown);
@@ -518,15 +495,24 @@ function startLiveSubtitleSession(videoPath, itemName, langs, volumeBoost) {
     const primaryLang = (langs && langs[0]) || 'en';
     const startTime = Math.max(0, (vp.currentTime || 0) - 1.0);
 
-    // In-memory text track — no <track> element needed; the browser renders and
-    // syncs its cues to currentTime automatically.
-    const track = vp.addTextTrack('subtitles', `AI Live (${primaryLang.toUpperCase()})`, primaryLang);
+    // Use a real track element so the live track can be removed cleanly when
+    // switching videos or returning to a local sidecar.
+    const trackElement = document.createElement('track');
+    trackElement.kind = 'subtitles';
+    trackElement.label = `AI Live (${primaryLang.toUpperCase()})`;
+    trackElement.srclang = primaryLang;
+    const trackUrl = URL.createObjectURL(new Blob(['WEBVTT\\n\\n'], { type: 'text/vtt' }));
+    trackElement.src = trackUrl;
+    vp.appendChild(trackElement);
+    const track = trackElement.track;
     track.mode = 'showing';
 
     window._liveSubTrack = track;
+    window._liveSubTrackElement = trackElement;
+    window._liveSubTrackUrl = trackUrl;
     window._liveSubVideoPath = videoPath;
     window._liveSubActive = true;
-    window._selectedSubtitleIdx = -1; // our track isn't in the sidecar catalog
+    window._selectedSubtitleIdx = -1;
 
     // The picked primary language is the desired output language: transcribe in
     // the spoken language (auto-detected) and translate finals to it. Same-lang
@@ -574,7 +560,13 @@ window.stopLiveSubtitles = function stopLiveSubtitles(clearTrack) {
                 }
             }
         } catch (e) { /* noop */ }
+        if (window._liveSubTrackElement) window._liveSubTrackElement.remove();
+        if (window._liveSubTrackUrl) {
+            try { URL.revokeObjectURL(window._liveSubTrackUrl); } catch (_) { }
+        }
         window._liveSubTrack = null;
+        window._liveSubTrackElement = null;
+        window._liveSubTrackUrl = null;
         window._liveSubVideoPath = null;
         window._livePartialCue = null;
         window._lastLiveCue = null;
@@ -608,7 +600,7 @@ function ensureLiveSubtitleListeners() {
 
             const vp = el('video-player');
             console.log(`[live-subs] +FINAL [${s.toFixed(2)}-${e.toFixed(2)}] "${cue.text}" ` +
-                        `(playhead=${vp ? vp.currentTime.toFixed(1) : '?'}s, offset=${off.toFixed(2)}s, cues=${track.cues ? track.cues.length : '?'})`);
+                `(playhead=${vp ? vp.currentTime.toFixed(1) : '?'}s, offset=${off.toFixed(2)}s, cues=${track.cues ? track.cues.length : '?'})`);
         } catch (e) {
             console.warn('[live-subs] addCue failed', cue, e);
         }
@@ -718,36 +710,6 @@ function initSubtitleListeners() {
     if (offMinus) offMinus.addEventListener('click', (e) => { e.stopPropagation(); adjustSubtitleOffset(-0.25); });
     if (offPlus) offPlus.addEventListener('click', (e) => { e.stopPropagation(); adjustSubtitleOffset(0.25); });
 
-    // Collapsible "More subtitles…" section — keeps the menu compact.
-    const moreBtn = el('opt-more-subs');
-    const morePanel = el('subtitles-more-panel');
-    const moreCaret = el('more-subs-caret');
-    if (moreBtn && morePanel) {
-        moreBtn.addEventListener('mouseenter', () => { moreBtn.style.background = 'rgba(245,185,41,0.08)'; });
-        moreBtn.addEventListener('mouseleave', () => { moreBtn.style.background = 'transparent'; });
-        moreBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const open = morePanel.style.display !== 'none';
-            morePanel.style.display = open ? 'none' : 'block';
-            if (moreCaret) moreCaret.textContent = open ? '▸' : '▾';
-        });
-    }
-
-    // ── Quick-lang search buttons (English / French CA / French) ─────────
-    // Searches OpenSubtitles with a narrow `languages` filter for the
-    // currently-playing title, picks the best result (FR-CA preferred over
-    // FR-FR when the user asked for 'fr-CA'), loads it as a track.
-    document.querySelectorAll('.subtitle-quick-lang').forEach(btn => {
-        btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(245,185,41,0.08)'; });
-        btn.addEventListener('mouseleave', () => { btn.style.background = 'transparent'; });
-        btn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const lang = btn.dataset.lang || 'en';
-            el('subtitles-menu').style.display = 'none';
-            await searchAndLoadSubtitlesByLang(lang);
-        });
-    });
-
     const optGen = el('opt-generate-subtitle');
     if (optGen) {
         optGen.addEventListener('click', async (e) => {
@@ -776,19 +738,28 @@ function initSubtitleListeners() {
                 return;
             }
 
-            const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
-            // Anchor to the persistent CC button — optGen lives in the menu we
-            // just hid, and a hidden element reports a zero-size rect.
-            const asrAnchor = el('btn-subtitles') || optGen;
-            const asrConfig = await showAsrContextMenu(asrAnchor, defaultLangs);
-            const langs = Array.isArray(asrConfig) ? asrConfig : (asrConfig && asrConfig.langs);
-            const volumeBoost = Array.isArray(asrConfig) ? 1.5 : (asrConfig && asrConfig.volumeBoost) || 1.5;
-            if (!langs || langs.length === 0) return;
+            const savedLangs = window.appSettings && Array.isArray(window.appSettings.preferredASRLangs)
+                ? window.appSettings.preferredASRLangs.filter(Boolean)
+                : [];
+            const shouldChooseLanguages = savedLangs.length === 0 || e.altKey || e.shiftKey;
+            let langs = savedLangs.length ? savedLangs : ['en'];
+            let volumeBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
 
-            if (!window.appSettings) window.appSettings = {};
-            window.appSettings.preferredASRLangs = langs;
-            window.appSettings.asrVolumeBoost = volumeBoost;
-            window.electronAPI.saveSettings(window.appSettings);
+            if (shouldChooseLanguages) {
+                // Anchor to the persistent CC button — optGen lives in the menu
+                // we just hid, and a hidden element reports a zero-size rect.
+                const asrAnchor = el('btn-subtitles') || optGen;
+                const asrConfig = await showAsrContextMenu(asrAnchor, langs);
+                const chosenLangs = Array.isArray(asrConfig) ? asrConfig : (asrConfig && asrConfig.langs);
+                if (!chosenLangs || chosenLangs.length === 0) return;
+                langs = chosenLangs;
+                volumeBoost = Array.isArray(asrConfig) ? volumeBoost : (asrConfig.volumeBoost || volumeBoost);
+
+                if (!window.appSettings) window.appSettings = {};
+                window.appSettings.preferredASRLangs = langs;
+                window.appSettings.asrVolumeBoost = volumeBoost;
+                await window.electronAPI.saveSettings(window.appSettings);
+            }
 
             startLiveSubtitleSession(videoPath, itemName, langs, volumeBoost);
         });
@@ -808,6 +779,8 @@ function initSubtitleListeners() {
         track.src = URL.createObjectURL(file);
 
         vp.appendChild(track);
+        window._allAvailableSubtitles = [{ label: file.name, lang: 'und', path: track.src, isLocal: true }];
+        window._selectedSubtitleIdx = 0;
         refreshSubtitlesList();
 
         const trackIdx = vp.textTracks.length - 1;
@@ -819,106 +792,26 @@ function initSubtitleListeners() {
     });
 }
 
-// Fetch OpenSubtitles results for a narrow language filter and load the best
-// match as a track. Reuses the existing find-subtitles IPC (extended with a
-// 4th `langsOverride` param) and the existing addSubtitleTrack logic.
-//
-// Language presets:
-//   'en'    -> just English
-//   'fr-CA' -> Quebec/Canadian French preferred; falls back to fr-FR/fr
-//   'fr'    -> any French (FR-FR first, then FR-CA)
-async function searchAndLoadSubtitlesByLang(lang) {
-    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
-
-    // Resolve a video path + query title for both local and stream contexts.
-    let videoPath = null;
-    let queryTitle = null;
-    if (window.currentPlayingItem && window.currentPlayingItem.path) {
-        videoPath = window.currentPlayingItem.path;
-        queryTitle = window.currentPlayingItem.name;
-    } else if (window.activeStreamingMedia) {
-        videoPath = (el('video-player') && el('video-player').src) || '';
-        queryTitle = window.activeStreamingMedia.title;
-    }
-    if (!queryTitle) {
-        window.showToast('No active title to search subtitles for', 'error');
-        return;
-    }
-
-    // Translate the picker code to OpenSubtitles language codes. fr-CA is
-    // a valid OpenSubtitles language code; we ask for fr too as a fallback.
-    const langsParam = lang === 'fr-CA' ? 'fr-CA,fr'
-                    : lang === 'fr'    ? 'fr,fr-CA'
-                    : 'en';
-
-    window.showToast(`Searching OpenSubtitles for ${lang.toUpperCase()}…`, 'info');
-    let results = [];
-    try {
-        results = await window.electronAPI.findSubtitles(videoPath, queryTitle, false, langsParam) || [];
-    } catch (err) {
-        console.error('[subtitles] quick-lang search failed:', err);
-        window.showToast('Subtitle search failed', 'error');
-        return;
-    }
-    // Keep only OpenSubtitles hits (we already cover local sidecars elsewhere).
-    const osHits = results.filter(s => s.isOpenSubtitles);
-    if (osHits.length === 0) {
-        window.showToast(`No ${lang.toUpperCase()} subtitles found for "${queryTitle}"`, 'warning');
-        return;
-    }
-    // Canadian-French priority: when the user asked for fr-CA, surface any
-    // result whose language code starts with 'fr-ca' first; FR otherwise.
-    const want = lang.toLowerCase();
-    osHits.sort((a, b) => {
-        const aL = (a.lang || '').toLowerCase();
-        const bL = (b.lang || '').toLowerCase();
-        const aMatch = aL === want ? 0 : aL.startsWith(want.split('-')[0]) ? 1 : 2;
-        const bMatch = bL === want ? 0 : bL.startsWith(want.split('-')[0]) ? 1 : 2;
-        return aMatch - bMatch;
-    });
-    const chosen = osHits[0];
-
-    // Merge into the menu's catalog (stamp videoPath so the download IPC
-    // knows where to write the SRT/VTT sidecar — or to use a stream-safe
-    // path when videoPath is a stream URL).
-    window._allAvailableSubtitles = window._allAvailableSubtitles || [];
-    osHits.forEach(h => {
-        h.videoPath = videoPath || '';
-        if (!window._allAvailableSubtitles.some(x => x.fileId === h.fileId)) {
-            window._allAvailableSubtitles.push(h);
-        }
-    });
-
-    // Find the chosen sub's index in the catalog and let selectSubtitleByIndex
-    // own the actual <track> create + lazy-download + select chain.
-    const chosenIdx = window._allAvailableSubtitles.findIndex(s => s.fileId === chosen.fileId);
-    if (chosenIdx >= 0) {
-        selectSubtitleByIndex(chosenIdx);
-    }
-    refreshSubtitlesList();
-    window.showToast(`Loaded ${(chosen.label || lang.toUpperCase())}`, 'success');
-}
-
 async function loadActiveSubtitles(videoPath) {
     const vpReal = el('video-player');
     if (!vpReal) return;
     vpReal.querySelectorAll('track').forEach(t => t.remove());
     try {
-        const subs = await window.electronAPI.findSubtitles(videoPath, null, true);
-        
+        const subs = await window.electronAPI.findSubtitles(videoPath);
+
         // Store all available subtitles for the menu
         window._allAvailableSubtitles = subs || [];
-        
+
         if (subs && subs.length > 0) {
             // Find the best matching subtitle for user's preferred language
             const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
             let bestSub = null;
-            
+
             // Priority order: 1. Exact match with prefLang, 2. Language starts with prefLang, 3. Original, 4. First available
             for (const sub of subs) {
                 const subLang = sub.lang || '';
                 const subLabel = sub.label || '';
-                
+
                 if (prefLang === 'original' && subLabel.toLowerCase() === 'original') {
                     bestSub = sub;
                     break;
@@ -930,31 +823,23 @@ async function loadActiveSubtitles(videoPath) {
                     break;
                 }
             }
-            
+
             // If no exact match, fall back to first subtitle
             if (!bestSub && subs.length > 0) {
                 bestSub = subs[0];
             }
-            
+
             // Only load the best matching subtitle
             if (bestSub) {
                 const track = document.createElement('track');
                 track.kind = 'subtitles';
-                track.label = bestSub.isOpenSubtitles ? bestSub.label : (bestSub.label === 'Original' ? 'original' : `Subtitles (${bestSub.label})`);
-                track.srclang = bestSub.lang;
-                if (bestSub.isOpenSubtitles) {
-                    track.dataset.opensubtitles = "true";
-                    track.dataset.fileId = bestSub.fileId;
-                    track.dataset.lang = bestSub.lang;
-                    track.dataset.videoPath = videoPath;
-                    track.dataset.downloaded = "false";
-                    track.src = "";
-                } else {
-                    track.src = window.sanitizePath(bestSub.path);
-                }
+                track.label = bestSub.label || 'Original';
+                track.srclang = bestSub.lang || 'und';
+                track.src = window.sanitizePath(bestSub.path);
                 vpReal.appendChild(track);
             }
-            
+
+            window._selectedSubtitleIdx = bestSub ? subs.indexOf(bestSub) : -1;
             refreshSubtitlesList();
             selectSubtitleTrack(bestSub ? 0 : -1);
         } else {

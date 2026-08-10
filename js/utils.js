@@ -3,11 +3,11 @@ var el = id => document.getElementById(id);
 function escapeHtml(unsafe) {
   if (typeof unsafe !== 'string') return unsafe;
   return unsafe
-       .replace(/&/g, "&amp;")
-       .replace(/</g, "&lt;")
-       .replace(/>/g, "&gt;")
-       .replace(/"/g, "&quot;")
-       .replace(/'/g, "&#039;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function formatBytes(bytes) {
@@ -35,7 +35,7 @@ function sanitizePath(p) {
   if (!p) return '';
   const standardized = p.replace(/\\/g, '/');
   const encoded = standardized.split('/').map(segment => encodeURIComponent(segment).replace(/'/g, "%27")).join('/');
-  const decodedDrive = encoded.replace(/^([a-zA-Z])%3A\//, '$1:/'); 
+  const decodedDrive = encoded.replace(/^([a-zA-Z])%3A\//, '$1:/');
   return 'file:///' + decodedDrive;
 }
 
@@ -60,25 +60,25 @@ function showClipboardNotification(message) {
   pill.style.display = 'flex';
   pill.style.alignItems = 'center';
   pill.style.gap = '8px';
-  
+
   pill.innerHTML = `
     ${window.icons ? window.icons.checkmark('', 'width: 14px; height: 14px; stroke-width: 3;') : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><polyline points="20 6 9 17 4 12"></polyline></svg>'}
     <span>${message}</span>
   `;
-  
+
   document.body.appendChild(pill);
-  
+
   requestAnimationFrame(() => {
-      pill.style.opacity = '1';
-      pill.style.transform = 'translateX(-50%) translateY(0)';
+    pill.style.opacity = '1';
+    pill.style.transform = 'translateX(-50%) translateY(0)';
   });
-  
+
   setTimeout(() => {
-      pill.style.opacity = '0';
-      pill.style.transform = 'translateX(-50%) translateY(-20px)';
-      setTimeout(() => {
-          pill.remove();
-      }, 500);
+    pill.style.opacity = '0';
+    pill.style.transform = 'translateX(-50%) translateY(-20px)';
+    setTimeout(() => {
+      pill.remove();
+    }, 500);
   }, 2200);
 }
 
@@ -86,62 +86,61 @@ function showClipboardNotification(message) {
 // When Dev Mode is OFF (default), suppress chatty non-essential toasts and
 // route console.log/info/debug to no-ops. Errors always show and ALSO clear
 // any pending toasts in the queue so the urgent message stands alone.
-window.isDevMode = function() {
-    return !!(window.appSettings && window.appSettings.devMode === true);
+window.isDevMode = function () {
+  return !!(window.appSettings && window.appSettings.devMode === true);
 };
 
 // Substring patterns (case-insensitive) of non-essential informational
 // toasts to suppress in non-dev mode. Add freely as new noise crops up.
 const _TOAST_NOISE_PATTERNS = [
-    'direct high-speed',
-    'direct high speed',
-    'subtitles loading',
-    'downloading subtitles',
-    'subtitles ready',
-    'subtitles reset',
-    'subtitles loaded',
-    'auto-selecting',
-    'switching to',
-    'opening in default app',
-    'opened in windows explorer',
-    'views refreshed',
-    'loaded ',           // generic "Loaded X" toasts (sub loads etc.)
-    'searching opensubtitles',
-    'loading favorites',
-    'resuming stream',
+  'direct high-speed',
+  'direct high speed',
+  'subtitles loading',
+  'downloading subtitles',
+  'subtitles ready',
+  'subtitles reset',
+  'subtitles loaded',
+  'auto-selecting',
+  'switching to',
+  'opening in default app',
+  'opened in windows explorer',
+  'views refreshed',
+  'loaded ',           // generic "Loaded X" toasts (sub loads etc.)
+  'loading favorites',
+  'resuming stream',
 ];
 
 function _isToastNoise(message) {
-    if (!message) return false;
-    const m = String(message).toLowerCase();
-    return _TOAST_NOISE_PATTERNS.some(p => m.includes(p));
+  if (!message) return false;
+  const m = String(message).toLowerCase();
+  return _TOAST_NOISE_PATTERNS.some(p => m.includes(p));
 }
 
 function showToast(message, type = 'success') {
   const msgLower = (message || '').toLowerCase();
   const isClipboard = msgLower.includes('copied') || msgLower.includes('presse-papiers') || msgLower.includes('press-papiers') || msgLower.includes('cut ') || msgLower.includes('pasted');
   if (isClipboard && type === 'success') {
-      showClipboardNotification(message);
-      return;
+    showClipboardNotification(message);
+    return;
   }
 
   let container = document.getElementById('toast-container');
 
   // Errors are always urgent — clear the queue so this toast stands alone.
   if (type === 'error' && container) {
-      container.querySelectorAll('.toast').forEach(t => t.remove());
+    container.querySelectorAll('.toast').forEach(t => t.remove());
   }
 
   // Non-dev mode: drop low-signal toasts.
   if (type !== 'error' && type !== 'warning' && !window.isDevMode() && _isToastNoise(message)) {
-      return;
+    return;
   }
 
   if (!container) {
-      container = document.createElement('div');
-      container.id = 'toast-container';
-      container.className = 'toast-container';
-      document.body.appendChild(container);
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
   }
 
   const toast = document.createElement('div');
@@ -156,28 +155,28 @@ function showToast(message, type = 'success') {
   container.appendChild(toast);
 
   requestAnimationFrame(() => {
-      toast.classList.add('show');
+    toast.classList.add('show');
   });
 
   setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => {
-          toast.remove();
-      }, 300);
+    toast.classList.remove('show');
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
   }, 3000);
 }
 
 // Console gating: route .log/.info/.debug through a check so they're silent
 // in non-dev mode. .warn/.error always pass through. Wrap once.
 (function gateConsole() {
-    if (window._consoleGated) return;
-    window._consoleGated = true;
-    const origLog = console.log.bind(console);
-    const origInfo = console.info.bind(console);
-    const origDebug = console.debug.bind(console);
-    console.log = (...args) => { if (window.isDevMode()) origLog(...args); };
-    console.info = (...args) => { if (window.isDevMode()) origInfo(...args); };
-    console.debug = (...args) => { if (window.isDevMode()) origDebug(...args); };
+  if (window._consoleGated) return;
+  window._consoleGated = true;
+  const origLog = console.log.bind(console);
+  const origInfo = console.info.bind(console);
+  const origDebug = console.debug.bind(console);
+  console.log = (...args) => { if (window.isDevMode()) origLog(...args); };
+  console.info = (...args) => { if (window.isDevMode()) origInfo(...args); };
+  console.debug = (...args) => { if (window.isDevMode()) origDebug(...args); };
 })();
 
 function attachHoverWebmToCard(card, hoverWebmPath) {
@@ -186,40 +185,40 @@ function attachHoverWebmToCard(card, hoverWebmPath) {
   const mainImg = card.querySelector('.thumbnail');
   const thumbCont = card.querySelector('.thumbnail-container');
   if (!mainImg || !thumbCont) return;
-  
+
   card.addEventListener('mouseenter', () => {
-       clearTimeout(wT);
-       wT = setTimeout(() => {
-          if (!document.body.contains(card) || card.offsetParent === null) return;
-          if (window.hoverAudioPreview) {
-              try { window.hoverAudioPreview.pause(); } catch(e) {}
-              window.hoverAudioPreview = null;
-          }
-          if (thumbCont.querySelector('video.trickplay')) return;
-          let v = document.createElement('video');
-          v.src = sanitizePath(hoverWebmPath);
-          const isMuted = window.appSettings && window.appSettings.mutePreviews === true;
-          v.autoplay = true; v.loop = true; v.muted = isMuted; v.volume = 0.5; v.className = 'trickplay';
-          v.style.display = 'block'; v.style.objectFit = 'cover';
-          thumbCont.appendChild(v);
-          mainImg.style.display = 'none';
-       }, 300);
+    clearTimeout(wT);
+    wT = setTimeout(() => {
+      if (!document.body.contains(card) || card.offsetParent === null) return;
+      if (window.hoverAudioPreview) {
+        try { window.hoverAudioPreview.pause(); } catch (e) { }
+        window.hoverAudioPreview = null;
+      }
+      if (thumbCont.querySelector('video.trickplay')) return;
+      let v = document.createElement('video');
+      v.src = sanitizePath(hoverWebmPath);
+      const isMuted = window.appSettings && window.appSettings.mutePreviews === true;
+      v.autoplay = true; v.loop = true; v.muted = isMuted; v.volume = 0.5; v.className = 'trickplay';
+      v.style.display = 'block'; v.style.objectFit = 'cover';
+      thumbCont.appendChild(v);
+      mainImg.style.display = 'none';
+    }, 300);
   });
   card.addEventListener('mouseleave', () => {
-      clearTimeout(wT);
-      const v = thumbCont.querySelector('video.trickplay');
-      if(v) { v.pause(); v.src = ""; v.remove(); }
-      if(mainImg) mainImg.style.display = 'block';
+    clearTimeout(wT);
+    const v = thumbCont.querySelector('video.trickplay');
+    if (v) { v.pause(); v.src = ""; v.remove(); }
+    if (mainImg) mainImg.style.display = 'block';
   });
 }
 
 function killAllHoverVideos() {
   document.querySelectorAll('#file-grid video.trickplay').forEach(v => {
-      try { v.pause(); v.src = ''; v.remove(); } catch(e) {}
+    try { v.pause(); v.src = ''; v.remove(); } catch (e) { }
   });
   if (window.hoverAudioPreview) {
-      try { window.hoverAudioPreview.pause(); } catch(e) {}
-      window.hoverAudioPreview = null;
+    try { window.hoverAudioPreview.pause(); } catch (e) { }
+    window.hoverAudioPreview = null;
   }
 }
 
@@ -230,16 +229,16 @@ function showConfirmDialog(message, title) {
     const titleEl = document.getElementById('confirm-title');
     const btnCancel = document.getElementById('btn-confirm-cancel');
     const btnOk = document.getElementById('btn-confirm-ok');
-    
+
     if (!dialog) {
       resolve(confirm(message));
       return;
     }
-    
+
     titleEl.textContent = title || (window.currentLang === 'fr' ? 'Action système requise' : 'System Action Required');
     msgEl.textContent = message;
     dialog.style.display = 'block';
-    
+
     let backdrop = document.getElementById('dialog-backdrop');
     if (!backdrop) {
       backdrop = document.createElement('div');
@@ -255,7 +254,7 @@ function showConfirmDialog(message, title) {
       document.body.appendChild(backdrop);
     }
     backdrop.style.display = 'block';
-    
+
     const cleanup = (value) => {
       dialog.style.display = 'none';
       if (backdrop) backdrop.style.display = 'none';
@@ -263,10 +262,10 @@ function showConfirmDialog(message, title) {
       btnOk.removeEventListener('click', onOk);
       resolve(value);
     };
-    
+
     function onCancel() { cleanup(false); }
     function onOk() { cleanup(true); }
-    
+
     btnCancel.addEventListener('click', onCancel);
     btnOk.addEventListener('click', onOk);
   });
@@ -301,8 +300,7 @@ function browseTabFolder(tabName) {
     if (!folderPath) return;
     const keyMap = {
       'music': 'defaultFolderAudio',
-      'photoalbums': 'defaultFolderAlbums',
-      'misc': 'defaultFolderMisc'
+      'photoalbums': 'defaultFolderAlbums'
     };
     const key = keyMap[tabName] || ('defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
     window.appSettings[key] = folderPath;
@@ -311,13 +309,11 @@ function browseTabFolder(tabName) {
     }
     const navName = folderPath.split(/[\\/]/).pop() || 'root';
     if (window.loadDirectory) {
-      // Render the tab's view AFTER the scan resolves — renderAudio/renderAlbums/
-      // renderMisc read window.allItems, which loadDirectory populates async, so
-      // rendering before it finished left Music/Photos/Others empty.
+      // Render the tab's view after the scan resolves so it reads the populated item list.
       Promise.resolve(window.loadDirectory('root/' + navName, folderPath, true)).then(() => {
         if (tabName === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
         else if (tabName === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
-        else if (tabName === 'misc' && typeof window.renderMisc === 'function') window.renderMisc();
+
       });
     }
   });
@@ -327,7 +323,7 @@ function getTabDefaultFolder(tabName) {
   const keyMap = {
     'music': 'defaultFolderAudio',
     'photoalbums': 'defaultFolderAlbums',
-    'misc': 'defaultFolderMisc'
+
   };
   const key = keyMap[tabName] || ('defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
   return window.appSettings[key] || window.appSettings.defaultFolder || null;

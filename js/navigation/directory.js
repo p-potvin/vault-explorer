@@ -51,7 +51,7 @@ function clearSearchBox() {
 
 async function loadDirectory(navPath, realPath, useCache = false, targetFolderId = undefined) {
     if (!realPath && navPath !== 'root') return;
-    
+
     let newFolderId = null;
     if (targetFolderId !== undefined) {
         newFolderId = targetFolderId;
@@ -64,17 +64,17 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
             newFolderId = null;
         }
     }
-    
+
     if (newFolderId && (!window.vf || !window.vf.get(newFolderId))) {
         newFolderId = null;
     }
-    
+
     window.currentFolderId = newFolderId;
     window.currentNavPath = window.currentFolderId ? window.buildNavPath(window.currentFolderId) : navPath;
     window.currentRealPath = realPath || '';
 
-    const displayPath = navPath === 'root' 
-        ? (realPath || (window.translations[window.currentLang].noFolderSelected || 'No folder selected...')) 
+    const displayPath = navPath === 'root'
+        ? (realPath || (window.translations[window.currentLang].noFolderSelected || 'No folder selected...'))
         : getDisplayPath(navPath);
     el('path-display').innerText = displayPath;
     el('path-display').title = realPath ? "Click to browse / change Vault folder" : "Click to browse for a folder";
@@ -89,7 +89,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
 
     clearSearchBox();
 
-    // Persist lastPath ONLY for Files-tab loads. Music/Photos/Others auto-load
+    // Persist lastPath only for Files-tab loads. Music/Photos auto-load
     // their own default folders through this same function — saving those
     // overwrote lastPath, so the Videos tab would boot into e.g. the music
     // folder (no videos → "initial load is always empty").
@@ -252,8 +252,8 @@ async function navigateTo(target, realPath) {
             // Update loading text to indicate background refresh when using cache
             el('loading-text').innerText = window.translations[window.currentLang].refreshing || 'Refreshing...';
             // Hide loading after a reasonable delay to show refresh is happening
-            setTimeout(() => { 
-                el('loading').style.display = 'none'; 
+            setTimeout(() => {
+                el('loading').style.display = 'none';
                 el('loading-text').innerText = window.translations[window.currentLang].scanning || 'Scanning directory...';
             }, 2000);
         } else {
@@ -266,7 +266,7 @@ async function navigateTo(target, realPath) {
                     window.applyFilters();
                     loadedFromCache = true;
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             (async () => {
                 try {
@@ -294,41 +294,14 @@ async function navigateTo(target, realPath) {
             const folderFiles = window.vf.itemsOf(folderId);
 
             if (folderFiles.length > 0) {
-                const localPaths = [];
-                const streamingItems = [];
-                
-                folderFiles.forEach(it => {
-                    if (typeof it === 'string' && it.startsWith('tmdb://metadata:')) {
-                        try {
-                            const movie = JSON.parse(it.substring('tmdb://metadata:'.length));
-                            streamingItems.push({
-                                name: movie.title || movie.name,
-                                path: it,
-                                type: 'video',
-                                thumbnail: movie.poster,
-                                poster: movie.poster,
-                                rating: movie.rating,
-                                genres: movie.genres,
-                                year: movie.year,
-                                overview: movie.overview,
-                                media_type: movie.media_type,
-                                isStreaming: true,
-                                meta: movie
-                            });
-                        } catch (e) {
-                            console.error('[directory] Failed to parse streaming item metadata:', e);
-                        }
-                    } else {
-                        localPaths.push(it);
-                    }
-                });
-                
+                const localPaths = folderFiles.filter(it => typeof it === 'string');
+
                 let loadedLocal = [];
                 if (localPaths.length > 0) {
                     loadedLocal = await window.electronAPI.scanSpecificFiles(localPaths);
                 }
-                
-                window.allItems = [...streamingItems, ...loadedLocal];
+
+                window.allItems = loadedLocal;
             } else {
                 window.allItems = [];
             }
@@ -506,9 +479,9 @@ function initNavigationListeners() {
         });
         if (action === 'paste') {
             if (!window._clipboard || window._clipboard.paths.length === 0) { window.showToast('Nothing to paste', 'error'); return; }
-            if (!window.currentRealPath) { 
-                window.showToast(window.currentLang === 'fr' ? 'Veuillez charger un dossier Vault' : 'Please load a Vault folder first', 'error'); 
-                return; 
+            if (!window.currentRealPath) {
+                window.showToast(window.currentLang === 'fr' ? 'Veuillez charger un dossier Vault' : 'Please load a Vault folder first', 'error');
+                return;
             }
             const res = await window.electronAPI.pasteFiles({ paths: window._clipboard.paths, mode: window._clipboard.mode, destination: window.currentRealPath });
             if (res.success) {
