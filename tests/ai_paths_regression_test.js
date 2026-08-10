@@ -8,6 +8,7 @@ const player = read('js/player/player.js');
 const upscale = read('js/player/upscale.js');
 const cardEvents = read('js/navigation/card-events.js');
 const livePython = read('python-scripts/live_subtitles.py');
+const audioNormalize = read('python-scripts/audio_normalize.py');
 const idle = read('js/navigation/idle.js');
 const index = read('index.html');
 
@@ -18,6 +19,9 @@ assert.match(upscale, /MAX_UPSCALE_QUEUE_BYTES/, 'player upscale must bound queu
 assert.match(upscale, /upscaleOrigSrc/, 'player upscale must retain the original source for recovery');
 assert.match(cardEvents, /normalizeAudio\([^\n]*\{ volumeBoost \}/, 'context subtitle generation must pass voice boost options');
 assert.match(cardEvents, /electronAPI\.upscaleVideo/, 'card context menu must invoke video enhancement');
+assert.match(audioNormalize, /external_subtitle_code/, 'generated subtitle filenames must normalize QC to an external language code');
+assert.match(audioNormalize, /external_code\}\.srt/, 'translated subtitle sidecars must use the normalized external code');
+assert.match(audioNormalize, /return 'fr' if code in \{'qc', 'fr-ca', 'ca-fr'\}/, 'QC subtitle output must be written as FR');
 assert.match(livePython, /\.ai\.\{primary_lang\}\.srt/, 'AI live subtitles must write an additive sidecar');
 assert.doesNotMatch(idle, /currentTab === 'files' && window\.appSettings.*devMode/, 'idle previews must run for non-dev users');
 assert.match(idle, /idleLog/, 'idle preview diagnostics must be silent outside dev mode');
