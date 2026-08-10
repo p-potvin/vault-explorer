@@ -108,6 +108,8 @@ Verification
 
 - [x] Targeted regression tests passed: local subtitles, AI paths, ASR options, and cleanup scan.
 - [x] Project JavaScript and Python syntax checks passed.
+- [x] Patchright 1.61.1 installed and `pnpm exec patchright install chromium` completed; the Patchright Electron API loads.
+- [ ] Patchright Electron integration still fails before the app surface launches.
 - [ ] `npm run dist` reached packaging but failed because a running `vault-explorer.exe` locked `dist/win-unpacked/d3dcompiler_47.dll` with Access Denied.
 - [ ] GUI verification is blocked: Patchright Electron launch fails before the app surface is available; manual handoff is required for console/network, navigation, settings, subtitle geometry, live cues, and GPU VSR.
 
