@@ -10,7 +10,8 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
     settings.favorites = favorites;
 
     if (!favorites.length) {
-        grid.innerHTML = '<div class="empty-state"><h3>No Favorites Yet</h3><p>Click the star icon on any local file to save it here.</p></div>';
+const t = window.translations[window.currentLang] || {};
+grid.innerHTML = `<div class="empty-state"><h3>${t.noFavoritesYet || 'No Favorites Yet'}</h3><p>${t.noFavoritesYetDesc || 'Click the star icon on any local file to save it here.'}</p></div>`;
         window.displayedItems = [];
         if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
         return;
