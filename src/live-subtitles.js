@@ -236,7 +236,7 @@ function registerLiveSubtitlesHandlers(ipcMain) {
             langs: Array.isArray(langs) && langs.length ? langs : ['en'],
             volumeBoost: Number.isFinite(parsedBoost) ? Math.min(2.5, Math.max(1, parsedBoost)) : 1.5,
             start: Math.max(0, Number.parseFloat(startTime) || 0),
-            translateTo: translateTo || null,
+            translateTo: translateTo === 'qc' || translateTo === 'ca-fr' ? 'fr' : (translateTo || null),
         });
         return { success: ok, ready: daemonReady };
     });

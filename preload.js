@@ -36,8 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpscaleChunk: () => ipcRenderer.removeAllListeners('upscale-chunk'),
   onUpscaleStatus: (cb) => ipcRenderer.on('upscale-status', (_, data) => cb(data)),
   offUpscaleStatus: () => ipcRenderer.removeAllListeners('upscale-status'),
-  findSubtitles: (videoPath, queryTitle, skipOpenSubtitles) => ipcRenderer.invoke('find-subtitles', videoPath, queryTitle, skipOpenSubtitles),
-  downloadSubtitleTrack: (data) => ipcRenderer.invoke('download-subtitle-track', data),
+  findSubtitles: (videoPath) => ipcRenderer.invoke('find-subtitles', videoPath),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
   normalizeAudio: (videoPath, vaultRoot, transcribe, translateTo, options = {}) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe, translateTo, volumeBoost: options.volumeBoost }),
@@ -47,7 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpscaleProgress: () => ipcRenderer.removeAllListeners('upscale-progress'),
   runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation }),
   revertEnhancements: (p) => ipcRenderer.invoke('revert-enhancements', p),
-  
+
   // Live streaming ASR subtitles (Parakeet)
   warmLiveSubtitles: () => ipcRenderer.invoke('warm-live-subtitles'),
   startLiveSubtitles: (data) => ipcRenderer.invoke('start-live-subtitles', data),
@@ -58,7 +57,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offLiveSubtitleStatus: () => ipcRenderer.removeAllListeners('live-subtitle-status'),
 
   openExternalURL: (url) => ipcRenderer.invoke('open-external-url', url),
-  
+
   // Watch History API
   setWatchProgress: (data) => ipcRenderer.invoke('watch-history:set-progress', data),
   getWatchProgress: (data) => ipcRenderer.invoke('watch-history:get-progress', data),
@@ -70,11 +69,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enhanceImageThumbnails: (paths) => ipcRenderer.invoke('enhance-image-thumbnails', paths),
   enhanceImageRealESRGAN: (path) => ipcRenderer.invoke('enhance-image-realesrgan', path),
   enhanceImageMagick: (path, operation) => ipcRenderer.invoke('enhance-image-magick', { path, operation }),
-  extractYouTubeURL: (videoId) => ipcRenderer.invoke('extract-youtube-url', videoId),
   onImageEnhanced: (cb) => ipcRenderer.on('image-enhanced', (_, data) => cb(data)),
   offImageEnhanced: () => ipcRenderer.removeAllListeners('image-enhanced'),
   onAppHidden: (cb) => ipcRenderer.on('app-hidden', (_, data) => cb(data)),
-  
+
   // Video Clipping API
   clipVideo: (data) => ipcRenderer.invoke('clipVideo', data),
   onClipProgress: (cb) => ipcRenderer.on('clip-progress', (_, data) => cb(data)),

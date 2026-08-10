@@ -1,4 +1,4 @@
-const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/playwright');
+const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/patchright');
 const assert = require('assert').strict;
 
 async function runContextMenuTests() {
@@ -7,7 +7,7 @@ async function runContextMenuTests() {
     console.log('======================================================\n');
 
     const appPath = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer';
-    
+
     console.log('[Test Setup] Launching Vault Explorer application...');
     const electronApp = await electron.launch({
         cwd: appPath,
@@ -28,7 +28,7 @@ async function runContextMenuTests() {
             console.log(`  -> Selected main renderer window: ${i}`);
         }
     }
-    
+
     const errors = [];
 
     // Capture console output and browser exceptions
@@ -59,7 +59,7 @@ async function runContextMenuTests() {
     await electronApp.evaluate(async (electron) => {
         const { ipcMain } = electron;
         global.mockContextMenuAction = 'encrypt-prompt';
-        
+
         ipcMain.removeHandler('show-context-menu');
         ipcMain.handle('show-context-menu', async () => {
             console.log(`[Main Process Mock IPC] Returning mock action: "${global.mockContextMenuAction}"`);
@@ -143,7 +143,7 @@ async function runContextMenuTests() {
 
     // Check if the dynamic modal backdrop is in the DOM
     let isLangModalVisible = await window.evaluate(() => {
-        const backdrops = Array.from(document.querySelectorAll('div')).filter(d => 
+        const backdrops = Array.from(document.querySelectorAll('div')).filter(d =>
             d.style.position === 'fixed' && d.style.zIndex === '5000'
         );
         return backdrops.length > 0;
@@ -165,7 +165,7 @@ async function runContextMenuTests() {
     await window.waitForTimeout(1500);
 
     isLangModalVisible = await window.evaluate(() => {
-        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d => 
+        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d =>
             d.innerHTML.includes('Translate target spoken') || d.innerHTML.includes('Translate Video')
         );
         return backdrops.length > 0;
@@ -187,7 +187,7 @@ async function runContextMenuTests() {
     await window.waitForTimeout(1500);
 
     const isVsrModalVisible = await window.evaluate(() => {
-        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d => 
+        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d =>
             d.innerHTML.includes('AI Video Optimization Center')
         );
         return backdrops.length > 0;

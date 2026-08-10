@@ -14,12 +14,12 @@ async function handlePlayerContextMenu(action, menuItem) {
     if (!action || action === 'closed' || action === 'show' || action === 'copied') return;
 
     const vp = el('video-player');
-    const item = window.currentPlayingItem || window.activeStreamingMedia || {};
+    const item = window.currentPlayingItem || {};
     const itemPath = item.path || menuItem.path;
 
     if (action === 'play-pause') {
         if (!vp) return;
-        if (vp.paused) vp.play().catch(() => {});
+        if (vp.paused) vp.play().catch(() => { });
         else vp.pause();
     } else if (action === 'mute') {
         if (!vp) return;
@@ -71,7 +71,8 @@ async function handlePlayerContextMenu(action, menuItem) {
             window.appSettings.preferredASRLangs = langs;
             window.electronAPI.saveSettings(window.appSettings);
             window.showToast(`Generating subtitles for ${menuItem.name || 'video'}: ${langs.join(', ').toUpperCase()}`, 'success');
-            window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, true).then(res => {
+            const volumeBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
+            window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, true, null, { volumeBoost }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');
                     refreshDirectoryWithScrollPreservation();
@@ -100,20 +101,27 @@ async function handlePlayerContextMenu(action, menuItem) {
         }
     } else if (action === 'enhance-video-prompt') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
-        const dialogItem = window.currentPlayingItem || { path: itemPath, name: menuItem.name, type: 'video' };
-        const config = await window.showVideoEnhancementDialog(dialogItem);
-        if (config && config.execute) {
-            window.showToast(`AI Video Optimization started for ${menuItem.name || 'video'}...`, 'success');
-            const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
-            const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
-            const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
-            window.electronAPI.upscaleVideo({ path: itemPath, quality: vsrQuality, scale: vsrScale, chroma: vsrChroma }).then(res => {
-                if (res.success) {
-                    window.showToast(`${menuItem.name || 'Video'}: Enhancement started`, 'success');
-                } else {
-                    window.showToast(`${menuItem.name || 'Video'}: Enhancement failed: ` + (res.error || 'Unknown'), 'error');
-                }
+        const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
+        const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
+        const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
+        const vsrBitrate = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
+        window.showToast(`AI video enhancement started for ${menuItem.name || 'video'}…`, 'info');
+        try {
+            const res = await window.electronAPI.upscaleVideo({
+                path: itemPath,
+                quality: vsrQuality,
+                scale: vsrScale,
+                bitrate: vsrBitrate,
+                chroma: vsrChroma,
             });
+            if (res && res.success) {
+                window.showToast(`${menuItem.name || 'Video'}: enhancement complete`, 'success');
+                if (typeof window.refreshDirectoryWithScrollPreservation === 'function') window.refreshDirectoryWithScrollPreservation();
+            } else {
+                window.showToast(`${menuItem.name || 'Video'}: enhancement failed: ` + ((res && res.error) || 'Unknown'), 'error');
+            }
+        } catch (error) {
+            window.showToast(`${menuItem.name || 'Video'}: enhancement failed: ${error.message}`, 'error');
         }
     } else if (action === 'properties') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
@@ -143,7 +151,7 @@ function updateAutoplayUI() {
     const btn = el('btn-autoplay');
     const knob = el('autoplay-knob-circle');
     if (!btn || !knob) return;
-    
+
     if (window.autoplayMode === 'off') {
         btn.classList.remove('active');
         knob.setAttribute('cx', '8');
@@ -202,9 +210,6 @@ async function playItem(idx) {
     const itm = window.displayedItems[idx];
     if (itm.type !== 'video') return;
 
-    // Local file playback — hide the (RD-stream-only) quality picker.
-    const qCont = el('quality-dropdown-container');
-    if (qCont) qCont.style.display = 'none';
 
     // A live subtitle session is bound to the previous file — end it before we
     // swap sources so its cues don't bleed onto the new video.
@@ -222,7 +227,7 @@ async function playItem(idx) {
         scrubVideo.src = newSrc;
         lastScrubSrc = newSrc;
     }
-    
+
     const baseTitle = itm.name.replace(/\.[^.]+$/, '');
     const titleEl = el('player-title');
     if (titleEl) {
@@ -243,65 +248,31 @@ async function playItem(idx) {
         }
         tbTitle.style.display = 'inline-block';
     }
-    
+
     vp.querySelectorAll('track').forEach(t => t.remove());
+    window._allAvailableSubtitles = [];
+    window._selectedSubtitleIdx = -1;
     try {
-        const subs = await window.electronAPI.findSubtitles(itm.path, null, true);
-        if (subs && subs.length > 0) {
-            // Find the best matching subtitle for user's preferred language
+        const subs = await window.electronAPI.findSubtitles(itm.path);
+        window._allAvailableSubtitles = subs || [];
+        if (window._allAvailableSubtitles.length > 0) {
             const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
-            let bestSub = null;
-            
-            // Priority order: 1. Exact match with prefLang, 2. Language starts with prefLang, 3. Original, 4. First available
-            for (const sub of subs) {
-                const subLang = sub.lang || '';
-                const subLabel = sub.label || '';
-                
-                if (prefLang === 'original' && subLabel.toLowerCase() === 'original') {
-                    bestSub = sub;
-                    break;
-                } else if (prefLang !== 'und' && subLang.toLowerCase() === prefLang.toLowerCase()) {
-                    bestSub = sub;
-                    break;
-                } else if (prefLang !== 'und' && subLabel.toLowerCase().includes(`(${prefLang.toLowerCase()})`)) {
-                    bestSub = sub;
-                    break;
-                }
-            }
-            
-            // If no exact match, fall back to first subtitle
-            if (!bestSub && subs.length > 0) {
-                bestSub = subs[0];
-            }
-            
-            // Only load the best matching subtitle
-            if (bestSub) {
-                const track = document.createElement('track');
-                track.kind = 'subtitles';
-                track.label = bestSub.isOpenSubtitles ? bestSub.label : (bestSub.label === 'Original' ? 'original' : `Subtitles (${bestSub.label})`);
-                track.srclang = bestSub.lang;
-                if (bestSub.isOpenSubtitles) {
-                    track.dataset.opensubtitles = "true";
-                    track.dataset.fileId = bestSub.fileId;
-                    track.dataset.lang = bestSub.lang;
-                    track.dataset.videoPath = itm.path;
-                    track.dataset.downloaded = "false";
-                    track.src = "";
-                } else {
-                    track.src = window.sanitizePath(bestSub.path);
-                }
-                vp.appendChild(track);
-                
-                window.refreshSubtitlesList();
-                window.selectSubtitleTrack(0);
-                window.showToast(`Loaded subtitle: ${track.label}`, 'success');
-            }
+            const bestIndex = prefLang === 'und'
+                ? -1
+                : window._allAvailableSubtitles.findIndex(sub => prefLang === 'original'
+                    ? sub.lang === 'und'
+                    : (sub.lang || '').toLowerCase().startsWith(prefLang.toLowerCase()));
+            const selectedIndex = bestIndex >= 0 ? bestIndex : (prefLang === 'und' ? -1 : 0);
+            if (selectedIndex >= 0) window.selectSubtitleByIndex(selectedIndex);
+            window.refreshSubtitlesList();
         } else {
             window.refreshSubtitlesList();
             window.selectSubtitleTrack(-1);
         }
     } catch (err) {
-        console.error("Auto subtitle loading error:", err);
+        console.error('Auto subtitle loading error:', err);
+        window.refreshSubtitlesList();
+        window.selectSubtitleTrack(-1);
     }
 
     const savedPos = (window.appSettings && window.appSettings.rememberPosition !== false &&
@@ -341,12 +312,12 @@ function updateNavHover(idx, btnEl) {
     }
     let itm = window.displayedItems[idx];
     const rect = btnEl.getBoundingClientRect();
-    
+
     let thumbUrl = window.sanitizePath(itm.thumbnail || '');
-    if(thumbUrl) {
+    if (thumbUrl) {
         navHoverPreview.style.backgroundImage = `url('${thumbUrl}')`;
         navHoverPreview.innerText = itm.name;
-        navHoverPreview.style.left = (rect.left + (rect.width/2)) + 'px';
+        navHoverPreview.style.left = (rect.left + (rect.width / 2)) + 'px';
         navHoverPreview.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
         navHoverPreview.style.display = 'flex';
     } else {
@@ -364,7 +335,7 @@ function saveAndSetVolume(vol) {
 
 function initPlayer() {
     vp = el('video-player');
-    
+
     // Close / stop video, trailers, and livestream when app is minimized to tray
     if (window.electronAPI && typeof window.electronAPI.onAppHidden === 'function') {
         window.electronAPI.onAppHidden(() => {
@@ -397,7 +368,7 @@ function initPlayer() {
     scrubVideo.preload = 'metadata';
     scrubVideo.style.display = 'none';
     document.body.appendChild(scrubVideo);
-    
+
     seekCanvas = seekPreview;
     seekCtx = seekCanvas.getContext('2d');
     seekCanvas.width = 320;
@@ -432,7 +403,7 @@ function initPlayer() {
         pipPlay.addEventListener('click', (e) => {
             e.stopPropagation();
             if (vp.paused) {
-                vp.play().catch(() => {});
+                vp.play().catch(() => { });
             } else {
                 vp.pause();
             }
@@ -465,13 +436,11 @@ function initPlayer() {
         vp.addEventListener('contextmenu', async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const item = window.currentPlayingItem || window.activeStreamingMedia || {};
-            const isStreaming = !!window.activeStreamingMedia && !window.currentPlayingItem;
+            const item = window.currentPlayingItem || {};
             const menuItem = {
                 type: 'videoPlayer',
-                path: item.path || item.src || (vp.src ? decodeURIComponent(vp.src.replace('file:///', '').replace(/\//g, '\\')) : ''),
-                name: item.name || item.title || 'Video',
-                isStreaming,
+                path: item.path || (vp.src ? decodeURIComponent(vp.src.replace('file:///', '').replace(/\//g, '\\')) : ''),
+                name: item.name || 'Video',
                 isPlaying: !vp.paused,
                 isMuted: vp.muted,
                 speed: vp.playbackRate
@@ -513,29 +482,10 @@ function initPlayer() {
             btnUpscale.style.opacity = '0.5';
             btnUpscale.style.cursor = 'not-allowed';
         }
-        
+
         // Final position save to persistent Watch History
         if (vp.duration > 0) {
-            if (window.activeStreamingMedia) {
-                const completed = vp.currentTime >= vp.duration - 15; // 15 seconds from end counts as finished
-                if (completed) {
-                    window.electronAPI.markWatched({
-                        mediaType: window.activeStreamingMedia.mediaType,
-                        tmdbId: window.activeStreamingMedia.tmdbId,
-                        title: window.activeStreamingMedia.title,
-                        season: window.activeStreamingMedia.season,
-                        episode: window.activeStreamingMedia.episode,
-                        poster: window.activeStreamingMedia.poster,
-                        year: window.activeStreamingMedia.year
-                    }).catch(() => {});
-                } else {
-                    window.electronAPI.setWatchProgress({
-                        ...window.activeStreamingMedia,
-                        positionSec: vp.currentTime,
-                        durationSec: vp.duration
-                    }).catch(() => {});
-                }
-            } else if (window.currentPlayingItem) {
+            if (window.currentPlayingItem) {
                 const closingItm = window.currentPlayingItem;
                 if (closingItm && closingItm.path) {
                     window.appSettings.playbackPositions = window.appSettings.playbackPositions || {};
@@ -545,7 +495,7 @@ function initPlayer() {
                         window.electronAPI.markWatched({
                             mediaType: 'local',
                             title: closingItm.name
-                        }).catch(() => {});
+                        }).catch(() => { });
                     } else {
                         window.appSettings.playbackPositions[closingItm.path] = vp.currentTime;
                         window.electronAPI.setWatchProgress({
@@ -553,9 +503,9 @@ function initPlayer() {
                             title: closingItm.name,
                             positionSec: vp.currentTime,
                             durationSec: vp.duration
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
-                    window.electronAPI.saveSettings(window.appSettings).catch(() => {});
+                    window.electronAPI.saveSettings(window.appSettings).catch(() => { });
                 }
             } else if (window.currentPlayingIndex !== -1) {
                 const closingItm = window.displayedItems[window.currentPlayingIndex];
@@ -567,7 +517,7 @@ function initPlayer() {
                         window.electronAPI.markWatched({
                             mediaType: 'local',
                             title: closingItm.name
-                        }).catch(() => {});
+                        }).catch(() => { });
                     } else {
                         window.appSettings.playbackPositions[closingItm.path] = vp.currentTime;
                         window.electronAPI.setWatchProgress({
@@ -575,19 +525,12 @@ function initPlayer() {
                             title: closingItm.name,
                             positionSec: vp.currentTime,
                             durationSec: vp.duration
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
-                    window.electronAPI.saveSettings(window.appSettings).catch(() => {});
+                    window.electronAPI.saveSettings(window.appSettings).catch(() => { });
                 }
             }
         }
-
-        // Reset active streaming media cache + any in-flight RD/quality-switch
-        // state. If we leave these set, the NEXT stream attempt can race against
-        // a stale flow id or seek to the previous movie's pause position.
-        window.activeStreamingMedia = null;
-        window.activeRDFlowId = null;
-        window._resumePosAfterSwitch = null;
 
         vp.pause();
         // Hard-reset the <video> element. The prior `vp.src = ''` assignment
@@ -653,11 +596,11 @@ function initPlayer() {
 
     // Slider hides on mouseleave from the volume container. Drop focus after
     // pointer-up so the :focus-within style doesn't keep it pinned open.
-    volSlider.addEventListener('pointerup', () => { try { volSlider.blur(); } catch (_) {} });
-    volSlider.addEventListener('touchend',  () => { try { volSlider.blur(); } catch (_) {} });
+    volSlider.addEventListener('pointerup', () => { try { volSlider.blur(); } catch (_) { } });
+    volSlider.addEventListener('touchend', () => { try { volSlider.blur(); } catch (_) { } });
     const volContainer = document.querySelector('.volume-container');
     if (volContainer) {
-        volContainer.addEventListener('mouseleave', () => { try { volSlider.blur(); } catch (_) {} });
+        volContainer.addEventListener('mouseleave', () => { try { volSlider.blur(); } catch (_) { } });
     }
 
     // Click the volume icon -> toggle mute. Persists the pre-mute volume so
@@ -703,13 +646,7 @@ function initPlayer() {
         const now = Date.now();
         if (now - lastHistoryUpdate > 5000) {
             lastHistoryUpdate = now;
-            if (window.activeStreamingMedia) {
-                window.electronAPI.setWatchProgress({
-                    ...window.activeStreamingMedia,
-                    positionSec: vp.currentTime,
-                    durationSec: vp.duration
-                });
-            } else if (window.currentPlayingItem) {
+            if (window.currentPlayingItem) {
                 const itm = window.currentPlayingItem;
                 if (itm && itm.path) {
                     window.electronAPI.setWatchProgress({
@@ -768,23 +705,13 @@ function initPlayer() {
 
     vp.addEventListener('click', (e) => {
         if (el('video-modal').classList.contains('minimized')) { el('video-modal').classList.remove('minimized'); e.stopPropagation(); return; }
-        if (vp.paused) { vp.play().catch(() => {}); btnPlay.innerHTML = PAUSE_ICON_SVG; }
+        if (vp.paused) { vp.play().catch(() => { }); btnPlay.innerHTML = PAUSE_ICON_SVG; }
         else { vp.pause(); btnPlay.innerHTML = PLAY_ICON_SVG; }
     });
 
     vp.addEventListener('ended', () => {
         // Mark as completed on ended
-        if (window.activeStreamingMedia) {
-            window.electronAPI.markWatched({
-                mediaType: window.activeStreamingMedia.mediaType,
-                tmdbId: window.activeStreamingMedia.tmdbId,
-                title: window.activeStreamingMedia.title,
-                season: window.activeStreamingMedia.season,
-                episode: window.activeStreamingMedia.episode,
-                poster: window.activeStreamingMedia.poster,
-                year: window.activeStreamingMedia.year
-            });
-        } else if (window.currentPlayingItem) {
+        if (window.currentPlayingItem) {
             const itm = window.currentPlayingItem;
             if (itm && itm.path) {
                 window.electronAPI.markWatched({
@@ -805,10 +732,10 @@ function initPlayer() {
         let currentIdx = parseInt(window.currentPlayingIndex, 10);
         let nextIdx = currentIdx + 1;
         while (nextIdx < window.displayedItems.length && window.displayedItems[nextIdx].type !== 'video') nextIdx++;
-        
+
         const overlay = el('video-ended-overlay');
         if (!overlay) return;
-        
+
         const countdownEl = el('ended-countdown');
         if (nextIdx < window.displayedItems.length) {
             if (window.autoplayMode !== 'off') {
@@ -816,12 +743,12 @@ function initPlayer() {
                     playItem(nextIdx);
                     return;
                 }
-                
+
                 window.autoplayCountdown = (window.autoplayMode === '3s') ? 3 : 5;
                 countdownEl.innerText = `Next video in ${window.autoplayCountdown} seconds... (Click to play now)`;
                 countdownEl.style.cursor = 'pointer';
                 overlay.style.display = 'flex';
-                
+
                 if (window.autoplayTimer) clearInterval(window.autoplayTimer);
                 window.autoplayTimer = setInterval(() => {
                     window.autoplayCountdown--;
@@ -857,7 +784,7 @@ function initPlayer() {
             // Replay the current video if we are at the end of the playlist
             el('video-ended-overlay').style.display = 'none';
             vp.currentTime = 0;
-            vp.play().catch(() => {});
+            vp.play().catch(() => { });
             btnPlay.innerHTML = PAUSE_ICON_SVG;
         }
     });
@@ -866,7 +793,7 @@ function initPlayer() {
         if (window.autoplayTimer) clearInterval(window.autoplayTimer);
         el('video-ended-overlay').style.display = 'none';
         vp.currentTime = 0;
-        vp.play().catch(() => {});
+        vp.play().catch(() => { });
         btnPlay.innerHTML = PAUSE_ICON_SVG;
     });
 
@@ -883,7 +810,7 @@ function initPlayer() {
             if (window.autoplayTimer) { clearInterval(window.autoplayTimer); window.autoplayTimer = null; }
             el('video-ended-overlay').style.display = 'none';
             vp.currentTime = 0;
-            vp.play().catch(() => {});
+            vp.play().catch(() => { });
             btnPlay.innerHTML = PAUSE_ICON_SVG;
         }
     });
@@ -901,12 +828,12 @@ function initPlayer() {
 
     btnPlay.addEventListener('click', () => {
         if (vp.paused) {
-            vp.play().catch(() => {});
+            vp.play().catch(() => { });
         } else {
             vp.pause();
         }
     });
-    
+
     // ── Clip button handler ────────────────────────────────────
     if (btnClip) {
         btnClip.addEventListener('click', () => {
@@ -919,7 +846,7 @@ function initPlayer() {
             }
         });
     }
-    
+
     el('btn-fullscreen').addEventListener('click', () => {
         if (!document.fullscreenElement) {
             vp.parentElement.requestFullscreen();
@@ -934,7 +861,7 @@ function initPlayer() {
     document.addEventListener('fullscreenchange', () => {
         const isFs = !!document.fullscreenElement;
         if (window.electronAPI && typeof window.electronAPI.setWindowFullScreen === 'function') {
-            window.electronAPI.setWindowFullScreen(isFs).catch(() => {});
+            window.electronAPI.setWindowFullScreen(isFs).catch(() => { });
         }
         // Reset idle state on transition so controls aren't stuck hidden.
         document.body.classList.remove('player-idle');
@@ -975,12 +902,12 @@ function initPlayer() {
             window.autoplayEnabled = (window.autoplayMode !== 'off');
             localStorage.setItem('autoplayMode', window.autoplayMode);
             updateAutoplayUI();
-            
+
             let label = 'Disabled';
             if (window.autoplayMode === 'instant') label = 'Instant';
             else if (window.autoplayMode === '3s') label = '3 Seconds';
             else if (window.autoplayMode === '5s') label = '5 Seconds';
-            
+
             window.showToast(`Autoplay: ${label}`, 'success');
         });
         updateAutoplayUI();
@@ -1002,7 +929,7 @@ function initPlayer() {
         });
     }
 
-    window.refreshQualityMenu = function() {
+    window.refreshQualityMenu = function () {
         const menu = el('quality-menu');
         const container = el('quality-dropdown-container');
         if (!menu || !container) return;
@@ -1054,7 +981,7 @@ function initPlayer() {
                 const at = vpEl ? vpEl.currentTime : 0;
                 window._resumePosAfterSwitch = at;
                 window.showToast(`Switching to ${entry.label.toUpperCase()}…`, 'info');
-                try { if (vpEl) vpEl.pause(); } catch (_) {}
+                try { if (vpEl) vpEl.pause(); } catch (_) { }
                 const title = window.currentMovieTitle || (window.activeStreamingMedia && window.activeStreamingMedia.title) || '';
                 if (typeof window.startRDDebridFlow === 'function') {
                     window.startRDDebridFlow(entry.torrent, title, entry.idx);
@@ -1079,7 +1006,7 @@ function initPlayer() {
             const val = parseFloat(opt.dataset.val);
             vp.playbackRate = val;
             el('btn-speed').classList.toggle('active', val !== 1);
-            
+
             document.querySelectorAll('.speed-option').forEach(o => {
                 o.classList.remove('active');
                 o.style.color = 'var(--vault-text)';
@@ -1089,7 +1016,7 @@ function initPlayer() {
             opt.classList.add('active');
             opt.style.color = 'var(--vault-accent)';
             opt.style.fontWeight = '600';
-            
+
             el('speed-menu').style.display = 'none';
             window.showToast(`Playback Speed: ${val}×`, 'success');
         });
@@ -1102,7 +1029,7 @@ function initPlayer() {
     if (typeof window.initUpscaleListeners === 'function') {
         window.initUpscaleListeners();
     }
-    
+
     // Initialize clip system
     if (typeof window.initClipSystem === 'function') {
         window.initClipSystem();
@@ -1112,10 +1039,10 @@ function initPlayer() {
     document.addEventListener('keydown', (e) => {
         if (el('video-modal').style.display === 'flex') {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            switch(e.key.toLowerCase()) {
+            switch (e.key.toLowerCase()) {
                 case ' ':
                     e.preventDefault();
-                    if (vp.paused) { vp.play().catch(() => {}); btnPlay.innerHTML = PAUSE_ICON_SVG; } 
+                    if (vp.paused) { vp.play().catch(() => { }); btnPlay.innerHTML = PAUSE_ICON_SVG; }
                     else { vp.pause(); btnPlay.innerHTML = PLAY_ICON_SVG; }
                     break;
                 case 'arrowleft':
@@ -1165,7 +1092,7 @@ function initPlayer() {
 
         seekPreview.style.display = 'block';
         seekPreview.style.left = (percent * 100) + '%';
-        
+
         const tooltip = el('seek-time-tooltip');
         if (tooltip) {
             tooltip.style.display = 'block';
@@ -1196,8 +1123,8 @@ function initPlayer() {
         }
     });
 
-    seekArea.addEventListener('mouseleave', () => { 
-        seekPreview.style.display = 'none'; 
+    seekArea.addEventListener('mouseleave', () => {
+        seekPreview.style.display = 'none';
         const tooltip = el('seek-time-tooltip');
         if (tooltip) tooltip.style.display = 'none';
     });
@@ -1247,10 +1174,10 @@ function initPlayer() {
                 itm = window.displayedItems[window.currentPlayingIndex];
             }
             if (!itm || !itm.path) return;
-            
+
             // Prevent multiple input boxes
             if (titleEl.querySelector('input')) return;
-            
+
             const oldName = itm.name;
             const input = document.createElement('input');
             input.type = 'text';
@@ -1265,12 +1192,12 @@ function initPlayer() {
             input.style.outline = 'none';
             input.style.width = '350px';
             input.style.textAlign = 'center';
-            
+
             titleEl.textContent = '';
             titleEl.appendChild(input);
             input.focus();
             input.select();
-            
+
             const saveRename = async () => {
                 const newName = input.value.trim();
                 if (!newName || newName === oldName) {
@@ -1283,18 +1210,18 @@ function initPlayer() {
                     }
                     return;
                 }
-                
+
                 const res = await window.electronAPI.renameFile(itm.path, newName);
                 if (res.success) {
                     const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
                     window.showToast((t.renamedTo || 'Renamed to ') + `"${newName}"`, 'success');
-                    
+
                     const oldPath = itm.path;
                     const newPath = res.newPath || (itm.path.substring(0, itm.path.lastIndexOf('\\') + 1) + newName);
-                    
+
                     itm.name = newName;
                     itm.path = newPath;
-                    
+
                     const baseTitle = newName.replace(/\.[^.]+$/, '');
                     if (itm.enhancedPath) {
                         const magicIcon = window.icons ? window.icons.magic('magic-inline-icon', 'width:12px; height:12px; display:inline-block; vertical-align:middle; margin-left:6px; color:var(--vault-gold);') : '';
@@ -1302,7 +1229,7 @@ function initPlayer() {
                     } else {
                         titleEl.textContent = baseTitle;
                     }
-                    
+
                     const tbTitle = el('titlebar-video-title');
                     if (tbTitle) {
                         if (itm.enhancedPath) {
@@ -1312,7 +1239,7 @@ function initPlayer() {
                             tbTitle.textContent = `·  Playing: ${newName}`;
                         }
                     }
-                    
+
                     // Update corresponding card element in layout if open
                     const card = document.querySelector(`.file-card[data-index="${window.currentPlayingIndex}"]`);
                     if (card) {
@@ -1322,7 +1249,7 @@ function initPlayer() {
                         const rInp = card.querySelector('.rename-input');
                         if (rInp) rInp.value = newName;
                     }
-                    
+
                     // Update items list silently to preserve file-grid integrity
                     window.loadDirectory(window.currentNavPath, window.currentRealPath, true);
                 } else {
@@ -1336,7 +1263,7 @@ function initPlayer() {
                     }
                 }
             };
-            
+
             input.addEventListener('blur', saveRename);
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
@@ -1378,7 +1305,7 @@ async function playStream(url, title) {
         scrubVideo.src = url;
         lastScrubSrc = url;
     }
-    
+
     const titleEl = el('player-title');
     if (titleEl) titleEl.textContent = `⚡ RD Stream: ${title}`;
     const tbTitle = el('titlebar-video-title');
@@ -1398,7 +1325,7 @@ async function playStream(url, title) {
         try {
             prog = await window.electronAPI.getWatchProgress({
                 mediaType: window.activeStreamingMedia.mediaType,
-                tmdbId: window.activeStreamingMedia.tmdbId,
+                catalogId: window.activeStreamingMedia.catalogId,
                 title: window.activeStreamingMedia.title,
                 season: window.activeStreamingMedia.season,
                 episode: window.activeStreamingMedia.episode
@@ -1407,20 +1334,18 @@ async function playStream(url, title) {
             console.error('[Player] Failed to fetch watch progress:', e);
         }
     }
-    
+
     vp.querySelectorAll('track').forEach(t => t.remove());
     try {
-        const subs = await window.electronAPI.findSubtitles(url, title);
-        // Bug fix: the streaming path never populated _allAvailableSubtitles,
-        // so the menu only showed the one auto-loaded sub. Set it so the menu
-        // exposes every OpenSubtitles result the search returned.
+        const subs = await window.electronAPI.findSubtitles(url);
+        // Keep the complete local sidecar catalog available to the subtitle menu.
         window._allAvailableSubtitles = subs || [];
         let preferredSub = null;
         let preferredTrackIdx = -1;
-        
+
         // Determine preferred language
         const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
-        
+
         // If we have saved progress with subtitle info, use that
         if (prog && prog.selectedSubtitleTrackIdx !== undefined) {
             // Try to find the saved subtitle from the list
@@ -1434,13 +1359,13 @@ async function playStream(url, title) {
                 preferredSub = subs[prog.selectedSubtitleTrackIdx];
             }
         }
-        
+
         // If no saved preference, find the best match for user's preferred language
         if (!preferredSub && subs && subs.length > 0) {
             if (prefLang === 'original') {
                 preferredSub = subs.find(s => s.label.toLowerCase() === 'original');
             } else if (prefLang !== 'und') {
-                preferredSub = subs.find(s => 
+                preferredSub = subs.find(s =>
                     (s.lang && s.lang.toLowerCase().startsWith(prefLang.toLowerCase())) ||
                     (s.label && s.label.toLowerCase().includes(`(${prefLang.toLowerCase()})`))
                 );
@@ -1450,15 +1375,15 @@ async function playStream(url, title) {
                 preferredSub = subs[0];
             }
         }
-        
+
         // Only load the preferred subtitle track (max 1)
         if (preferredSub) {
             const track = document.createElement('track');
             track.kind = 'subtitles';
-            track.label = preferredSub.isOpenSubtitles ? preferredSub.label : (preferredSub.label === 'Original' ? 'original' : `Subtitles (${preferredSub.label})`);
+            track.label = false ? preferredSub.label : (preferredSub.label === 'Original' ? 'original' : `Subtitles (${preferredSub.label})`);
             track.srclang = preferredSub.lang;
-            if (preferredSub.isOpenSubtitles) {
-                track.dataset.opensubtitles = "true";
+            if (false) {
+                track.dataset['remote-subtitle'] = 'true';
                 track.dataset.fileId = preferredSub.fileId;
                 track.dataset.lang = preferredSub.lang;
                 track.dataset.videoPath = url;
@@ -1469,13 +1394,13 @@ async function playStream(url, title) {
             }
             vp.appendChild(track);
             preferredTrackIdx = 0; // Only one track, so index is 0
-            
+
             window.selectSubtitleTrack(preferredTrackIdx);
             window.refreshSubtitlesList();
-            
+
             const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
-            window.showToast(preferredSub.isOpenSubtitles 
-                ? (t.downloadingSubtitles || 'Downloading subtitles...') 
+            window.showToast(false
+                ? (t.downloadingSubtitles || 'Downloading subtitles...')
                 : (t.subtitlesReady || 'Subtitles ready'), 'success');
         } else {
             window.refreshSubtitlesList();
@@ -1484,7 +1409,7 @@ async function playStream(url, title) {
     } catch (err) {
         console.error("Auto subtitle loading error:", err);
     }
-    
+
     // If the user just switched stream quality, restore their position from
     // the in-memory marker (takes precedence over saved server progress
     // because they were mid-watch when they switched). Also explicitly call

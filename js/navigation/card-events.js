@@ -4,11 +4,11 @@
 async function updateSingleVideoCard(videoPath) {
     const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
     const normalizedPath = normPath(videoPath);
-    
+
     // Find the card by path
     const card = Array.from(document.querySelectorAll('.file-card'))
         .find(c => normPath(c.dataset.path) === normalizedPath);
-    
+
     if (card) {
         const index = parseInt(card.dataset.index);
         // Re-scan this specific file to get updated metadata
@@ -16,7 +16,7 @@ async function updateSingleVideoCard(videoPath) {
             const newItems = await window.electronAPI.scanSpecificFiles([videoPath]);
             if (newItems && newItems.length > 0) {
                 const newItem = newItems[0];
-                
+
                 // Update window.allItems
                 const existingIndex = window.allItems.findIndex(i => normPath(i.path) === normalizedPath);
                 if (existingIndex !== -1) {
@@ -24,7 +24,7 @@ async function updateSingleVideoCard(videoPath) {
                 } else {
                     window.allItems.push(newItem);
                 }
-                
+
                 // Update window.displayedItems
                 const displayedIndex = window.displayedItems.findIndex(i => normPath(i.path) === normalizedPath);
                 if (displayedIndex !== -1) {
@@ -69,7 +69,7 @@ async function handleCardContextMenu(card, item, index) {
         });
         window.updateStatusBar();
     }
-    
+
     const selectedItems = [];
     window.selectedIndices.forEach(idx => {
         const si = window.displayedItems[idx];
@@ -173,11 +173,11 @@ async function handleCardContextMenu(card, item, index) {
         const transcribe = (action === 'normalize-audio-transcribe');
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
-        
-        window.showToast(transcribe 
+
+        window.showToast(transcribe
             ? `Vocal isolation, normalization & AI transcription started for ${targetItems.length} video(s)...`
             : `Vocal isolation & normalization started in background for ${targetItems.length} video(s)...`, 'success');
-            
+
         targetItems.forEach(targetItem => {
             const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
             const cardElement = Array.from(document.querySelectorAll('.file-card'))
@@ -228,7 +228,7 @@ async function handleCardContextMenu(card, item, index) {
         console.log('[ctx-menu:upscale] Upscaling paths:', targetItems.map(t => t.path));
 
         window.showToast(`AI Video Upscaling started in background for ${targetItems.length} video(s)...`, 'success');
-        
+
         targetItems.forEach(targetItem => {
             const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
             const cardElement = Array.from(document.querySelectorAll('.file-card'))
@@ -261,7 +261,8 @@ async function handleCardContextMenu(card, item, index) {
             const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
             const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
             const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
-            window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality, scale: vsrScale, chroma: vsrChroma }).then(res => {
+            const vsrBitrate = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
+            window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality, scale: vsrScale, bitrate: vsrBitrate, chroma: vsrChroma }).then(res => {
                 if (overlay) overlay.remove();
                 if (res.success) {
                     window.showToast(`${targetItem.name}: Upscaling complete!`, 'success');
@@ -274,7 +275,7 @@ async function handleCardContextMenu(card, item, index) {
     } else if (action === 'revert-enhancements') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
-        
+
         const confirmMsg = targetItems.length > 1
             ? `Are you sure you want to revert all enhancements for the ${targetItems.length} selected video(s)? This will delete their enhanced copies.`
             : `Are you sure you want to revert all enhancements for "${item.name}"? This will delete the enhanced copy.`;
@@ -290,7 +291,7 @@ async function handleCardContextMenu(card, item, index) {
     } else if (action === 'generate-subtitles-prompt') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
-        
+
         const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
         const langs = await window.showLanguageModal('Generate Subtitles', true, defaultLangs);
         if (langs && langs.length > 0) {
@@ -325,7 +326,8 @@ async function handleCardContextMenu(card, item, index) {
                     }
                 };
                 window.electronAPI.onNormalizeProgress(progressHandler);
-                window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, true).then(res => {
+                const volumeBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
+                window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, true, null, { volumeBoost }).then(res => {
                     if (overlay) overlay.remove();
                     if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                         window.showToast(`${targetItem.name}: Subtitles generated successfully!`, 'success');
@@ -339,7 +341,7 @@ async function handleCardContextMenu(card, item, index) {
     } else if (action === 'translate-video-prompt') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
-        
+
         const defaultTransLangs = (window.appSettings && window.appSettings.preferredTransLang) ? [window.appSettings.preferredTransLang] : [];
         const lang = await window.showLanguageModal('Translate Video Track', false, defaultTransLangs);
         if (lang && lang.length > 0) {
@@ -428,7 +430,8 @@ async function handleCardContextMenu(card, item, index) {
                 const vsrQuality2 = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
                 const vsrScale2 = (window.appSettings && window.appSettings.vsrScale) || '2';
                 const vsrChroma2 = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
-                window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality2, scale: vsrScale2, chroma: vsrChroma2 }).then(res => {
+                const vsrBitrate2 = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
+                window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality2, scale: vsrScale2, bitrate: vsrBitrate2, chroma: vsrChroma2 }).then(res => {
                     if (overlay) overlay.remove();
                     if (res.success) {
                         window.showToast(`${targetItem.name}: Super-Resolution complete!`, 'success');
@@ -463,9 +466,9 @@ async function handleCardContextMenu(card, item, index) {
     } else if (action === 'delete-item') {
         const targetItems = isMulti ? selectedItems : [item];
         if (targetItems.length === 0) { window.showToast('No items selected', 'error'); return; }
-        
+
         const isVirtual = window.currentNavPath !== 'root';
-        const confirmTitle = isVirtual 
+        const confirmTitle = isVirtual
             ? (window.currentLang === 'fr' ? 'Confirmer le retrait' : 'Confirm Removal')
             : (window.currentLang === 'fr' ? 'Confirmer la suppression' : 'Confirm Deletion');
         const confirmMsg = isVirtual
@@ -475,7 +478,7 @@ async function handleCardContextMenu(card, item, index) {
             : (targetItems.length > 1
                 ? `Are you sure you want to delete the ${targetItems.length} selected item(s)?`
                 : `Delete "${item.name}"?`);
-                
+
         if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
             if (isVirtual) {
                 const fid = window.currentFolderId;

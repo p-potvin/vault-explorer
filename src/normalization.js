@@ -11,8 +11,8 @@ const utils = require('./utils');
  */
 function getPythonExe() {
     const candidates = [
-        'C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer\\.venv\\Scripts\\python.exe',
-        path.join(__dirname, '.venv', 'Scripts', 'python.exe'),
+        path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe'),
+        path.join(__dirname, '..', '.venv', 'bin', 'python'),
     ];
     for (const c of candidates) {
         if (fs.existsSync(c)) {
@@ -27,7 +27,7 @@ function registerNormalizationHandlers(ipcMain) {
     ipcMain.handle('normalize-audio', async (event, { videoPath, vaultRoot, transcribe, translateTo, volumeBoost = 1.5 }) => {
         console.log(`[main:normalize] Starting audio normalization for ${videoPath}`);
         return new Promise((resolve) => {
-            const pythonScript = path.join("C:\\Users\\Administrator\\desktop\\github repos\\vault-explorer\\", 'python-scripts', 'audio_normalize.py');
+            const pythonScript = path.join(__dirname, '..', 'python-scripts', 'audio_normalize.py');
 
             const pythonExe = getPythonExe();
             const parsedVolumeBoost = Number.parseFloat(volumeBoost);

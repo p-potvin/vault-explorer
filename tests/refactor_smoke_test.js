@@ -1,14 +1,13 @@
-const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/playwright');
+const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/patchright');
 const assert = require('assert').strict;
 
 const GLOBALS = [
     'loadDirectory', 'navigateTo', 'applyFilters', 'updateStatusBar',
     'createCardElement', 'renderMore', 'initNavigationListeners',
-    'triggerCryptoPrompt', 'showLanguageModal', 'showVideoEnhancementDialog',
-    'playItem', 'initPlayer', 'stopUpscaleMode', 'playStream',
-    'setLanguage', 'updateSortOrderButtonUI', 'switchTab', 'toggleFavorite',
-    'startRDDebridFlow', 'initSettingsListeners', 'renderFavorites', 'renderLibrary',
-    'renderTMDB', 'showToast', 'formatBytes', 'formatDuration',
+    'triggerCryptoPrompt', 'showLanguageModal',
+    'playItem', 'initPlayer', 'stopUpscaleMode', 'initUpscaleListeners',
+    'loadActiveSubtitles', 'setLanguage', 'updateSortOrderButtonUI', 'switchTab', 'toggleFavorite',
+    'initSettingsListeners', 'renderFavorites', 'showToast', 'formatBytes', 'formatDuration',
     'escapeHtml', 'sanitizePath', 'killAllHoverVideos', 'attachHoverWebmToCard',
     'electronAPI', 'appSettings', 'allItems', 'displayedItems',
     'selectedIndices', 'currentPlayingIndex', 'translations',
@@ -17,8 +16,8 @@ const GLOBALS = [
 const DOM_IDS = [
     'file-grid', 'video-modal', 'video-player', 'search-box',
     'filter-type', 'sort-by', 'path-display', 'btn-refresh',
-    'btn-back', 'settings-panel', 'tab-files', 'tab-streaming',
-    'tab-livestream', 'subtab-files-all', 'status-items',
+    'btn-back', 'settings-panel', 'tab-files', 'tab-music',
+    'tab-photoalbums', 'subtab-files-all', 'status-items',
 ];
 
 async function run() {

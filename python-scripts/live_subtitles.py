@@ -186,7 +186,7 @@ def run_session(model, opts, stop_event):
         return
 
     langs = [l for l in (opts.get("langs") or ["en"]) if l] or ["en"]
-    primary_lang = langs[0]
+    primary_lang = {'qc': 'fr', 'ca-fr': 'fr'}.get(langs[0].lower(), langs[0].lower())
     volume_boost = min(2.5, max(1.0, float(opts.get("volumeBoost") or 1.5)))
     start = max(0.0, float(opts.get("start") or 0.0))
     translate_to = (opts.get("translateTo") or "").strip() or None
@@ -205,7 +205,7 @@ def run_session(model, opts, stop_event):
     keep_lookahead = int(0.3 * sample_rate)
 
     base, _ = os.path.splitext(video_path)
-    srt_path = f"{base}.{primary_lang}.srt"
+    srt_path = f"{base}.ai.{primary_lang}.srt"
     translator = Translator(translate_to) if translate_to else None
 
     dbg(f"session: video={video_path!r} langs={langs} boost={volume_boost} start={start:.2f}s "
@@ -252,7 +252,10 @@ def run_session(model, opts, stop_event):
         if not t or seg_start < last_final_end - 0.05:
             return
         if translator:
-            t = translator.translate(t)
+            try:
+                t = translator.translate(t)
+            except Exception as error:
+                dbg(f"Translation failed; keeping source text: {error}")
         cue_index[0] += 1
         final_count[0] += 1
         cue = {"index": cue_index[0], "start": round(seg_start, 3), "end": round(seg_end, 3),
