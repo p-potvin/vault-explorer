@@ -39,13 +39,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   findSubtitles: (videoPath) => ipcRenderer.invoke('find-subtitles', videoPath),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
-  normalizeAudio: (videoPath, vaultRoot, transcribe, translateTo, options = {}) => ipcRenderer.invoke('normalize-audio', { videoPath, vaultRoot, transcribe, translateTo, volumeBoost: options.volumeBoost }),
+  // One call per menu action. Each starts only its own pipeline: asking for
+  // subtitles no longer runs Demucs and a full re-encode.
+  enhanceAudio: (videoPath, vaultRoot, options = {}) =>
+    ipcRenderer.invoke('enhance-audio', { videoPath, vaultRoot, ...options }),
+  generateSubtitles: (videoPath, vaultRoot, options = {}) =>
+    ipcRenderer.invoke('generate-subtitles', { videoPath, vaultRoot, ...options }),
+  translateVideo: (videoPath, vaultRoot, translateTo, options = {}) =>
+    ipcRenderer.invoke('translate-video', { videoPath, vaultRoot, translateTo, ...options }),
+  enhanceVideo: (videoPath, vaultRoot, options = {}) =>
+    ipcRenderer.invoke('enhance-video', { videoPath, vaultRoot, ...options }),
+  getEnhancementState: (videoPath) => ipcRenderer.invoke('get-enhancement-state', videoPath),
+  // Deprecated alias, kept so older call sites keep working.
+  normalizeAudio: (videoPath, vaultRoot, _transcribe, _translateTo, options = {}) =>
+    ipcRenderer.invoke('enhance-audio', { videoPath, vaultRoot, volumeBoost: options.volumeBoost }),
   onNormalizeProgress: (cb) => ipcRenderer.on('normalize-progress', (_, data) => cb(data)),
   offNormalizeProgress: () => ipcRenderer.removeAllListeners('normalize-progress'),
   onUpscaleProgress: (cb) => ipcRenderer.on('upscale-progress', (_, data) => cb(data)),
   offUpscaleProgress: () => ipcRenderer.removeAllListeners('upscale-progress'),
   runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation }),
-  revertEnhancements: (p) => ipcRenderer.invoke('revert-enhancements', p),
+  // Omit `action` to revert everything, or pass 'audio' | 'video' | 'subtitles'
+  // | 'translation' to undo a single enhancement.
+  revertEnhancements: (p, action) => ipcRenderer.invoke('revert-enhancements', { path: p, action }),
 
   // Live streaming ASR subtitles (Parakeet)
   warmLiveSubtitles: () => ipcRenderer.invoke('warm-live-subtitles'),

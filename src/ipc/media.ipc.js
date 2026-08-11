@@ -2,7 +2,6 @@
 
 const path = require('path');
 const fs = require('fs');
-const fsPromises = fs.promises;
 const child_process = require('child_process');
 const utils = require('../utils');
 const { cleanupTemp, promoteTempFile } = utils;
@@ -26,158 +25,47 @@ function getFullProbeMetadata(filePath) {
     });
 }
 
+const enhancements = require('../enhancements');
+
 function registerMediaIpc(ipcMain) {
-    // RTX VSR Video Upscale (permanent enhancement → .enhanced folder)
+    // RTX VSR video upscaling. The pipeline itself now lives in
+    // python-scripts/enhance_video.py, which owns output routing, atomic
+    // promotion and sidecar state just like the other three actions.
     ipcMain.handle('upscale-video', async (event, opts) => {
         const filePath = typeof opts === 'string' ? opts : (opts && opts.path);
-        const quality = (typeof opts === 'object' && opts.quality) ? opts.quality : 'HIGH';
-        const scale = (typeof opts === 'object' && opts.scale) ? opts.scale : '2';
-        const chroma = (typeof opts === 'object' && opts.chroma) ? opts.chroma : 'yuv420p';
-        console.log('[media.ipc:upscale] RTX VSR requested for:', filePath, 'quality=', quality, 'scale=', scale);
-        if (typeof filePath !== 'string') {
-            console.error('[media.ipc:upscale] Invalid filePath (not a string):', filePath);
+        if (typeof filePath !== 'string' || !filePath) {
             return { success: false, error: 'Invalid file path' };
         }
         if (!fs.existsSync(filePath)) {
-            console.error('[media.ipc:upscale] File does not exist:', filePath);
-            return { success: false, error: 'File not found: ' + filePath };
+            return { success: false, error: `File not found: ${filePath}` };
         }
 
-        const ext = path.extname(filePath);
-        const dir = path.dirname(filePath);
-        const name = path.basename(filePath);
-        const baseName = path.basename(filePath, ext);
-        const enhancedDir = path.join(dir, '.enhanced');
-        const outputPath = path.join(enhancedDir, `${baseName}_enhanced${ext}`);
-        const metaPath = filePath + '.meta.json';
-
-        // Ensure .enhanced directory exists
-        if (!fs.existsSync(enhancedDir)) {
-            fs.mkdirSync(enhancedDir, { recursive: true });
+        // Skip work already recorded in the sidecar.
+        const state = enhancements.getState(filePath);
+        if (state.video && state.enhancedPath) {
+            console.log('[media.ipc:upscale] Already enhanced, skipping:', filePath);
+            return { success: true, path: state.enhancedPath, skipped: true, state };
         }
 
-        // Remove any stale temp file from a previous interrupted run.
-        cleanupTemp(outputPath + '.tmp');
-
-        // Skip redundant enhancement: check sidecar metadata
-        if (fs.existsSync(metaPath) && fs.existsSync(outputPath)) {
-            try {
-                const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                if (meta.enhancements && meta.enhancements.video === true) {
-                    console.log('[media.ipc:upscale] Skipping redundant enhancement (already in .enhanced):', filePath);
-                    return { success: true, path: outputPath, skipped: true };
-                }
-            } catch (e) { }
-        }
-
-        const pythonPath = process.platform === 'win32'
-            ? path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe')
-            : path.join(__dirname, '..', '..', '.venv', 'bin', 'python');
-        const scriptPath = path.join(__dirname, '..', '..', 'python-scripts', 'rtx_vsr_stream.py');
-
-        if (!fs.existsSync(pythonPath)) {
-            console.error('[media.ipc:upscale] Python interpreter not found:', pythonPath);
-            return { success: false, error: 'Python interpreter not found (.venv missing)' };
-        }
-        if (!fs.existsSync(scriptPath)) {
-            console.error('[media.ipc:upscale] RTX VSR script not found:', scriptPath);
-            return { success: false, error: 'Enhancement script not found' };
-        }
-
-        return new Promise((resolve) => {
-            const args = [
-                scriptPath,
-                'enhance',
-                filePath,
-                outputPath,
-                '--quality', quality,
-                '--scale', scale,
-                '--chroma', chroma,
-            ];
-
-            console.log(`[media.ipc:upscale] Spawning: ${pythonPath} ${args.join(' ')}`);
-            const proc = child_process.spawn(pythonPath, args, { windowsHide: true });
-
-            let errorData = '';
-            let stdoutBuffer = '';
-            let stderrBuffer = '';
-
-            proc.stdout.on('data', (data) => {
-                const str = data.toString();
-                stdoutBuffer += str;
-                let lines = stdoutBuffer.split(/\r?\n/);
-                stdoutBuffer = lines.pop();
-                for (const line of lines) {
-                    console.log(`[media.ipc:upscale:stdout] ${line.trim()}`);
-                }
-            });
-
-            proc.stderr.on('data', (data) => {
-                const str = data.toString();
-                errorData += str;
-                stderrBuffer += str;
-                let lines = stderrBuffer.split(/\r?\n/);
-                stderrBuffer = lines.pop();
-                for (const line of lines) {
-                    console.log(`[media.ipc:upscale:stderr] ${line.trim()}`);
-                }
-            });
-
-            proc.on('close', (code) => {
-                if (stdoutBuffer.trim()) console.log(`[media.ipc:upscale:stdout] ${stdoutBuffer.trim()}`);
-                if (stderrBuffer.trim()) console.log(`[media.ipc:upscale:stderr] ${stderrBuffer.trim()}`);
-                console.log(`[media.ipc:upscale] Finished with code ${code}`);
-
-                if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
-                    try {
-                        let meta = {};
-                        if (fs.existsSync(metaPath)) {
-                            try {
-                                meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                            } catch (e) { }
-                        }
-                        if (!meta.enhancements) {
-                            meta.enhancements = { audio: false, video: false, subtitles: [], translation: [] };
-                        }
-                        meta.enhancements.video = true;
-                        meta.enhancedPath = outputPath;
-                        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-                    } catch (e) { }
-                    resolve({ success: true, path: outputPath });
-                } else {
-                    resolve({ success: false, error: errorData.trim() || `RTX VSR exited with code ${code}` });
-                }
-            });
+        const options = (typeof opts === 'object' && opts) ? opts : {};
+        return enhancements.runAction(event, 'enhance-video', {
+            videoPath: filePath,
+            vaultRoot: options.vaultRoot,
+            quality: options.quality || 'HIGH',
+            scale: options.scale || 2,
+            chroma: options.chroma || 'yuv420p',
+            output: options.output,
         });
     });
 
-    // Revert Enhancements
-    ipcMain.handle('revert-enhancements', async (_event, filePath) => {
-        if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
-            return { success: false, error: 'File not found' };
+    // Revert enhancements — all of them, or a single named action.
+    ipcMain.handle('revert-enhancements', async (_event, arg) => {
+        const filePath = typeof arg === 'string' ? arg : (arg && arg.path);
+        const action = (typeof arg === 'object' && arg) ? arg.action : null;
+        if (typeof filePath !== 'string' || !filePath) {
+            return { success: false, error: 'Invalid file path' };
         }
-        const dir = path.dirname(filePath);
-        const ext = path.extname(filePath);
-        const baseName = path.basename(filePath, ext);
-        const enhancedFile = path.join(dir, '.enhanced', `${baseName}_enhanced${ext}`);
-        const metaPath = filePath + '.meta.json';
-
-        try {
-            if (fs.existsSync(enhancedFile)) {
-                fs.unlinkSync(enhancedFile);
-            }
-            if (fs.existsSync(metaPath)) {
-                try {
-                    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                    meta.enhancements = { audio: false, video: false, subtitles: [], translation: [] };
-                    delete meta.enhancedPath;
-                    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-                } catch (e) { }
-            }
-            return { success: true };
-        } catch (err) {
-            return { success: false, error: err.message };
-        }
+        return enhancements.revert(filePath, action);
     });
 
     // Get File Properties

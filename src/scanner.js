@@ -163,8 +163,15 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 enhancedPath = meta.enhancedPath;
             }
             if (!enhancedPath && meta && meta.enhancements && (meta.enhancements.video || meta.enhancements.audio)) {
-                const candidate = path.join(dir, '.enhanced', `${baseName}_enhanced${ext}`);
-                if (await exists(candidate)) enhancedPath = candidate;
+                // The enhanced copy keeps the original filename; the `_enhanced`
+                // suffix is the older upscaler's naming, still checked so
+                // pre-existing libraries keep resolving.
+                for (const candidate of [
+                    path.join(dir, '.enhanced', `${baseName}${ext}`),
+                    path.join(dir, '.enhanced', `${baseName}_enhanced${ext}`),
+                ]) {
+                    if (await exists(candidate)) { enhancedPath = candidate; break; }
+                }
             }
 
             const trickplayPath = type === 'video' ? path.join(dir, `${baseName}.trickplay`) : null;

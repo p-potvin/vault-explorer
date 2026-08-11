@@ -107,24 +107,42 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                 );
             } else if (item.type === 'video' || item.type === 'image' || item.type === 'other' || item.type === 'encrypted') {
                 const isEnc = typeof item.path === 'string' && item.path.toLowerCase().endsWith('.enc');
-                const hasEnhanced = item.enhancedPath;
-                const hasAudioEnh = item.enhancements && item.enhancements.audio;
-                const hasVideoEnh = item.enhancements && item.enhancements.video;
-                const hasSubs = item.enhancements && item.enhancements.subtitles && item.enhancements.subtitles.length > 0;
-                const hasTrans = item.enhancements && item.enhancements.translation && item.enhancements.translation.length > 0;
+                const enh = item.enhancements || {};
+                const subLangs = Array.isArray(enh.subtitles) ? enh.subtitles : [];
+                const transLangs = Array.isArray(enh.translation) ? enh.translation : [];
+                const hasAudioEnh = !!enh.audio;
+                const hasVideoEnh = !!enh.video;
+
+                // The checkbox is the applied-state indicator, and the label
+                // names the languages already produced, so the menu says exactly
+                // what has been done to this file rather than just "on/off".
+                const withLangs = (label, langs) =>
+                    langs.length ? `${label} (${langs.join(', ').toUpperCase()})` : label;
 
                 const aiSubmenu = [];
                 if (item.type === 'video' || (item.type === 'encrypted' && !isEnc)) {
                     aiSubmenu.push(
-                        { label: 'Enhance Audio 🪄', type: 'checkbox', checked: !!hasAudioEnh, click: () => once('normalize-audio') },
-                        { label: 'Generate Subtitles', type: 'checkbox', checked: !!hasSubs, click: () => once('generate-subtitles-prompt') },
-                        { label: 'Translate this video', type: 'checkbox', checked: !!hasTrans, click: () => once('translate-video-prompt') },
-                        { label: 'Enhance Video 🪄', type: 'checkbox', checked: !!hasVideoEnh, click: () => once('enhance-video-prompt') }
+                        { label: 'Enhance Audio 🪄', type: 'checkbox', checked: hasAudioEnh, click: () => once('normalize-audio') },
+                        { label: withLangs('Generate Subtitles', subLangs), type: 'checkbox', checked: subLangs.length > 0, click: () => once('generate-subtitles-prompt') },
+                        { label: withLangs('Translate this video', transLangs), type: 'checkbox', checked: transLangs.length > 0, click: () => once('translate-video-prompt') },
+                        { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') }
                     );
-                    if (hasEnhanced) {
+
+                    // Revert only what has actually been applied.
+                    const revertItems = [];
+                    if (hasAudioEnh) revertItems.push({ label: 'Audio Enhancement', click: () => once('revert-enhancement:audio') });
+                    if (hasVideoEnh) revertItems.push({ label: 'Video Enhancement', click: () => once('revert-enhancement:video') });
+                    if (subLangs.length) revertItems.push({ label: withLangs('Subtitles', subLangs), click: () => once('revert-enhancement:subtitles') });
+                    if (transLangs.length) revertItems.push({ label: withLangs('Translations', transLangs), click: () => once('revert-enhancement:translation') });
+
+                    if (revertItems.length) {
+                        if (revertItems.length > 1) {
+                            revertItems.push({ type: 'separator' });
+                            revertItems.push({ label: 'Everything', click: () => once('revert-enhancements') });
+                        }
                         aiSubmenu.push(
                             { type: 'separator' },
-                            { label: '    Revert Enhancements', click: () => once('revert-enhancements') }
+                            { label: 'Revert', submenu: revertItems }
                         );
                     }
                 }

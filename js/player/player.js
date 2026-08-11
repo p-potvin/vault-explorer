@@ -55,7 +55,8 @@ async function handlePlayerContextMenu(action, menuItem) {
     } else if (action === 'normalize-audio') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
         window.showToast('Enhancing audio in background...', 'success');
-        window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, false).then(res => {
+        const audioBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
+        window.electronAPI.enhanceAudio(itemPath, window.currentRealPath, { volumeBoost: audioBoost }).then(res => {
             if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                 window.showToast(`${menuItem.name || 'Video'}: Audio enhanced`, 'success');
             } else {
@@ -71,8 +72,7 @@ async function handlePlayerContextMenu(action, menuItem) {
             window.appSettings.preferredASRLangs = langs;
             window.electronAPI.saveSettings(window.appSettings);
             window.showToast(`Generating subtitles for ${menuItem.name || 'video'}: ${langs.join(', ').toUpperCase()}`, 'success');
-            const volumeBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
-            window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, true, null, { volumeBoost }).then(res => {
+            window.electronAPI.generateSubtitles(itemPath, window.currentRealPath, { language: langs[0] }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');
                     refreshDirectoryWithScrollPreservation();
@@ -89,8 +89,9 @@ async function handlePlayerContextMenu(action, menuItem) {
             if (!window.appSettings) window.appSettings = {};
             window.appSettings.preferredTransLang = lang[0];
             window.electronAPI.saveSettings(window.appSettings);
-            window.showToast(`Synthesizing translation to ${lang[0].toUpperCase()} for ${menuItem.name || 'video'}...`, 'success');
-            window.electronAPI.normalizeAudio(itemPath, window.currentRealPath, false, lang[0]).then(res => {
+            window.showToast(`Translating subtitles to ${lang[0].toUpperCase()} for ${menuItem.name || 'video'}...`, 'success');
+            const sourceLanguage = ((window.appSettings && window.appSettings.preferredASRLangs) || ['en'])[0];
+            window.electronAPI.translateVideo(itemPath, window.currentRealPath, lang[0], { sourceLanguage }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Translation complete`, 'success');
                     refreshDirectoryWithScrollPreservation();

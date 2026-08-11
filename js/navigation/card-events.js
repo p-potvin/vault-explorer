@@ -1,5 +1,98 @@
 // card-events.js — handles card context menu triggers, file copy/cut/paste/delete pipelines, subtitles, VSR upscaling, and crypto prompts.
 
+const normCardPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+
+/**
+ * Attach a progress overlay to the card for `videoPath`, if it is on screen.
+ * Returns null when the card is not rendered (batch runs, filtered views).
+ */
+function attachEnhancementOverlay(videoPath, initialLabel) {
+    const card = Array.from(document.querySelectorAll('.file-card'))
+        .find(c => normCardPath(c.dataset.path) === normCardPath(videoPath));
+    if (!card) return null;
+
+    let overlay = card.querySelector('.webm-loading-overlay');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.className = 'webm-loading-overlay';
+
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner-small';
+    spinner.style.borderTopColor = '#e056fd';
+
+    const percent = document.createElement('div');
+    percent.className = 'webm-percent';
+    percent.style.cssText = 'margin-top:4px; font-size:10px; color:#e056fd;';
+    percent.textContent = '0%';
+
+    const label = document.createElement('div');
+    label.className = 'normalize-lbl';
+    label.style.cssText = 'font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;';
+    label.textContent = initialLabel;
+
+    overlay.append(spinner, percent, label);
+    const thumb = card.querySelector('.thumbnail-container');
+    if (thumb) thumb.appendChild(overlay);
+    return overlay;
+}
+
+/**
+ * Run one enhancement across a set of videos.
+ *
+ * A single progress listener serves the whole batch and is removed when it
+ * finishes — registering one per file (as the four copies of this code used to)
+ * leaked a listener on every run.
+ *
+ * `invoke(item)` performs the IPC call for one item and resolves with the
+ * handler's result.
+ */
+async function runEnhancementBatch(targetItems, { prefix, initialLabel, invoke, successMsg, failMsg }) {
+    const overlays = new Map();
+    for (const target of targetItems) {
+        const overlay = attachEnhancementOverlay(target.path, initialLabel);
+        if (overlay) overlays.set(normCardPath(target.path), overlay);
+    }
+
+    const onProgress = (data) => {
+        const overlay = overlays.get(normCardPath(data && data.videoPath));
+        if (!overlay) return;
+        const percent = overlay.querySelector('.webm-percent');
+        if (percent) percent.textContent = `${data.percent}%`;
+        const label = overlay.querySelector('.normalize-lbl');
+        if (label) label.textContent = prefix ? `${prefix}: ${data.label || 'Processing...'}` : (data.label || 'Processing...');
+    };
+    window.electronAPI.onNormalizeProgress(onProgress);
+
+    let succeeded = 0;
+    try {
+        await Promise.all(targetItems.map(async (target) => {
+            let res;
+            try {
+                res = await invoke(target);
+            } catch (err) {
+                res = { success: false, error: err && err.message };
+            }
+            const overlay = overlays.get(normCardPath(target.path));
+            if (overlay) overlay.remove();
+
+            if (res && (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS')) {
+                succeeded++;
+                window.showToast(`${target.name}: ${successMsg}`, 'success');
+            } else {
+                window.showToast(`${target.name}: ${failMsg}: ${(res && res.error) || 'Unknown error'}`, 'error');
+            }
+        }));
+    } finally {
+        window.electronAPI.offNormalizeProgress();
+    }
+
+    // The sidecar changed, so the menu's applied-enhancement checkboxes need
+    // the refreshed scan to stay truthful.
+    refreshDirectoryWithScrollPreservation();
+    return succeeded;
+}
+
 // Helper to update a single video card after AI processing
 async function updateSingleVideoCard(videoPath) {
     const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
@@ -169,52 +262,20 @@ async function handleCardContextMenu(card, item, index) {
                 }
             });
         }
-    } else if (action === 'normalize-audio' || action === 'normalize-audio-transcribe') {
-        const transcribe = (action === 'normalize-audio-transcribe');
+    } else if (action === 'normalize-audio') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
 
-        window.showToast(transcribe
-            ? `Vocal isolation, normalization & AI transcription started for ${targetItems.length} video(s)...`
-            : `Vocal isolation & normalization started in background for ${targetItems.length} video(s)...`, 'success');
+        window.showToast(`Vocal isolation & normalization started for ${targetItems.length} video(s)...`, 'success');
 
-        targetItems.forEach(targetItem => {
-            const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-            const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
-            let overlay = null;
-            if (cardElement) {
-                overlay = cardElement.querySelector('.webm-loading-overlay');
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.className = 'webm-loading-overlay';
-                    overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Initializing...</div>`;
-                    const thumbCont = cardElement.querySelector('.thumbnail-container');
-                    if (thumbCont) thumbCont.appendChild(overlay);
-                }
-            }
-
-            const progressHandler = (eventData) => {
-                if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
-                    if (overlay) {
-                        const pctEl = overlay.querySelector('.webm-percent');
-                        if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                        const lblEl = overlay.querySelector('.normalize-lbl');
-                        if (lblEl) lblEl.innerText = eventData.label || 'Processing...';
-                    }
-                }
-            };
-
-            window.electronAPI.onNormalizeProgress(progressHandler);
-
-            window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, transcribe).then(res => {
-                if (overlay) overlay.remove();
-                if (res.status === 'SUCCESS' || res.status === 'EXISTS') {
-                    window.showToast(`${targetItem.name}: Isolated successfully!`, 'success');
-                } else {
-                    window.showToast(`${targetItem.name}: Isolation failed: ` + (res.error || 'Unknown error'), 'error');
-                }
-            });
+        const volumeBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
+        await runEnhancementBatch(targetItems, {
+            prefix: '',
+            initialLabel: 'Initializing...',
+            invoke: (target) => window.electronAPI.enhanceAudio(
+                target.path, window.currentRealPath, { volumeBoost }),
+            successMsg: 'Audio enhanced successfully!',
+            failMsg: 'Audio enhancement failed',
         });
     } else if (action === 'upscale-video') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
@@ -229,63 +290,52 @@ async function handleCardContextMenu(card, item, index) {
 
         window.showToast(`AI Video Upscaling started in background for ${targetItems.length} video(s)...`, 'success');
 
-        targetItems.forEach(targetItem => {
-            const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-            const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
-            let overlay = null;
-            if (cardElement) {
-                overlay = cardElement.querySelector('.webm-loading-overlay');
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.className = 'webm-loading-overlay';
-                    overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Upscaling...</div>`;
-                    const thumbCont = cardElement.querySelector('.thumbnail-container');
-                    if (thumbCont) thumbCont.appendChild(overlay);
-                }
-            }
-
-            const upscaleProgressHandler = (eventData) => {
-                if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
-                    if (overlay) {
-                        const pctEl = overlay.querySelector('.webm-percent');
-                        if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                        const lblEl = overlay.querySelector('.normalize-lbl');
-                        if (lblEl) lblEl.innerText = eventData.label || 'Upscaling...';
-                    }
-                }
-            };
-
-            window.electronAPI.onUpscaleProgress(upscaleProgressHandler);
-
-            const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
-            const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
-            const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
-            const vsrBitrate = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
-            window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality, scale: vsrScale, bitrate: vsrBitrate, chroma: vsrChroma }).then(res => {
-                if (overlay) overlay.remove();
-                if (res.success) {
-                    window.showToast(`${targetItem.name}: Upscaling complete!`, 'success');
-                    refreshDirectoryWithScrollPreservation();
-                } else {
-                    window.showToast(`${targetItem.name}: Upscale failed: ` + (res.error || 'Unknown'), 'error');
-                }
-            });
+        const vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
+        const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
+        const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
+        await runEnhancementBatch(targetItems, {
+            prefix: '',
+            initialLabel: 'Upscaling...',
+            invoke: (target) => window.electronAPI.upscaleVideo({
+                path: target.path,
+                vaultRoot: window.currentRealPath,
+                quality: vsrQuality,
+                scale: vsrScale,
+                chroma: vsrChroma,
+            }),
+            successMsg: 'Upscaling complete!',
+            failMsg: 'Upscale failed',
         });
-    } else if (action === 'revert-enhancements') {
+    } else if (action === 'revert-enhancements' || action.startsWith('revert-enhancement:')) {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
 
-        const confirmMsg = targetItems.length > 1
-            ? `Are you sure you want to revert all enhancements for the ${targetItems.length} selected video(s)? This will delete their enhanced copies.`
-            : `Are you sure you want to revert all enhancements for "${item.name}"? This will delete the enhanced copy.`;
-        if (await window.showConfirmDialog(confirmMsg, 'Revert Video Enhancements')) {
+        // 'revert-enhancements' clears everything; 'revert-enhancement:<key>'
+        // undoes one action.
+        const which = action.startsWith('revert-enhancement:') ? action.split(':')[1] : null;
+        const WHAT = {
+            audio: { name: 'audio enhancement', warns: 'This deletes the enhanced copy.' },
+            video: { name: 'video enhancement', warns: 'This deletes the enhanced copy.' },
+            subtitles: { name: 'generated subtitles', warns: 'This deletes the generated .srt files.' },
+            translation: { name: 'translated subtitles', warns: 'This deletes the translated .srt files.' },
+        };
+        const detail = which ? WHAT[which] : null;
+        if (which && !detail) { window.showToast(`Unknown enhancement: ${which}`, 'error'); return; }
+
+        const subject = detail ? detail.name : 'all enhancements';
+        const warning = detail ? detail.warns : 'This deletes the enhanced copy and every generated subtitle file.';
+        const scope = targetItems.length > 1
+            ? `the ${targetItems.length} selected video(s)`
+            : `"${item.name}"`;
+
+        if (await window.showConfirmDialog(
+            `Revert ${subject} for ${scope}? ${warning}`, 'Revert Video Enhancements')) {
             let count = 0;
             for (const targetItem of targetItems) {
-                const res = await window.electronAPI.revertEnhancements(targetItem.path);
-                if (res.success) count++;
+                const res = await window.electronAPI.revertEnhancements(targetItem.path, which);
+                if (res && res.success) count++;
             }
-            window.showToast(`Reverted enhancements for ${count}/${targetItems.length} video(s)`, 'success');
+            window.showToast(`Reverted ${subject} for ${count}/${targetItems.length} video(s)`, 'success');
             refreshDirectoryWithScrollPreservation();
         }
     } else if (action === 'generate-subtitles-prompt') {
@@ -300,42 +350,13 @@ async function handleCardContextMenu(card, item, index) {
             window.electronAPI.saveSettings(window.appSettings);
 
             window.showToast(`Generating subtitles for ${targetItems.length} video(s): ${langs.join(', ').toUpperCase()}`, 'success');
-            targetItems.forEach(targetItem => {
-                const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-                const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                    .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
-                let overlay = null;
-                if (cardElement) {
-                    overlay = cardElement.querySelector('.webm-loading-overlay');
-                    if (!overlay) {
-                        overlay = document.createElement('div');
-                        overlay.className = 'webm-loading-overlay';
-                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Subs: Init...</div>`;
-                        const thumbCont = cardElement.querySelector('.thumbnail-container');
-                        if (thumbCont) thumbCont.appendChild(overlay);
-                    }
-                }
-                const progressHandler = (eventData) => {
-                    if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
-                        if (overlay) {
-                            const pctEl = overlay.querySelector('.webm-percent');
-                            if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                            const lblEl = overlay.querySelector('.normalize-lbl');
-                            if (lblEl) lblEl.innerText = `Subs: ${eventData.label || 'Processing...'}`;
-                        }
-                    }
-                };
-                window.electronAPI.onNormalizeProgress(progressHandler);
-                const volumeBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
-                window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, true, null, { volumeBoost }).then(res => {
-                    if (overlay) overlay.remove();
-                    if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
-                        window.showToast(`${targetItem.name}: Subtitles generated successfully!`, 'success');
-                        refreshDirectoryWithScrollPreservation();
-                    } else {
-                        window.showToast(`${targetItem.name}: Subtitles failed: ` + (res.error || 'Unknown'), 'error');
-                    }
-                });
+            await runEnhancementBatch(targetItems, {
+                prefix: 'Subs',
+                initialLabel: 'Subs: Init...',
+                invoke: (target) => window.electronAPI.generateSubtitles(
+                    target.path, window.currentRealPath, { language: langs[0] }),
+                successMsg: 'Subtitles generated successfully!',
+                failMsg: 'Subtitles failed',
             });
         }
     } else if (action === 'translate-video-prompt') {
@@ -349,42 +370,15 @@ async function handleCardContextMenu(card, item, index) {
             window.appSettings.preferredTransLang = lang[0];
             window.electronAPI.saveSettings(window.appSettings);
 
-            window.showToast(`Synthesizing translation to ${lang[0].toUpperCase()} for ${targetItems.length} video(s)...`, 'success');
-            targetItems.forEach(targetItem => {
-                const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-                const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                    .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
-                let overlay = null;
-                if (cardElement) {
-                    overlay = cardElement.querySelector('.webm-loading-overlay');
-                    if (!overlay) {
-                        overlay = document.createElement('div');
-                        overlay.className = 'webm-loading-overlay';
-                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">Trans: Init...</div>`;
-                        const thumbCont = cardElement.querySelector('.thumbnail-container');
-                        if (thumbCont) thumbCont.appendChild(overlay);
-                    }
-                }
-                const progressHandler = (eventData) => {
-                    if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
-                        if (overlay) {
-                            const pctEl = overlay.querySelector('.webm-percent');
-                            if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                            const lblEl = overlay.querySelector('.normalize-lbl');
-                            if (lblEl) lblEl.innerText = `Trans: ${eventData.label || 'Processing...'}`;
-                        }
-                    }
-                };
-                window.electronAPI.onNormalizeProgress(progressHandler);
-                window.electronAPI.normalizeAudio(targetItem.path, window.currentRealPath, false, lang[0]).then(res => {
-                    if (overlay) overlay.remove();
-                    if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
-                        window.showToast(`${targetItem.name}: Translation complete!`, 'success');
-                        refreshDirectoryWithScrollPreservation();
-                    } else {
-                        window.showToast(`${targetItem.name}: Translation failed: ` + (res.error || 'Unknown'), 'error');
-                    }
-                });
+            window.showToast(`Translating subtitles to ${lang[0].toUpperCase()} for ${targetItems.length} video(s)...`, 'success');
+            const sourceLanguage = ((window.appSettings && window.appSettings.preferredASRLangs) || ['en'])[0];
+            await runEnhancementBatch(targetItems, {
+                prefix: 'Trans',
+                initialLabel: 'Trans: Init...',
+                invoke: (target) => window.electronAPI.translateVideo(
+                    target.path, window.currentRealPath, lang[0], { sourceLanguage }),
+                successMsg: 'Translation complete!',
+                failMsg: 'Translation failed',
             });
         }
     } else if (action === 'enhance-video-prompt') {
