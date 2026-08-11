@@ -2095,3 +2095,26 @@ body.clip-mode-active #btn-clip {
 .success-bounce {
   animation: successBounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
+
+/* Subtitle Options Styling */
+.subtitle-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: var(--vault-text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.subtitle-option:hover,
+.subtitle-option:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
