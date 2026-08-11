@@ -250,6 +250,70 @@ function checkAudioStream(videoPath) {
     });
 }
 
+function getVideoMetadata(videoPath) {
+    return new Promise((resolve) => {
+        const ffprobe = getFFmpegPath().replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe');
+        execFile(ffprobe, [
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-show_entries', 'stream=codec_type,duration',
+            '-of', 'json',
+            videoPath
+        ], (err, stdout) => {
+            let hasAudio = false;
+            let hasVideo = false;
+            let isValid = false;
+            let duration = 0;
+
+            if (err) {
+                resolve({ hasAudio, hasVideo, isValid, duration });
+                return;
+            }
+
+            try {
+                const data = JSON.parse(stdout);
+                if (data.format && data.format.duration) {
+                    duration = parseFloat(data.format.duration);
+                }
+
+                let videoDuration = 0;
+                let audioDuration = 0;
+
+                if (data.streams) {
+                    for (const stream of data.streams) {
+                        if (stream.codec_type === 'video') {
+                            hasVideo = true;
+                            if (stream.duration) {
+                                videoDuration = parseFloat(stream.duration);
+                            }
+                        } else if (stream.codec_type === 'audio') {
+                            hasAudio = true;
+                            if (stream.duration) {
+                                audioDuration = parseFloat(stream.duration);
+                            }
+                        }
+                    }
+                }
+
+                const refDuration = duration || Math.max(videoDuration, audioDuration);
+
+                if (hasVideo && hasAudio && refDuration > 0) {
+                    const threshold = Math.max(5.0, refDuration * 0.05);
+                    const videoOk = videoDuration > 0 && Math.abs(refDuration - videoDuration) <= threshold;
+                    const audioOk = audioDuration > 0 && Math.abs(refDuration - audioDuration) <= threshold;
+                    if (videoOk && audioOk) {
+                        isValid = true;
+                    }
+                }
+            } catch (e) {
+                console.error("[main:metadata] Failed to parse ffprobe output:", e);
+            }
+
+            resolve({ hasAudio, hasVideo, isValid, duration });
+        });
+    });
+}
+
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -396,6 +460,7 @@ module.exports = {
     runLowPriorityProcess,
     getVideoDuration,
     checkAudioStream,
+    getVideoMetadata,
     formatBytes,
     PriorityQueue,
     getRobustPythonExe,

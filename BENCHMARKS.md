@@ -4724,3 +4724,242 @@ Executed on local hardware via Playwright automated pipeline validation.
 | 2026-07-28T17:39:04.231Z | Violet Xias Live Big Butts Double Penetration Fetish Chat Room(1).mp4 | 312.64 MB | 1280.0s | 151ms | 825ms | SUCCESS |
 | 2026-07-28T17:39:05.668Z | Zendaya Jays Live Big Boobs College Girls Girls Next Door Chat R.mp4 | 286.38 MB | 1166.0s | 155ms | 1186ms | SUCCESS |
 | 2026-07-28T17:39:06.651Z | Zarina H's Live Chat Room-1 beginning good_Trim.mp4 | 48.28 MB | 565.3s | 146ms | 754ms | SUCCESS |
+| 2026-07-31T03:39:05.205Z | Evelyne Goddesss Live Latina Shaving Tattoos Chat Room.mp4 | 34.95 MB | 376.8s | N/A | 1018ms | FAILED |
+| 2026-07-31T03:39:07.201Z | Violet Xias Live Big Butts Double Penetration Fetish Chat Room(1).mp4 | 22.28 MB | 669.6s | N/A | 1592ms | FAILED |
+| 2026-07-31T03:39:09.713Z | Violetta Midnights Live Fetish BDSM Anal Chat Room (2).mp4 | 60.31 MB | 936.0s | N/A | 2062ms | FAILED |
+| 2026-07-31T03:39:12.004Z | Watch Helloiamastrid live on Chaturbate(18).mp4 | 137.83 MB | 779.2s | N/A | 1773ms | FAILED |
+| 2026-07-31T03:39:13.294Z | Watch Wekeepyoursecret live on Chaturbate.mp4 | 48.83 MB | 422.4s | N/A | 886ms | FAILED |
+| 2026-07-31T03:40:54.442Z | Watch Liaa_rodriguezz live on Chaturbate.mp4 | 171.25 MB | 478.4s | 189ms | 1158ms | SUCCESS |
+| 2026-07-31T03:40:55.434Z | s Upload.mp4 | 1.91 MB | 13.4s | 194ms | 708ms | SUCCESS |
+| 2026-07-31T03:40:56.558Z | Nathalie Hardy Nathaliehardy Cam Free Live Nude Sex Show Chat.mp4 | 62.27 MB | 336.0s | 153ms | 876ms | SUCCESS |
+| 2026-07-31T03:40:57.661Z | Vyolet Fires Live College Girls Small Tits Strippers Chat Room.mp4 | 105.24 MB | 428.0s | 153ms | 860ms | SUCCESS |
+| 2026-07-31T03:40:59.121Z | manifest 2026-07-30 13_29.mp4 | 122.88 MB | 476.0s | 171ms | 1182ms | SUCCESS |
+| 2026-07-31T03:41:01.040Z | manifest 2026-07-30 13_26.mp4 | 57.81 MB | 145.4s | 221ms | 1552ms | SUCCESS |
+| 2026-07-31T03:41:03.465Z | manifest 2026-07-30 13_21.mp4 | 82.66 MB | 208.0s | 273ms | 2003ms | SUCCESS |
+| 2026-07-31T03:41:05.166Z | manifest 2026-07-30 13_20.mp4 | 32 MB | 123.6s | 208ms | 1380ms | SUCCESS |
+| 2026-07-31T03:41:06.598Z | Katherin Winter Private Webcam Show(1).mp4 | 106.07 MB | 665.0s | 227ms | 1108ms | SUCCESS |
+| 2026-07-31T03:41:07.753Z | Katherin Winters Live Squirters Hairy Pussy Double Penetration C(1).mp4 | 64.97 MB | 263.6s | 167ms | 891ms | SUCCESS |
+| 2026-07-31T03:41:08.930Z | Katherin Winters Live Squirters Hairy Pussy Double Penetration C.mp4 | 215.6 MB | 872.6s | 169ms | 910ms | SUCCESS |
+| 2026-07-31T03:41:10.103Z | Watch 2badforyou live on Chaturbate.mp4 | 667.89 MB | 3289.6s | 161ms | 893ms | SUCCESS |
+| 2026-07-31T03:41:10.773Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T03:41:11.719Z | pzstream_stream-b27a6fe12e5b_chunklist_0_video_12034854627662159769_llhls 2026-07-30 09_29 [chunklist_0_video_12034854627662159769_llhls].mp4 | 146.11 MB | 1387.2s | 136ms | 727ms | SUCCESS |
+| 2026-07-31T03:41:15.518Z | pzstream_stream-92f3677af677_chunklist_3_video_12034854627662159769_llhls 2026-07-30 09_27 [chunklist_3_video_12034854627662159769_llhls].mp4 | 31.53 MB | 51.2s | 207ms | 3445ms | SUCCESS |
+| 2026-07-31T03:41:16.646Z | Gwen Drews Live Blonde Big Butts Latina Chat Room.mp4 | 75.74 MB | 308.0s | 165ms | 878ms | SUCCESS |
+| 2026-07-31T03:41:18.211Z | Free Live Sex Cams and Adult Chat Flirt4Free(16).mp4 | 276.49 MB | 720.1s | 191ms | 1273ms | SUCCESS |
+| 2026-07-31T03:41:19.550Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | 963ms | FAILED |
+| 2026-07-31T03:41:22.125Z | Watch Alessafrost_ live on Chaturbate.mp4 | 292.98 MB | 344.0s | 183ms | 2285ms | SUCCESS |
+| 2026-07-31T03:41:23.118Z | Watch Zephyra_bms live on Chaturbate.mp4 | 21.53 MB | 140.8s | 166ms | 741ms | SUCCESS |
+| 2026-07-31T03:41:24.258Z | Watch Olive_you_ live on Chaturbate.mp4 | 88.03 MB | 433.6s | 156ms | 888ms | SUCCESS |
+| 2026-07-31T03:41:26.050Z | 75min pvt cum 3times Evolet Goddess Private Webcam Show(1).mp4 | 2.14 GB | 4408.5s | 225ms | 1440ms | SUCCESS |
+| 2026-07-31T03:41:27.246Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(7).mp4 | 29.94 MB | 120.7s | 182ms | 915ms | SUCCESS |
+| 2026-07-31T03:41:28.346Z | pvt ending 1h30m Evolet Goddesss.mp4 | 244.93 MB | 987.4s | 162ms | 845ms | SUCCESS |
+| 2026-07-31T03:41:29.906Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(5).mp4 | 317.98 MB | 842.0s | 200ms | 1260ms | SUCCESS |
+| 2026-07-31T03:41:31.604Z | Evolet Goddesss Live Latina Big Butts Big Boobs Chat Room(2).mp4 | 1.35 GB | 3611.4s | 202ms | 1370ms | SUCCESS |
+| 2026-07-31T03:41:32.747Z | Mena Jougles Live Latina Big Butts Glamour Chat Room.mp4 | 166.62 MB | 675.9s | 171ms | 873ms | SUCCESS |
+| 2026-07-31T03:41:34.052Z | Watch Kathybecker live on Chaturbate.mp4 | 277.39 MB | 750.4s | 169ms | 1039ms | SUCCESS |
+| 2026-07-31T03:41:35.214Z | Watch Isisraichuu live on Chaturbate(1).mp4 | 373.22 MB | 1838.4s | 157ms | 900ms | SUCCESS |
+| 2026-07-31T03:41:36.248Z | Watch Isisraichuu live on Chaturbate.mp4 | 168.59 MB | 830.4s | 148ms | 793ms | SUCCESS |
+| 2026-07-31T03:41:37.216Z | Candyce Bustins Live Squirters Brunette Small Tits Chat Room(1).mp4 | 26.57 MB | 187.3s | 149ms | 734ms | SUCCESS |
+| 2026-07-31T03:42:08.150Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T03:42:09.394Z | pvt 20min beg for cum Dulce Mays Live Roleplay Small Tits Anal Chat Room.mp4 | 246.21 MB | 1208.0s | 168ms | 979ms | SUCCESS |
+| 2026-07-31T03:42:12.026Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | 2231ms | FAILED |
+| 2026-07-31T03:42:13.241Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | 811ms | FAILED |
+| 2026-07-31T03:42:14.532Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | 907ms | FAILED |
+| 2026-07-31T03:42:17.243Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | 2305ms | FAILED |
+| 2026-07-31T03:42:18.383Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | 768ms | FAILED |
+| 2026-07-31T03:42:21.487Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | 2661ms | FAILED |
+| 2026-07-31T03:42:28.129Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | 6063ms | FAILED |
+| 2026-07-31T03:42:30.529Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | 1872ms | FAILED |
+| 2026-07-31T03:44:32.984Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | 1052ms | FAILED |
+| 2026-07-31T03:44:34.318Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | 958ms | FAILED |
+| 2026-07-31T03:44:36.026Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | N/A | 1271ms | FAILED |
+| 2026-07-31T03:44:38.237Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | N/A | 1673ms | FAILED |
+| 2026-07-31T04:24:23.795Z | pvt 20min beg for cum Dulce Mays Live Roleplay Small Tits Anal Chat Room.mp4 | 246.21 MB | 1208.0s | 777ms | 948ms | SUCCESS |
+| 2026-07-31T05:45:29.125Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T05:45:30.787Z | cum drunk ahegao slut 9min Bunnydollstella live on Chaturbate(2).mp4 | 335.24 MB | 547.5s | 206ms | 1347ms | SUCCESS |
+| 2026-07-31T05:45:32.272Z | Free Live Sex Cams and Adult Chat Flirt4Free(17).mp4 | 270.01 MB | 624.0s | 179ms | 1207ms | SUCCESS |
+| 2026-07-31T05:45:33.429Z | Maya Hillss pvt dirty talk cock worship fucking sexy 27min.mp4 | 451.97 MB | 1626.0s | 156ms | 901ms | SUCCESS |
+| 2026-07-31T05:45:34.847Z | Maya Hillss Live Brunette College Girls European Girls Chat Room(1).mp4 | 54.48 MB | 126.0s | 160ms | 1173ms | SUCCESS |
+| 2026-07-31T05:45:37.428Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | 2198ms | FAILED |
+| 2026-07-31T05:45:38.598Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | 793ms | FAILED |
+| 2026-07-31T05:45:39.696Z | pvt 13min anal plug dirty talk espanol Sofy Baanks Private Webcam Show.mp4 | 79.79 MB | 803.6s | 171ms | 835ms | SUCCESS |
+| 2026-07-31T05:45:40.948Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | 869ms | FAILED |
+| 2026-07-31T05:45:43.561Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | 2222ms | FAILED |
+| 2026-07-31T05:47:45.549Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | 789ms | FAILED |
+| 2026-07-31T05:47:48.574Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | 2612ms | FAILED |
+| 2026-07-31T05:47:49.867Z | Watch Bunnydollstella live on Chaturbate(2).mp4 | 310.34 MB | 838.9s | 159ms | 1039ms | SUCCESS |
+| 2026-07-31T05:47:56.478Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | 6105ms | FAILED |
+| 2026-07-31T05:47:59.393Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | 1865ms | FAILED |
+| 2026-07-31T05:48:00.836Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | 1044ms | FAILED |
+| 2026-07-31T05:48:02.557Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | N/A | 1273ms | FAILED |
+| 2026-07-31T05:48:04.596Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | N/A | 1545ms | FAILED |
+| 2026-07-31T05:48:05.881Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | 917ms | FAILED |
+| 2026-07-31T05:50:11.084Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | 1034ms | FAILED |
+| 2026-07-31T05:50:14.239Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | 2703ms | FAILED |
+| 2026-07-31T05:50:20.953Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | 6197ms | FAILED |
+| 2026-07-31T05:50:23.386Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | 1973ms | FAILED |
+| 2026-07-31T05:50:24.759Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | 980ms | FAILED |
+| 2026-07-31T05:50:26.357Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | N/A | 1157ms | FAILED |
+| 2026-07-31T05:50:28.419Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | N/A | 1625ms | FAILED |
+| 2026-07-31T05:50:29.931Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | 950ms | FAILED |
+| 2026-07-31T05:54:28.000Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T05:54:31.732Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | 3271ms | FAILED |
+| 2026-07-31T05:54:35.429Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | 1039ms | FAILED |
+| 2026-07-31T05:54:37.002Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | 897ms | FAILED |
+| 2026-07-31T05:54:40.087Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | 2286ms | FAILED |
+| 2026-07-31T05:54:41.528Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | 702ms | FAILED |
+| 2026-07-31T05:54:44.889Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | 2567ms | FAILED |
+| 2026-07-31T05:54:51.582Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | 5871ms | FAILED |
+| 2026-07-31T05:54:54.943Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | 2863ms | FAILED |
+| 2026-07-31T05:54:57.424Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | 1036ms | FAILED |
+| 2026-07-31T06:04:23.284Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:25.309Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:25.940Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:26.573Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:27.221Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:27.887Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:29.269Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:29.972Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:30.756Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | N/A | FAILED |
+| 2026-07-31T06:04:31.397Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:08:11.105Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:08:12.589Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | 952ms | FAILED |
+| 2026-07-31T06:08:17.553Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | 4493ms | FAILED |
+| 2026-07-31T06:08:19.031Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | 1004ms | FAILED |
+| 2026-07-31T06:08:22.369Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | 2771ms | FAILED |
+| 2026-07-31T06:08:24.028Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | 1168ms | FAILED |
+| 2026-07-31T06:08:27.921Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | 3228ms | FAILED |
+| 2026-07-31T06:08:35.717Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | 7074ms | FAILED |
+| 2026-07-31T06:08:37.494Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | 1274ms | FAILED |
+| 2026-07-31T06:08:38.133Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | N/A | FAILED |
+| 2026-07-31T06:12:36.625Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | N/A | 1517ms | FAILED |
+| 2026-07-31T06:12:38.185Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | N/A | 1129ms | FAILED |
+| 2026-07-31T06:12:39.440Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | 900ms | FAILED |
+| 2026-07-31T06:28:22.170Z | Evie Bennets Live Mature Redhead Big Boobs Chat Room.mp4 | 75.06 MB | 270.0s | 4340ms | 914ms | SUCCESS |
+| 2026-07-31T06:30:00.075Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:00.790Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:01.414Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:02.068Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:03.218Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:03.764Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:04.332Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:05.199Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:05.782Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | N/A | FAILED |
+| 2026-07-31T06:30:06.328Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:36:01.081Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | N/A | 1238ms | FAILED |
+| 2026-07-31T06:36:03.063Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | N/A | 1536ms | FAILED |
+| 2026-07-31T06:36:04.352Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | 927ms | FAILED |
+| 2026-07-31T06:41:53.455Z | Watch Liaa_rodriguezz live on Chaturbate.mp4 | 171.25 MB | 478.4s | 1441ms | 891ms | SUCCESS |
+| 2026-07-31T06:44:33.225Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:44:35.851Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | 306ms | 2221ms | FAILED |
+| 2026-07-31T06:44:37.028Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | 278ms | 812ms | FAILED |
+| 2026-07-31T06:44:38.267Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | 288ms | 862ms | FAILED |
+| 2026-07-31T06:44:40.891Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | 298ms | 2226ms | FAILED |
+| 2026-07-31T06:44:41.939Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | 265ms | 697ms | FAILED |
+| 2026-07-31T06:44:44.797Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | 280ms | 2483ms | FAILED |
+| 2026-07-31T06:44:51.074Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | 337ms | 5794ms | FAILED |
+| 2026-07-31T06:44:53.173Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | 337ms | 1659ms | FAILED |
+| 2026-07-31T06:44:54.496Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | 283ms | 954ms | FAILED |
+| 2026-07-31T06:45:39.996Z | pzstream_stream-a4e36711eecf_chunklist_5_audio_12034854627662159769_llhls 2026-07-30 09_28 [chunklist_5_audio_12034854627662159769_llhls].mp4 | 26.89 MB | 1443.2s | N/A | N/A | FAILED |
+| 2026-07-31T06:45:42.527Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | 271ms | 2174ms | FAILED |
+| 2026-07-31T06:45:43.667Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | 271ms | 782ms | FAILED |
+| 2026-07-31T06:45:44.872Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | 277ms | 847ms | FAILED |
+| 2026-07-31T06:45:47.487Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | 288ms | 2240ms | FAILED |
+| 2026-07-31T06:45:48.535Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | 270ms | 696ms | FAILED |
+| 2026-07-31T06:45:51.392Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | 282ms | 2487ms | FAILED |
+| 2026-07-31T06:45:57.631Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | 364ms | 5735ms | FAILED |
+| 2026-07-31T06:45:59.738Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | 333ms | 1668ms | FAILED |
+| 2026-07-31T06:46:01.131Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | 285ms | 1024ms | FAILED |
+| 2026-07-31T07:57:22.933Z | pvt 17min May-wood Cam Free Live Nude Sex Show Chat - Camsoda.mp4 | 194.58 MB | 1006.0s | 706ms | 840ms | SUCCESS |
+| 2026-07-31T07:57:24.965Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | 341ms | 1573ms | FAILED |
+| 2026-07-31T07:57:26.555Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | 344ms | 1136ms | FAILED |
+| 2026-07-31T07:57:27.832Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | 281ms | 909ms | FAILED |
+| 2026-07-31T08:05:09.016Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | 334ms | 2282ms | FAILED |
+| 2026-07-31T08:05:10.253Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | 286ms | 856ms | FAILED |
+| 2026-07-31T08:05:11.561Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | 299ms | 909ms | FAILED |
+| 2026-07-31T08:05:14.406Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | 312ms | 2429ms | FAILED |
+| 2026-07-31T08:05:15.533Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | 280ms | 756ms | FAILED |
+| 2026-07-31T08:05:18.540Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | 303ms | 2604ms | FAILED |
+| 2026-07-31T08:05:24.985Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | 355ms | 5933ms | FAILED |
+| 2026-07-31T08:05:26.385Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | 306ms | 998ms | FAILED |
+| 2026-07-31T08:05:28.603Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | 352ms | 1753ms | FAILED |
+| 2026-07-31T08:05:30.201Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | 329ms | 1172ms | FAILED |
+| 2026-07-31T09:51:07.170Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | 950ms | 1542ms | FAILED |
+| 2026-07-31T09:51:08.449Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | 272ms | 921ms | FAILED |
+| 2026-07-31T12:01:51.084Z | Daddy's slut anal bj 24min Helloiamastrid live on Chaturbate(3).mp4 | 291.4 MB | 1435.4s | 306ms | 966ms | SUCCESS |
+| 2026-07-31T12:01:52.834Z | Free Live Sex Cams and Adult Chat Flirt4Free(19).mp4 | 53.89 MB | 140.9s | 197ms | 1457ms | SUCCESS |
+| 2026-07-31T12:01:54.426Z | Free Live Sex Cams and Adult Chat Flirt4Free(18).mp4 | 52.77 MB | 122.0s | 176ms | 1312ms | SUCCESS |
+| 2026-07-31T12:01:55.571Z | Lia Johnnsonns Live Latina Small Tits Squirters Chat Room(1).mp4 | 135.76 MB | 548.4s | 163ms | 889ms | SUCCESS |
+| 2026-07-31T12:01:58.283Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | 304ms | 2313ms | FAILED |
+| 2026-07-31T12:01:59.466Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | 287ms | 811ms | FAILED |
+| 2026-07-31T12:02:02.054Z | Royalcams(1).mp4 | 156.38 MB | 364.6s | 337ms | 2155ms | SUCCESS |
+| 2026-07-31T12:02:03.965Z | Royalcams(2).mp4 | 57.63 MB | 295.3s | 249ms | 1552ms | SUCCESS |
+| 2026-07-31T12:02:05.548Z | Royalcams(4).mp4 | 59.61 MB | 313.3s | 225ms | 1263ms | SUCCESS |
+| 2026-07-31T12:02:05.995Z | Royalcams(3).mp4 | 25.14 MB | 91.1s | N/A | N/A | FAILED |
+| 2026-07-31T12:04:08.998Z | Royalcams.mp4 | 132.38 MB | 271.2s | 343ms | 1851ms | SUCCESS |
+| 2026-07-31T12:04:11.786Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | 306ms | 2388ms | FAILED |
+| 2026-07-31T12:04:13.074Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | 291ms | 900ms | FAILED |
+| 2026-07-31T12:04:14.213Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | 283ms | 774ms | FAILED |
+| 2026-07-31T12:04:17.336Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | 302ms | 2724ms | FAILED |
+| 2026-07-31T12:04:24.039Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | 379ms | 6159ms | FAILED |
+| 2026-07-31T12:04:25.829Z | Watch Melanie_bianco live on Chaturbate.mp4 | 237.27 MB | 387.4s | 208ms | 1465ms | SUCCESS |
+| 2026-07-31T12:04:28.139Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | 376ms | 1819ms | FAILED |
+| 2026-07-31T12:04:29.941Z | Watch Venomeowww_ live on Chaturbate.mp4 | 340.31 MB | 558.4s | 195ms | 1496ms | SUCCESS |
+| 2026-07-31T12:04:31.297Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | 286ms | 981ms | FAILED |
+| 2026-07-31T12:06:33.497Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | 397ms | 1302ms | FAILED |
+| 2026-07-31T12:06:35.583Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | 365ms | 1611ms | FAILED |
+| 2026-07-31T12:06:36.904Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | 289ms | 938ms | FAILED |
+| 2026-08-01T03:58:16.950Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:17.001Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:17.054Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:17.107Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:17.160Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:17.218Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:18.369Z | Watch Calehot98 live on Chaturbate.mp4 | 322.33 MB | 1590.7s | 188ms | 904ms | SUCCESS |
+| 2026-08-01T03:58:18.472Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:18.555Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | N/A | Invalid |
+| 2026-08-01T03:58:18.621Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | N/A | Invalid |
+| 2026-08-01T03:59:43.054Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | N/A | N/A | Invalid |
+| 2026-08-01T03:59:43.133Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | N/A | N/A | Invalid |
+| 2026-08-01T03:59:43.187Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | N/A | Invalid |
+| 2026-08-02T01:52:57.355Z | pzstream_stream-2169bf3d1891_manifest 2026-08-01 06_18 [manifest].mp4 | 188.7 MB | 420.1s | 5007ms | 4755ms | SUCCESS |
+| 2026-08-02T01:52:58.589Z | pzstream_stream-4291db424c0a_manifest 2026-08-01 18_48 [manifest].mp4 | 40.33 MB | 156.0s | 161ms | 1017ms | SUCCESS |
+| 2026-08-02T01:53:01.390Z | pzstream_stream-dbd02b62c995_manifest 2026-08-01 06_11 [manifest].mp4 | 60.19 MB | 232.9s | 170ms | 1119ms | SUCCESS |
+| 2026-08-02T01:53:01.654Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | N/A | Invalid |
+| 2026-08-02T01:53:01.707Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | N/A | Invalid |
+| 2026-08-02T01:53:01.760Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | N/A | Invalid |
+| 2026-08-02T01:53:01.809Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | N/A | Invalid |
+| 2026-08-02T01:53:01.864Z | Valerya Sexis Live Domination Latina Squirters Chat Room(1).mp4 | 25.87 MB | 1293.6s | N/A | N/A | Invalid |
+| 2026-08-02T01:53:01.922Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 26.76 MB | 1140.0s | N/A | N/A | Invalid |
+| 2026-08-02T01:53:02.015Z | Watch Dongfatherproductions live on Chaturbate(1).mp4 | 1.56 GB | 7891.2s | N/A | N/A | Invalid |
+| 2026-08-02T01:55:02.109Z | Watch Millabelle live on Chaturbate.mp4 | 187.88 MB | 932.8s | N/A | N/A | Invalid |
+| 2026-08-02T01:55:02.166Z | Watch Pinkadele live on Chaturbate(1).mp4 | 85.48 MB | 507.2s | N/A | N/A | Invalid |
+| 2026-08-02T01:55:02.227Z | Watch Pinkadele live on Chaturbate(5).mp4 | 38.15 MB | 184.0s | N/A | N/A | Invalid |
+| 2026-08-02T01:55:02.293Z | Watch Pinkadele live on Chaturbate(8).mp4 | 12.64 MB | 408.0s | N/A | N/A | Invalid |
+| 2026-08-02T01:55:02.338Z | Watch Zephyra_bms live on Chaturbate(1).mp4 | 21.91 MB | 371.2s | N/A | N/A | Invalid |
+| 2026-08-02T02:35:38.148Z | 26min double  bj Calehot98 live on Chaturbate.mp4 | 322.33 MB | 1590.7s | 178ms | 858ms | SUCCESS |
+| 2026-08-02T02:35:39.293Z | Dumb bimbo titfucking 13min Bunnydollstella live on Chaturbate(2).mp4 | 310.34 MB | 838.9s | 153ms | 940ms | SUCCESS |
+| 2026-08-02T02:35:39.347Z | fucking hot goth worships cock Watch Venomeowww_ live on Chaturbate.mp4 | 340.31 MB | 558.4s | N/A | N/A | Invalid |
+| 2026-08-02T04:36:55.038Z | 1h10m incredible pvt with my sexy latina Evolet Goddess Private Webcam Show.mp4 | 1.01 GB | 4098.6s | 236ms | 1053ms | SUCCESS |
+| 2026-08-02T04:36:55.089Z | 34min anal public Zoeecarter_ live on Chaturbate.mp4 | 248.97 MB | 2076.8s | N/A | N/A | Invalid |
+| 2026-08-02T04:36:56.369Z | Beautiful Teens Sharing Stepbrothers Cock in a Threesome.mp4 | 419.55 MB | 2143.1s | 177ms | 1045ms | SUCCESS |
+| 2026-08-02T04:36:57.926Z | brookeshows slutty tease (1).mp4 | 15.1 MB | 20.1s | 168ms | 1343ms | SUCCESS |
+| 2026-08-02T04:36:59.027Z | brookeshows slutty tease (2).mp4 | 9.18 MB | 12.0s | 165ms | 889ms | SUCCESS |
+| 2026-08-02T04:37:00.068Z | Nairobi Skinnys Live BDSM Fetish Roleplay Chat Room.mp4 | 96.21 MB | 472.0s | 149ms | 845ms | SUCCESS |
+| 2026-08-02T04:37:01.207Z | pvt 14min espanol Katherin Winters Live Squirters Hairy Pussy Double Penetration C.mp4 | 215.6 MB | 872.6s | 173ms | 910ms | SUCCESS |
+| 2026-08-02T04:37:01.257Z | sexy bj epic ahegao lil slut Deibora live on Chaturbate(1).mp4 | 156.81 MB | 830.4s | N/A | N/A | Invalid |
+| 2026-08-02T04:37:02.390Z | Thamara Angellss Live Squirters Bisexual Alternative Chat Room.mp4 | 136.87 MB | 552.1s | 164ms | 917ms | SUCCESS |
+| 2026-08-02T04:39:51.743Z | Sofy Baankss Live Anal Squirters Big Butts Chat Room(3).mp4 | 26.49 MB | 128.9s | 212ms | 791ms | SUCCESS |
+| 2026-08-02T04:39:52.826Z | Sofy Baankss Live Anal Squirters Big Butts Chat Room(2).mp4 | 155.7 MB | 760.3s | 160ms | 870ms | SUCCESS |
+| 2026-08-02T04:39:53.873Z | Sofy Baankss Live Anal Squirters Big Butts Chat Room(1).mp4 | 156.36 MB | 764.2s | 157ms | 834ms | SUCCESS |
+| 2026-08-02T04:39:54.922Z | Sofy Baankss Live Anal Squirters Big Butts Chat Room.mp4 | 144.52 MB | 703.1s | 156ms | 843ms | SUCCESS |
+| 2026-08-10T22:15:24.815Z | 34min anal public Zoeecarter_ live on Chaturbate.mp4 | 248.97 MB | 2076.8s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:24.863Z | Flirt4Free cam clips of Brunette with Sophia Cortes.mp4 | 88.49 MB | 453.5s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:24.936Z | fucking hot goth worships cock Watch Venomeowww_ live on Chaturbate.mp4 | 340.31 MB | 558.4s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:24.992Z | Nelly Gales Live European Girls Big Boobs Big Butts Chat Room.mp4 | 21.03 MB | 1106.4s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:25.043Z | pvt Gabriela Portmanss Live Alternative Blonde Exotic Chat Room.mp4 | 28.79 MB | 348.0s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:25.094Z | Samantha Wooss Live Latina Hairy Pussy Big Boobs Chat Room.mp4 | 25.14 MB | 285.6s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:25.153Z | sexy bj epic ahegao lil slut Deibora live on Chaturbate(1).mp4 | 156.81 MB | 830.4s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:25.195Z | Sherlyn Sexys Live Big Boobs Anal Squirters Chat Room(1).mp4 | 12.79 MB | 52.0s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:25.245Z | Sydney Aves Live Girls Next Door College Girls Shaving Chat Room.mp4 | 10.91 MB | 129.6s | N/A | N/A | Invalid |
+| 2026-08-10T22:15:25.293Z | Watch Bridgetjean live on Chaturbate(1).mp4 | 34.68 MB | 179.8s | N/A | N/A | Invalid |

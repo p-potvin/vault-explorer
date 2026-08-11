@@ -1,4 +1,4 @@
-const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/patchright');
+const { _electron: electron } = require('playwright');
 const assert = require('assert').strict;
 
 async function runContextMenuTests() {
@@ -68,7 +68,7 @@ async function runContextMenuTests() {
     });
 
     console.log('[Test Step 1b] Directly injecting standard DOM file-card mock item...');
-    await window.evaluate(() => {
+    await window.locator('body').evaluate(() => {
         window.loadDirectory = () => { console.log('Mocked loadDirectory prevented wipe'); };
         const fileGrid = document.getElementById('file-grid');
         if (fileGrid) {
@@ -142,12 +142,7 @@ async function runContextMenuTests() {
     await window.waitForTimeout(1500);
 
     // Check if the dynamic modal backdrop is in the DOM
-    let isLangModalVisible = await window.evaluate(() => {
-        const backdrops = Array.from(document.querySelectorAll('div')).filter(d =>
-            d.style.position === 'fixed' && d.style.zIndex === '5000'
-        );
-        return backdrops.length > 0;
-    });
+    let isLangModalVisible = await window.locator('.vw-dynamic-modal-backdrop').isVisible();
     console.log(`  -> Generate Subtitles Language modal visible: ${isLangModalVisible}`);
     assert.ok(isLangModalVisible, 'Language modal backdrop failed to render dynamically');
 
@@ -164,7 +159,7 @@ async function runContextMenuTests() {
     await firstCard.click({ button: 'right' });
     await window.waitForTimeout(1500);
 
-    isLangModalVisible = await window.evaluate(() => {
+    isLangModalVisible = await window.locator('body').evaluate(() => {
         const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d =>
             d.innerHTML.includes('Translate target spoken') || d.innerHTML.includes('Translate Video')
         );
@@ -186,7 +181,7 @@ async function runContextMenuTests() {
     await firstCard.click({ button: 'right' });
     await window.waitForTimeout(1500);
 
-    const isVsrModalVisible = await window.evaluate(() => {
+    const isVsrModalVisible = await window.locator('body').evaluate(() => {
         const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d =>
             d.innerHTML.includes('AI Video Optimization Center')
         );

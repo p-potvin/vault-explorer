@@ -16,7 +16,7 @@ const LANGUAGE_NAMES = {
     en: 'English',
     es: 'Spanish',
     fi: 'Finnish',
-    fr: 'French',
+    fr: 'Québécois',
     qc: 'Québécois',
     he: 'Hebrew',
     hi: 'Hindi',
@@ -85,7 +85,7 @@ function languageLabel(code) {
     if (!code || code === 'und') return 'Original';
     const normalized = normalizeLanguageCode(code);
     if (normalized === 'und') return 'Original';
-    if (normalized === 'qc') return 'Québécois (QC)';
+    if (normalized === 'qc' || normalized === 'fr' || normalized === 'fr-ca') return 'Québécois (QC)';
     const [language, region] = normalized.split('-');
     return region ? `${LANGUAGE_NAMES[language]} (${REGION_NAMES[region]})` : LANGUAGE_NAMES[language];
 }

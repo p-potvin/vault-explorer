@@ -1,4 +1,4 @@
-const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/patchright');
+const { _electron: electron } = require('playwright');
 const path = require('path');
 const assert = require('assert').strict;
 
@@ -78,7 +78,8 @@ async function runTests() {
     console.log('  -> Core UI layout elements verified successfully.');
     // Language Toggle Test
     console.log('[Test Step 2] Executing Language Toggle i18n Workflow...');
-    const initialLangText = (await window.evaluate(() => window.currentLang)).toUpperCase();
+    const initialLangText = (await window.locator('body').evaluate(() => window.currentLang)).toUpperCase();
+
     console.log(`  -> Initial Lang Button Text: "${initialLangText}"`);
     const initialBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
     console.log(`  -> Initial Browse Vault Title: "${initialBrowseTitle}"`);

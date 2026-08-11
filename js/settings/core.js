@@ -1,5 +1,7 @@
 // js/settings/core.js - settings panel wiring (open/save/dismiss) + sub-module bootstrapping
-function initSettingsListeners() {
+window.initSettingsListeners = function initSettingsListeners() {
+
+
     const inputGlob = document.getElementById('pill-tag-input-glob');
     if (inputGlob) {
         inputGlob.addEventListener('keydown', (e) => {
@@ -176,6 +178,8 @@ function initSettingsListeners() {
     }
 
     // Dismiss settings panels
+
+
     document.addEventListener('click', (e) => {
         if ((!el('theme-panel') || !e.target.closest('#theme-panel')) && (!el('theme-trigger') || !e.target.closest('#theme-trigger'))) {
             const panel = el('theme-panel');
