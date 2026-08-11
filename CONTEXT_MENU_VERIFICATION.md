@@ -80,28 +80,42 @@ All context menu actions have been verified and properly wired with their handle
 
 ## Enhancement Pipeline Components
 
-### Audio Normalization (`normalize-audio`)
+### One script per action
 
-- **Menu Icon**: 🪄
-- **Available on**: Video files (single, multi-select, player)
-- **Script**: `python-scripts/audio_normalize.py`
-- **IPC Channel**: `normalize-audio`
-- **Preload Binding**: `electronAPI.normalizeAudio()`
-- **Handler**: `src/normalization.js` → `registerNormalizationHandlers()`
-- **Progress Channel**: `normalize-progress`
-- **Options**:
-  - `transcribe` - Enable AI speech transcription
-  - `translateTo` - Target language for translation
-  - `volumeBoost` - Vocal mixing weight (default 1.5)
-  - `skipExisting` - Skip if output exists
+Each menu item maps to exactly one script and runs only its own work. They
+previously all invoked `audio_normalize.py` with different flags, so asking for
+subtitles ran Demucs and a full re-encode first.
+
+| Menu item | Script | IPC channel | Preload binding | Sidecar key |
+|---|---|---|---|---|
+| Enhance Audio 🪄 | `enhance_audio.py` | `enhance-audio` | `enhanceAudio()` | `audio` |
+| Generate Subtitles | `generate_subtitles.py` | `generate-subtitles` | `generateSubtitles()` | `subtitles` |
+| Translate this video | `translate_video.py` | `translate-video` | `translateVideo()` | `translation` |
+| Enhance Video 🪄 | `enhance_video.py` | `enhance-video` | `enhanceVideo()` | `video` |
+
+- **Dispatch**: `src/enhancements.js` → `runAction()`; registered by
+  `src/normalization.js` → `registerNormalizationHandlers()`
+- **Progress Channel**: `normalize-progress` (carries an `action` field)
+- **Shared helpers**: `python-scripts/vw_media/` — portable to vault-streaming,
+  vaultwares-media-processing and vw-cli
+- **Common flags**: `--output` (override the `.enhanced/` destination),
+  `--skip-existing`, `--print-state`
+- **Legacy**: `normalize-audio` remains as an alias for `enhance-audio` and
+  ignores the old `transcribe` / `translateTo` flags
 
 ### Key Dependencies
 
-- **Demucs**: Vocal/instrument separation (GPU with CPU fallback)
-- **FFmpeg**: Audio/video encoding and normalization
-- **Parakeet V3**: Optional ASR engine for transcription
-- **Kokoro**: TTS for translation synthesis (Windows ONNX)
+- **Demucs**: Vocal/instrument separation, GPU with CPU fallback — used *only* by
+  `enhance_audio.py`
+- **FFmpeg**: Decoding, normalization, encoding
+- **Parakeet V3**: ASR, loaded lazily and only by the subtitle and translation
+  actions
 - **Deep Translator**: Online translation backend
+- **RTX VSR** (`rtx_vsr_stream.py`): Video upscaling
+
+Text-to-speech is intentionally absent. Translation produces translated subtitle
+tracks; the Kokoro TTS path that synthesised a dubbed vocal track has been
+removed, since dubbed audio was never a feature of this app.
 
 ### Video Enhancement (`enhance-video-prompt`)
 
