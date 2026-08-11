@@ -19,7 +19,7 @@ try {
     const found = findLocalSidecars(video);
     assert.equal(found.length, 4);
     assert.match(found.find(item => item.lang === 'en').path, /\.subtitles[\\/]episode\.en\.vtt$/i);
-    assert.deepEqual(parseLanguageToken('fr-CA'), { lang: 'fr-ca', label: 'French (Canada)' });
+    assert.deepEqual(parseLanguageToken('fr-CA'), { lang: 'fr-ca', label: 'Québécois (QC)' });
     assert.deepEqual(parseLanguageToken('qc'), { lang: 'qc', label: 'Québécois (QC)' });
     assert.equal(found.find(item => item.lang === 'und').label, 'Original');
 

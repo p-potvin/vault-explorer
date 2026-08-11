@@ -70,8 +70,10 @@ def run_command_with_progress(cmd, desc, start_pct, scale, duration):
         errors='replace'
     )
     
+    output_lines = []
     def reader():
         for line in process.stdout:
+            output_lines.append(line)
             # Parse FFmpeg style progress
             if "out_time_ms=" in line:
                 try:
@@ -97,6 +99,9 @@ def run_command_with_progress(cmd, desc, start_pct, scale, duration):
     t.join()
     
     if process.returncode != 0:
+        print(f"[Subprocess Error] Command failed: {cmd}")
+        print("".join(output_lines[-30:])) # print last 30 lines of output
+        sys.stdout.flush()
         raise subprocess.CalledProcessError(process.returncode, cmd)
 
 def check_streams(path):
@@ -241,27 +246,42 @@ def main():
     args = parser.parse_args()
     
     video_path = os.path.abspath(args.video_path)
+=======
+def translate_text(text, target_lang):
+    try:
+        from deep_translator import GoogleTranslator
+        tgt = 'fr' if target_lang == 'qc' else target_lang
+        return GoogleTranslator(source='auto', target=tgt).translate(text)
+    except Exception as e:
+        print(f"[translation] Online translation failed: {e}. Falling back to mock/original.")
+        return f"[{target_lang}]: " + text
+
+def process_video(video_path, args, model=None):
+>>>>>>> Stashed changes
     vault_root = os.path.abspath(args.vault_root) if args.vault_root else os.path.dirname(video_path)
     vocal_mix_weight = min(2.5, max(1.0, float(args.volume_boost or 1.5)))
     
-    if not os.path.exists(video_path):
-        print(f"Error: Video file {video_path} does not exist.")
-        sys.exit(1)
-        
+    # Check if we should skip existing
+    if args.skip_existing:
+        original_base = os.path.splitext(video_path)[0]
+        if os.path.exists(original_base + ".srt"):
+            print(f"[SKIP] {video_path} -> .srt already exists")
+            return
+            
     # Phase 2: Stream Validation Guard
     has_video, has_audio = check_streams(video_path)
     if not has_video:
         print(f"JSON_STATUS:{json.dumps({'status': 'FAILED', 'error': 'Stream integrity violation: Video stream missing'})}")
-        sys.exit(1)
+        raise RuntimeError("Stream integrity violation: Video stream missing")
     if not has_audio:
         print(f"JSON_STATUS:{json.dumps({'status': 'FAILED', 'error': 'Stream integrity violation: Audio stream missing'})}")
-        sys.exit(1)
+        raise RuntimeError("Stream integrity violation: Audio stream missing")
         
     # Phase 1: Enhanced-Copy Preservation Routing (.enhanced/ hidden subdirectory)
     enhanced_dir = os.path.join(os.path.dirname(video_path), '.enhanced')
     os.makedirs(enhanced_dir, exist_ok=True)
     output_path = os.path.join(enhanced_dir, os.path.basename(video_path))
-    temp_output_path = output_path + ".tmp"
+    temp_output_path = os.path.splitext(output_path)[0] + ".tmp" + os.path.splitext(output_path)[1]
     
     duration = get_video_duration(video_path)
     temp_dir = os.path.join(enhanced_dir, f"temp_norm_{int(time.time())}")
@@ -334,7 +354,8 @@ def main():
         if args.transcribe or args.translate_to:
             report_progress(88, "Gathering speech segments...")
             try:
-                model = ParakeetV3Wrapper()
+                if model is None:
+                    model = ParakeetV3Wrapper()
                 all_segments = model.transcribe_file(vocals_path)
                 if all_segments:
                     original_segments = [{"start": seg.start, "end": seg.end, "text": seg.text} for seg in all_segments]
@@ -342,22 +363,13 @@ def main():
                 print(f"[ASR] Parakeet isolation failed: {asr_err}")
                 print(f"[ASR] Falling back to high-fidelity segment parser...")
                 
+        translated_segments = []
         if args.translate_to:
-            report_progress(90, f"Synthesizing {args.translate_to.upper()} translation spoken track...")
+            report_progress(90, f"Translating segments to {args.translate_to.upper()}...")
             # Translate text segments
-            translated_segments = []
             for seg in original_segments:
-                txt = seg['text']
-                # Offline Translation Mock for robust standalone executions
-                if args.translate_to in ['fr', 'qc']:
-                    if "welcome" in txt.lower(): txt = "Bienvenue dans le lecteur moderne Vault Explorer."
-                    elif "synthesized" in txt.lower(): txt = "Cette piste audio a été synthétisée nativement sur Windows."
-                    else: txt = "[Traduit]: " + txt
-                elif args.translate_to == 'es':
-                    if "welcome" in txt.lower(): txt = "Bienvenido a Vault Explorer."
-                    elif "synthesized" in txt.lower(): txt = "Esta pista de audio ha sido sintetizada de forma nativa en Windows."
-                    else: txt = "[Traducido]: " + txt
-                translated_segments.append({"start": seg['start'], "end": seg['end'], "text": txt})
+                translated_text = translate_text(seg['text'], args.translate_to)
+                translated_segments.append({"start": seg['start'], "end": seg['end'], "text": translated_text})
                 
             has_translation = create_synthesized_audio_track(translated_segments, duration, translation_vocals_path, args.translate_to)
 
@@ -392,8 +404,9 @@ def main():
             ffmpeg_args[idx] = "libx264"
             for arg in ["-preset", "p6", "-rc", "constqp", "-qp", "26"]:
                 if arg in ffmpeg_args: ffmpeg_args.remove(arg)
-            ffmpeg_args.extend(["-crf", "23"])
-            ffmpeg_args[-1] = temp_output_path
+            if ffmpeg_args[-1] == temp_output_path:
+                ffmpeg_args.pop()
+            ffmpeg_args.extend(["-crf", "23", temp_output_path])
             run_command_with_progress(ffmpeg_args, "Encoding Normalized Audio (CPU)", 65, 25, duration)
             
         # Atomic promotion: only make the enhanced copy visible once encoding succeeded.
@@ -426,7 +439,6 @@ def main():
                 utils.write_srt(original_base + ".en.srt", dummy_segs, dummy_texts)
                 utils.write_srt(normalized_base + ".srt", dummy_segs, dummy_texts)
                 utils.write_srt(normalized_base + ".en.srt", dummy_segs, dummy_texts)
-
                 if args.translate_to and translated_segments:
                     external_code = external_subtitle_code(args.translate_to)
                     trans_segs = [DummySeg(idx, s['start'], s['end'], s['text']) for idx, s in enumerate(translated_segments)]
@@ -471,10 +483,56 @@ def main():
             except Exception:
                 pass
         print(f"JSON_STATUS:{json.dumps({'status': 'FAILED', 'error': str(e)})}")
-        sys.exit(1)
+        raise e
     finally:
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+def main():
+    parser = argparse.ArgumentParser(description="Real-time Demucs + FFmpeg dynaudnorm audio normalization")
+    parser.add_argument("video_path", help="Path to video file or folder")
+    parser.add_argument("vault_root", nargs="?", default=None, help="Root vault path")
+    parser.add_argument("--transcribe", action="store_true", default=False, help="Enable speech transcription")
+    parser.add_argument("--translate-to", default=None, help="Spoken translation target language (SAPI)")
+    parser.add_argument("--volume-boost", type=float, default=1.5, help="Vocal mix multiplier; 1.5 is approximately +50%")
+    parser.add_argument("--skip-existing", action="store_true", default=False, help="Skip processing if output files already exist")
+    
+    args = parser.parse_args()
+    
+    video_path = os.path.abspath(args.video_path)
+    
+    if os.path.isdir(video_path):
+        SUPPORTED_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv')
+        files = []
+        for root, _, filenames in os.walk(video_path):
+            if any(part.startswith('.') for part in root.split(os.sep)):
+                continue
+            for filename in filenames:
+                if os.path.splitext(filename)[1].lower() in SUPPORTED_EXTENSIONS:
+                    files.append(os.path.join(root, filename))
+        
+        if not files:
+            print(f"No video files found in directory {video_path}")
+            return
+            
+        print(f"Found {len(files)} video files to process.")
+        
+        model = None
+        if args.transcribe or args.translate_to:
+            print("[ASR] Pre-loading Parakeet model for batch run...")
+            model = ParakeetV3Wrapper()
+            
+        for idx, file in enumerate(files):
+            print(f"\n==========================================")
+            print(f" Processing file {idx+1}/{len(files)}")
+            print(f" {os.path.basename(file)}")
+            print(f"==========================================")
+            try:
+                process_video(file, args, model=model)
+            except Exception as e:
+                print(f"Failed to process {file}: {e}")
+    else:
+        process_video(video_path, args)
 
 if __name__ == '__main__':
     main()

@@ -57,3 +57,61 @@ grid.innerHTML = `<div class="empty-state"><h3>${t.noItemsFound || 'No Items Fou
     }
     if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
 };
+
+window.toggleFavorite = function toggleFavorite(filePath, btnEl) {
+    if (!filePath) return;
+    window.appSettings = window.appSettings || {};
+    window.appSettings.favorites = Array.isArray(window.appSettings.favorites) ? window.appSettings.favorites : [];
+    
+    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+    const targetPath = normPath(filePath);
+    
+    const idx = window.appSettings.favorites.findIndex(p => normPath(p) === targetPath);
+    let isNowStarred = false;
+    const lang = window.currentLang === 'fr' ? 'fr' : 'en';
+    
+    if (idx !== -1) {
+        window.appSettings.favorites.splice(idx, 1);
+        if (typeof window.showToast === 'function') {
+            window.showToast(lang === 'fr' ? 'Retiré des favoris' : 'Removed from Favorites', 'info');
+        }
+    } else {
+        window.appSettings.favorites.push(filePath);
+        isNowStarred = true;
+        if (typeof window.showToast === 'function') {
+            window.showToast(lang === 'fr' ? 'Ajouté aux favoris' : 'Added to Favorites', 'success');
+        }
+    }
+    
+    if (window.electronAPI && typeof window.electronAPI.saveSettings === 'function') {
+        window.electronAPI.saveSettings(window.appSettings);
+    }
+    
+    window.favoriteLocalItems = null;
+    
+    document.querySelectorAll('.file-card').forEach(card => {
+        const cardPath = normPath(card.dataset.path);
+        if (cardPath === targetPath) {
+            const svg = card.querySelector('.star-svg');
+            if (svg) {
+                svg.setAttribute('fill', isNowStarred ? '#E5A93B' : 'none');
+                svg.setAttribute('stroke', isNowStarred ? '#E5A93B' : '#ffffff');
+                svg.style.transform = 'scale(1.3)';
+                setTimeout(() => { svg.style.transform = 'scale(1.0)'; }, 200);
+            }
+        }
+    });
+
+    if (btnEl) {
+        const svg = btnEl.querySelector('svg') || btnEl;
+        if (svg && svg.classList.contains('star-svg')) {
+            svg.setAttribute('fill', isNowStarred ? '#E5A93B' : 'none');
+            svg.setAttribute('stroke', isNowStarred ? '#E5A93B' : '#ffffff');
+        }
+    }
+
+    if (window.currentTab === 'files' && window.currentFilesSubtab === 'favorites') {
+        window.renderFavorites();
+    }
+};
+
