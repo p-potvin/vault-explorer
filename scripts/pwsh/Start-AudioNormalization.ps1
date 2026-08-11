@@ -9,7 +9,7 @@ param(
 
     [switch]$SkipExisting,
 
-    [string[]]$Extensions = @('.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.wmv')
+    [string[]]$Extensions = @('.mp4', '.mkv', '.avi', '.mov', '.webm', '.wmv')
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path

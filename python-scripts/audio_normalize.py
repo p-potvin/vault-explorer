@@ -234,19 +234,6 @@ def external_subtitle_code(language):
     code = str(language or '').strip().lower()
     return 'fr' if code in {'qc', 'fr-ca', 'ca-fr'} else code
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Real-time Demucs + FFmpeg dynaudnorm audio normalization")
-    parser.add_argument("video_path", help="Path to video file")
-    parser.add_argument("vault_root", nargs="?", default=None, help="Root vault path")
-    parser.add_argument("--transcribe", action="store_true", default=False, help="Enable speech transcription")
-    parser.add_argument("--translate-to", default=None, help="Spoken translation target language (SAPI)")
-    parser.add_argument("--volume-boost", type=float, default=1.5, help="Vocal mix multiplier; 1.5 is approximately +50%")
-    
-    args = parser.parse_args()
-    
-    video_path = os.path.abspath(args.video_path)
-=======
 def translate_text(text, target_lang):
     try:
         from deep_translator import GoogleTranslator
@@ -257,7 +244,6 @@ def translate_text(text, target_lang):
         return f"[{target_lang}]: " + text
 
 def process_video(video_path, args, model=None):
->>>>>>> Stashed changes
     vault_root = os.path.abspath(args.vault_root) if args.vault_root else os.path.dirname(video_path)
     vocal_mix_weight = min(2.5, max(1.0, float(args.volume_boost or 1.5)))
     
