@@ -116,7 +116,8 @@ function refreshSubtitlesList() {
     // If we have all available subtitles stored, use them
     if (window._allAvailableSubtitles && window._allAvailableSubtitles.length > 0) {
         window._allAvailableSubtitles.forEach((sub, idx) => {
-            const opt = document.createElement('div');
+            const opt = document.createElement('button');
+            opt.type = 'button';
             opt.className = 'subtitle-option';
             opt.dataset.idx = idx;
             opt.dataset.lang = sub.lang || 'und';
@@ -153,10 +154,11 @@ function refreshSubtitlesList() {
         // Fallback: show only loaded tracks
         for (let i = 0; i < vp.textTracks.length; i++) {
             const track = vp.textTracks[i];
-            const opt = document.createElement('div');
+            const opt = document.createElement('button');
+            opt.type = 'button';
             opt.className = 'subtitle-option';
             opt.dataset.idx = i;
-            opt.style.cssText = 'padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s;';
+            opt.style.cssText = 'padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-body); font-size:12px; color:var(--vault-text); transition:background 0.2s; background:transparent; border:none; width:100%;';
             opt.textContent = track.label || `Track ${i + 1}`;
 
             if (track.mode === 'showing') {

@@ -151,7 +151,13 @@ function showToast(message, type = 'success') {
     icon = type === 'success' ? window.icons.success() : window.icons.error();
   }
 
-  toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'toast-icon';
+  if (icon) iconSpan.innerHTML = icon;
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = String(message || '');
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
   container.appendChild(toast);
 
   requestAnimationFrame(() => {
