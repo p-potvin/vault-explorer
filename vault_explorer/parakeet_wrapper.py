@@ -108,9 +108,24 @@ class ParakeetTranscriber:
     DEFAULT_MIN_SILENCE_S = 0.8   # gap between words that ends a segment
     DEFAULT_MIN_SEGMENT_S = 0.3   # discard segments shorter than this
 
-    # Where tools/convert_nemo_to_safetensors.py writes its output.
-    CONVERTED_DIR = os.path.abspath(os.path.join(
-        os.path.dirname(__file__), "..", "tools", "models"))
+    # Places a converted model directory may live, in preference order. The
+    # shared store is last so a project-local copy always wins, but its presence
+    # means every project finds the same converted model without any per-repo
+    # configuration — the hard links are a disk-space optimisation, not a
+    # requirement for the lookup to work.
+    @staticmethod
+    def _converted_search_roots():
+        roots = [os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tools", "models"))]
+        model_dir = os.environ.get("VAULT_MODEL_DIR")
+        if model_dir:
+            roots.append(model_dir)
+        store = os.environ.get("VW_MODEL_STORE")
+        if store:
+            roots.append(store)
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if local_appdata:
+            roots.append(os.path.join(local_appdata, "VaultWares", "models"))
+        return roots
 
     def __init__(self, model_name: str = DEFAULT_MODEL, status_callback=None):
         import time
@@ -156,12 +171,8 @@ class ParakeetTranscriber:
     def _converted_dir_for(self, model_name: str):
         """Locate a converted model directory for *model_name*, if one exists."""
         base = os.path.basename(str(model_name)).replace(".nemo", "")
-        candidates = [os.path.join(self.CONVERTED_DIR, base)]
-        model_dir = os.environ.get("VAULT_MODEL_DIR")
-        if model_dir:
-            candidates.append(os.path.join(model_dir, base))
-
-        for candidate in candidates:
+        for root in self._converted_search_roots():
+            candidate = os.path.join(root, base)
             if (os.path.isfile(os.path.join(candidate, "model_config.yaml"))
                     and os.path.isfile(os.path.join(candidate, "model.safetensors"))):
                 return candidate
@@ -192,6 +203,11 @@ class ParakeetTranscriber:
             target = cfg.get("target")
             if not target:
                 raise RuntimeError("model_config.yaml has no `target` class path")
+
+            # Asset references are stored as bare filenames so the directory can
+            # be moved or hard-linked between projects. Resolve them against the
+            # directory the config actually lives in.
+            self._resolve_asset_paths(cfg, converted)
 
             # The dataset sections have to come off before construction — the
             # released config has no manifest_filepath, so NeMo raises while
@@ -253,6 +269,38 @@ class ParakeetTranscriber:
             print(f"[ASR Telemetry] Fast load unavailable: {err}")
             self._release_load_scratch()
             return None
+
+    @staticmethod
+    def _resolve_asset_paths(cfg, converted_dir):
+        """Turn bare asset filenames in *cfg* into absolute paths.
+
+        Walks the config and rewrites any string that names a file sitting in
+        *converted_dir* (tokenizer model, vocab, SPE vocab). Keeping these
+        relative on disk is what lets one converted directory be hard-linked
+        into several projects without each needing its own edited config.
+        """
+        from omegaconf import DictConfig, ListConfig, open_dict
+
+        present = {name for name in os.listdir(converted_dir)}
+
+        def walk(node):
+            if isinstance(node, DictConfig):
+                with open_dict(node):
+                    for key in list(node.keys()):
+                        value = node.get(key)
+                        if isinstance(value, str) and value in present:
+                            node[key] = os.path.join(converted_dir, value).replace("\\", "/")
+                        elif isinstance(value, (DictConfig, ListConfig)):
+                            walk(value)
+            elif isinstance(node, ListConfig):
+                for index, value in enumerate(node):
+                    if isinstance(value, str) and value in present:
+                        node[index] = os.path.join(converted_dir, value).replace("\\", "/")
+                    elif isinstance(value, (DictConfig, ListConfig)):
+                        walk(value)
+
+        walk(cfg)
+        return cfg
 
     @staticmethod
     def _materialise_generated_buffers(model, max_len: int = 5000):

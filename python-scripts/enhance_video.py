@@ -65,6 +65,12 @@ def estimate_total_frames(video_path, duration):
 
 def run_vsr(source_path, temp_output_path, args, total_frames):
     """Run the VSR pipeline, forwarding its frame counter as progress."""
+    if not os.path.exists(VSR_SCRIPT):
+        # Not every project that uses vw_media ships the upscaler.
+        raise RuntimeError(
+            f"Video enhancement is unavailable here: {os.path.basename(VSR_SCRIPT)} "
+            f"is not present in {_SCRIPT_DIR}")
+
     cmd = [
         _python_exe(), "-u", VSR_SCRIPT, "enhance", source_path, temp_output_path,
         "--quality", args.quality,

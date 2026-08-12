@@ -21,13 +21,17 @@ import time
 
 from .progress import log
 
-# Host packages that may provide parakeet_wrapper, in preference order.
-_HOST_PACKAGES = (
-    "vault_explorer",
-    "vault_streaming",
-    "vaultwares_media_processing",
-    "vaultwares_realtime",
-    "vw_cli",
+# Every known way a host project exposes the Parakeet wrapper, as
+# (module path, class name), in preference order. vault-explorer, vault-streaming
+# and vaultwares-media-processing each ship a package with the same module name;
+# vw-cli keeps its ASR flat in utils/ under a different class name.
+_WRAPPER_SOURCES = (
+    ("vault_explorer.parakeet_wrapper", "ParakeetV3Wrapper"),
+    ("vault_streaming.parakeet_wrapper", "ParakeetV3Wrapper"),
+    ("vaultwares_media_processing.parakeet_wrapper", "ParakeetV3Wrapper"),
+    ("vaultwares_realtime.parakeet_wrapper", "ParakeetV3Wrapper"),
+    ("parakeet_wrapper", "ParakeetV3Wrapper"),
+    ("parakeet_asr", "ParakeetTDTASR"),
 )
 
 _model = None
@@ -36,14 +40,14 @@ _model_name = None
 
 def _import_wrapper():
     errors = []
-    for pkg in _HOST_PACKAGES:
+    for module_path, class_name in _WRAPPER_SOURCES:
         try:
-            module = importlib.import_module(f"{pkg}.parakeet_wrapper")
-            return getattr(module, "ParakeetV3Wrapper")
+            module = importlib.import_module(module_path)
+            return getattr(module, class_name)
         except Exception as err:
-            errors.append(f"{pkg}: {err}")
+            errors.append(f"{module_path}.{class_name}: {err}")
     raise ImportError(
-        "Could not locate parakeet_wrapper in any known host package.\n  "
+        "Could not locate an ASR wrapper in any known host project.\n  "
         + "\n  ".join(errors)
     )
 

@@ -74,7 +74,13 @@ def extract(nemo_path, out_dir):
 
 
 def rewrite_config(out_dir):
-    """Point `nemo:`-prefixed asset references at the unpacked files."""
+    """Point `nemo:`-prefixed asset references at the unpacked files.
+
+    References are written as bare filenames, *not* absolute paths, so the
+    converted directory stays location-independent: it can be moved, copied, or
+    hard-linked into several projects and every copy remains byte-identical.
+    The loader resolves these against the directory holding the config.
+    """
     config_path = os.path.join(out_dir, "model_config.yaml")
     if not os.path.exists(config_path):
         raise RuntimeError(f"model_config.yaml missing from {out_dir}")
@@ -88,7 +94,7 @@ def rewrite_config(out_dir):
         prefix, name = match.group(1) or "", match.group(2)
         for candidate in (f"{prefix}{name}", name):
             if candidate in present:
-                return os.path.join(out_dir, candidate).replace("\\", "/")
+                return candidate
         # Leave anything we cannot resolve untouched rather than guessing.
         return match.group(0)
 
@@ -97,7 +103,7 @@ def rewrite_config(out_dir):
         fh.write(rewritten)
 
     changed = sum(1 for _ in NEMO_REF.finditer(text))
-    print(f"[convert] Rewrote {changed} asset reference(s) in model_config.yaml")
+    print(f"[convert] Rewrote {changed} asset reference(s) as relative filenames")
     return config_path
 
 
