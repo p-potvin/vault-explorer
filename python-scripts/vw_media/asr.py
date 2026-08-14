@@ -19,6 +19,7 @@ import importlib
 import os
 import time
 
+from . import telemetry
 from .progress import log
 
 # Every known way a host project exposes the Parakeet wrapper, as
@@ -36,6 +37,13 @@ _WRAPPER_SOURCES = (
 
 _model = None
 _model_name = None
+
+# Load time is recorded against the transcription that paid for it, then
+# cleared. Attributing a 20 s cold NeMo load to every later run in the same
+# process would make a warm batch look as slow as a cold start.
+_pending_load_ms = None
+
+DEFAULT_MODEL = "nvidia/parakeet-tdt-0.6b-v3"
 
 
 def _import_wrapper():
@@ -64,12 +72,15 @@ def get_model(model_name=None, status_callback=None):
         # A different model was asked for; free the old one before loading.
         release()
 
+    global _pending_load_ms
     wrapper_cls = _import_wrapper()
     started = time.perf_counter()
     _model = wrapper_cls(**({"model_name": requested} if requested else {}),
                          status_callback=status_callback)
     _model_name = requested
-    log("asr", f"Model ready in {time.perf_counter() - started:.1f}s")
+    elapsed = time.perf_counter() - started
+    _pending_load_ms = round(elapsed * 1000, 3)
+    log("asr", f"Model ready in {elapsed:.1f}s")
     return _model
 
 
@@ -101,9 +112,35 @@ def transcribe(wav_path, language="en", model=None, status_callback=None):
     means the model ran but found no speech — callers must treat that as a real
     result, not as a reason to substitute placeholder text.
     """
-    engine = model or get_model(status_callback=status_callback)
-    segments = engine.transcribe_file(wav_path, language=language) or []
-    return [
-        {"start": float(seg.start), "end": float(seg.end), "text": str(seg.text)}
-        for seg in segments
-    ]
+    global _pending_load_ms
+
+    audio_seconds = telemetry.audio_duration_seconds(wav_path)
+
+    with telemetry.run(
+        model=_model_name or DEFAULT_MODEL,
+        task="audio-asr",
+        service="vw-media-asr",
+        audio_seconds=audio_seconds,
+        language=language,
+    ) as run:
+        engine = model or get_model(status_callback=status_callback)
+        if _pending_load_ms is not None:
+            run.set(load_ms=_pending_load_ms)
+            _pending_load_ms = None
+            run.tag("cold-start")
+        # The model name is only known once the wrapper has resolved it.
+        run.set(model=getattr(engine, "model_name", None) or _model_name or DEFAULT_MODEL)
+
+        segments = engine.transcribe_file(wav_path, language=language) or []
+        result = [
+            {"start": float(seg.start), "end": float(seg.end), "text": str(seg.text)}
+            for seg in segments
+        ]
+
+        # Zero segments is a real answer -- silence -- not a failure, so it is
+        # recorded as a successful run with no output rather than an error.
+        run.set(
+            segment_count=len(result),
+            completion_chars=sum(len(item["text"]) for item in result),
+        )
+        return result
