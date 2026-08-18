@@ -62,9 +62,12 @@ class EpgCache:
 
     def get_compressed(self) -> bytes:
         body = self.get()
-        if self._compressed is None:
-            self._compressed = gzip.compress(body, compresslevel=6, mtime=0)
-        return self._compressed
+        if self._compressed is not None:
+            return self._compressed
+        with self._lock:
+            if self._compressed is None:
+                self._compressed = gzip.compress(body, compresslevel=6, mtime=0)
+            return self._compressed
 
 
 class LocalFileCache:
@@ -92,7 +95,8 @@ class LocalFileCache:
             signature = (stat.st_mtime_ns, stat.st_size)
             if self._body is not None and self._signature == signature:
                 return self._body
-            body = self.path.read_bytes()
+            raw_body = self.path.read_bytes()
+            body = gzip.decompress(raw_body) if raw_body[:2] == b"\x1f\x8b" else raw_body
             if b"<tv" not in body[:4096]:
                 raise ValueError("local file is not XMLTV")
             self._body = body
@@ -102,9 +106,12 @@ class LocalFileCache:
 
     def get_compressed(self) -> bytes:
         body = self.get()
-        if self._compressed is None:
-            self._compressed = gzip.compress(body, compresslevel=6, mtime=0)
-        return self._compressed
+        if self._compressed is not None:
+            return self._compressed
+        with self._lock:
+            if self._compressed is None:
+                self._compressed = gzip.compress(body, compresslevel=6, mtime=0)
+            return self._compressed
 
 
 class PlaylistCache:
@@ -169,7 +176,7 @@ def make_handler(
                     self.send_error(HTTPStatus.NOT_FOUND, "Playlist source not configured")
                     return
                 try:
-                    force_refresh = parse_qs(request_url.query).get("refresh") == ["1"]
+                    force_refresh = "1" in parse_qs(request_url.query).get("refresh", [])
                     body = playlist_cache.get(force_refresh=force_refresh)
                 except Exception as exc:
                     self.send_error(HTTPStatus.BAD_GATEWAY, "Playlist source unavailable")
@@ -177,12 +184,12 @@ def make_handler(
                     return
                 self._send_playlist(body, max_age=playlist_cache.ttl_seconds)
                 return
-            if self.path in ("/epg-fr.xml", "/epg-fr.xml.gz"):
+            if path in ("/epg-fr.xml", "/epg-fr.xml.gz"):
                 if french_cache is None or not french_cache.available:
                     self.send_error(HTTPStatus.NOT_FOUND, "French XMLTV file not configured")
                     return
                 try:
-                    compressed = self.path.endswith(".gz")
+                    compressed = path.endswith(".gz")
                     body = french_cache.get_compressed() if compressed else french_cache.get()
                 except Exception as exc:
                     self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "French XMLTV file unavailable")
@@ -190,11 +197,11 @@ def make_handler(
                     return
                 self._send_xml(body, max_age=3600, compressed=compressed)
                 return
-            if self.path not in ("/", "/epg.xml", "/epg.xml.gz"):
+            if path not in ("/", "/epg.xml", "/epg.xml.gz"):
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
             try:
-                compressed = self.path.endswith(".gz")
+                compressed = path.endswith(".gz")
                 body = cache.get_compressed() if compressed else cache.get()
             except Exception as exc:  # keep provider details out of the response
                 self.send_error(HTTPStatus.BAD_GATEWAY, "EPG source unavailable")

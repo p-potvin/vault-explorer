@@ -8,7 +8,9 @@
 const os = require('node:os');
 const path = require('node:path');
 
-const { chromium } = require('C:/Users/Administrator/Desktop/Prom-King/qa-automation/node_modules/patchright');
+const patchrightPath = process.env.PATCHRIGHT_PATH
+  || 'C:/Users/Administrator/Desktop/Prom-King/qa-automation/node_modules/patchright';
+const { chromium } = require(patchrightPath);
 
 const chromeUserDataDir = process.env.M3U4U_CHROME_USER_DATA_DIR
   || path.join(os.homedir(), 'AppData', 'Local', 'VaultWares', 'M3U4UAutomation', 'ChromeProfile');

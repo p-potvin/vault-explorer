@@ -60,7 +60,7 @@ class EpgServerTest(unittest.TestCase):
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             try:
-                with urlopen(f"http://127.0.0.1:{server.server_port}/epg-fr.xml") as response:
+                with urlopen(f"http://127.0.0.1:{server.server_port}/epg-fr.xml?cache=1") as response:
                     self.assertEqual(response.status, 200)
                     self.assertIn(b"Francais", response.read())
                 with urlopen(f"http://127.0.0.1:{server.server_port}/epg-fr.xml.gz") as response:
@@ -70,6 +70,16 @@ class EpgServerTest(unittest.TestCase):
                 server.shutdown()
                 thread.join()
                 server.server_close()
+        finally:
+            import os
+            os.unlink(path)
+
+    def test_local_compressed_xmltv_is_served_as_xml(self):
+        with tempfile.NamedTemporaryFile(suffix=".xml.gz", delete=False) as file:
+            file.write(gzip.compress(b"<tv><channel id='fr'/></tv>"))
+            path = file.name
+        try:
+            self.assertEqual(LocalFileCache(path).get(), b"<tv><channel id='fr'/></tv>")
         finally:
             import os
             os.unlink(path)

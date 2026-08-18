@@ -15,7 +15,7 @@ $runtimeDir = Join-Path $repoRoot '.runtime'
 $logPath = Join-Path $runtimeDir 'onn-tivimate-sync.log'
 $playlistPath = Join-Path $env:TEMP 'vaultwares-nos-canals.m3u'
 $remotePlaylistPath = '/sdcard/Download/vaultwares-nos-canals.m3u'
-$adb = (Get-Command adb -ErrorAction Stop).Source
+$adb = $null
 $mutex = [System.Threading.Mutex]::new($false, 'Global\VaultExplorerOnnTiviMateSync')
 
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
@@ -33,6 +33,10 @@ function Invoke-Adb([string[]]$Arguments) {
 }
 
 function Reload-TiviMate {
+    $size = (Invoke-Adb @('-s', $Device, 'shell', 'wm', 'size')) -join ' '
+    if ($size -notmatch '1920x1080') {
+        throw "Device resolution is not 1920x1080 (found: $size). Coordinate-based UI automation aborted."
+    }
     # This is intentionally an overnight foreground refresh. It mutes first and
     # uses the known 1080p ONN/TiviMate settings flow to reload local playlists.
     Invoke-Adb @('-s', $Device, 'shell', 'input', 'keyevent', '164')
@@ -57,6 +61,7 @@ if (-not $mutex.WaitOne(0)) {
 }
 
 try {
+    $adb = (Get-Command adb -ErrorAction Stop).Source
     Write-SyncLog "starting for $Device"
     if (-not $SkipM3u4uSync) {
         & (Join-Path $PSScriptRoot 'Run-M3u4uSync.ps1')

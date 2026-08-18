@@ -5,7 +5,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$nodePath = 'C:\Program Files\nodejs\node.exe'
+$nodePath = if (Test-Path 'C:\Program Files\nodejs\node.exe') {
+    'C:\Program Files\nodejs\node.exe'
+} else {
+    (Get-Command node -ErrorAction Stop).Source
+}
 $runnerPath = Join-Path $PSScriptRoot 'sync-m3u4u-patchright.cjs'
 $runtimeDir = Join-Path $repoRoot '.runtime'
 $logPath = Join-Path $runtimeDir 'm3u4u-sync.log'
