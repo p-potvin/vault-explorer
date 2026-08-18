@@ -381,8 +381,9 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
             if buf is None:
                 break
 
-            # Fast zero-copy upload to GPU (uint8)
-            t_gpu = torch.frombuffer(buf, dtype=torch.uint8).reshape(src_h, src_w, 3).to("cuda", non_blocking=True)
+            # bytearray-backed tensors are not pinned, so this upload is deliberately
+            # synchronous. A future pinned-buffer pool can make this non-blocking.
+            t_gpu = torch.frombuffer(buf, dtype=torch.uint8).reshape(src_h, src_w, 3).to("cuda")
             # Permute & normalize to float32 directly in CUDA memory
             frame_torch = t_gpu.permute(2, 0, 1).contiguous().to(dtype=torch.float32) / 255.0
 
@@ -392,7 +393,13 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
 
             # Fused GPU YUV conversion & host DMA transfer
             yuv_bytes = gpu_yuv.convert_to_bytes(out_tensor)
-            output_queue.put(yuv_bytes)
+            while not stop_event.is_set():
+                try:
+                    output_queue.put(yuv_bytes, timeout=0.1)
+                    break
+                except queue.Full:
+                    if not t_writer.is_alive() or error_flag[0]:
+                        raise RuntimeError("writer thread died unexpectedly")
 
             frame_count += 1
             if frame_count % 30 == 0:
@@ -411,7 +418,12 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
         error_flag[0] = True
     finally:
         stop_event.set()
-        output_queue.put(None)
+        while t_writer.is_alive():
+            try:
+                output_queue.put(None, timeout=0.1)
+                break
+            except queue.Full:
+                continue
         t_writer.join(timeout=10)
 
         # Wait for encoder
