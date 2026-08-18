@@ -7,13 +7,14 @@ Modes:
   enhance: Decode → VSR (2x) → NVENC → file output (permanent enhancement)
 
 Usage:
-  python rtx_vsr_stream.py stream   <video_path> [--start-time SEC]
-  python rtx_vsr_stream.py enhance <video_path> <output_path> [--quality LEVEL]
+  python rtx_vsr_stream.py stream  <video_path> [--start-time SEC] [--quality LEVEL] [--scale FACTOR] [--bitrate RATE] [--chroma FMT]
+  python rtx_vsr_stream.py enhance <video_path> <output_path> [--quality LEVEL] [--scale FACTOR] [--chroma FMT]
 """
 
 import argparse
 import io
 import os
+import queue
 import re
 import struct
 import subprocess
@@ -21,22 +22,26 @@ import sys
 import threading
 import time
 
-import numpy as np
 import torch
+import torch.nn.functional as F
 
 # nvvfx has nanobind leak warnings on exit; we suppress them by flushing
 # stdout before exit and using os._exit(0) in non-error paths.
-try:
-    import nvvfx
-except ImportError as e:
-    print(f"[RTX VSR] FATAL: nvidia-vfx not installed: {e}", file=sys.stderr)
-    sys.exit(2)
+def check_nvvfx():
+    try:
+        import nvvfx
+        return nvvfx
+    except ImportError as e:
+        print(f"[RTX VSR] FATAL: nvidia-vfx not installed: {e}", file=sys.stderr)
+        sys.exit(2)
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-CHUNK_SIZE = 4096          # Bytes read from ffmpeg stdout at a time
-FFMPEG_PIX_FMT = "rgb24"   # Raw RGB bytes from decoder
+PIPE_BUF_SIZE = 16 * 1024 * 1024  # 16 MB pipe buffer for high-throughput raw video
+STREAM_CHUNK_SIZE = 65536         # 64 KB chunks for stdout fMP4 forwarding
+FFMPEG_PIX_FMT = "rgb24"          # Raw RGB bytes from decoder
+QUEUE_MAXSIZE = 4                 # Bounded queue depth to overlap decode/VSR/encode
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -70,30 +75,14 @@ def _probe_video(path: str):
         return {"width": 0, "height": 0, "fps": 0.0, "duration": 0.0}
 
 
-def _read_exact(stream, n):
-    """Read exactly n bytes from a raw (bufsize=0) pipe.
-
-    stream.read(n) on an unbuffered pipe returns whatever is currently
-    available (often ~64KB) — far less than one raw video frame — so treating
-    a short read as EOF made both pipelines exit after zero frames.
-    """
-    buf = bytearray()
-    while len(buf) < n:
-        chunk = stream.read(n - len(buf))
-        if not chunk:
-            break
-        buf.extend(chunk)
-    return bytes(buf)
-
-
 def _build_decoder_cmd(path: str, start_time: float = 0.0):
-    """ffmpeg command that outputs raw RGB24 frames on stdout."""
-    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats"]
+    """ffmpeg command that outputs raw RGB24 frames on stdout with multi-threading."""
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats", "-threads", "0"]
     if start_time > 0:
         cmd += ["-ss", str(start_time)]
     cmd += [
         "-i", path,
-        "-map", "0:v:0",           # FIX: Select only the video stream, ignoring audio/subtitles
+        "-map", "0:v:0",           # Select only the video stream, ignoring audio/subtitles
         "-pix_fmt", FFMPEG_PIX_FMT,
         "-f", "rawvideo",
         "-",
@@ -102,10 +91,9 @@ def _build_decoder_cmd(path: str, start_time: float = 0.0):
 
 
 def _build_encoder_stream_cmd(width: int, height: int, fps: float, bitrate: str = "12M", chroma: str = "yuv420p"):
-    """ffmpeg command that reads raw yuv420p on stdin and outputs
+    """ffmpeg command that reads raw yuv on stdin and outputs
     fragmented MP4 (fMP4) suitable for MediaSource sequence mode."""
     # Derive maxrate and bufsize from bitrate string
-    import re
     m = re.match(r"(\d+)([MmKk]?)", bitrate)
     if m:
         val = int(m.group(1))
@@ -116,21 +104,15 @@ def _build_encoder_stream_cmd(width: int, height: int, fps: float, bitrate: str 
             bps = val * 1000000
     else:
         bps = 12000000
-    # bps is already expanded to raw bits/s — re-appending the M/K suffix
-    # multiplied it a second time (6M -> maxrate "7500000M" = 7.5 Tbps), which
-    # made nvenc refuse to open and the stream produce zero frames.
     maxrate = str(int(bps * 1.25))
     bufsize = str(int(bps * 2))
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats",
         "-f", "rawvideo",
-        # stdin carries YUV from _tensor_to_yuv, not RGB — must match `chroma`
-        # (rgb24 here made the encoder mis-frame the byte stream).
         "-pix_fmt", chroma,
         "-s", f"{width}x{height}",
         "-r", str(fps) if fps > 0 else "30",
         "-i", "-",                     # stdin
-        "-f", "mp4",                   # FIX 1: Force FFmpeg to use the MP4 muxer despite the .tmp extension
         "-c:v", "h264_nvenc",
         "-preset", "p1",               # lowest latency preset
         "-tune", "ll",                 # low-latency tuning
@@ -147,7 +129,7 @@ def _build_encoder_stream_cmd(width: int, height: int, fps: float, bitrate: str 
 
 
 def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str, chroma: str = "yuv420p"):
-    """ffmpeg command for permanent file enhancement."""
+    """ffmpeg command for permanent file enhancement using NVENC."""
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats",
         "-f", "rawvideo",
@@ -155,7 +137,6 @@ def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str, 
         "-s", f"{width}x{height}",
         "-r", str(fps) if fps > 0 else "30",
         "-i", "-", 
-        "-f", "mp4",                   # FIX 1: Force FFmpeg to use the MP4 muxer despite the .tmp extension
         "-c:v", "h264_nvenc",
         "-preset", "p4",               # balanced quality/speed
         "-rc", "vbr",
@@ -164,10 +145,85 @@ def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str, 
         "-maxrate", "20M",
         "-bufsize", "40M",
         "-movflags", "+faststart",
+        "-f", "mp4",
         "-y", out_path,
     ]
     return cmd
 
+
+# ---------------------------------------------------------------------------
+# GPU-Accelerated YUV Converter
+# ---------------------------------------------------------------------------
+
+class GpuYuvConverter:
+    """Fast fused GPU BT.709 RGB->YUV converter with pinned memory DMA transfers."""
+
+    def __init__(self, width: int, height: int, chroma: str = "yuv420p", pool_size: int = 4):
+        self.w = width
+        self.h = height
+        self.chroma = chroma
+        self.pool_size = pool_size
+        self.pool_idx = 0
+
+        self.y_size = self.w * self.h
+        if self.chroma == "yuv420p":
+            self.uv_w = self.w // 2
+            self.uv_h = self.h // 2
+            self.uv_size = self.uv_w * self.uv_h
+            self.total_bytes = self.y_size + 2 * self.uv_size
+        else:
+            self.uv_w = self.w
+            self.uv_h = self.h
+            self.uv_size = self.y_size
+            self.total_bytes = self.y_size * 3
+
+        # BT.709 color conversion matrix (standard for HD video)
+        # Y = 0.2126 * R + 0.7152 * G + 0.0722 * B
+        # U = -0.1146 * R - 0.3854 * G + 0.5000 * B + 128
+        # V = 0.5000 * R - 0.4542 * G - 0.0458 * B + 128
+        self.mat = torch.tensor([
+            [0.2126 * 255.0, 0.7152 * 255.0, 0.0722 * 255.0],
+            [-0.1146 * 255.0, -0.3854 * 255.0, 0.5000 * 255.0],
+            [0.5000 * 255.0, -0.4542 * 255.0, -0.0458 * 255.0]
+        ], dtype=torch.float32, device="cuda")
+        self.bias = torch.tensor([0.0, 128.0, 128.0], dtype=torch.float32, device="cuda").view(3, 1, 1)
+
+        # Pre-allocated GPU buffer for flat assembled frame
+        self.yuv_gpu = torch.empty(self.total_bytes, dtype=torch.uint8, device="cuda")
+
+        # Pre-allocated host pinned memory buffer pool for zero-copy DMA transfers
+        self.pinned_pool = [
+            torch.empty(self.total_bytes, dtype=torch.uint8, pin_memory=True)
+            for _ in range(self.pool_size)
+        ]
+
+    def convert_to_bytes(self, rgb_tensor: torch.Tensor) -> bytes:
+        """Convert a (3, H, W) float32 [0,1] CUDA tensor into YUV raw bytes."""
+        # 1. Vectorized linear projection on GPU
+        yuv_float = torch.einsum('ij,jhw->ihw', self.mat, rgb_tensor) + self.bias
+        y_u8 = yuv_float[0].clamp(0, 255).to(torch.uint8)
+
+        if self.chroma == "yuv420p":
+            # 2. Batched 2x2 average pool for U and V channels simultaneously on GPU
+            uv_sub = F.avg_pool2d(yuv_float[1:].unsqueeze(0), kernel_size=2, stride=2).squeeze(0)
+            uv_u8 = uv_sub.clamp(0, 255).to(torch.uint8)
+
+            # 3. Assemble flat contiguous frame in GPU memory
+            self.yuv_gpu[:self.y_size] = y_u8.reshape(-1)
+            self.yuv_gpu[self.y_size:self.y_size + self.uv_size] = uv_u8[0].reshape(-1)
+            self.yuv_gpu[self.y_size + self.uv_size:] = uv_u8[1].reshape(-1)
+        else:
+            uv_u8 = yuv_float[1:].clamp(0, 255).to(torch.uint8)
+            self.yuv_gpu[:self.y_size] = y_u8.reshape(-1)
+            self.yuv_gpu[self.y_size:self.y_size + self.uv_size] = uv_u8[0].reshape(-1)
+            self.yuv_gpu[self.y_size + self.uv_size:] = uv_u8[1].reshape(-1)
+
+        # 4. DMA transfer to host pinned memory
+        pinned_buf = self.pinned_pool[self.pool_idx % self.pool_size]
+        self.pool_idx += 1
+        pinned_buf.copy_(self.yuv_gpu, non_blocking=False)
+
+        return pinned_buf.numpy().tobytes()
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +232,7 @@ def _build_encoder_file_cmd(width: int, height: int, fps: float, out_path: str, 
 
 def _create_vsr(quality_level, out_w: int, out_h: int):
     """Create and load a VideoSuperRes effect."""
+    nvvfx = check_nvvfx()
     vsr = nvvfx.VideoSuperRes(quality=quality_level)
     vsr.output_width = out_w
     vsr.output_height = out_h
@@ -183,50 +240,17 @@ def _create_vsr(quality_level, out_w: int, out_h: int):
     return vsr
 
 
-def _process_frame_tensor(vsr, frame_torch: torch.Tensor):
-    """Run a single (3, H, W) float32 CUDA frame through VSR.
-    Returns cloned output tensor on CUDA."""
-    result = vsr.run(frame_torch)
-    out = torch.from_dlpack(result.image).clone()
-    return out
-
-
-def _tensor_to_yuv(tensor: torch.Tensor, chroma: str = "yuv420p"):
-    """Convert a (3, H, W) float32 [0,1] RGB CUDA tensor to a YUV byte buffer.
-    Supports yuv420p and yuv444p. Returns bytes suitable for ffmpeg stdin."""
-    rgb = (tensor * 255.0).clamp(0, 255).to(torch.uint8)
-    rgb = rgb.to("cpu").contiguous().numpy()  # (3, H, W) uint8
-
-    h, w = rgb.shape[1], rgb.shape[2]
-    r, g, b = rgb[0].astype(np.float32), rgb[1].astype(np.float32), rgb[2].astype(np.float32)
-
-    y = (0.2126 * r + 0.7152 * g + 0.0722 * b).clip(0, 255).astype(np.uint8)
-    u = (-0.1146 * r - 0.3854 * g + 0.5000 * b + 128.0).clip(0, 255).astype(np.uint8)
-    v = (0.5000 * r - 0.4542 * g - 0.0458 * b + 128.0).clip(0, 255).astype(np.uint8)
-
-    if chroma == "yuv444p":
-        return y.tobytes() + u.tobytes() + v.tobytes()
-    # yuv420p — downsample chroma 2x2 with averaging for better quality
-    u_avg = ((u[0::2, 0::2].astype(np.uint16) + u[0::2, 1::2].astype(np.uint16) +
-              u[1::2, 0::2].astype(np.uint16) + u[1::2, 1::2].astype(np.uint16)) // 4).astype(np.uint8)
-    v_avg = ((v[0::2, 0::2].astype(np.uint16) + v[0::2, 1::2].astype(np.uint16) +
-              v[1::2, 0::2].astype(np.uint16) + v[1::2, 1::2].astype(np.uint16)) // 4).astype(np.uint8)
-    return y.tobytes() + u_avg.tobytes() + v_avg.tobytes()
-
-
 # ---------------------------------------------------------------------------
-# Pipeline worker
+# Pipelined Worker
 # ---------------------------------------------------------------------------
 
-def _run_pipeline(video_path: str, out_target, quality_level, start_time: float = 0.0, is_stream: bool = False, scale: float = 2.0, bitrate: str = "12M", chroma: str = "yuv420p"):
-    """Core pipeline: decode → VSR → encode.
-
-    out_target: either a file path (str) or a writable buffer (for stream mode).
-    is_stream: True → write fragmented MP4 chunks to stdout.
-    """
+def _run_pipeline(video_path: str, out_target, quality_level, start_time: float = 0.0,
+                  is_stream: bool = False, scale: float = 2.0, bitrate: str = "12M",
+                  chroma: str = "yuv420p"):
+    """Core 3-stage concurrent pipeline: Decode (I/O) ∥ VSR + YUV (GPU) ∥ NVENC (Encode)."""
     probe = _probe_video(video_path)
     src_w, src_h = probe["width"], probe["height"]
-    fps = probe["fps"]
+    fps, duration = probe["fps"], probe["duration"]
 
     if src_w == 0 or src_h == 0:
         print("[RTX VSR] FATAL: could not probe source video", file=sys.stderr)
@@ -234,85 +258,151 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
 
     out_w = int(src_w * scale)
     out_h = int(src_h * scale)
+    # Dimensions must be even for NVENC and YUV420p subsampling
+    out_w = out_w - (out_w % 2)
+    out_h = out_h - (out_h % 2)
 
     print(f"[RTX VSR] Source: {src_w}x{src_h} @ {fps:.2f}fps → Output: {out_w}x{out_h}", file=sys.stderr)
 
-    # Build ffmpeg commands
     dec_cmd = _build_decoder_cmd(video_path, start_time)
-    print(f"[RTX VSR] dec_cmd {dec_cmd}: v {video_path} st {start_time}", file=sys.stderr)
-    
     if is_stream:
         enc_cmd = _build_encoder_stream_cmd(out_w, out_h, fps, bitrate, chroma)
     else:
         enc_cmd = _build_encoder_file_cmd(out_w, out_h, fps, out_target, chroma)
 
-    print(f"[RTX VSR] enc_cmd {enc_cmd}: o {out_target} ch {chroma}", file=sys.stderr)
-
-    # Spawn decoder
+    # Spawn decoder & encoder with high-throughput pipes
     dec_proc = subprocess.Popen(
         dec_cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        bufsize=0,
+        bufsize=PIPE_BUF_SIZE,
     )
 
-    # Spawn encoder
     enc_proc = subprocess.Popen(
         enc_cmd,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE if is_stream else None,
         stderr=subprocess.PIPE,
-        bufsize=0,
+        bufsize=PIPE_BUF_SIZE,
     )
 
-    # FIX: Start logging threads HERE before loading VSR
-    def read_decoder_stderr():
-        for line in iter(dec_proc.stderr.readline, b""):
+    def log_stderr(proc, label):
+        for line in iter(proc.stderr.readline, b""):
             line_str = line.decode("utf-8", errors="ignore").strip()
             if line_str:
-                print(f"[ffmpeg-dec] {line_str}", file=sys.stderr)
+                print(f"[{label}] {line_str}", file=sys.stderr)
 
-    def read_encoder_stderr():
-        for line in iter(enc_proc.stderr.readline, b""):
-            line_str = line.decode("utf-8", errors="ignore").strip()
-            if line_str:
-                print(f"[ffmpeg-enc] {line_str}", file=sys.stderr)
-
-    dec_err_thread = threading.Thread(target=read_decoder_stderr, daemon=True)
-    enc_err_thread = threading.Thread(target=read_encoder_stderr, daemon=True)
+    dec_err_thread = threading.Thread(target=log_stderr, args=(dec_proc, "ffmpeg-dec"), daemon=True)
+    enc_err_thread = threading.Thread(target=log_stderr, args=(enc_proc, "ffmpeg-enc"), daemon=True)
     dec_err_thread.start()
     enc_err_thread.start()
 
-    # Load VSR on GPU (This takes a few seconds, during which FFmpeg errors could happen)
-    vsr = _create_vsr(quality_level, out_w, out_h)
+    # Stream mode: Forward encoder stdout → process stdout in chunks
+    fwd_thread = None
+    if is_stream:
+        def forward_stdout():
+            try:
+                while True:
+                    chunk = enc_proc.stdout.read(STREAM_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    sys.stdout.buffer.write(chunk)
+                    sys.stdout.buffer.flush()
+            except Exception as e:
+                print(f"[RTX VSR] stdout forward error: {e}", file=sys.stderr)
 
-    print(f"[RTX VSR] vsr {vsr}: o {out_target} ch {chroma}", file=sys.stderr)
+        fwd_thread = threading.Thread(target=forward_stdout, daemon=True)
+        fwd_thread.start()
+
+    # Load VSR effect on GPU
+    vsr = _create_vsr(quality_level, out_w, out_h)
+    gpu_yuv = GpuYuvConverter(out_w, out_h, chroma=chroma, pool_size=QUEUE_MAXSIZE)
 
     frame_bytes = src_w * src_h * 3
-    frame_count = 0
+    input_queue = queue.Queue(maxsize=QUEUE_MAXSIZE)
+    output_queue = queue.Queue(maxsize=QUEUE_MAXSIZE)
+    stop_event = threading.Event()
     error_flag = [False]
 
+    # Stage 1: Reader thread (decodes frames into pre-allocated memory)
+    def reader_worker():
+        try:
+            while not stop_event.is_set():
+                buf = bytearray(frame_bytes)
+                view = memoryview(buf)
+                pos = 0
+                while pos < frame_bytes:
+                    nread = dec_proc.stdout.readinto(view[pos:])
+                    if not nread:
+                        break
+                    pos += nread
+                if pos < frame_bytes:
+                    break
+                input_queue.put(buf)
+        except Exception as e:
+            print(f"[RTX VSR] reader error: {e}", file=sys.stderr)
+            error_flag[0] = True
+        finally:
+            input_queue.put(None)
+
+    # Stage 3: Writer thread (sends encoded frames to NVENC stdin)
+    def writer_worker():
+        try:
+            while True:
+                data = output_queue.get()
+                if data is None:
+                    break
+                enc_proc.stdin.write(data)
+        except BrokenPipeError:
+            pass
+        except Exception as e:
+            print(f"[RTX VSR] writer error: {e}", file=sys.stderr)
+            error_flag[0] = True
+        finally:
+            try:
+                enc_proc.stdin.close()
+            except Exception:
+                pass
+
+    t_reader = threading.Thread(target=reader_worker, daemon=True)
+    t_writer = threading.Thread(target=writer_worker, daemon=True)
+    t_reader.start()
+    t_writer.start()
+
+    frame_count = 0
+    total_frame_count = int(duration * fps) if duration > 0 else 0
+    t_start = time.perf_counter()
+    t_last = t_start
+
+    # Stage 2: Main GPU Worker (Ingestion -> VSR -> Fused YUV)
     try:
-        while True:
-            raw = _read_exact(dec_proc.stdout, frame_bytes)
-            if not raw or len(raw) < frame_bytes:
+        while not stop_event.is_set():
+            buf = input_queue.get()
+            if buf is None:
                 break
 
-            # RGB24 → torch tensor (3, H, W), float32, [0,1], CUDA
-            arr = np.frombuffer(raw, dtype=np.uint8).reshape((src_h, src_w, 3))
-            arr = np.ascontiguousarray(np.transpose(arr, (2, 0, 1)))  # (3, H, W), contiguous for nvvfx
-            frame_torch = torch.from_numpy(arr).to(dtype=torch.float32, device="cuda") / 255.0
+            # Fast zero-copy upload to GPU (uint8)
+            t_gpu = torch.frombuffer(buf, dtype=torch.uint8).reshape(src_h, src_w, 3).to("cuda", non_blocking=True)
+            # Permute & normalize to float32 directly in CUDA memory
+            frame_torch = t_gpu.permute(2, 0, 1).contiguous().to(dtype=torch.float32) / 255.0
 
-            # VSR
-            out_torch = _process_frame_tensor(vsr, frame_torch)
+            # Run VSR inference
+            result = vsr.run(frame_torch)
+            out_tensor = torch.from_dlpack(result.image)
 
-            # Tensor → YUV bytes → encoder stdin
-            yuv_bytes = _tensor_to_yuv(out_torch, chroma)
-            enc_proc.stdin.write(yuv_bytes)
+            # Fused GPU YUV conversion & host DMA transfer
+            yuv_bytes = gpu_yuv.convert_to_bytes(out_tensor)
+            output_queue.put(yuv_bytes)
 
             frame_count += 1
             if frame_count % 30 == 0:
-                print(f"[RTX VSR] Processed {frame_count} frames", file=sys.stderr)
+                t_now = time.perf_counter()
+                fps_instant = 30.0 / max(0.001, t_now - t_last)
+                t_last = t_now
+                if total_frame_count > 0:
+                    print(f"[RTX VSR] Processed {frame_count} / {total_frame_count} frames ({fps_instant:.1f} FPS)", file=sys.stderr, end="\r", flush=True)
+                else:
+                    print(f"[RTX VSR] Processed {frame_count} frames ({fps_instant:.1f} FPS)", file=sys.stderr, end="\r", flush=True)
 
     except BrokenPipeError:
         print("[RTX VSR] Pipeline broken (expected on stop)", file=sys.stderr)
@@ -320,22 +410,23 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
         print(f"[RTX VSR] Pipeline error: {e}", file=sys.stderr)
         error_flag[0] = True
     finally:
-        # Close encoder stdin to signal EOF
-        try:
-            enc_proc.stdin.close()
-        except Exception:
-            pass
+        stop_event.set()
+        output_queue.put(None)
+        t_writer.join(timeout=10)
 
-        # Wait for encoder to finish
+        # Wait for encoder
         try:
             enc_proc.wait(timeout=30)
         except subprocess.TimeoutExpired:
             enc_proc.kill()
 
-        # Kill decoder if still running
+        # Terminate decoder
         if dec_proc.poll() is None:
             dec_proc.kill()
         dec_proc.wait()
+
+        if fwd_thread:
+            fwd_thread.join(timeout=5)
 
         vsr.close()
         del vsr
@@ -346,7 +437,9 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
     if error_flag[0]:
         return False
 
-    print(f"[RTX VSR] Total frames processed: {frame_count}", file=sys.stderr)
+    t_total = max(0.001, time.perf_counter() - t_start)
+    avg_fps = frame_count / t_total
+    print(f"\n[RTX VSR] Completed {frame_count} frames in {t_total:.2f}s ({avg_fps:.1f} avg FPS)", file=sys.stderr)
     return True
 
 
@@ -356,6 +449,7 @@ def _run_pipeline(video_path: str, out_target, quality_level, start_time: float 
 
 def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH", scale: float = 2.0, bitrate: str = "12M", chroma: str = "yuv420p"):
     """Stream fragmented MP4 to stdout for MediaSource consumption."""
+    nvvfx = check_nvvfx()
     quality_map = {
         "LOW": nvvfx.VideoSuperRes.QualityLevel.LOW,
         "MEDIUM": nvvfx.VideoSuperRes.QualityLevel.MEDIUM,
@@ -364,99 +458,17 @@ def stream_mode(video_path: str, start_time: float = 0.0, quality: str = "HIGH",
     }
     ql = quality_map.get(quality.upper(), nvvfx.VideoSuperRes.QualityLevel.HIGH)
 
-    # For streaming we write raw fMP4 bytes to stdout in binary mode
-    # We don't use the _run_pipeline helper directly because we need
-    # to forward encoder stdout to our stdout in real time.
-    probe = _probe_video(video_path)
-    src_w, src_h = probe["width"], probe["height"]
-    fps = probe["fps"]
-
-    if src_w == 0 or src_h == 0:
-        print("[RTX VSR] FATAL: could not probe source video", file=sys.stderr)
-        sys.exit(1)
-
-    out_w, out_h = int(src_w * scale), int(src_h * scale)
-    print(f"[RTX VSR] stream: {src_w}x{src_h} → {out_w}x{out_h} quality={quality} scale={scale} bitrate={bitrate}", file=sys.stderr)
-
-    dec_cmd = _build_decoder_cmd(video_path, start_time)
-    enc_cmd = _build_encoder_stream_cmd(out_w, out_h, fps, bitrate, chroma)
-
-    dec_proc = subprocess.Popen(dec_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
-    enc_proc = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
-
-    vsr = _create_vsr(ql, out_w, out_h)
-    frame_bytes = src_w * src_h * 3
-    frame_count = 0
-    stopped = [False]
-
-    # Forward encoder stdout → our stdout (MediaSource chunks)
-    def forward_stdout():
-        try:
-            while True:
-                chunk = enc_proc.stdout.read(CHUNK_SIZE)
-                if not chunk:
-                    break
-                sys.stdout.buffer.write(chunk)
-                sys.stdout.buffer.flush()
-        except Exception as e:
-            print(f"[RTX VSR] forward error: {e}", file=sys.stderr)
-
-    fwd_thread = threading.Thread(target=forward_stdout, daemon=True)
-    fwd_thread.start()
-
-    def log_stderr(proc, label):
-        for line in iter(proc.stderr.readline, b""):
-            line_str = line.decode("utf-8", errors="ignore").strip()
-            if line_str:
-                print(f"[{label}] {line_str}", file=sys.stderr)
-
-    dec_err = threading.Thread(target=log_stderr, args=(dec_proc, "dec"), daemon=True)
-    enc_err = threading.Thread(target=log_stderr, args=(enc_proc, "enc"), daemon=True)
-    dec_err.start()
-    enc_err.start()
-
-    try:
-        while not stopped[0]:
-            raw = _read_exact(dec_proc.stdout, frame_bytes)
-            if not raw or len(raw) < frame_bytes:
-                break
-
-            arr = np.frombuffer(raw, dtype=np.uint8).reshape((src_h, src_w, 3))
-            arr = np.ascontiguousarray(np.transpose(arr, (2, 0, 1)))
-            frame_torch = torch.from_numpy(arr).to(dtype=torch.float32, device="cuda") / 255.0
-            out_torch = _process_frame_tensor(vsr, frame_torch)
-            yuv_bytes = _tensor_to_yuv(out_torch, chroma)
-            enc_proc.stdin.write(yuv_bytes)
-            frame_count += 1
-    except BrokenPipeError:
-        pass
-    except Exception as e:
-        print(f"[RTX VSR] stream error: {e}", file=sys.stderr)
-    finally:
-        stopped[0] = True
-        try:
-            enc_proc.stdin.close()
-        except Exception:
-            pass
-
-        try:
-            enc_proc.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            enc_proc.kill()
-
-        if dec_proc.poll() is None:
-            dec_proc.kill()
-        dec_proc.wait()
-
-        fwd_thread.join(timeout=5)
-
-        vsr.close()
-        del vsr
-        import gc
-        gc.collect()
-        torch.cuda.empty_cache()
-
-    print(f"[RTX VSR] Stream ended after {frame_count} frames", file=sys.stderr)
+    success = _run_pipeline(
+        video_path=video_path,
+        out_target=None,
+        quality_level=ql,
+        start_time=start_time,
+        is_stream=True,
+        scale=scale,
+        bitrate=bitrate,
+        chroma=chroma
+    )
+    return success
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +483,7 @@ def enhance_mode(video_path: str, output_path: str, quality: str = "HIGH", scale
     A crash or cancellation therefore leaves the original final file intact
     and only a disposable .tmp file behind.
     """
+    nvvfx = check_nvvfx()
     quality_map = {
         "LOW": nvvfx.VideoSuperRes.QualityLevel.LOW,
         "MEDIUM": nvvfx.VideoSuperRes.QualityLevel.MEDIUM,
@@ -480,14 +493,21 @@ def enhance_mode(video_path: str, output_path: str, quality: str = "HIGH", scale
     ql = quality_map.get(quality.upper(), nvvfx.VideoSuperRes.QualityLevel.HIGH)
 
     temp_path = output_path + ".tmp"
-    # Remove any stale temp file from a previous interrupted run.
     if os.path.exists(temp_path):
         try:
             os.remove(temp_path)
         except Exception as e:
             print(f"[RTX VSR] Warning: could not remove stale temp file {temp_path}: {e}", file=sys.stderr)
 
-    success = _run_pipeline(video_path, temp_path, ql, start_time=0.0, is_stream=False, scale=scale, chroma=chroma)
+    success = _run_pipeline(
+        video_path=video_path,
+        out_target=temp_path,
+        quality_level=ql,
+        start_time=0.0,
+        is_stream=False,
+        scale=scale,
+        chroma=chroma
+    )
 
     if success and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
         try:
@@ -538,7 +558,6 @@ def main():
 
     if args.cmd == "stream":
         stream_mode(args.video_path, args.start_time, args.quality, args.scale, args.bitrate, args.chroma)
-        # nanobind leak detector causes exit code 1; force clean exit
         sys.stdout.flush()
         os._exit(0)
     elif args.cmd == "enhance":
