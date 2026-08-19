@@ -34,6 +34,8 @@ assert.match(player, /playbackSort\) \|\| 'mtime-desc'/,
     'Playback folder order must default to newest modified first');
 assert.match(player, /sortPlaybackItems\(await window\.electronAPI\.scanDirectory\(folder\)\)/,
     'The scanned playback folder must be sorted before navigation');
+assert.match(read('index.html'), /value="size-desc"[\s\S]*value="duration-asc"/,
+    'Playback settings must offer size and length ordering');
 assert.match(player, /getAdjacentPlaybackIndex\(1\)[\s\S]*playItem\(nextIdx, getPlaybackItems\(\)\)/s,
     'Next navigation must use the active playback-folder sequence');
 assert.match(player, /const itemFolder = getItemDirectory\(itemPath\) \|\| window\.currentRealPath/,

@@ -54,6 +54,8 @@ function setLanguage(lang) {
             'mtime-desc': 'playbackSortModifiedDesc', 'created-desc': 'playbackSortCreatedDesc',
             'mtime-asc': 'playbackSortModifiedAsc', 'created-asc': 'playbackSortCreatedAsc',
             'name-asc': 'playbackSortNameAsc', 'name-desc': 'playbackSortNameDesc',
+            'size-desc': 'playbackSortSizeDesc', 'size-asc': 'playbackSortSizeAsc',
+            'duration-desc': 'playbackSortLengthDesc', 'duration-asc': 'playbackSortLengthAsc',
         };
         Array.from(playbackSort.options).forEach((option) => {
             option.text = window.translations[lang][playbackSortLabels[option.value]] || option.text;
