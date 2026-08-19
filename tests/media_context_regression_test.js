@@ -30,6 +30,10 @@ assert.match(main, /before-input-event[\s\S]*setZoomFactor[\s\S]*mouseWheel/s,
     'Keyboard and Ctrl+wheel zoom must use the same bounded zoom path');
 assert.match(player, /buildPlaybackContext[\s\S]*electronAPI\.scanDirectory/s,
     'Playback must build its sequence from the playing file folder');
+assert.match(player, /playbackSort\) \|\| 'mtime-desc'/,
+    'Playback folder order must default to newest modified first');
+assert.match(player, /sortPlaybackItems\(await window\.electronAPI\.scanDirectory\(folder\)\)/,
+    'The scanned playback folder must be sorted before navigation');
 assert.match(player, /getAdjacentPlaybackIndex\(1\)[\s\S]*playItem\(nextIdx, getPlaybackItems\(\)\)/s,
     'Next navigation must use the active playback-folder sequence');
 assert.match(player, /const itemFolder = getItemDirectory\(itemPath\) \|\| window\.currentRealPath/,

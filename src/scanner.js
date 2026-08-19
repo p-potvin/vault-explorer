@@ -194,7 +194,7 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
 
             output.push({
                 name, path: filePath, type, poster, thumbnail: poster, hoverWebm,
-                size: stat.size, mtime: stat.mtimeMs,
+                size: stat.size, mtime: stat.mtimeMs, created: stat.birthtimeMs || stat.ctimeMs,
                 mtimeFormatted: new Date(stat.mtimeMs).toISOString().slice(0, 16).replace('T', ' '),
                 ext, duration: meta?.duration || 0, width: meta?.width || null, height: meta?.height || null,
                 codec: meta?.codec || null, fps: meta?.fps || null, audioCodec: meta?.audioCodec || null,

@@ -705,6 +705,20 @@
         </select>
       </div>
 
+      <div>
+        <label for="settings-playback-sort" id="label-playback-sort"
+          style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Playback Folder Order:</label>
+        <select id="settings-playback-sort"
+          style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+          <option value="mtime-desc">Date Modified (Newest First)</option>
+          <option value="created-desc">Date Created (Newest First)</option>
+          <option value="mtime-asc">Date Modified (Oldest First)</option>
+          <option value="created-asc">Date Created (Oldest First)</option>
+          <option value="name-asc">Name (A–Z)</option>
+          <option value="name-desc">Name (Z–A)</option>
+        </select>
+      </div>
+
       <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
         <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Remember
           Playback Pos:</span>

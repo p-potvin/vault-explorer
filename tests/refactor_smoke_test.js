@@ -26,6 +26,7 @@ async function run() {
     const electronApp = await electron.launch({
         cwd: 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer',
         args: ['.'],
+        env: { ...process.env, VAULT_EXPLORER_E2E: '1' },
     });
 
     await electronApp.context().waitForEvent('page');

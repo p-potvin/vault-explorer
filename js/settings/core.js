@@ -4,7 +4,7 @@ window.initSettingsListeners = function initSettingsListeners() {
     const grid = document.querySelector('.settings-panel-grid');
     const sectionForControl = {
         general: ['pill-tag-input-glob', 'settings-default-folder', 'settings-default-theme', 'settings-default-lang', 'settings-minimize-to-tray', 'settings-single-instance', 'settings-dev-mode', 'settings-default-home-tab'],
-        playback: ['settings-default-sub-lang', 'settings-sub-font-size', 'settings-remember-position', 'settings-mute-previews'],
+        playback: ['settings-default-sub-lang', 'settings-sub-font-size', 'settings-playback-sort', 'settings-remember-position', 'settings-mute-previews'],
         library: ['settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-misc'],
         ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma'],
     };
@@ -79,6 +79,7 @@ window.initSettingsListeners = function initSettingsListeners() {
                 el('settings-default-lang').value = window.appSettings.defaultLang || 'en';
                 el('settings-default-sub-lang').value = window.appSettings.defaultSubLang || 'original';
                 el('settings-sub-font-size').value = window.appSettings.subFontSize || '20px';
+                el('settings-playback-sort').value = window.appSettings.playbackSort || 'mtime-desc';
                 el('settings-remember-position').checked = window.appSettings.rememberPosition !== false;
                 el('settings-mute-previews').checked = window.appSettings.mutePreviews === true;
                 el('settings-minimize-to-tray').checked = window.appSettings.minimizeToTray === true;
@@ -179,6 +180,7 @@ window.initSettingsListeners = function initSettingsListeners() {
             window.appSettings.lang = chosenLang;
             if (typeof window.setLanguage === 'function') window.setLanguage(chosenLang);
             window.appSettings.defaultSubLang = el('settings-default-sub-lang').value;
+            window.appSettings.playbackSort = el('settings-playback-sort').value;
 
             const subSize = el('settings-sub-font-size').value;
             window.appSettings.subFontSize = subSize;

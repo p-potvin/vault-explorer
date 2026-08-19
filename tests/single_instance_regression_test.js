@@ -10,7 +10,7 @@ const html = read('index.html');
 const en = read('js/translations.en.js');
 const qc = read('js/translations.qc.js');
 
-assert.match(main, /const singleInstanceEnabled = loadSettings\(\)\.singleInstance === true;/,
+assert.match(main, /VAULT_EXPLORER_E2E !== '1' && loadSettings\(\)\.singleInstance === true/,
     'single-instance mode must be driven by the saved setting');
 assert.match(main, /app\.requestSingleInstanceLock\(\)/,
     'single-instance mode must acquire Electron\'s application lock');

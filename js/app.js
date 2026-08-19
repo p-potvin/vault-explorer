@@ -47,6 +47,18 @@ function setLanguage(lang) {
     if (el('settings-btn-save')) el('settings-btn-save').innerText = window.translations[lang].save;
     if (el('label-mute-previews')) el('label-mute-previews').innerText = window.translations[lang].mutePreviews;
     if (el('label-single-instance')) el('label-single-instance').innerText = window.translations[lang].singleInstance;
+    if (el('label-playback-sort')) el('label-playback-sort').innerText = window.translations[lang].playbackSort;
+    const playbackSort = el('settings-playback-sort');
+    if (playbackSort) {
+        const playbackSortLabels = {
+            'mtime-desc': 'playbackSortModifiedDesc', 'created-desc': 'playbackSortCreatedDesc',
+            'mtime-asc': 'playbackSortModifiedAsc', 'created-asc': 'playbackSortCreatedAsc',
+            'name-asc': 'playbackSortNameAsc', 'name-desc': 'playbackSortNameDesc',
+        };
+        Array.from(playbackSort.options).forEach((option) => {
+            option.text = window.translations[lang][playbackSortLabels[option.value]] || option.text;
+        });
+    }
     if (el('single-instance-setting')) el('single-instance-setting').title = window.translations[lang].singleInstanceHint;
     document.querySelectorAll('.settings-section-tab').forEach((tab) => {
         const section = tab.dataset.settingsSection;

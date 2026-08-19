@@ -31,13 +31,33 @@ function getAdjacentPlaybackIndex(direction) {
     return index;
 }
 
+function sortPlaybackItems(items) {
+    const [field, direction] = String((window.appSettings && window.appSettings.playbackSort) || 'mtime-desc').split('-');
+    const key = field === 'created' ? 'created' : field;
+    const multiplier = direction === 'asc' ? 1 : -1;
+    return [...items].sort((left, right) => {
+        let a = left[key];
+        let b = right[key];
+        if (key === 'name') {
+            a = String(a || '').toLocaleLowerCase();
+            b = String(b || '').toLocaleLowerCase();
+        } else {
+            a = Number(a) || 0;
+            b = Number(b) || 0;
+        }
+        if (a < b) return -1 * multiplier;
+        if (a > b) return multiplier;
+        return String(left.name || '').localeCompare(String(right.name || ''));
+    });
+}
+
 async function buildPlaybackContext(item) {
     const folder = getItemDirectory(item && item.path);
     let items = window.displayedItems || [];
     if (folder && window.electronAPI && typeof window.electronAPI.scanDirectory === 'function') {
         if (window.currentPlaybackFolder !== folder || !window.currentPlaybackItems.length) {
             try {
-                window.currentPlaybackItems = await window.electronAPI.scanDirectory(folder);
+                window.currentPlaybackItems = sortPlaybackItems(await window.electronAPI.scanDirectory(folder));
                 window.currentPlaybackFolder = folder;
             } catch (error) {
                 console.warn('[player] Could not scan playback folder:', error.message);

@@ -128,7 +128,7 @@ function openFileInMainWindow(filePath) {
 
 // This must run before app readiness: Electron can only notify the first
 // process about a second launch when that first process owns this lock.
-const singleInstanceEnabled = loadSettings().singleInstance === true;
+const singleInstanceEnabled = process.env.VAULT_EXPLORER_E2E !== '1' && loadSettings().singleInstance === true;
 if (singleInstanceEnabled && !app.requestSingleInstanceLock()) {
     app.quit();
     process.exit(0);
