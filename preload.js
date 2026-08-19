@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpscaleStatus: (cb) => ipcRenderer.on('upscale-status', (_, data) => cb(data)),
   offUpscaleStatus: () => ipcRenderer.removeAllListeners('upscale-status'),
   findSubtitles: (videoPath) => ipcRenderer.invoke('find-subtitles', videoPath),
+  prepareSubtitleFile: (subtitlePath) => ipcRenderer.invoke('prepare-subtitle-file', subtitlePath),
+  chooseSubtitleFile: (videoPath) => ipcRenderer.invoke('choose-subtitle-file', videoPath),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
   // One call per menu action. Each starts only its own pipeline: asking for

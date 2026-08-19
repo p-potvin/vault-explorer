@@ -99,11 +99,49 @@ function selectSubtitleByIndex(idx) {
     track.label = sub.label || `Track ${idx + 1}`;
     track.srclang = sub.lang || 'und';
     track.src = window.sanitizePath(sub.path);
+    track.default = true;
     vp.appendChild(track);
 
     // Set it as showing
     const trackIndex = vp.textTracks.length - 1;
     selectSubtitleTrack(trackIndex);
+    track.addEventListener('load', () => selectSubtitleTrack(trackIndex), { once: true });
+}
+
+function subtitleTextAsVtt(text) {
+    const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (/^WEBVTT(?:\s|$)/i.test(normalized)) return normalized;
+    return `WEBVTT\n\n${normalized.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')}`;
+}
+
+function addSubtitleTrack(source, label) {
+    const vp = el('video-player');
+    if (!vp || !source) return;
+    if (window._liveSubActive) window.stopLiveSubtitles(true);
+
+    const track = document.createElement('track');
+    track.kind = 'subtitles';
+    track.label = label;
+    track.srclang = 'und';
+    track.default = true;
+    track.src = source;
+    vp.appendChild(track);
+
+    window._allAvailableSubtitles = [{ label, lang: 'und', path: track.src, isLocal: true }];
+    window._selectedSubtitleIdx = 0;
+    refreshSubtitlesList();
+    const trackIdx = vp.textTracks.length - 1;
+    selectSubtitleTrack(trackIdx);
+    track.addEventListener('load', () => selectSubtitleTrack(trackIdx), { once: true });
+
+    const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
+    window.showToast((t.subtitlesLoaded || 'Subtitles loaded: ') + label, 'success');
+}
+
+async function addUploadedSubtitle(file) {
+    if (!file) return;
+    const vttText = subtitleTextAsVtt(await file.text());
+    addSubtitleTrack(URL.createObjectURL(new Blob([vttText], { type: 'text/vtt' })), file.name);
 }
 
 function refreshSubtitlesList() {
@@ -699,9 +737,19 @@ function initSubtitleListeners() {
         menu.style.display = isHidden ? 'block' : 'none';
     });
 
-    el('opt-upload-subtitle').addEventListener('click', (e) => {
+    el('opt-upload-subtitle').addEventListener('click', async (e) => {
         e.stopPropagation();
         el('subtitles-menu').style.display = 'none';
+        const videoPath = window.currentPlayingItem && window.currentPlayingItem.path;
+        if (videoPath && window.electronAPI.chooseSubtitleFile && window.electronAPI.prepareSubtitleFile) {
+            const selectedPath = await window.electronAPI.chooseSubtitleFile(videoPath);
+            if (!selectedPath) return;
+            const preparedPath = await window.electronAPI.prepareSubtitleFile(selectedPath);
+            if (!preparedPath) return;
+            const name = selectedPath.split(/[\\/]/).pop();
+            addSubtitleTrack(window.sanitizePath(preparedPath), name);
+            return;
+        }
         el('subtitle-file-input').click();
     });
 
@@ -767,29 +815,10 @@ function initSubtitleListeners() {
         });
     }
 
-    el('subtitle-file-input').addEventListener('change', (e) => {
+    el('subtitle-file-input').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
-        // Uploading a subtitle is exclusive with a running AI session.
-        if (window._liveSubActive) window.stopLiveSubtitles(true);
-
-        const track = document.createElement('track');
-        track.kind = 'subtitles';
-        track.label = file.name;
-        track.srclang = 'und';
-        track.src = URL.createObjectURL(file);
-
-        vp.appendChild(track);
-        window._allAvailableSubtitles = [{ label: file.name, lang: 'und', path: track.src, isLocal: true }];
-        window._selectedSubtitleIdx = 0;
-        refreshSubtitlesList();
-
-        const trackIdx = vp.textTracks.length - 1;
-        selectSubtitleTrack(trackIdx);
-
-        const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
-        window.showToast((t.subtitlesLoaded || 'Subtitles loaded: ') + file.name, 'success');
+        await addUploadedSubtitle(file);
         e.target.value = '';
     });
 }

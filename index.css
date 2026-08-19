@@ -1434,6 +1434,44 @@ body.titlebar-hovered #video-modal #player-topbar {
   grid-column: 1 / -1;
 }
 
+.settings-section-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--vault-border);
+}
+
+.settings-section-tab {
+  appearance: none;
+  border: 1px solid var(--vault-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vault-slate);
+  cursor: pointer;
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.05em;
+  padding: 6px 10px;
+  text-transform: uppercase;
+}
+
+.settings-section-tab:hover,
+.settings-section-tab:focus-visible {
+  border-color: var(--vault-accent);
+  color: var(--vault-text);
+  outline: none;
+}
+
+.settings-section-tab[aria-selected="true"] {
+  background: var(--vault-accent);
+  border-color: var(--vault-accent);
+  color: var(--vt-primary);
+}
+
+.settings-panel-grid > [data-settings-section][hidden] {
+  display: none !important;
+}
+
 @media (max-width: 760px) {
   .settings-panel {
     width: calc(100vw - 24px);

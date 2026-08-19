@@ -66,6 +66,15 @@ async function run() {
     }
     console.log(`[DOM]     ${domPassed}/${DOM_IDS.length} present`);
 
+    await win.locator('#settings-trigger').click();
+    await win.locator('.settings-section-tab[data-settings-section="general"]').waitFor();
+    assert.equal(await win.locator('#settings-default-folder').isVisible(), true, 'General settings must be visible first');
+    assert.equal(await win.locator('#settings-default-sub-lang').isVisible(), false, 'Playback settings must be hidden until selected');
+    await win.locator('.settings-section-tab[data-settings-section="playback"]').click();
+    assert.equal(await win.locator('#settings-default-sub-lang').isVisible(), true, 'Playback section must reveal subtitle settings');
+    assert.equal(await win.locator('#settings-default-folder').isVisible(), false, 'Changing sections must hide General settings');
+    console.log('[PASS] Settings sections switch correctly');
+
     const errors = await win.evaluate(() => window.__consoleErrors || []);
     const jsErrors = await win.evaluate(() => {
         return new Promise(resolve => {

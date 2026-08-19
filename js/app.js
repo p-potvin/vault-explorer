@@ -48,6 +48,11 @@ function setLanguage(lang) {
     if (el('label-mute-previews')) el('label-mute-previews').innerText = window.translations[lang].mutePreviews;
     if (el('label-single-instance')) el('label-single-instance').innerText = window.translations[lang].singleInstance;
     if (el('single-instance-setting')) el('single-instance-setting').title = window.translations[lang].singleInstanceHint;
+    document.querySelectorAll('.settings-section-tab').forEach((tab) => {
+        const section = tab.dataset.settingsSection;
+        const key = `settingsSection${section.charAt(0).toUpperCase()}${section.slice(1)}`;
+        if (window.translations[lang][key]) tab.innerText = window.translations[lang][key];
+    });
 
     // Translate top-level application navigation tabs
     const iconStyle = "width:13px; height:13px; flex-shrink:0;";

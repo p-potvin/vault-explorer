@@ -104,7 +104,7 @@ function convertSrtToVtt(sourcePath) {
     try {
         fs.mkdirSync(subtitleDir, { recursive: true });
         const srtText = fs.readFileSync(sourcePath, 'utf8');
-        const vttText = `WEBVTT\\n\\n${srtText.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').replace(/(\\d{2}:\\d{2}:\\d{2}),(\\d{3})/g, '$1.$2')}`;
+        const vttText = `WEBVTT\n\n${srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')}`;
         fs.writeFileSync(vttPath, vttText, 'utf8');
         return vttPath;
     } catch (error) {
@@ -168,9 +168,16 @@ function registerSubtitlesIpc(ipcMain, loadSettings) {
         const settings = typeof loadSettings === 'function' ? loadSettings() : {};
         return orderSidecars(findLocalSidecars(videoPath), settings.defaultSubLang || 'original');
     });
+    ipcMain.handle('prepare-subtitle-file', async (_event, subtitlePath) => {
+        if (typeof subtitlePath !== 'string' || !fs.existsSync(subtitlePath)) return null;
+        const ext = path.extname(subtitlePath).toLowerCase();
+        if (!SUBTITLE_EXTENSIONS.has(ext)) return null;
+        return convertSrtToVtt(subtitlePath);
+    });
 }
 
 module.exports = {
+    convertSrtToVtt,
     findLocalSidecars,
     languageLabel,
     orderSidecars,

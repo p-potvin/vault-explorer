@@ -262,6 +262,31 @@ function createWindow() {
     });
     mainWindow.maximize();
 
+    // Keep Ctrl+Plus, Ctrl+Minus, Ctrl+0, and Ctrl+wheel symmetric. Chromium's
+    // default visual zoom can leave the window at a reduced scale after a
+    // mixed keyboard/wheel sequence, so the app owns a bounded zoom factor.
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        const zoomModifier = input.control || input.meta;
+        if (!zoomModifier) return;
+        const current = mainWindow.webContents.getZoomFactor();
+        const setZoom = (factor) => mainWindow.webContents.setZoomFactor(Math.max(0.5, Math.min(2, factor)));
+        if (input.type === 'keyDown') {
+            if (['+', '=', 'Add'].includes(input.key)) {
+                setZoom(current + 0.1);
+                event.preventDefault();
+            } else if (['-', 'Subtract'].includes(input.key)) {
+                setZoom(current - 0.1);
+                event.preventDefault();
+            } else if (input.key === '0') {
+                mainWindow.webContents.setZoomFactor(1);
+                event.preventDefault();
+            }
+        } else if (input.type === 'mouseWheel' && input.deltaY) {
+            setZoom(current + (input.deltaY < 0 ? 0.1 : -0.1));
+            event.preventDefault();
+        }
+    });
+
     // YouTube Referer & Origin overrides to fix Error 152/153/4 (domain embedding restrictions)
     // Apply to ALL sessions to cover iframe requests
     const youtubeUrls = ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'];
@@ -353,6 +378,18 @@ ipcMain.handle('set-window-fullscreen', (_e, on) => {
     if (!mainWindow || mainWindow.isDestroyed()) return false;
     mainWindow.setFullScreen(!!on);
     return mainWindow.isFullScreen();
+});
+
+ipcMain.handle('choose-subtitle-file', async (_event, videoPath) => {
+    const defaultPath = typeof videoPath === 'string' && videoPath
+        ? path.dirname(videoPath)
+        : app.getPath('documents');
+    const result = await dialog.showOpenDialog(mainWindow, {
+        defaultPath,
+        properties: ['openFile'],
+        filters: [{ name: 'Subtitles', extensions: ['srt', 'vtt'] }],
+    });
+    return result.canceled ? null : result.filePaths[0];
 });
 
 // Automatic clean exit subprocess killing hooks

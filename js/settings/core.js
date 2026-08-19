@@ -1,6 +1,48 @@
 // js/settings/core.js - settings panel wiring (open/save/dismiss) + sub-module bootstrapping
 window.initSettingsListeners = function initSettingsListeners() {
 
+    const grid = document.querySelector('.settings-panel-grid');
+    const sectionForControl = {
+        general: ['pill-tag-input-glob', 'settings-default-folder', 'settings-default-theme', 'settings-default-lang', 'settings-minimize-to-tray', 'settings-single-instance', 'settings-dev-mode', 'settings-default-home-tab'],
+        playback: ['settings-default-sub-lang', 'settings-sub-font-size', 'settings-remember-position', 'settings-mute-previews'],
+        library: ['settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-misc'],
+        ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma'],
+    };
+    let activeSettingsSection = 'general';
+
+    function findSettingsCell(controlId) {
+        let node = el(controlId);
+        while (node && node.parentElement !== grid) node = node.parentElement;
+        return node;
+    }
+
+    function showSettingsSection(section) {
+        activeSettingsSection = section;
+        if (grid) {
+            grid.querySelectorAll('[data-settings-section]').forEach((cell) => {
+                cell.hidden = cell.dataset.settingsSection !== section;
+            });
+        }
+        document.querySelectorAll('.settings-section-tab').forEach((tab) => {
+            const active = tab.dataset.settingsSection === section;
+            tab.setAttribute('aria-selected', String(active));
+            tab.tabIndex = active ? 0 : -1;
+        });
+    }
+
+    if (grid) {
+        Object.entries(sectionForControl).forEach(([section, controlIds]) => {
+            controlIds.forEach((controlId) => {
+                const cell = findSettingsCell(controlId);
+                if (cell) cell.dataset.settingsSection = section;
+            });
+        });
+        document.querySelectorAll('.settings-section-tab').forEach((tab) => {
+            tab.addEventListener('click', () => showSettingsSection(tab.dataset.settingsSection));
+        });
+        showSettingsSection(activeSettingsSection);
+    }
+
 
     const inputGlob = document.getElementById('pill-tag-input-glob');
     if (inputGlob) {
@@ -30,6 +72,7 @@ window.initSettingsListeners = function initSettingsListeners() {
             const backdrop = el('settings-backdrop');
             if (backdrop) backdrop.style.display = isOpening ? 'block' : 'none';
             if (isOpening) {
+                showSettingsSection(activeSettingsSection);
                 pillTagLoad(window.appSettings.globExclusions || []);
                 el('settings-default-folder').value = window.appSettings.defaultFolder || '';
                 el('settings-default-theme').value = window.appSettings.defaultTheme || 'vaultwares-revisited-console';

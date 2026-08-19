@@ -623,6 +623,12 @@
       <button onclick="document.getElementById('settings-panel').style.display = 'none';"
         style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 16px;">✕</button>
     </div>
+    <div class="settings-section-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" class="settings-section-tab" data-settings-section="general" role="tab" aria-selected="true">General</button>
+      <button type="button" class="settings-section-tab" data-settings-section="playback" role="tab" aria-selected="false">Playback</button>
+      <button type="button" class="settings-section-tab" data-settings-section="library" role="tab" aria-selected="false">Library</button>
+      <button type="button" class="settings-section-tab" data-settings-section="ai" role="tab" aria-selected="false">AI</button>
+    </div>
     <div class="settings-panel-grid">
       <div>
         <label for="pill-tag-input-glob" id="glob-exclusions-label"
