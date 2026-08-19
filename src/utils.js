@@ -228,6 +228,26 @@ function runLowPriorityProcess(command, args) {
     });
 }
 
+function addNvidiaHwAccel(args) {
+    const gpuArgs = [...args];
+    // -hwaccel is an input option, so it must precede each -i for multi-input
+    // preview concat jobs as well as ordinary single-input jobs.
+    for (let index = gpuArgs.length - 1; index >= 0; index--) {
+        if (gpuArgs[index] === '-i') gpuArgs.splice(index, 0, '-hwaccel', 'cuda');
+    }
+    return gpuArgs;
+}
+
+async function runFfmpegWithNvidiaFallback(args) {
+    const gpuArgs = addNvidiaHwAccel(args);
+    try {
+        return await runLowPriorityProcess('ffmpeg', gpuArgs);
+    } catch (gpuError) {
+        console.warn('[ffmpeg] NVIDIA acceleration unavailable or unsupported; retrying on CPU:', gpuError.message);
+        return runLowPriorityProcess('ffmpeg', args);
+    }
+}
+
 function getVideoDuration(videoPath) {
     return new Promise((resolve) => {
         const ffprobe = getFFmpegPath().replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe');
@@ -310,20 +330,17 @@ function validateVideoSamples(videoPath, duration = 0) {
         normalizedDuration > 2 ? normalizedDuration / 2 : 0,
         normalizedDuration > 2 ? normalizedDuration - 2 : 0,
     ].map((time) => Math.max(0, Number(time.toFixed(2)))))];
-    const ffmpeg = getFFmpegPath();
-
     const decodeSample = (sampleTime) => new Promise((resolve) => {
-        execFile(ffmpeg, [
+        runFfmpegWithNvidiaFallback([
             '-v', 'error', '-xerror',
             '-err_detect', 'crccheck+bitstream+buffer',
             '-ss', sampleTime.toFixed(2), '-i', videoPath,
             '-t', '2', '-map', '0:v:0', '-an', '-sn', '-dn',
             '-f', 'null', '-'
-        ], (error, _stdout, stderr) => resolve({
-            isValid: !error,
-            reason: error ? String(stderr || error.message || 'Video sample decode failed').trim() : null,
-            sampleTime,
-        }));
+        ]).then(
+            () => resolve({ isValid: true, reason: null, sampleTime }),
+            (error) => resolve({ isValid: false, reason: String(error.message || 'Video sample decode failed').trim(), sampleTime })
+        );
     });
 
     return (async () => {
@@ -479,6 +496,7 @@ module.exports = {
     activeSubprocesses,
     killAllActiveSubprocesses,
     runLowPriorityProcess,
+    runFfmpegWithNvidiaFallback,
     getVideoDuration,
     checkAudioStream,
     getVideoMetadata,

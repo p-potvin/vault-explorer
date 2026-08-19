@@ -163,7 +163,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     let thumbTimeMs = null;
     const middleTime = duration > 0 ? (duration / 2).toFixed(2) : '5.00';
     try {
-        await utils.runLowPriorityProcess('ffmpeg', [
+        await utils.runFfmpegWithNvidiaFallback([
             '-y',
             '-ss', middleTime,
             '-i', videoPath,
@@ -177,7 +177,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         ]);
         if (!fs.existsSync(thumbWritePath)) {
             console.log(`[main:preview] Keyframe select produced no file, falling back to simple frame capture at ${middleTime}`);
-            await utils.runLowPriorityProcess('ffmpeg', [
+            await utils.runFfmpegWithNvidiaFallback([
                 '-y',
                 '-ss', middleTime,
                 '-i', videoPath,
@@ -193,7 +193,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     } catch (e) {
         console.error("Failed to generate keyframe thumbnail:", e.message);
         try {
-            await utils.runLowPriorityProcess('ffmpeg', [
+            await utils.runFfmpegWithNvidiaFallback([
                 '-y',
                 '-ss', middleTime,
                 '-i', videoPath,
@@ -217,7 +217,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
         // Use runLowPriorityProcess which handles priority, thread limiting, and cleanup
         const runFfmpegPromise = (args) => {
-            return utils.runLowPriorityProcess('ffmpeg', args);
+            return utils.runFfmpegWithNvidiaFallback(args);
         };
 
         if (duration <= 100) {

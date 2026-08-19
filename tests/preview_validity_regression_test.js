@@ -23,6 +23,10 @@ assert.match(utils, /'-map', '0:v:0', '-an', '-sn', '-dn'/,
     'The samples must inspect video only');
 assert.match(utils, /'-xerror'/,
     'The sample decode must fail deterministically on decoding errors');
+assert.match(utils, /'-hwaccel', 'cuda'/,
+    'FFmpeg input commands must prefer NVIDIA hardware acceleration');
+assert.match(utils, /retrying on CPU/,
+    'FFmpeg commands must retry on CPU when NVIDIA acceleration fails');
 assert.match(previews, /new PreviewQueue\(2\)/,
     'Preview generation must cap concurrent preview workers at two');
 assert.doesNotMatch(previews, /items\.slice\(0, 80\)/,
