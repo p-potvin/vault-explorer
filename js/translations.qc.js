@@ -35,6 +35,8 @@ window.translationsQc = {
   globExclusionsLabel: "Exclusions Glob (séparées par des virgules) :",
   save: "Enregistrer",
   mutePreviews: "Couper le son des previews :",
+  singleInstance: "Ouvrir les fichiers dans la fenêtre existante :",
+  singleInstanceHint: "Fermez et rouvrez Vault Explorer après avoir changé ce paramètre.",
   consoleMode: "Console",
   warmMode: "Warm",
   tabVault: "Vidéos",

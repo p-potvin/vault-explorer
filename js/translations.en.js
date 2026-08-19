@@ -35,6 +35,8 @@ window.translationsEn = {
   globExclusionsLabel: "Glob Exclusions (comma-separated):",
   save: "Save",
   mutePreviews: "Mute Hover Previews:",
+  singleInstance: "Open files in the existing window:",
+  singleInstanceHint: "Close and reopen Vault Explorer after changing this setting.",
   consoleMode: "Console",
   warmMode: "Warm",
   tabVault: "Videos",

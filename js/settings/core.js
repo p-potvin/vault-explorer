@@ -39,6 +39,7 @@ window.initSettingsListeners = function initSettingsListeners() {
                 el('settings-remember-position').checked = window.appSettings.rememberPosition !== false;
                 el('settings-mute-previews').checked = window.appSettings.mutePreviews === true;
                 el('settings-minimize-to-tray').checked = window.appSettings.minimizeToTray === true;
+                el('settings-single-instance').checked = window.appSettings.singleInstance === true;
                 if (el('settings-dev-mode')) el('settings-dev-mode').checked = window.appSettings.devMode === true;
                 if (el('settings-default-home-tab')) {
                     el('settings-default-home-tab').value = window.appSettings.defaultHomeTab || 'files';
@@ -143,6 +144,7 @@ window.initSettingsListeners = function initSettingsListeners() {
             window.appSettings.rememberPosition = el('settings-remember-position').checked;
             window.appSettings.mutePreviews = el('settings-mute-previews').checked;
             window.appSettings.minimizeToTray = el('settings-minimize-to-tray').checked;
+            window.appSettings.singleInstance = el('settings-single-instance').checked;
             if (el('settings-dev-mode')) window.appSettings.devMode = el('settings-dev-mode').checked;
 
             if (el('settings-default-home-tab')) {
