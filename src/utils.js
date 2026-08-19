@@ -303,24 +303,36 @@ function getVideoMetadata(videoPath) {
     });
 }
 
-function validateVideoSample(videoPath, duration = 0) {
-    return new Promise((resolve) => {
-        const ffmpeg = getFFmpegPath();
-        const sampleTime = duration > 4 ? Math.max(0, Math.min(duration - 2, duration / 2)) : 0;
+function validateVideoSamples(videoPath, duration = 0) {
+    const normalizedDuration = Number(duration) || 0;
+    const sampleTimes = [...new Set([
+        0,
+        normalizedDuration > 2 ? normalizedDuration / 2 : 0,
+        normalizedDuration > 2 ? normalizedDuration - 2 : 0,
+    ].map((time) => Math.max(0, Number(time.toFixed(2)))))];
+    const ffmpeg = getFFmpegPath();
+
+    const decodeSample = (sampleTime) => new Promise((resolve) => {
         execFile(ffmpeg, [
             '-v', 'error', '-xerror',
             '-err_detect', 'crccheck+bitstream+buffer',
             '-ss', sampleTime.toFixed(2), '-i', videoPath,
             '-t', '2', '-map', '0:v:0', '-an', '-sn', '-dn',
             '-f', 'null', '-'
-        ], (error, _stdout, stderr) => {
-            resolve({
-                isValid: !error,
-                reason: error ? String(stderr || error.message || 'Video sample decode failed').trim() : null,
-                sampleTime,
-            });
-        });
+        ], (error, _stdout, stderr) => resolve({
+            isValid: !error,
+            reason: error ? String(stderr || error.message || 'Video sample decode failed').trim() : null,
+            sampleTime,
+        }));
     });
+
+    return (async () => {
+        for (const sampleTime of sampleTimes) {
+            const result = await decodeSample(sampleTime);
+            if (!result.isValid) return { ...result, samplesChecked: sampleTimes.indexOf(sampleTime) + 1 };
+        }
+        return { isValid: true, reason: null, sampleTime: null, samplesChecked: sampleTimes.length };
+    })();
 }
 
 function formatBytes(bytes) {
@@ -470,7 +482,7 @@ module.exports = {
     getVideoDuration,
     checkAudioStream,
     getVideoMetadata,
-    validateVideoSample,
+    validateVideoSamples,
     formatBytes,
     PriorityQueue,
     getRobustPythonExe,

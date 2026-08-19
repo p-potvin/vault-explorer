@@ -6,7 +6,35 @@ const utils = require('./utils');
 let totalBatchCount = 0;
 let completedBatchCount = 0;
 
-const backgroundFfmpegQueue = new utils.PriorityQueue();
+class PreviewQueue {
+    constructor(concurrency) {
+        this.concurrency = concurrency;
+        this.running = 0;
+        this.queue = [];
+    }
+
+    push(task) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ task, resolve, reject });
+            this.drain();
+        });
+    }
+
+    drain() {
+        while (this.running < this.concurrency && this.queue.length > 0) {
+            const next = this.queue.shift();
+            this.running++;
+            Promise.resolve().then(next.task).then(next.resolve, next.reject).finally(() => {
+                this.running--;
+                this.drain();
+            });
+        }
+    }
+}
+
+// A preview includes validation, thumbnail extraction, and WebM generation.
+// Two workers keep it responsive without admitting a large FFmpeg burst.
+const backgroundFfmpegQueue = new PreviewQueue(2);
 const activeQueuePaths = new Set();
 const benchmarkPath = path.join(__dirname, '..', 'BENCHMARKS.md');
 
@@ -46,7 +74,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     let duration = 0;
 
     // Audio is optional for a preview. Probe only stream metadata first; the
-    // cached validity flag below is based on one video-only decode sample.
+    // cached validity flag below is based on up to three video-only samples.
     if (hasAudio === undefined || hasVideo === undefined) {
         const info = await utils.getVideoMetadata(videoPath);
         hasAudio = info.hasAudio;
@@ -61,7 +89,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
     if (typeof isValid !== 'boolean' || !isValidCheckedAt) {
         const validation = hasVideo
-            ? await utils.validateVideoSample(videoPath, duration)
+            ? await utils.validateVideoSamples(videoPath, duration)
             : { isValid: false, reason: 'No video stream found', sampleTime: null };
         isValid = validation.isValid;
         isValidCheckedAt = new Date().toISOString();
@@ -69,6 +97,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         meta.isValidCheckedAt = isValidCheckedAt;
         meta.isValidReason = validation.reason;
         meta.isValidSampleTime = validation.sampleTime;
+        meta.isValidSamplesChecked = validation.samplesChecked;
     }
     meta.duration = duration;
     try {
@@ -457,7 +486,9 @@ function registerPreviewHandlers(ipcMain) {
 
         console.log(`[main:generate-webm] Manual extraction requested for: ${base}`);
         try {
-            await generateThumbAndPreview(videoPath, thumbPath, webmPath, event.sender, true);
+            await backgroundFfmpegQueue.push(() =>
+                generateThumbAndPreview(videoPath, thumbPath, webmPath, event.sender, true)
+            );
             const success = fs.existsSync(thumbPath) && fs.existsSync(webmPath);
             if (success) {
                 return { success: true, thumbnail: thumbPath, hoverWebm: webmPath };
@@ -481,8 +512,9 @@ function registerPreviewHandlers(ipcMain) {
             return false;
         }
 
-        // Limit the active processing batch size to prevent locking the main thread or exhausting process limits
-        const candidateItems = items.slice(0, 80);
+        // Queue every requested item. PreviewQueue is the actual resource bound
+        // and runs at most two preview jobs concurrently.
+        const candidateItems = items;
         let added = 0;
 
         for (const item of candidateItems) {
