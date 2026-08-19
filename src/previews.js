@@ -19,10 +19,10 @@ function writeBenchmark(entry) {
     fs.appendFileSync(benchmarkPath, row, 'utf8');
 }
 
-async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false) {
+async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false, silent = false) {
     const activeWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    const finalSender = sender || (activeWindow ? activeWindow.webContents : null);
-    
+    const finalSender = silent ? null : (sender || (activeWindow ? activeWindow.webContents : null));
+
     if (finalSender && !finalSender.isDestroyed()) {
         finalSender.send('generate-webm-progress', {
             videoPath,
@@ -31,10 +31,61 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         });
     }
 
-    const duration = await utils.getVideoDuration(videoPath);
-    const hasAudio = await utils.checkAudioStream(videoPath);
+    const metaPath = videoPath + '.meta.json';
+    let meta = {};
+    if (fs.existsSync(metaPath)) {
+        try {
+            meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        } catch (e) { }
+    }
+
+    let hasAudio = meta.hasAudio;
+    let hasVideo = meta.hasVideo;
+    let isValid = meta.isValid;
+    let duration = 0;
+
+    // If metadata fields are missing in sidecar, query with ffprobe and save it
+    if (hasAudio === undefined || hasVideo === undefined || isValid === undefined) {
+        const info = await utils.getVideoMetadata(videoPath);
+        hasAudio = info.hasAudio;
+        hasVideo = info.hasVideo;
+        isValid = info.isValid;
+        duration = info.duration;
+
+        meta.hasAudio = hasAudio;
+        meta.hasVideo = hasVideo;
+        meta.isValid = isValid;
+        try {
+            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+        } catch (e) {
+            console.error(`[main:preview] Failed to write sidecar metadata: ${e.message}`);
+        }
+    } else {
+        duration = await utils.getVideoDuration(videoPath);
+    }
 
     console.log(`[main:preview] Input: ${videoPath} -> thumb: ${thumbPath}, webm: ${hoverWebmPath}, force=${force}`);
+
+    if (!isValid) {
+        console.log(`[main:preview] Skipping invalid video: ${videoPath} (hasVideo=${hasVideo}, hasAudio=${hasAudio}, isValid=${isValid})`);
+        if (finalSender && !finalSender.isDestroyed()) {
+            finalSender.send('generate-webm-progress', {
+                videoPath,
+                percent: 100,
+                label: `Invalid video file.`,
+                status: 'invalid'
+            });
+        }
+        writeBenchmark({
+            name: path.basename(videoPath),
+            size: fs.existsSync(videoPath) ? utils.formatBytes(fs.statSync(videoPath).size) : '0 B',
+            duration: duration || 0,
+            thumbTime: null,
+            webmTime: null,
+            status: 'Invalid'
+        });
+        return;
+    }
 
     const bothExist = fs.existsSync(thumbPath) && fs.existsSync(hoverWebmPath);
     if (bothExist && !force) {
@@ -58,8 +109,8 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     // temp files only.
     const thumbWritePath = thumbPath + '.tmp';
     const webmWritePath = hoverWebmPath + '.tmp';
-    try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch(e) {}
-    try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch(e) {}
+    try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (e) { }
+    try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (e) { }
 
     let thumbStart = Date.now();
     let thumbTimeMs = null;
@@ -72,6 +123,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             '-vf', "select='eq(pict_type,I)'",
             '-vframes', '1',
             '-q:v', '2',
+            '-strict', '-2',
             '-f', 'image2',
             thumbWritePath,
             '-loglevel', 'error'
@@ -84,6 +136,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-i', videoPath,
                 '-vframes', '1',
                 '-q:v', '2',
+                '-strict', '-2',
                 '-f', 'image2',
                 thumbWritePath,
                 '-loglevel', 'error'
@@ -99,12 +152,13 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-i', videoPath,
                 '-vframes', '1',
                 '-q:v', '2',
+                '-strict', '-2',
                 '-f', 'image2',
                 thumbWritePath,
                 '-loglevel', 'error'
             ]);
             thumbTimeMs = Date.now() - thumbStart;
-        } catch(err) {
+        } catch (err) {
             console.error("Fallback thumbnail generation also failed:", err.message);
         }
     }
@@ -169,7 +223,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             const numClips = 8; // 8 clips for compact size & faster processing
             const interval = duration / numClips;
             const clipDuration = 3.0; // 3 seconds each, total 24s preview
-            
+
             if (finalSender && !finalSender.isDestroyed()) {
                 finalSender.send('generate-webm-progress', {
                     videoPath,
@@ -200,7 +254,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                         '-b:a', '64k'
                     );
                     audioArgs.push('-f', 'webm', webmWritePath, '-loglevel', 'error');
-                    
+
                     await runFfmpegPromise(audioArgs);
                     success = true;
                 } catch (e) {
@@ -259,7 +313,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 ]);
             }
         }
-        
+
         webmTimeMs = Date.now() - webmStart;
 
         // Atomic-commit: only promote temp files to their final names if BOTH
@@ -268,12 +322,12 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         const thumbTmpOk = fs.existsSync(thumbWritePath);
         const webmTmpOk = fs.existsSync(webmWritePath);
         if (thumbTmpOk && webmTmpOk) {
-            try { fs.renameSync(thumbWritePath, thumbPath); } catch(e) { throw new Error(`thumb rename failed: ${e.message}`); }
-            try { fs.renameSync(webmWritePath, hoverWebmPath); } catch(e) { throw new Error(`webm rename failed: ${e.message}`); }
+            try { fs.renameSync(thumbWritePath, thumbPath); } catch (e) { throw new Error(`thumb rename failed: ${e.message}`); }
+            try { fs.renameSync(webmWritePath, hoverWebmPath); } catch (e) { throw new Error(`webm rename failed: ${e.message}`); }
         } else {
             console.warn(`[preview] Partial output (thumb=${thumbTmpOk} webm=${webmTmpOk}). Keeping originals; discarding temp.`);
-            try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch(_) {}
-            try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch(_) {}
+            try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (_) { }
+            try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
             throw new Error('FFmpeg produced incomplete output (originals preserved)');
         }
 
@@ -301,12 +355,12 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 webmTime: webmTimeMs,
                 status: 'SUCCESS'
             });
-        } catch(e) {}
+        } catch (e) { }
     } catch (e) {
         console.error("Failed to generate WebM preview:", e.message);
         // Discard any partial temp output so we don't leave orphan .tmp files.
-        try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch(_) {}
-        try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch(_) {}
+        try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (_) { }
+        try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
         // Tell the renderer the job is over so the toolbar spinner clears.
         // Without a terminal event the spinner sat at the last reported %
         // forever, masking the failure.
@@ -327,7 +381,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 webmTime: webmTimeMs,
                 status: 'FAILED'
             });
-        } catch(e) {}
+        } catch (e) { }
         // Re-throw so the IPC handler returns success=false to the renderer.
         throw e;
     }
@@ -336,7 +390,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
     if (activeQueuePaths.has(videoPath)) return;
     activeQueuePaths.add(videoPath);
-    
+
     backgroundFfmpegQueue.push(async () => {
         try {
             await generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath);
@@ -404,11 +458,11 @@ function registerPreviewHandlers(ipcMain) {
 
     ipcMain.handle('schedule-idle-previews', (event, items) => {
         if (!items || items.length === 0) return false;
-        
+
         // Skip automatic preview scheduling for cloud-backed directories to prevent freezing and crashes
         const firstPath = (items[0] && items[0].path) ? items[0].path.toLowerCase() : '';
-        if (firstPath.includes('icloud photos') || firstPath.includes('onedrive') || 
-            firstPath.includes('icloud drive') || firstPath.includes('dropbox') || 
+        if (firstPath.includes('icloud photos') || firstPath.includes('onedrive') ||
+            firstPath.includes('icloud drive') || firstPath.includes('dropbox') ||
             firstPath.includes('google drive') || firstPath.includes('creative cloud')) {
             console.log(`[main:previews] Skipping background preview scheduling for cloud-backed folder: ${path.dirname(items[0].path)}`);
             return false;
@@ -417,7 +471,7 @@ function registerPreviewHandlers(ipcMain) {
         // Limit the active processing batch size to prevent locking the main thread or exhausting process limits
         const candidateItems = items.slice(0, 80);
         let added = 0;
-        
+
         for (const item of candidateItems) {
             try {
                 if (item.type === 'video') {
@@ -425,7 +479,7 @@ function registerPreviewHandlers(ipcMain) {
                     const base = path.basename(item.path, ext);
                     const thumbsDir = path.join(path.dirname(item.path), '.thumbs');
                     if (!fs.existsSync(thumbsDir)) {
-                        try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch(e) {}
+                        try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch (e) { }
                     }
                     const thumbPath = path.join(thumbsDir, `${base}.jpg`);
                     const webmPath = path.join(thumbsDir, `${base}.webm`);
@@ -502,7 +556,7 @@ function registerPreviewHandlers(ipcMain) {
             try {
                 if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
                 console.log(`[main:previews] idle generating: ${base}`);
-                await generateThumbAndPreview(item.path, thumbPath, webmPath, event.sender, false);
+                await generateThumbAndPreview(item.path, thumbPath, webmPath, event.sender, false, true);
                 const ok = fs.existsSync(thumbPath) && fs.existsSync(webmPath);
                 if (ok) {
                     console.log(`[main:previews] idle OK: ${base}`);
@@ -530,7 +584,7 @@ const activeImageEnhanceQueue = new Set();
 async function enhanceImageThumbnail(imagePath, sender) {
     const ext = path.extname(imagePath).toLowerCase();
     const base = path.basename(imagePath, ext);
-    const dir  = path.dirname(imagePath);
+    const dir = path.dirname(imagePath);
     const thumbsDir = path.join(dir, '.thumbs');
     const outPath = path.join(thumbsDir, `${base}_enhanced.jpg`);
     const tempPath = outPath + '.tmp';

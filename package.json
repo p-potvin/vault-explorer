@@ -1,6 +1,6 @@
 {
   "name": "vault-explorer",
-  "version": "3.0.0",
+  "version": "3.4.2",
   "description": "Re-discover the joys of browsing your files on a christmas morning or a rainy tuesday at work.",
   "main": "main.js",
   "scripts": {
@@ -12,9 +12,9 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^41.10.3",
-    "electron-builder": "^26.8.1",
-    "playwright": "^1.59.1"
+    "electron": "^41.10.4",
+    "electron-builder": "^26.15.0",
+    "playwright": "^1.62.1"
   },
   "build": {
     "appId": "com.vaultwares.vaultexplorer",
@@ -40,8 +40,6 @@
       "node_modules/**",
       "!tools/models/*.nemo",
       "!tools/models/parakeet-tdt-0.6b-v3/**",
-      "!node_modules/playwright/**",
-      "!node_modules/@playwright/**",
       "!node_modules/electron/**",
       "!node_modules/electron-builder/**",
       "!node_modules/app-builder-lib/**",
@@ -78,10 +76,16 @@
     "node-fetch": "^3.3.2"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "electron-winstaller"
-    ]
+    "overrides": {
+      "brace-expansion@1": "1.1.18",
+      "brace-expansion@2": "2.1.4",
+      "tmp": "0.2.6",
+      "form-data": "4.0.6",
+      "tar@6": "6.2.1",
+      "tar@7": "7.5.21",
+      "undici": "6.28.0",
+      "js-yaml": "4.3.1"
+    }
   },
   "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72"
 }

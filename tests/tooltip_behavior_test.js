@@ -1,4 +1,4 @@
-const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/playwright');
+const { _electron: electron } = require('playwright');
 const assert = require('assert').strict;
 
 async function run() {
@@ -27,7 +27,7 @@ async function run() {
         });
         win.on('pageerror', (err) => errors.push(err.message));
 
-        await win.evaluate(() => {
+        await win.locator('body').evaluate(() => {
             const target = document.createElement('button');
             target.id = 'tooltip-test-target';
             target.type = 'button';

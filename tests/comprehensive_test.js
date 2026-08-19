@@ -1,4 +1,4 @@
-const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/playwright');
+const { _electron: electron } = require('playwright');
 const path = require('path');
 const assert = require('assert').strict;
 
@@ -8,7 +8,7 @@ async function runTests() {
     console.log('======================================================\n');
 
     const appPath = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer';
-    
+
     console.log('[Test Setup] Launching Vault Explorer application...');
     const electronApp = await electron.launch({
         cwd: appPath,
@@ -18,7 +18,7 @@ async function runTests() {
     // Wait for pages/windows to initialize and find the correct app window
     await electronApp.context().waitForEvent('page');
     await new Promise(resolve => setTimeout(resolve, 3000));
-    
+
     const windows = electronApp.windows();
     let window = null;
     for (const win of windows) {
@@ -31,7 +31,7 @@ async function runTests() {
     if (!window) {
         window = windows[0];
     }
-    
+
     const errors = [];
     const logs = [];
 
@@ -54,7 +54,7 @@ async function runTests() {
     window.on('pageerror', err => {
         console.error(`[Browser Page ERROR] ${err.stack || err.message}`);
         errors.push(`Page Exception: ${err.message}`);
-    });    console.log('[Test Setup] Waiting for application load and mock assets...');
+    }); console.log('[Test Setup] Waiting for application load and mock assets...');
     await window.waitForTimeout(4000);
 
     // Switch to Files tab to make toolbar elements visible
@@ -78,7 +78,8 @@ async function runTests() {
     console.log('  -> Core UI layout elements verified successfully.');
     // Language Toggle Test
     console.log('[Test Step 2] Executing Language Toggle i18n Workflow...');
-    const initialLangText = (await window.locator('#lang-text').innerText()).toUpperCase();
+    const initialLangText = (await window.locator('body').evaluate(() => window.currentLang)).toUpperCase();
+
     console.log(`  -> Initial Lang Button Text: "${initialLangText}"`);
     const initialBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
     console.log(`  -> Initial Browse Vault Title: "${initialBrowseTitle}"`);
@@ -89,9 +90,11 @@ async function runTests() {
         assert.ok(initialBrowseTitle.includes('parcourir'), 'Initial Quebecois browse title mismatch');
     }
 
-    // Click to toggle language to the opposite
-    console.log('  -> Clicking language toggle trigger...');
-    await window.locator('#lang-trigger').click();
+    // Change language through the Settings modal.
+    console.log('  -> Changing language through Settings...');
+    await window.locator('#settings-trigger').click();
+    await window.locator('#settings-default-lang').selectOption(initialLangText.includes('EN') ? 'fr' : 'en');
+    await window.locator('#settings-btn-save').click();
     await window.waitForTimeout(500);
 
     const toggledBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
@@ -103,9 +106,11 @@ async function runTests() {
         assert.ok(toggledBrowseTitle.includes('browse'), 'English translation failed to apply on #path-display');
     }
 
-    // Click back to restore initial language state
+    // Restore the initial language through Settings.
     console.log('  -> Restoring initial language state...');
-    await window.locator('#lang-trigger').click();
+    await window.locator('#settings-trigger').click();
+    await window.locator('#settings-default-lang').selectOption(initialLangText.includes('EN') ? 'en' : 'fr');
+    await window.locator('#settings-btn-save').click();
     await window.waitForTimeout(500);
 
     const restoredBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
@@ -178,7 +183,7 @@ async function runTests() {
 
         const dialogVisible = await window.locator('#fake-folder-dialog').isVisible();
         assert.ok(dialogVisible, 'Virtual folder creation dialog failed to display');
-        
+
         console.log('  -> Typing virtual folder name...');
         await window.locator('#fake-folder-name').fill('Automated_Test_Folder');
         await window.waitForTimeout(300);

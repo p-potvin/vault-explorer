@@ -14,13 +14,13 @@ window.folderSizeTimer = null;
 
 // Resolve the *current* virtual folder by id. Returns null at root or if the
 // id has been deleted out from under us.
-window.getTargetFolder = function() {
+window.getTargetFolder = function () {
     if (!window.currentFolderId || !window.vf) return null;
     return window.vf.get(window.currentFolderId);
 };
 
 // Build a breadcrumb display string from a folder id (or 'root' if null).
-window.buildNavPath = function(folderId) {
+window.buildNavPath = function (folderId) {
     if (!folderId || !window.vf) return 'root';
     const chain = window.vf.breadcrumb(folderId);
     if (!chain.length) return 'root';
@@ -60,9 +60,9 @@ function applyFilters() {
     const currentFolder = window.getTargetFolder();
     const currentFolderType = currentFolder ? currentFolder.type : null;
     const subtabType = activeSubtab === 'collections' ? 'collection'
-                    : activeSubtab === 'albums'      ? 'album'
-                    : activeSubtab === 'playlists'   ? 'playlist'
-                    : null;
+        : activeSubtab === 'albums' ? 'album'
+            : activeSubtab === 'playlists' ? 'playlist'
+                : null;
 
     // True if a file's item-type is admissible in the current context.
     const matchesCategoryType = (itemType) => {
@@ -125,8 +125,7 @@ function applyFilters() {
         if (filterAttr === 'video') return v.type === 'video' || v.type === 'encrypted';
         if (filterAttr === 'image') return v.type === 'image';
         if (filterAttr === 'audio') return v.type === 'audio';
-        // 'All' on the Videos/Files grid shows media only — non-media lives in
-        // the Others tab (renderMisc reads window.allItems directly).
+        // Files view intentionally excludes unclassified sidecars and metadata.
         return v.type !== 'other';
     });
 
@@ -169,13 +168,13 @@ function applyFilters() {
         window.selectedIndices.clear(); window.lastSelectedIndex = -1;
 
         let countToRender = window.PAGE_SIZE;
-        
+
         window.renderedCounts = window.renderedCounts || {};
         const savedRendered = window.renderedCounts[window.currentNavPath];
         if (savedRendered && savedRendered > window.PAGE_SIZE) {
             countToRender = savedRendered;
         }
-        
+
         // Ensure we don't render more than the filtered pool
         countToRender = Math.min(countToRender, window.displayedItems.length);
 
@@ -185,7 +184,7 @@ function applyFilters() {
         const nextBatch = window.displayedItems.slice(0, countToRender);
         nextBatch.forEach((item, i) => { el('file-grid').appendChild(window.createCardElement(item, i)); });
         window.currentlyRendered = nextBatch.length;
-        
+
         requestAnimationFrame(() => {
             const savedScroll = (window.scrollPositions && window.scrollPositions[window.currentNavPath]) || 0;
             if (el('main-area')) {
@@ -237,7 +236,7 @@ window.renderMore = renderMore;
 
     // Wire into the filter-type change event and after each applyFilters render
     const origApply = window.applyFilters;
-    window.applyFilters = function() {
+    window.applyFilters = function () {
         origApply.apply(this, arguments);
         requestAnimationFrame(triggerEnhanceIfImages);
     };

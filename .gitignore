@@ -159,3 +159,5 @@ logs/
 .agents/
 .Jules/
 .omx/
+.vscode/
+BENCHMARKS.md

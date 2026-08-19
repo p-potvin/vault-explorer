@@ -181,7 +181,7 @@ function createWindow() {
     // YouTube Referer & Origin overrides to fix Error 152/153/4 (domain embedding restrictions)
     // Apply to ALL sessions to cover iframe requests
     const youtubeUrls = ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'];
-    
+
     session.defaultSession.webRequest.onBeforeSendHeaders(
         { urls: youtubeUrls },
         (details, callback) => {
@@ -320,7 +320,7 @@ function registerClipHandler(ipcMain) {
             }
             const ext = outputFormat === 'gif' ? 'gif' : outputFormat;
             const outputName = `${fileName}_clip_${Date.now()}.${ext}`;
-            
+
             // Pick a genuinely WRITABLE output dir. existsSync is not enough on
             // Windows — redirected/placeholder known folders (e.g. a OneDrive
             // Videos folder) report as existing but reject writes, which is what
@@ -347,7 +347,7 @@ function registerClipHandler(ipcMain) {
                 return { success: false, error: 'No writable output folder found (Desktop/Videos/Downloads/Temp all failed).' };
             }
             const outputPath = path.join(outputDir, outputName);
-            
+
             // Build -vf filter chain — collect filters, join at end
             const vfFilters = [];
             const afFilters = [];
@@ -404,14 +404,14 @@ function registerClipHandler(ipcMain) {
                 const scaleMap = { '1080p': '1920:-2', '720p': '1280:-2', '480p': '854:-2' };
                 if (scaleMap[quality]) vfFilters.push(`scale=${scaleMap[quality]}`);
             }
-            
+
             // Build ffmpeg args — put -ss BEFORE -i for fast input seeking
             const ffmpegArgs = [
                 '-ss', String(startTime),
                 '-i', safeInputPath,
                 '-t', String(duration)
             ];
-            
+
             // Output format specific codec options
             if (outputFormat === 'webm') {
                 // Default libvpx-vp9 is single-threaded on the slowest deadline —
@@ -426,7 +426,7 @@ function registerClipHandler(ipcMain) {
             } else if (outputFormat === 'gif') {
                 ffmpegArgs.push('-f', 'gif');
             }
-            
+
             // Apply combined -vf chain (single flag, avoids conflicts)
             if (vfFilters.length > 0) {
                 ffmpegArgs.push('-vf', vfFilters.join(','));
@@ -435,28 +435,28 @@ function registerClipHandler(ipcMain) {
             if (afFilters.length > 0 && outputFormat !== 'gif') {
                 ffmpegArgs.push('-af', afFilters.join(','));
             }
-            
+
             // Force overwrite + output
             ffmpegArgs.push('-y', outputPath);
-            
+
             // Resolve ffmpeg executable
             const ffmpegPath = utils.getFFmpegPath();
             console.log('[main:clip] Using ffmpeg at:', ffmpegPath);
             console.log('[main:clip] ffmpeg args:', ffmpegArgs.join(' '));
-            
+
             // Run ffmpeg (remote inputs must not set cwd to the URL path)
             const ffmpegProc = execFile(ffmpegPath, ffmpegArgs, {
                 cwd: isRemoteUrl ? outputDir : path.dirname(safeInputPath),
                 windowsHide: true
             });
-            
+
             // Track progress — ffmpeg logs to stderr, not stdout
             let stderrData = '';
-            
+
             if (ffmpegProc.stdout) {
-                ffmpegProc.stdout.on('data', () => {});
+                ffmpegProc.stdout.on('data', () => { });
             }
-            
+
             const totalMs = (Number(duration) || 0) * 1000;
             ffmpegProc.stderr.on('data', (data) => {
                 const chunk = data.toString();
@@ -475,7 +475,7 @@ function registerClipHandler(ipcMain) {
                     event.sender.send('clip-progress', { currentTime: cur, percent });
                 }
             });
-            
+
             // Wait for completion
             await new Promise((resolve, reject) => {
                 ffmpegProc.on('close', (code) => {
@@ -493,22 +493,22 @@ function registerClipHandler(ipcMain) {
                     reject(err);
                 });
             });
-            
+
             // Verify output exists
             if (!fs.existsSync(outputPath)) {
                 return { success: false, error: 'Output file was not created' };
             }
-            
+
             const outputStat = fs.statSync(outputPath);
             const outputSizeMB = outputStat.size / (1024 * 1024);
             console.log('[main:clip] Output file size:', outputSizeMB.toFixed(2), 'MB');
-            
+
             return {
                 success: true,
                 outputPath: outputPath,
                 outputSize: outputStat.size
             };
-            
+
         } catch (error) {
             console.error('[main:clip] Error:', error);
             return { success: false, error: error.message };
@@ -561,12 +561,14 @@ const { registerFolderIpc } = require('./src/ipc/folder.ipc');
 const { registerSystemIpc } = require('./src/ipc/system.ipc');
 const { registerMediaIpc } = require('./src/ipc/media.ipc');
 const { registerCryptoIpc } = require('./src/ipc/crypto.ipc');
+const { registerSubtitlesIpc } = require('./src/ipc/subtitles.ipc');
 
 registerFilesIpc(ipcMain, mainWindow);
 registerFolderIpc(ipcMain, mainWindow);
 registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings);
 registerMediaIpc(ipcMain);
 registerCryptoIpc(ipcMain);
+registerSubtitlesIpc(ipcMain, loadSettings);
 
 // Register Modular Handlers
 previewHandlers.registerPreviewHandlers(ipcMain);

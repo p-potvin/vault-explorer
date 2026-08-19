@@ -321,13 +321,14 @@ select option {
   position: relative;
 }
 
-/* Streaming tab: edge-to-edge container. The TMDB browser owns its own
+/* Streaming tab: edge-to-edge container. The Catalog browser owns its own
    internal padding/scroll; main-area padding would just create an inset. */
 body.tab-streaming-active .main-area {
   padding: 0;
   overflow: hidden;
 }
-body.tab-streaming-active #tmdb-container {
+
+body.tab-streaming-active #catalog-container {
   height: 100%;
   width: 100%;
 }
@@ -542,7 +543,9 @@ body.tab-streaming-active #tmdb-container {
 }
 
 @keyframes status-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Drag selection box */
@@ -581,9 +584,11 @@ body.player-idle #video-modal #player-topbar {
   pointer-events: none !important;
   transition: opacity 0.3s ease;
 }
+
 body.player-idle #video-modal {
   cursor: none !important;
 }
+
 body.player-idle #video-modal * {
   cursor: none !important;
 }
@@ -682,11 +687,6 @@ body.player-idle #video-modal * {
   cursor: pointer;
 }
 
-/* Add padding when subtitles are active to prevent text overlap */
-.video-wrapper.subtitles-active #video-player {
-  padding-bottom: 40px;
-}
-
 #custom-controls {
   position: absolute;
   bottom: 0;
@@ -747,13 +747,16 @@ body.player-idle #video-modal * {
   .player-controls-container {
     flex-wrap: nowrap;
   }
+
   .controls-center-seek {
     margin: 0 8px;
     order: 2;
   }
+
   .seek-time-lbl {
     display: none;
   }
+
   #time-display {
     display: inline-block !important;
   }
@@ -764,15 +767,18 @@ body.player-idle #video-modal * {
   .player-controls-container {
     flex-wrap: wrap;
   }
+
   .controls-center-seek {
     order: 0;
     width: 100%;
     flex-basis: 100%;
     margin-bottom: 4px;
   }
+
   .seek-time-lbl {
     display: inline-block;
   }
+
   #time-display {
     display: none !important;
   }
@@ -804,6 +810,53 @@ body.titlebar-hovered #video-modal #player-topbar {
   background: var(--vault-hover) !important;
   color: var(--vault-accent) !important;
 }
+
+.subtitle-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 7px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--vault-text);
+  transition: background 0.2s, color 0.2s;
+}
+
+.subtitle-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle-language-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 150px;
+  min-width: 52px;
+  max-width: 150px;
+  padding: 3px 8px;
+  border: 1px solid var(--vault-border);
+  border-radius: 100px;
+  color: var(--vault-accent);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle-option:focus-visible {
+  outline: 1px solid var(--vault-accent);
+  outline-offset: -1px;
+}
+
 
 /* Center loading screen */
 .spinner {
@@ -1310,6 +1363,89 @@ body.titlebar-hovered #video-modal #player-topbar {
   transform: translateY(-1px) !important;
 }
 
+/* Settings modal follows the sibling console layout while retaining only Explorer controls. */
+.settings-panel {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(820px, 94vw);
+  padding: 24px;
+  flex-direction: column;
+  z-index: 2147483000;
+  border: 1px solid var(--vault-border);
+  border-radius: 8px;
+  background: var(--vault-warm-bg, #1a1a24);
+  color: var(--vault-text);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85);
+  font-family: var(--font-sans);
+}
+
+#settings-panel.settings-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+  width: min(820px, 94vw);
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--vault-border);
+  border-radius: 8px;
+  z-index: 2147483000;
+  background: var(--vault-warm-bg, #1a1a24);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85);
+}
+
+.settings-panel-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--vault-border);
+  color: var(--vault-accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.settings-panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px 28px;
+  align-items: start;
+}
+
+.settings-panel-grid > div {
+  min-width: 0;
+}
+
+.settings-panel-grid > div:nth-last-child(1),
+.settings-panel-grid > div:nth-last-child(2) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .settings-panel {
+    width: calc(100vw - 24px);
+    padding: 16px;
+  }
+
+  .settings-panel-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 14px;
+  }
+}
+
 /* Glob Exclusions Pill Tags */
 .pill-tag-container {
   display: flex;
@@ -1401,7 +1537,7 @@ video::cue {
 }
 
 /* Movies/Series Tab Smaller Cards & Premium Netflix-Style Hover */
-.tmdb-grid {
+.catalog-grid {
   /* Larger min width pushes most viewports to 8 columns (was ~9-10 at 130px).
      Bigger row-gap gives the hover popup breathing room. */
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
@@ -1410,7 +1546,7 @@ video::cue {
   padding: 14px 0 !important;
 }
 
-.tmdb-movie-card {
+.catalog-movie-card {
   position: relative;
   transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.45s ease, border-color 0.45s ease, background-color 0.45s ease !important;
   padding: 0 !important;
@@ -1419,7 +1555,7 @@ video::cue {
   overflow: visible !important;
 }
 
-.tmdb-movie-card:hover {
+.catalog-movie-card:hover {
   transform: scale(1.15) translateY(-8px) !important;
   z-index: 50;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6) !important;
@@ -1427,7 +1563,7 @@ video::cue {
   border-color: var(--vault-accent) !important;
 }
 
-.tmdb-movie-card .overview-text {
+.catalog-movie-card .overview-text {
   display: none;
   opacity: 0;
   overflow: hidden;
@@ -1438,7 +1574,7 @@ video::cue {
   color: var(--vault-slate);
 }
 
-.tmdb-movie-card:hover .overview-text {
+.catalog-movie-card:hover .overview-text {
   display: -webkit-box;
   opacity: 0.9;
   margin-top: 8px;
@@ -1464,6 +1600,7 @@ video::cue {
     opacity: 0.4;
     box-shadow: 0 0 2px var(--vault-accent, #B07CFF);
   }
+
   100% {
     opacity: 0.8;
     box-shadow: 0 0 4px var(--vault-accent, #B07CFF), 0 0 6px var(--vault-accent, #B07CFF);
@@ -1499,7 +1636,7 @@ video::cue {
 .premium-hover-popup {
   opacity: 0;
   transform: scale(0.95);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.85) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85) !important;
   border-color: var(--vault-accent) !important;
   background: var(--vault-console-bg, #0b0813) !important;
   transition: opacity 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
@@ -1509,7 +1646,7 @@ video::cue {
 .premium-hover-popup.active {
   opacity: 1;
   transform: scale(1);
-  box-shadow: 0 25px 60px rgba(0,0,0,0.9), 0 0 20px rgba(214, 164, 65, 0.2) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 20px rgba(214, 164, 65, 0.2) !important;
   border-color: var(--vault-gold, #D6A441) !important;
 }
 
@@ -1521,8 +1658,8 @@ video::cue {
 
 .premium-hover-popup .btn-hover-library:hover,
 .premium-hover-popup .btn-hover-details:hover {
-  background: rgba(255,255,255,0.18) !important;
-  border-color: rgba(255,255,255,0.3) !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
   transform: scale(1.08);
 }
 
@@ -1547,14 +1684,21 @@ video::cue {
   border-radius: 3px 3px 2px 2px;
   min-height: 6px;
   animation: wvPulse var(--wv-dur, 0.9s) ease-in-out infinite alternate;
-  box-shadow: 0 0 8px var(--wv-color, #b07cff), 0 0 20px var(--wv-color-dim, rgba(176,124,255,0.3));
-  background: linear-gradient(to top, var(--wv-color-dim, rgba(176,124,255,0.4)), var(--wv-color, #b07cff));
+  box-shadow: 0 0 8px var(--wv-color, #b07cff), 0 0 20px var(--wv-color-dim, rgba(176, 124, 255, 0.3));
+  background: linear-gradient(to top, var(--wv-color-dim, rgba(176, 124, 255, 0.4)), var(--wv-color, #b07cff));
   transform-origin: bottom;
 }
 
 @keyframes wvPulse {
-  0%   { transform: scaleY(var(--wv-lo, 0.15)); opacity: 0.7; }
-  100% { transform: scaleY(var(--wv-hi, 1.0));  opacity: 1; }
+  0% {
+    transform: scaleY(var(--wv-lo, 0.15));
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scaleY(var(--wv-hi, 1.0));
+    opacity: 1;
+  }
 }
 
 /* Music note icon overlay on audio cards */
@@ -1728,8 +1872,13 @@ body.clip-mode-active #btn-clip {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
@@ -1737,6 +1886,7 @@ body.clip-mode-active #btn-clip {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1762,7 +1912,7 @@ body.clip-mode-active #btn-clip {
 
 .photos-river .photo-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 .photos-river .photo-item img {
@@ -1772,11 +1922,15 @@ body.clip-mode-active #btn-clip {
 }
 
 @media (max-width: 1200px) {
-  .photos-river { column-count: 3; }
+  .photos-river {
+    column-count: 3;
+  }
 }
 
 @media (max-width: 800px) {
-  .photos-river { column-count: 2; }
+  .photos-river {
+    column-count: 2;
+  }
 }
 
 /* ==========================================================================
@@ -1908,6 +2062,7 @@ body.clip-mode-active #btn-clip {
   height: 18px !important;
   flex-shrink: 0;
 }
+
 #photo-editor-modal .photo-tool-bottom svg {
   width: 14px !important;
   height: 14px !important;
@@ -1916,15 +2071,50 @@ body.clip-mode-active #btn-clip {
 
 /* Custom Added Keyframes for Streaming UI */
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes successBounce {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.12);
+  }
 }
 
 .success-bounce {
   animation: successBounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Subtitle Options Styling */
+.subtitle-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: var(--vault-text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.subtitle-option:hover,
+.subtitle-option:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
 }

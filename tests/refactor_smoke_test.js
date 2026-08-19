@@ -1,14 +1,13 @@
-const { _electron: electron } = require('C:/Users/Administrator/Desktop/Github Repos/vault-explorer/node_modules/playwright');
+const { _electron: electron } = require('playwright');
 const assert = require('assert').strict;
 
 const GLOBALS = [
     'loadDirectory', 'navigateTo', 'applyFilters', 'updateStatusBar',
     'createCardElement', 'renderMore', 'initNavigationListeners',
-    'triggerCryptoPrompt', 'showLanguageModal', 'showVideoEnhancementDialog',
-    'playItem', 'initPlayer', 'stopUpscaleMode', 'playStream',
-    'setLanguage', 'updateSortOrderButtonUI', 'switchTab', 'toggleFavorite',
-    'startRDDebridFlow', 'initSettingsListeners', 'renderFavorites', 'renderLibrary',
-    'renderTMDB', 'showToast', 'formatBytes', 'formatDuration',
+    'triggerCryptoPrompt', 'showLanguageModal',
+    'playItem', 'initPlayer', 'stopUpscaleMode', 'initUpscaleListeners',
+    'loadActiveSubtitles', 'setLanguage', 'updateSortOrderButtonUI', 'switchTab', 'toggleFavorite',
+    'initSettingsListeners', 'renderFavorites', 'showToast', 'formatBytes', 'formatDuration',
     'escapeHtml', 'sanitizePath', 'killAllHoverVideos', 'attachHoverWebmToCard',
     'electronAPI', 'appSettings', 'allItems', 'displayedItems',
     'selectedIndices', 'currentPlayingIndex', 'translations',
@@ -17,8 +16,8 @@ const GLOBALS = [
 const DOM_IDS = [
     'file-grid', 'video-modal', 'video-player', 'search-box',
     'filter-type', 'sort-by', 'path-display', 'btn-refresh',
-    'btn-back', 'settings-panel', 'tab-files', 'tab-streaming',
-    'tab-livestream', 'subtab-files-all', 'status-items',
+    'btn-back', 'settings-panel', 'tab-files', 'tab-music',
+    'tab-photoalbums', 'subtab-files-all',
 ];
 
 async function run() {
@@ -46,7 +45,7 @@ async function run() {
     let failed = 0;
 
     for (const name of GLOBALS) {
-        const exists = await win.evaluate((n) => typeof window[n] !== 'undefined', name);
+        const exists = await win.locator('body').evaluate((el, n) => typeof window[n] !== 'undefined', name);
         if (exists) {
             passed++;
         } else {
@@ -58,7 +57,7 @@ async function run() {
 
     let domPassed = 0;
     for (const id of DOM_IDS) {
-        const exists = await win.evaluate((i) => !!document.getElementById(i), id);
+        const exists = await win.locator('body').evaluate((el, i) => !!document.getElementById(i), id);
         if (exists) {
             domPassed++;
         } else {

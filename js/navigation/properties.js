@@ -52,7 +52,7 @@ async function showPropertiesDialog(item) {
     modal.style.display = 'flex';
 }
 
-window.showLanguageModal = function(title, allowMultiple = true, selectedLanguages = []) {
+window.showLanguageModal = function (title, allowMultiple = true, selectedLanguages = []) {
     return new Promise((resolve) => {
         const backdrop = document.createElement('div');
         backdrop.className = 'vw-dynamic-modal-backdrop';
@@ -104,7 +104,7 @@ window.showLanguageModal = function(title, allowMultiple = true, selectedLanguag
 
         const languages = [
             { code: 'en', name: 'English (EN)' },
-            { code: 'fr', name: 'French / Québécois (FR)' },
+            { code: 'qc', name: 'Québécois (QC)' },
             { code: 'es', name: 'Spanish (ES)' },
             { code: 'de', name: 'German (DE)' },
             { code: 'it', name: 'Italian (IT)' },
@@ -197,7 +197,7 @@ window.showLanguageModal = function(title, allowMultiple = true, selectedLanguag
     });
 };
 
-window.showVideoEnhancementDialog = function(item) {
+window.showVideoEnhancementDialog = function (item) {
     return new Promise((resolve) => {
         const backdrop = document.createElement('div');
         backdrop.className = 'vw-dynamic-modal-backdrop';
