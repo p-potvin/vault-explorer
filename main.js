@@ -93,11 +93,14 @@ let tray = null;
 let isQuitting = false;
 let pendingOpenFile = null;
 
-function getOpenFileFromArgs(args) {
+function getOpenFileFromArgs(args, workingDirectory) {
     for (const arg of args) {
         if (!arg || arg.startsWith('--')) continue;
         try {
-            if (fs.statSync(arg).isFile()) return arg;
+            const resolvedPath = workingDirectory
+                ? path.resolve(workingDirectory, arg)
+                : path.resolve(arg);
+            if (fs.statSync(resolvedPath).isFile()) return resolvedPath;
         } catch (_) { }
     }
     return null;
@@ -128,9 +131,10 @@ function openFileInMainWindow(filePath) {
 const singleInstanceEnabled = loadSettings().singleInstance === true;
 if (singleInstanceEnabled && !app.requestSingleInstanceLock()) {
     app.quit();
+    process.exit(0);
 } else if (singleInstanceEnabled) {
-    app.on('second-instance', (_event, argv) => {
-        openFileInMainWindow(getOpenFileFromArgs(argv));
+    app.on('second-instance', (_event, argv, workingDirectory) => {
+        openFileInMainWindow(getOpenFileFromArgs(argv.slice(1), workingDirectory));
         focusMainWindow();
     });
 }

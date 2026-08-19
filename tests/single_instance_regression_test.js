@@ -14,7 +14,11 @@ assert.match(main, /const singleInstanceEnabled = loadSettings\(\)\.singleInstan
     'single-instance mode must be driven by the saved setting');
 assert.match(main, /app\.requestSingleInstanceLock\(\)/,
     'single-instance mode must acquire Electron\'s application lock');
-assert.match(main, /app\.on\('second-instance',[\s\S]*openFileInMainWindow\(getOpenFileFromArgs\(argv\)\)/,
+assert.match(main, /function getOpenFileFromArgs\(args, workingDirectory\)[\s\S]*path\.resolve\(workingDirectory, arg\)/,
+    'relative paths must be resolved from the second instance working directory');
+assert.match(main, /app\.quit\(\);\s*process\.exit\(0\);/,
+    'a rejected second instance must exit before it can run startup cleanup');
+assert.match(main, /app\.on\('second-instance',[\s\S]*openFileInMainWindow\(getOpenFileFromArgs\(argv\.slice\(1\), workingDirectory\)\)/,
     'a subsequent Explorer open must forward its file to the existing window');
 assert.ok(main.indexOf('requestSingleInstanceLock') < main.indexOf('app.whenReady'),
     'the Electron lock must be acquired before the app becomes ready');
