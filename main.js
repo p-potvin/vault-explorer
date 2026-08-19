@@ -3,6 +3,43 @@ const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
 
+const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
+// Seeded once into the user-editable "Glob Exclusions" pills in Settings when
+// the user has never set any. Junk/code-artifact files the hardcoded directory
+// skip-list can't catch (repo TREES are skipped by the .git marker in scanner).
+const DEFAULT_GLOB_EXCLUSIONS = [
+    '*.log', '*.tmp', '*.part', '*.crdownload', '*.lock',
+    '*.map', '*.pyc', '*.dll', '*.pdb', '*.obj',
+];
+
+function loadSettings() {
+    try {
+        if (fs.existsSync(settingsPath)) {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            if (settings.mutePreviews === undefined) settings.mutePreviews = false;
+            // One-time seed (flagged so a user who later clears every pill on
+            // purpose isn't re-seeded on the next launch).
+            if (!settings.globExclusionsSeeded && (!settings.globExclusions || settings.globExclusions.length === 0)) {
+                settings.globExclusions = DEFAULT_GLOB_EXCLUSIONS;
+                settings.globExclusionsSeeded = true;
+                try { fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8'); } catch (_) { }
+            }
+            return settings;
+        }
+    } catch (e) { }
+    return { folders: [], mutePreviews: false, singleInstance: false, globExclusions: DEFAULT_GLOB_EXCLUSIONS, globExclusionsSeeded: true };
+}
+
+async function saveSettings(settings) {
+    try {
+        await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('[saveSettings] Failed to save settings:', e);
+        return false;
+    }
+}
+
 // Load environment variables at early startup
 function loadEnv() {
     const envPaths = [
@@ -54,6 +91,49 @@ const watchHistoryHandlers = require('./src/watch-history');
 let mainWindow;
 let tray = null;
 let isQuitting = false;
+let pendingOpenFile = null;
+
+function getOpenFileFromArgs(args) {
+    for (const arg of args) {
+        if (!arg || arg.startsWith('--')) continue;
+        try {
+            if (fs.statSync(arg).isFile()) return arg;
+        } catch (_) { }
+    }
+    return null;
+}
+
+function focusMainWindow() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+}
+
+function openFileInMainWindow(filePath) {
+    if (!filePath) return;
+    if (!mainWindow || mainWindow.isDestroyed()) {
+        pendingOpenFile = filePath;
+        return;
+    }
+
+    focusMainWindow();
+    const sendFile = () => mainWindow.webContents.send('open-initial-file', filePath);
+    if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendFile);
+    else sendFile();
+}
+
+// This must run before app readiness: Electron can only notify the first
+// process about a second launch when that first process owns this lock.
+const singleInstanceEnabled = loadSettings().singleInstance === true;
+if (singleInstanceEnabled && !app.requestSingleInstanceLock()) {
+    app.quit();
+} else if (singleInstanceEnabled) {
+    app.on('second-instance', (_event, argv) => {
+        openFileInMainWindow(getOpenFileFromArgs(argv));
+        focusMainWindow();
+    });
+}
 
 // Windows process cleanup helpers
 function getProcessName() {
@@ -220,20 +300,9 @@ function createWindow() {
     mainWindow.loadFile('index.html');
 
     mainWindow.webContents.on('did-finish-load', () => {
-        const args = process.argv.slice(1);
-        let targetFile = null;
-        for (const arg of args) {
-            if (!arg.startsWith('--') && fs.existsSync(arg)) {
-                const stat = fs.statSync(arg);
-                if (stat.isFile()) {
-                    targetFile = arg;
-                    break;
-                }
-            }
-        }
-        if (targetFile) {
-            mainWindow.webContents.send('open-initial-file', targetFile);
-        }
+        const targetFile = pendingOpenFile || getOpenFileFromArgs(process.argv.slice(1));
+        pendingOpenFile = null;
+        if (targetFile) mainWindow.webContents.send('open-initial-file', targetFile);
     });
 
     mainWindow.on('close', (e) => {
@@ -514,45 +583,6 @@ function registerClipHandler(ipcMain) {
             return { success: false, error: error.message };
         }
     });
-}
-
-// Load / Save Settings
-const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
-// Seeded once into the user-editable "Glob Exclusions" pills in Settings when
-// the user has never set any. Junk/code-artifact files the hardcoded directory
-// skip-list can't catch (repo TREES are skipped by the .git marker in scanner).
-const DEFAULT_GLOB_EXCLUSIONS = [
-    '*.log', '*.tmp', '*.part', '*.crdownload', '*.lock',
-    '*.map', '*.pyc', '*.dll', '*.pdb', '*.obj',
-];
-
-function loadSettings() {
-    try {
-        if (fs.existsSync(settingsPath)) {
-            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-            if (settings.mutePreviews === undefined) {
-                settings.mutePreviews = false;
-            }
-            // One-time seed (flagged so a user who later clears every pill on
-            // purpose isn't re-seeded on the next launch).
-            if (!settings.globExclusionsSeeded && (!settings.globExclusions || settings.globExclusions.length === 0)) {
-                settings.globExclusions = DEFAULT_GLOB_EXCLUSIONS;
-                settings.globExclusionsSeeded = true;
-                try { fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8'); } catch (_) { }
-            }
-            return settings;
-        }
-    } catch (e) { }
-    return { folders: [], mutePreviews: false, globExclusions: DEFAULT_GLOB_EXCLUSIONS, globExclusionsSeeded: true };
-}
-async function saveSettings(settings) {
-    try {
-        await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
-        return true;
-    } catch (e) {
-        console.error('[saveSettings] Failed to save settings:', e);
-        return false;
-    }
 }
 
 // Register Split IPC Handlers

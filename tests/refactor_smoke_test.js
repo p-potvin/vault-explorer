@@ -17,7 +17,7 @@ const DOM_IDS = [
     'file-grid', 'video-modal', 'video-player', 'search-box',
     'filter-type', 'sort-by', 'path-display', 'btn-refresh',
     'btn-back', 'settings-panel', 'tab-files', 'tab-music',
-    'tab-photoalbums', 'subtab-files-all',
+    'tab-photoalbums', 'subtab-files-all', 'settings-single-instance',
 ];
 
 async function run() {

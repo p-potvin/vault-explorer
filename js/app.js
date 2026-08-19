@@ -46,6 +46,8 @@ function setLanguage(lang) {
     if (el('glob-exclusions-label')) el('glob-exclusions-label').innerText = window.translations[lang].globExclusionsLabel;
     if (el('settings-btn-save')) el('settings-btn-save').innerText = window.translations[lang].save;
     if (el('label-mute-previews')) el('label-mute-previews').innerText = window.translations[lang].mutePreviews;
+    if (el('label-single-instance')) el('label-single-instance').innerText = window.translations[lang].singleInstance;
+    if (el('single-instance-setting')) el('single-instance-setting').title = window.translations[lang].singleInstanceHint;
 
     // Translate top-level application navigation tabs
     const iconStyle = "width:13px; height:13px; flex-shrink:0;";
