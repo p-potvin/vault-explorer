@@ -1,0 +1,23 @@
+const assert = require('assert').strict;
+const fs = require('fs');
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
+const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+const previews = read('src/previews.js');
+const utils = read('src/utils.js');
+
+assert.match(previews, /typeof isValid !== 'boolean' \|\| !isValidCheckedAt/,
+    'A video must only be sampled when it has not already been checked');
+assert.match(previews, /hasVideo\s*\?\s*await utils\.validateVideoSample\(videoPath, duration\)/,
+    'Video validity must be based on a video-only sample, not audio presence');
+assert.match(previews, /meta\.isValidCheckedAt = isValidCheckedAt/,
+    'Validity checks must persist their timestamp');
+assert.doesNotMatch(previews, /hasVideo && hasAudio && refDuration/,
+    'Missing audio must not make an otherwise decodable video invalid');
+assert.match(utils, /'-map', '0:v:0', '-an', '-sn', '-dn'/,
+    'The sample decode must inspect video only');
+assert.match(utils, /'-xerror'/,
+    'The sample decode must fail deterministically on decoding errors');
+
+console.log('Preview validity regression checks passed.');

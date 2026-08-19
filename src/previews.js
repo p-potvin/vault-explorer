@@ -42,32 +42,45 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     let hasAudio = meta.hasAudio;
     let hasVideo = meta.hasVideo;
     let isValid = meta.isValid;
+    let isValidCheckedAt = meta.isValidCheckedAt;
     let duration = 0;
 
-    // If metadata fields are missing in sidecar, query with ffprobe and save it
-    if (hasAudio === undefined || hasVideo === undefined || isValid === undefined) {
+    // Audio is optional for a preview. Probe only stream metadata first; the
+    // cached validity flag below is based on one video-only decode sample.
+    if (hasAudio === undefined || hasVideo === undefined) {
         const info = await utils.getVideoMetadata(videoPath);
         hasAudio = info.hasAudio;
         hasVideo = info.hasVideo;
-        isValid = info.isValid;
         duration = info.duration;
 
         meta.hasAudio = hasAudio;
         meta.hasVideo = hasVideo;
-        meta.isValid = isValid;
-        try {
-            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-        } catch (e) {
-            console.error(`[main:preview] Failed to write sidecar metadata: ${e.message}`);
-        }
     } else {
         duration = await utils.getVideoDuration(videoPath);
+    }
+
+    if (typeof isValid !== 'boolean' || !isValidCheckedAt) {
+        const validation = hasVideo
+            ? await utils.validateVideoSample(videoPath, duration)
+            : { isValid: false, reason: 'No video stream found', sampleTime: null };
+        isValid = validation.isValid;
+        isValidCheckedAt = new Date().toISOString();
+        meta.isValid = isValid;
+        meta.isValidCheckedAt = isValidCheckedAt;
+        meta.isValidReason = validation.reason;
+        meta.isValidSampleTime = validation.sampleTime;
+    }
+    meta.duration = duration;
+    try {
+        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+    } catch (e) {
+        console.error(`[main:preview] Failed to write sidecar metadata: ${e.message}`);
     }
 
     console.log(`[main:preview] Input: ${videoPath} -> thumb: ${thumbPath}, webm: ${hoverWebmPath}, force=${force}`);
 
     if (!isValid) {
-        console.log(`[main:preview] Skipping invalid video: ${videoPath} (hasVideo=${hasVideo}, hasAudio=${hasAudio}, isValid=${isValid})`);
+        console.log(`[main:preview] Skipping invalid video: ${videoPath} (hasVideo=${hasVideo}, hasAudio=${hasAudio}, checkedAt=${isValidCheckedAt})`);
         if (finalSender && !finalSender.isDestroyed()) {
             finalSender.send('generate-webm-progress', {
                 videoPath,

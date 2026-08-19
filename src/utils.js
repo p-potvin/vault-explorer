@@ -262,11 +262,10 @@ function getVideoMetadata(videoPath) {
         ], (err, stdout) => {
             let hasAudio = false;
             let hasVideo = false;
-            let isValid = false;
             let duration = 0;
 
             if (err) {
-                resolve({ hasAudio, hasVideo, isValid, duration });
+                resolve({ hasAudio, hasVideo, duration });
                 return;
             }
 
@@ -295,21 +294,31 @@ function getVideoMetadata(videoPath) {
                     }
                 }
 
-                const refDuration = duration || Math.max(videoDuration, audioDuration);
-
-                if (hasVideo && hasAudio && refDuration > 0) {
-                    const threshold = Math.max(5.0, refDuration * 0.05);
-                    const videoOk = videoDuration > 0 && Math.abs(refDuration - videoDuration) <= threshold;
-                    const audioOk = audioDuration > 0 && Math.abs(refDuration - audioDuration) <= threshold;
-                    if (videoOk && audioOk) {
-                        isValid = true;
-                    }
-                }
             } catch (e) {
                 console.error("[main:metadata] Failed to parse ffprobe output:", e);
             }
 
-            resolve({ hasAudio, hasVideo, isValid, duration });
+            resolve({ hasAudio, hasVideo, duration });
+        });
+    });
+}
+
+function validateVideoSample(videoPath, duration = 0) {
+    return new Promise((resolve) => {
+        const ffmpeg = getFFmpegPath();
+        const sampleTime = duration > 4 ? Math.max(0, Math.min(duration - 2, duration / 2)) : 0;
+        execFile(ffmpeg, [
+            '-v', 'error', '-xerror',
+            '-err_detect', 'crccheck+bitstream+buffer',
+            '-ss', sampleTime.toFixed(2), '-i', videoPath,
+            '-t', '2', '-map', '0:v:0', '-an', '-sn', '-dn',
+            '-f', 'null', '-'
+        ], (error, _stdout, stderr) => {
+            resolve({
+                isValid: !error,
+                reason: error ? String(stderr || error.message || 'Video sample decode failed').trim() : null,
+                sampleTime,
+            });
         });
     });
 }
@@ -461,6 +470,7 @@ module.exports = {
     getVideoDuration,
     checkAudioStream,
     getVideoMetadata,
+    validateVideoSample,
     formatBytes,
     PriorityQueue,
     getRobustPythonExe,
