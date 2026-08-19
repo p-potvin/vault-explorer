@@ -46,6 +46,7 @@ window.translationsEn = {
   playbackSortSizeAsc: "Size (Smallest First)",
   playbackSortLengthDesc: "Length (Longest First)",
   playbackSortLengthAsc: "Length (Shortest First)",
+  librarySettingsDescription: "Vault Files starts on the selected homepage tab. Set the folders that each library tab opens here.",
   singleInstance: "Open files in the existing window:",
   singleInstanceHint: "Close and reopen Vault Explorer after changing this setting.",
   settingsSectionGeneral: "General",

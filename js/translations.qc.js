@@ -46,6 +46,7 @@ window.translationsQc = {
   playbackSortSizeAsc: "Taille (plus petit d'abord)",
   playbackSortLengthDesc: "Durée (plus longue d'abord)",
   playbackSortLengthAsc: "Durée (plus courte d'abord)",
+  librarySettingsDescription: "Les fichiers de la voûte démarrent sur l'onglet d'accueil choisi. Configurez ici les dossiers ouverts par chaque onglet de bibliothèque.",
   singleInstance: "Ouvrir les fichiers dans la fenêtre existante :",
   singleInstanceHint: "Fermez et rouvrez Vault Explorer après avoir changé ce paramètre.",
   settingsSectionGeneral: "Général",

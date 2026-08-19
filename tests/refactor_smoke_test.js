@@ -74,6 +74,13 @@ async function run() {
     await win.locator('.settings-section-tab[data-settings-section="playback"]').click();
     assert.equal(await win.locator('#settings-default-sub-lang').isVisible(), true, 'Playback section must reveal subtitle settings');
     assert.equal(await win.locator('#settings-default-folder').isVisible(), false, 'Changing sections must hide General settings');
+    await win.locator('.settings-section-tab[data-settings-section="library"]').click();
+    assert.equal(await win.locator('#settings-default-home-tab').isVisible(), true, 'Library section must contain the startup library choice');
+    assert.match(await win.locator('#library-settings-description').innerText(), /homepage tab/i, 'Library description must explain the homepage choice');
+    assert.equal(await win.locator('#settings-btn-benchmark').isVisible(), false, 'ASR benchmark must stay hidden');
+    assert.equal(await win.locator('#settings-backdrop').isVisible(), true, 'Settings must render over a visible backdrop');
+    await win.locator('#settings-close').click();
+    assert.equal(await win.locator('#settings-backdrop').isVisible(), false, 'Settings close must remove the backdrop');
     console.log('[PASS] Settings sections switch correctly');
 
     const errors = await win.evaluate(() => window.__consoleErrors || []);

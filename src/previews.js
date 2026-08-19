@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { BrowserWindow } = require('electron');
 const utils = require('./utils');
+const { isOfflineCloudFile } = require('./cloud-files');
 
 let totalBatchCount = 0;
 let completedBatchCount = 0;
@@ -50,6 +51,10 @@ function writeBenchmark(entry) {
 async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false, silent = false) {
     const activeWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
     const finalSender = silent ? null : (sender || (activeWindow ? activeWindow.webContents : null));
+
+    if (await isOfflineCloudFile(videoPath)) {
+        throw new Error('File is not available offline; preview generation was skipped');
+    }
 
     if (finalSender && !finalSender.isDestroyed()) {
         finalSender.send('generate-webm-progress', {

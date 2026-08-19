@@ -3,12 +3,17 @@ window.initSettingsListeners = function initSettingsListeners() {
 
     const grid = document.querySelector('.settings-panel-grid');
     const sectionForControl = {
-        general: ['pill-tag-input-glob', 'settings-default-folder', 'settings-default-theme', 'settings-default-lang', 'settings-minimize-to-tray', 'settings-single-instance', 'settings-dev-mode', 'settings-default-home-tab'],
+        general: ['pill-tag-input-glob', 'settings-default-folder', 'settings-default-theme', 'settings-default-lang', 'settings-minimize-to-tray', 'settings-single-instance', 'settings-dev-mode'],
         playback: ['settings-default-sub-lang', 'settings-sub-font-size', 'settings-playback-sort', 'settings-remember-position', 'settings-mute-previews'],
-        library: ['settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-misc'],
+        library: ['settings-default-home-tab', 'settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-misc'],
         ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma'],
     };
     let activeSettingsSection = 'general';
+    const closeSettings = () => {
+        el('settings-panel').style.display = 'none';
+        const backdrop = el('settings-backdrop');
+        if (backdrop) backdrop.style.display = 'none';
+    };
 
     function findSettingsCell(controlId) {
         let node = el(controlId);
@@ -32,9 +37,12 @@ window.initSettingsListeners = function initSettingsListeners() {
 
     if (grid) {
         Object.entries(sectionForControl).forEach(([section, controlIds]) => {
-            controlIds.forEach((controlId) => {
+            controlIds.forEach((controlId, order) => {
                 const cell = findSettingsCell(controlId);
-                if (cell) cell.dataset.settingsSection = section;
+                if (cell) {
+                    cell.dataset.settingsSection = section;
+                    cell.style.setProperty('--settings-order', String(order));
+                }
             });
         });
         document.querySelectorAll('.settings-section-tab').forEach((tab) => {
@@ -105,19 +113,16 @@ window.initSettingsListeners = function initSettingsListeners() {
         // Close on backdrop or outside click without saving
         const backdrop = el('settings-backdrop');
         if (backdrop) {
-            backdrop.addEventListener('click', () => {
-                el('settings-panel').style.display = 'none';
-                backdrop.style.display = 'none';
-            });
+            backdrop.addEventListener('click', closeSettings);
         }
+        const closeButton = el('settings-close');
+        if (closeButton) closeButton.addEventListener('click', closeSettings);
 
         document.addEventListener('click', (e) => {
             const panel = el('settings-panel');
             if (panel && panel.style.display === 'flex') {
                 if (!panel.contains(e.target) && !trigger.contains(e.target)) {
-                    panel.style.display = 'none';
-                    const backdrop = el('settings-backdrop');
-                    if (backdrop) backdrop.style.display = 'none';
+                    closeSettings();
                 }
             }
         });
@@ -207,9 +212,7 @@ window.initSettingsListeners = function initSettingsListeners() {
             if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
             await window.electronAPI.saveSettings(window.appSettings);
             showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
-            el('settings-panel').style.display = 'none';
-            const backdrop = el('settings-backdrop');
-            if (backdrop) backdrop.style.display = 'none';
+            closeSettings();
 
             if (hasStructuralChange) {
                 console.log('[settings] Structural change detected (exclusions/folder). Reloading directory...');

@@ -48,6 +48,7 @@ function setLanguage(lang) {
     if (el('label-mute-previews')) el('label-mute-previews').innerText = window.translations[lang].mutePreviews;
     if (el('label-single-instance')) el('label-single-instance').innerText = window.translations[lang].singleInstance;
     if (el('label-playback-sort')) el('label-playback-sort').innerText = window.translations[lang].playbackSort;
+    if (el('library-settings-description')) el('library-settings-description').innerText = window.translations[lang].librarySettingsDescription;
     const playbackSort = el('settings-playback-sort');
     if (playbackSort) {
         const playbackSortLabels = {

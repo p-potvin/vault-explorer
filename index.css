@@ -1398,6 +1398,23 @@ body.titlebar-hovered #video-modal #player-topbar {
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85);
 }
 
+.settings-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2147482999;
+  background: color-mix(in srgb, var(--vault-console-bg) 76%, transparent);
+  backdrop-filter: blur(5px);
+}
+
+.settings-panel-cog {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
 .settings-panel-header-bar {
   display: flex;
   align-items: center;
@@ -1470,6 +1487,20 @@ body.titlebar-hovered #video-modal #player-topbar {
 
 .settings-panel-grid > [data-settings-section][hidden] {
   display: none !important;
+}
+
+.settings-panel-grid > [data-settings-section] {
+  order: var(--settings-order, 0);
+}
+
+@media (max-width: 640px) {
+  #settings-btn-text {
+    display: none;
+  }
+
+  .theme-trigger {
+    padding-inline: 6px !important;
+  }
 }
 
 @media (max-width: 760px) {
