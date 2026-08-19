@@ -1403,6 +1403,7 @@ body.titlebar-hovered #video-modal #player-topbar {
   position: fixed;
   inset: 0;
   z-index: 2147482999;
+  background: var(--vault-console-bg);
   background: color-mix(in srgb, var(--vault-console-bg) 76%, transparent);
   backdrop-filter: blur(5px);
 }

@@ -103,7 +103,7 @@ function convertSrtToVtt(sourcePath) {
     const vttPath = path.join(subtitleDir, `${path.basename(sourcePath, path.extname(sourcePath))}.vtt`);
     try {
         fs.mkdirSync(subtitleDir, { recursive: true });
-        const srtText = fs.readFileSync(sourcePath, 'utf8');
+        const srtText = fs.readFileSync(sourcePath, 'utf8').replace(/^\uFEFF/, '');
         const vttText = `WEBVTT\n\n${srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')}`;
         fs.writeFileSync(vttPath, vttText, 'utf8');
         return vttPath;

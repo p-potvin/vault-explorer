@@ -380,7 +380,7 @@ async function playItem(idx, sourceItems = null) {
 
 function updateNavHover(idx, btnEl) {
     const items = getPlaybackItems();
-    if (idx < 0 || idx >= items.length) {
+    if (idx < 0 || idx >= items.length || !items[idx]) {
         navHoverPreview.style.display = 'none';
         return;
     }

@@ -265,24 +265,29 @@ function createWindow() {
     // Keep Ctrl+Plus, Ctrl+Minus, Ctrl+0, and Ctrl+wheel symmetric. Chromium's
     // default visual zoom can leave the window at a reduced scale after a
     // mixed keyboard/wheel sequence, so the app owns a bounded zoom factor.
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-        const zoomModifier = input.control || input.meta;
-        if (!zoomModifier) return;
+    const adjustWindowZoom = (delta) => {
         const current = mainWindow.webContents.getZoomFactor();
-        const setZoom = (factor) => mainWindow.webContents.setZoomFactor(Math.max(0.5, Math.min(2, factor)));
+        mainWindow.webContents.setZoomFactor(Math.max(0.5, Math.min(2, current + delta)));
+    };
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (!(input.control || input.meta)) return;
         if (input.type === 'keyDown') {
             if (['+', '=', 'Add'].includes(input.key)) {
-                setZoom(current + 0.1);
+                adjustWindowZoom(0.1);
                 event.preventDefault();
             } else if (['-', 'Subtract'].includes(input.key)) {
-                setZoom(current - 0.1);
+                adjustWindowZoom(-0.1);
                 event.preventDefault();
             } else if (input.key === '0') {
                 mainWindow.webContents.setZoomFactor(1);
                 event.preventDefault();
             }
-        } else if (input.type === 'mouseWheel' && input.deltaY) {
-            setZoom(current + (input.deltaY < 0 ? 0.1 : -0.1));
+        }
+    });
+    mainWindow.webContents.on('before-mouse-event', (event, mouse) => {
+        const modifiers = mouse.modifiers || [];
+        if (mouse.type === 'mouseWheel' && mouse.deltaY && (modifiers.includes('control') || modifiers.includes('meta'))) {
+            adjustWindowZoom(mouse.deltaY < 0 ? 0.1 : -0.1);
             event.preventDefault();
         }
     });

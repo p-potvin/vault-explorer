@@ -65,6 +65,7 @@ function setLanguage(lang) {
     if (el('single-instance-setting')) el('single-instance-setting').title = window.translations[lang].singleInstanceHint;
     document.querySelectorAll('.settings-section-tab').forEach((tab) => {
         const section = tab.dataset.settingsSection;
+        if (!section || !window.translations || !window.translations[lang]) return;
         const key = `settingsSection${section.charAt(0).toUpperCase()}${section.slice(1)}`;
         if (window.translations[lang][key]) tab.innerText = window.translations[lang][key];
     });

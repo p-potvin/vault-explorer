@@ -109,7 +109,7 @@ function selectSubtitleByIndex(idx) {
 }
 
 function subtitleTextAsVtt(text) {
-    const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const normalized = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     if (/^WEBVTT(?:\s|$)/i.test(normalized)) return normalized;
     return `WEBVTT\n\n${normalized.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')}`;
 }
@@ -118,6 +118,7 @@ function addSubtitleTrack(source, label) {
     const vp = el('video-player');
     if (!vp || !source) return;
     if (window._liveSubActive) window.stopLiveSubtitles(true);
+    vp.querySelectorAll('track').forEach((track) => track.remove());
 
     const track = document.createElement('track');
     track.kind = 'subtitles';

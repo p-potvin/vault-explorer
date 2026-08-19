@@ -24,10 +24,17 @@ try {
 
 assert.match(subtitles, /new Blob\(\[vttText\], \{ type: 'text\/vtt' \}\)/,
     'Uploaded SRT files must be converted to a WebVTT blob');
+assert.match(subtitles, /replace\(\/\^\\uFEFF\/, ''\)/,
+    'Uploaded subtitles must strip a UTF-8 BOM before WebVTT detection');
+assert.match(subtitles, /querySelectorAll\('track'\)\.forEach\(\(track\) => track\.remove\(\)\)/,
+    'Uploading a subtitle must remove prior tracks');
 assert.match(main, /choose-subtitle-file[\s\S]*defaultPath/,
     'Subtitle picker must use the currently playing file folder');
-assert.match(main, /before-input-event[\s\S]*setZoomFactor[\s\S]*mouseWheel/s,
-    'Keyboard and Ctrl+wheel zoom must use the same bounded zoom path');
+assert.match(main, /before-mouse-event[\s\S]*mouseWheel[\s\S]*adjustWindowZoom/s,
+    'Ctrl+wheel zoom must use Electron mouse-event handling');
+const beforeInputBlock = main.slice(main.indexOf("before-input-event"), main.indexOf("before-mouse-event"));
+assert.doesNotMatch(beforeInputBlock, /mouseWheel/,
+    'Keyboard input handling must not contain unreachable wheel logic');
 assert.match(player, /buildPlaybackContext[\s\S]*electronAPI\.scanDirectory/s,
     'Playback must build its sequence from the playing file folder');
 assert.match(player, /playbackSort\) \|\| 'mtime-desc'/,
