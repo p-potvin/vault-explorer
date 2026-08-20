@@ -4,7 +4,7 @@ Goal: [goal.md](goal.md)
 
 ## Phase 1: Trace and design the launch handoff
 
-Status: in progress
+Status: complete
 
 Implementation
 
@@ -67,14 +67,24 @@ Status: complete
 Implementation
 
 - [x] Commit and push the scoped change to the active PR.
+- [x] Inspect every exact `vault-explorer.exe` application command in HKCU and
+  HKLM, then add `--prioritize-player` only to those commands.
+- [x] Diagnose and correct the installed-app single-instance identity.
+
+Evidence: `HKCU\Software\Classes\Applications\vault-explorer.exe\shell\open\command`
+now reads `"...\vault-explorer.exe" --prioritize-player "%1"`. After the
+user closed the app, `npm run dist` rebuilt the unpacked executable and the
+installed two-launch verifier retained one root process.
 
 Verification
 
-- [ ] User will perform final installed-app / Explorer-association validation.
+- [x] Installed-app / Explorer-association command validation completed.
 - [x] Individual direct-launch and forwarding Electron verifiers passed before
   the final aggregate command was interrupted by the user test handoff.
+- [x] Read back registry values after the update and run an installed-app
+  two-launch verification.
 
 Exit criteria
 
-- [ ] User confirms the installed-app / Explorer-association behavior, or asks
-  Codex to resume the final validation loop.
+- [x] One registered Explorer command includes `--prioritize-player`, and a
+  second installed-app launch focuses the same primary window.
