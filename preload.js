@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteItem: (p) => ipcRenderer.invoke('delete-item', p),
   getFolderSizeBackground: (dirPath) => ipcRenderer.invoke('get-folder-size-background', dirPath),
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getLaunchIntent: () => ipcRenderer.invoke('get-launch-intent'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   getTheme: () => ipcRenderer.invoke('get-theme'),
   setTheme: (t) => ipcRenderer.invoke('set-theme', t),

@@ -101,6 +101,70 @@ function updateSortOrderButtonUI() {
     }
 }
 
+function normalizeLaunchIntent(intent) {
+    if (typeof intent === 'string') return { filePath: intent, prioritizePlayer: false };
+    if (!intent || typeof intent.filePath !== 'string') return null;
+    return { filePath: intent.filePath, prioritizePlayer: intent.prioritizePlayer === true };
+}
+
+function scheduleSecondaryStartupWork() {
+    if (window._secondaryStartupScheduled) return;
+    window._secondaryStartupScheduled = true;
+    if (window.electronAPI && typeof window.electronAPI.warmLiveSubtitles === 'function') {
+        setTimeout(() => window.electronAPI.warmLiveSubtitles().catch(() => { }), 3000);
+    }
+}
+
+function openLaunchIntent(intent) {
+    const launch = normalizeLaunchIntent(intent);
+    if (!launch || !/\.(mp4|webm|mkv|avi|mov)$/i.test(launch.filePath)) return false;
+    const item = {
+        path: launch.filePath,
+        name: launch.filePath.split(/[\\/]/).pop(),
+        type: 'video',
+    };
+
+    if (!launch.prioritizePlayer) {
+        if (typeof window.switchTab === 'function') window.switchTab('files');
+        setTimeout(() => {
+            if (!window.displayedItems) window.displayedItems = [];
+            window.displayedItems.push(item);
+            if (typeof window.playItem === 'function') window.playItem(window.displayedItems.length - 1);
+        }, 500);
+        return true;
+    }
+
+    window.__launchPriorityTrace = ['priority-intent'];
+    const folderPath = launch.filePath.slice(0, Math.max(launch.filePath.lastIndexOf('\\'), launch.filePath.lastIndexOf('/')));
+    const folderName = folderPath.split(/[\\/]/).pop() || 'root';
+    const resumeSecondaryWork = async () => {
+        window.vaultLoaded = true;
+        if (folderPath && typeof window.loadDirectory === 'function') {
+            const adoptFolderContext = (event) => {
+                const detail = event.detail || {};
+                if (detail.realPath === folderPath && typeof window.setPlaybackFolderContext === 'function') {
+                    const index = window.setPlaybackFolderContext(detail.items, item);
+                    if (index >= 0) window.removeEventListener('vault-directory-loaded', adoptFolderContext);
+                }
+            };
+            window.addEventListener('vault-directory-loaded', adoptFolderContext);
+            window.loadDirectory(`root/${folderName}`, folderPath, false);
+        }
+        scheduleSecondaryStartupWork();
+    };
+
+    window.addEventListener('vault-player-started', resumeSecondaryWork, { once: true });
+    if (typeof window.switchTab === 'function') {
+        window.switchTab('files', { deferFolderLoad: true, preservePlayer: true });
+    }
+    window.displayedItems = [item];
+    window.currentPlaybackItems = [item];
+    window.currentPlaybackFolder = folderPath;
+    window.__launchPriorityTrace.push('playback-request');
+    if (typeof window.playItem === 'function') window.playItem(0, window.displayedItems);
+    return true;
+}
+
 // ── Master Entrypoint ─────────────────────────────────────────────
 async function initApp() {
     // Setup mock API fallback for standard browsers
@@ -125,6 +189,7 @@ async function initApp() {
             deleteItem: async (p) => ({ success: true }),
             getFolderSizeBackground: async (dirPath) => 1073741824,
             getSettings: async () => ({ folders: [], theme: 'golden-slate', lang: 'en' }),
+            getLaunchIntent: async () => null,
             saveSettings: async (s) => console.log('Mock Save Settings:', s),
             getTheme: async () => ({ success: true, theme: 'golden-slate' }),
             setTheme: async (t) => ({ success: true }),
@@ -147,6 +212,9 @@ async function initApp() {
     }
 
     window.appSettings = await window.electronAPI.getSettings();
+    const initialLaunchIntent = window.electronAPI.getLaunchIntent
+        ? await window.electronAPI.getLaunchIntent()
+        : null;
     // One-shot migration: legacy {folders,folderContents} -> stable-id virtualFolders.
     // Safe no-op if already migrated.
     if (window.vf && typeof window.vf.migrateLegacy === 'function') {
@@ -352,45 +420,20 @@ async function initApp() {
     if (homeTab === 'albums') homeTab = 'photoalbums';
     if (homeTab === 'playlists') homeTab = 'music';
     if (!validTabs.includes(homeTab)) homeTab = 'files';
-    window.switchTab(homeTab);
-
-    // Warm-load the live-subtitles ASR model ~3s after the UI settles, so the
-    // first "Live Subtitles" click is instant instead of paying the ~29s model
-    // load. Fire-and-forget; the daemon loads in the background.
-    if (window.electronAPI && typeof window.electronAPI.warmLiveSubtitles === 'function') {
-        setTimeout(() => {
-            window.electronAPI.warmLiveSubtitles().catch(() => { });
-        }, 3000);
+    const initialPriorityLaunch = normalizeLaunchIntent(initialLaunchIntent);
+    if (initialPriorityLaunch && initialPriorityLaunch.prioritizePlayer) {
+        openLaunchIntent(initialPriorityLaunch);
+    } else {
+        window.switchTab(homeTab);
+        scheduleSecondaryStartupWork();
+        if (initialPriorityLaunch) openLaunchIntent(initialPriorityLaunch);
     }
 
     // ── Handle CLI Initial File ──────────────────────────────────────────────
     if (window.electronAPI && typeof window.electronAPI.onInitialFile === 'function') {
-        window.electronAPI.onInitialFile((filePath) => {
-            console.log('[app] Received initial file from CLI:', filePath);
-
-            // Switch to files tab since the player lives there
-            if (typeof window.switchTab === 'function') {
-                window.switchTab('files');
-            }
-
-            // Wait a tick for player/DOM init
-            setTimeout(() => {
-                const isVideo = /\.(mp4|webm|mkv|avi|mov)$/i.test(filePath);
-                if (isVideo) {
-                    const item = {
-                        path: filePath,
-                        name: filePath.split(/[\\/]/).pop(),
-                        type: 'video'
-                    };
-                    if (!window.displayedItems) window.displayedItems = [];
-                    window.displayedItems.push(item);
-
-                    if (typeof window.playItem === 'function') {
-                        // Play the item we just added
-                        window.playItem(window.displayedItems.length - 1);
-                    }
-                }
-            }, 500);
+        window.electronAPI.onInitialFile((intent) => {
+            console.log('[app] Received initial file from CLI:', intent);
+            openLaunchIntent(intent);
         });
     }
 }

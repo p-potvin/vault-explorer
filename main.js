@@ -3,6 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
 
+if (process.env.VAULT_EXPLORER_E2E_USER_DATA) {
+    app.setPath('userData', process.env.VAULT_EXPLORER_E2E_USER_DATA);
+}
+
 const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
 // Seeded once into the user-editable "Glob Exclusions" pills in Settings when
 // the user has never set any. Junk/code-artifact files the hardcoded directory
@@ -91,7 +95,8 @@ const watchHistoryHandlers = require('./src/watch-history');
 let mainWindow;
 let tray = null;
 let isQuitting = false;
-let pendingOpenFile = null;
+let pendingLaunchIntent = null;
+let exitingSecondaryInstance = false;
 
 function getOpenFileFromArgs(args, workingDirectory) {
     for (const arg of args) {
@@ -106,6 +111,14 @@ function getOpenFileFromArgs(args, workingDirectory) {
     return null;
 }
 
+function getLaunchIntentFromArgs(args, workingDirectory) {
+    const filePath = getOpenFileFromArgs(args, workingDirectory);
+    return filePath ? {
+        filePath,
+        prioritizePlayer: args.includes('--prioritize-player'),
+    } : null;
+}
+
 function focusMainWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -113,28 +126,31 @@ function focusMainWindow() {
     mainWindow.focus();
 }
 
-function openFileInMainWindow(filePath) {
-    if (!filePath) return;
+function openLaunchIntentInMainWindow(intent) {
+    if (!intent || !intent.filePath) return;
     if (!mainWindow || mainWindow.isDestroyed()) {
-        pendingOpenFile = filePath;
+        pendingLaunchIntent = intent;
         return;
     }
 
     focusMainWindow();
-    const sendFile = () => mainWindow.webContents.send('open-initial-file', filePath);
-    if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendFile);
-    else sendFile();
+    const sendIntent = () => mainWindow.webContents.send('open-initial-file', intent);
+    if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendIntent);
+    else sendIntent();
 }
+
+pendingLaunchIntent = getLaunchIntentFromArgs(process.argv.slice(1));
 
 // This must run before app readiness: Electron can only notify the first
 // process about a second launch when that first process owns this lock.
-const singleInstanceEnabled = process.env.VAULT_EXPLORER_E2E !== '1' && loadSettings().singleInstance === true;
+const singleInstanceEnabled = process.env.VAULT_EXPLORER_FORCE_SINGLE_INSTANCE === '1' ||
+    (process.env.VAULT_EXPLORER_E2E !== '1' && loadSettings().singleInstance === true);
 if (singleInstanceEnabled && !app.requestSingleInstanceLock()) {
+    exitingSecondaryInstance = true;
     app.quit();
-    process.exit(0);
 } else if (singleInstanceEnabled) {
     app.on('second-instance', (_event, argv, workingDirectory) => {
-        openFileInMainWindow(getOpenFileFromArgs(argv.slice(1), workingDirectory));
+        openLaunchIntentInMainWindow(getLaunchIntentFromArgs(argv.slice(1), workingDirectory));
         focusMainWindow();
     });
 }
@@ -333,12 +349,6 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
-    mainWindow.webContents.on('did-finish-load', () => {
-        const targetFile = pendingOpenFile || getOpenFileFromArgs(process.argv.slice(1));
-        pendingOpenFile = null;
-        if (targetFile) mainWindow.webContents.send('open-initial-file', targetFile);
-    });
-
     mainWindow.on('close', (e) => {
         if (!isQuitting) {
             const settings = loadSettings();
@@ -356,6 +366,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+    if (exitingSecondaryInstance) return;
     // Clean up any orphaned vault-explorer processes from a previous bad exit
     killAllOwnProcesses(false);
 
@@ -369,10 +380,12 @@ app.whenReady().then(() => {
     });
 });
 app.on('before-quit', () => {
+    if (exitingSecondaryInstance) return;
     isQuitting = true;
     performFullAppCleanup();
 });
 app.on('window-all-closed', () => {
+    if (exitingSecondaryInstance) return;
     performFullAppCleanup();
     if (process.platform !== 'darwin') app.quit();
 });
@@ -383,6 +396,12 @@ ipcMain.handle('set-window-fullscreen', (_e, on) => {
     if (!mainWindow || mainWindow.isDestroyed()) return false;
     mainWindow.setFullScreen(!!on);
     return mainWindow.isFullScreen();
+});
+
+ipcMain.handle('get-launch-intent', () => {
+    const intent = pendingLaunchIntent;
+    pendingLaunchIntent = null;
+    return intent;
 });
 
 ipcMain.handle('choose-subtitle-file', async (_event, videoPath) => {
@@ -398,8 +417,8 @@ ipcMain.handle('choose-subtitle-file', async (_event, videoPath) => {
 });
 
 // Automatic clean exit subprocess killing hooks
-app.on('will-quit', performFullAppCleanup);
-process.on('exit', performFullAppCleanup);
+app.on('will-quit', () => { if (!exitingSecondaryInstance) performFullAppCleanup(); });
+process.on('exit', () => { if (!exitingSecondaryInstance) performFullAppCleanup(); });
 
 // Clip Handler for video clipping
 function registerClipHandler(ipcMain) {

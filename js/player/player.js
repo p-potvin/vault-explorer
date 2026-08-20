@@ -71,6 +71,28 @@ async function buildPlaybackContext(item) {
     return { folder, items, index: index >= 0 ? index : items.indexOf(item) };
 }
 
+window.hydratePlaybackFolderContext = async function hydratePlaybackFolderContext(item) {
+    const context = await buildPlaybackContext(item);
+    if (context.index >= 0) {
+        window.currentPlaybackItems = context.items;
+        window.currentPlaybackFolder = context.folder;
+        window.currentPlayingIndex = context.index;
+    }
+    return context;
+};
+
+window.setPlaybackFolderContext = function setPlaybackFolderContext(items, item) {
+    const sortedItems = sortPlaybackItems(Array.isArray(items) ? items : []);
+    const normalize = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
+    const index = sortedItems.findIndex((candidate) => normalize(candidate.path) === normalize(item && item.path));
+    if (index >= 0) {
+        window.currentPlaybackItems = sortedItems;
+        window.currentPlaybackFolder = getItemDirectory(item.path);
+        window.currentPlayingIndex = index;
+    }
+    return index;
+};
+
 async function handlePlayerContextMenu(action, menuItem) {
     if (!action || action === 'closed' || action === 'show' || action === 'copied') return;
 
@@ -887,6 +909,12 @@ function initPlayer() {
         btnPlay.innerHTML = PAUSE_ICON_SVG;
         const pipPlayBtn = el('pip-btn-play');
         if (pipPlayBtn) pipPlayBtn.textContent = '⏸';
+    });
+    vp.addEventListener('playing', () => {
+        if (Array.isArray(window.__launchPriorityTrace)) window.__launchPriorityTrace.push('playing');
+        if (window.currentPlayingItem) {
+            window.dispatchEvent(new CustomEvent('vault-player-started', { detail: window.currentPlayingItem }));
+        }
     });
     vp.addEventListener('pause', () => {
         btnPlay.innerHTML = PLAY_ICON_SVG;
