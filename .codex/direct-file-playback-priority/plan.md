@@ -4,7 +4,7 @@ Goal: [goal.md](goal.md)
 
 ## Phase 1: Trace and design the launch handoff
 
-Status: complete
+Status: in progress
 
 Implementation
 
@@ -62,16 +62,19 @@ Exit criteria
 
 ## Phase 4: Publish and audit
 
-Status: in progress
+Status: complete
 
 Implementation
 
-- [ ] Commit and push the scoped change to the active PR.
+- [x] Commit and push the scoped change to the active PR.
 
 Verification
 
-- [ ] Run full relevant regressions and inspect PR branch state.
+- [ ] User will perform final installed-app / Explorer-association validation.
+- [x] Individual direct-launch and forwarding Electron verifiers passed before
+  the final aggregate command was interrupted by the user test handoff.
 
 Exit criteria
 
-- [ ] All goal requirements have current evidence before marking the goal complete.
+- [ ] User confirms the installed-app / Explorer-association behavior, or asks
+  Codex to resume the final validation loop.
