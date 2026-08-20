@@ -228,6 +228,26 @@ function runLowPriorityProcess(command, args) {
     });
 }
 
+function addNvidiaHwAccel(args) {
+    const gpuArgs = [...args];
+    // -hwaccel is an input option, so it must precede each -i for multi-input
+    // preview concat jobs as well as ordinary single-input jobs.
+    for (let index = gpuArgs.length - 1; index >= 0; index--) {
+        if (gpuArgs[index] === '-i') gpuArgs.splice(index, 0, '-hwaccel', 'cuda');
+    }
+    return gpuArgs;
+}
+
+async function runFfmpegWithNvidiaFallback(args) {
+    const gpuArgs = addNvidiaHwAccel(args);
+    try {
+        return await runLowPriorityProcess('ffmpeg', gpuArgs);
+    } catch (gpuError) {
+        console.warn('[ffmpeg] NVIDIA acceleration unavailable or unsupported; retrying on CPU:', gpuError.message);
+        return runLowPriorityProcess('ffmpeg', args);
+    }
+}
+
 function getVideoDuration(videoPath) {
     return new Promise((resolve) => {
         const ffprobe = getFFmpegPath().replace('ffmpeg.exe', 'ffprobe.exe').replace('ffmpeg', 'ffprobe');
@@ -262,11 +282,10 @@ function getVideoMetadata(videoPath) {
         ], (err, stdout) => {
             let hasAudio = false;
             let hasVideo = false;
-            let isValid = false;
             let duration = 0;
 
             if (err) {
-                resolve({ hasAudio, hasVideo, isValid, duration });
+                resolve({ hasAudio, hasVideo, duration });
                 return;
             }
 
@@ -295,23 +314,42 @@ function getVideoMetadata(videoPath) {
                     }
                 }
 
-                const refDuration = duration || Math.max(videoDuration, audioDuration);
-
-                if (hasVideo && hasAudio && refDuration > 0) {
-                    const threshold = Math.max(5.0, refDuration * 0.05);
-                    const videoOk = videoDuration > 0 && Math.abs(refDuration - videoDuration) <= threshold;
-                    const audioOk = audioDuration > 0 && Math.abs(refDuration - audioDuration) <= threshold;
-                    if (videoOk && audioOk) {
-                        isValid = true;
-                    }
-                }
             } catch (e) {
                 console.error("[main:metadata] Failed to parse ffprobe output:", e);
             }
 
-            resolve({ hasAudio, hasVideo, isValid, duration });
+            resolve({ hasAudio, hasVideo, duration });
         });
     });
+}
+
+function validateVideoSamples(videoPath, duration = 0) {
+    const normalizedDuration = Number(duration) || 0;
+    const sampleTimes = [...new Set([
+        0,
+        normalizedDuration > 2 ? normalizedDuration / 2 : 0,
+        normalizedDuration > 2 ? normalizedDuration - 2 : 0,
+    ].map((time) => Math.max(0, Number(time.toFixed(2)))))];
+    const decodeSample = (sampleTime) => new Promise((resolve) => {
+        runFfmpegWithNvidiaFallback([
+            '-v', 'error', '-xerror',
+            '-err_detect', 'crccheck+bitstream+buffer',
+            '-ss', sampleTime.toFixed(2), '-i', videoPath,
+            '-t', '2', '-map', '0:v:0', '-an', '-sn', '-dn',
+            '-f', 'null', '-'
+        ]).then(
+            () => resolve({ isValid: true, reason: null, sampleTime }),
+            (error) => resolve({ isValid: false, reason: String(error.message || 'Video sample decode failed').trim(), sampleTime })
+        );
+    });
+
+    return (async () => {
+        for (const sampleTime of sampleTimes) {
+            const result = await decodeSample(sampleTime);
+            if (!result.isValid) return { ...result, samplesChecked: sampleTimes.indexOf(sampleTime) + 1 };
+        }
+        return { isValid: true, reason: null, sampleTime: null, samplesChecked: sampleTimes.length };
+    })();
 }
 
 function formatBytes(bytes) {
@@ -458,9 +496,11 @@ module.exports = {
     activeSubprocesses,
     killAllActiveSubprocesses,
     runLowPriorityProcess,
+    runFfmpegWithNvidiaFallback,
     getVideoDuration,
     checkAudioStream,
     getVideoMetadata,
+    validateVideoSamples,
     formatBytes,
     PriorityQueue,
     getRobustPythonExe,

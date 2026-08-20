@@ -4,7 +4,8 @@
 
 window.currentTab = 'files';
 
-window.switchTab = function (tabName) {
+window.switchTab = function (tabName, options = {}) {
+    const { deferFolderLoad = false, preservePlayer = false } = options;
     if (tabName === 'vault') tabName = 'files';
 
     // Close the full-screen photo editor if open — otherwise the tab switch
@@ -18,7 +19,7 @@ window.switchTab = function (tabName) {
     const vm = el('video-modal');
     const isMinimized = vm && vm.classList.contains('minimized');
 
-    if (!isMinimized) {
+    if (!isMinimized && !preservePlayer) {
         const vp = el('video-player');
         if (vp) {
             try { vp.pause(); } catch (e) { }
@@ -128,7 +129,7 @@ window.switchTab = function (tabName) {
         } else {
             const fileGrid = el('file-grid');
             if (fileGrid) fileGrid.style.display = 'grid';
-            if (!window.vaultLoaded) {
+            if (!window.vaultLoaded && !deferFolderLoad) {
                 window.vaultLoaded = true;
                 console.log('[Lazy Load] First time entering Files Tab, performing directory load...');
                 // Ignore a lastPath that points at another tab's default folder —
@@ -250,4 +251,3 @@ window.initTabListeners = function () {
         });
     }
 };
-

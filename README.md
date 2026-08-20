@@ -76,6 +76,19 @@ does not retry. Install the daily midnight local-time task with:
 
 ## Development
 
+### Prioritize a direct Explorer launch
+
+Use `--prioritize-player` before a local video path to start playback before
+Vault Explorer scans the containing folder:
+
+```powershell
+vault-explorer.exe --prioritize-player "C:\Media\example.mp4"
+```
+
+Use this form in the Windows Explorer file-association command when direct
+playback should take priority. Without the flag, regular CLI launches preserve
+the normal home-tab startup behavior.
+
 Currently transitioning to a robust web-based media server while maintaining the rich desktop client functionality. The app is built with Electron and utilizes local FFmpeg and PowerShell scripts for backend processing.
 
 Check the `ROADMAP.md` for our current implementation status across all application tabs.

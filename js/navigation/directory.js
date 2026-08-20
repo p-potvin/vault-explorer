@@ -49,6 +49,12 @@ function clearSearchBox() {
     if (cb) cb.style.display = 'none';
 }
 
+function emitDirectoryLoaded(realPath, items) {
+    window.dispatchEvent(new CustomEvent('vault-directory-loaded', {
+        detail: { realPath, items: Array.isArray(items) ? items : [] }
+    }));
+}
+
 async function loadDirectory(navPath, realPath, useCache = false, targetFolderId = undefined) {
     if (!realPath && navPath !== 'root') return;
 
@@ -106,6 +112,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                 window.allItems = cachedItems;
                 if (navPath === 'root') window._rootItemsCache = cachedItems;
                 window.applyFilters();
+                emitDirectoryLoaded(realPath, cachedItems);
                 loadedFromCache = true;
             }
         } catch (cacheErr) {
@@ -136,10 +143,12 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
 
         (async () => {
             try {
+                if (Array.isArray(window.__launchPriorityTrace)) window.__launchPriorityTrace.push('folder-scan');
                 const freshItems = await window.electronAPI.scanDirectory(realPath);
                 window.allItems = freshItems;
                 if (navPath === 'root') window._rootItemsCache = freshItems;
                 window.applyFilters();
+                emitDirectoryLoaded(realPath, freshItems);
 
                 // Content is rendered — hide the loading overlay NOW. The
                 // per-video duration probe below sleeps 150ms/video and used to

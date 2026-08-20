@@ -2,6 +2,7 @@ const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
 const { app } = require('electron');
+const { getOfflineCloudPaths } = require('./cloud-files');
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts', '.m2ts']);
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif', '.avif', '.tiff', '.tif', '.svg', '.ico']);
@@ -116,9 +117,11 @@ async function exists(filePath) {
 async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
     const output = [];
     const globalThumbsDir = vaultRoot ? path.join(vaultRoot, '.thumbs') : null;
+    const offlinePaths = await getOfflineCloudPaths(filesArray);
 
     async function processFile(filePath) {
         try {
+            if (offlinePaths.has(filePath)) return;
             const type = classifyFile(filePath);
             const ext = path.extname(filePath).toLowerCase();
             const dir = path.dirname(filePath);
@@ -194,7 +197,7 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
 
             output.push({
                 name, path: filePath, type, poster, thumbnail: poster, hoverWebm,
-                size: stat.size, mtime: stat.mtimeMs,
+                size: stat.size, mtime: stat.mtimeMs, created: stat.birthtimeMs || stat.ctimeMs,
                 mtimeFormatted: new Date(stat.mtimeMs).toISOString().slice(0, 16).replace('T', ' '),
                 ext, duration: meta?.duration || 0, width: meta?.width || null, height: meta?.height || null,
                 codec: meta?.codec || null, fps: meta?.fps || null, audioCodec: meta?.audioCodec || null,
@@ -217,7 +220,9 @@ function registerScannerHandlers(ipcMain) {
     ipcMain.handle('get-cached-directory', async (_event, dirPath) => {
         if (!dirPath) return [];
         const cache = await loadCache();
-        return cache[dirPath.toLowerCase().replace(/\\/g, '/')]?.items || [];
+        const items = cache[dirPath.toLowerCase().replace(/\\/g, '/')]?.items || [];
+        const offlinePaths = await getOfflineCloudPaths(items.map((item) => item.path));
+        return items.filter((item) => !offlinePaths.has(item.path));
     });
 
     ipcMain.handle('scan-directory', async (_event, dirPath) => {

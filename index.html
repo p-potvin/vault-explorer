@@ -612,16 +612,24 @@
     </div>
   </div>
 
+  <div id="settings-backdrop" class="settings-backdrop" aria-hidden="true"></div>
   <!-- Settings Panel Console Modal -->
   <div id="settings-panel" class="vw-console-shell settings-panel" role="dialog" aria-modal="true"
     aria-label="Settings Panel">
     <div class="settings-panel-header-bar"
       style="font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; color: var(--vault-accent); margin-bottom: 16px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vault-border); padding-bottom: 10px; user-select: none;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        ⚙️ <span class="settings-panel-header">Settings / Paramètres</span>
+      <div class="settings-panel-header-left">
+        <span class="settings-panel-cog" aria-hidden="true">⚙</span>
+        <span class="settings-panel-header">Settings / Paramètres</span>
       </div>
-      <button onclick="document.getElementById('settings-panel').style.display = 'none';"
+      <button id="settings-close" type="button"
         style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 16px;">✕</button>
+    </div>
+    <div class="settings-section-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" class="settings-section-tab" data-settings-section="general" role="tab" aria-selected="true">General</button>
+      <button type="button" class="settings-section-tab" data-settings-section="playback" role="tab" aria-selected="false">Playback</button>
+      <button type="button" class="settings-section-tab" data-settings-section="library" role="tab" aria-selected="false">Library</button>
+      <button type="button" class="settings-section-tab" data-settings-section="ai" role="tab" aria-selected="false">AI</button>
     </div>
     <div class="settings-panel-grid">
       <div>
@@ -699,6 +707,24 @@
         </select>
       </div>
 
+      <div>
+        <label for="settings-playback-sort" id="label-playback-sort"
+          style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Playback Folder Order:</label>
+        <select id="settings-playback-sort"
+          style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+          <option value="mtime-desc">Date Modified (Newest First)</option>
+          <option value="created-desc">Date Created (Newest First)</option>
+          <option value="mtime-asc">Date Modified (Oldest First)</option>
+          <option value="created-asc">Date Created (Oldest First)</option>
+          <option value="name-asc">Name (A–Z)</option>
+          <option value="name-desc">Name (Z–A)</option>
+          <option value="size-desc">Size (Largest First)</option>
+          <option value="size-asc">Size (Smallest First)</option>
+          <option value="duration-desc">Length (Longest First)</option>
+          <option value="duration-asc">Length (Shortest First)</option>
+        </select>
+      </div>
+
       <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
         <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate);">Remember
           Playback Pos:</span>
@@ -757,8 +783,8 @@
         <span id="label-tab-folders-heading"
           style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--vault-accent); display: block; margin-bottom: 2px; letter-spacing: 0.05em;">Default
           Folders</span>
-        <p style="font-size: 10px; color: var(--vault-slate); font-family: var(--font-mono); margin: 0;">Vault Files
-          uses the global default folder above. Other tabs can override it here.</p>
+        <p id="library-settings-description" style="font-size: 10px; color: var(--vault-slate); font-family: var(--font-mono); margin: 0;">Vault Files
+          starts on the selected homepage tab. Set the folders that each library tab opens here.</p>
         <div>
           <label for="settings-default-folder-photoalbums"
             style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Photo
@@ -881,7 +907,7 @@
 
 
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px;">
-        <button id="settings-btn-benchmark"
+        <button id="settings-btn-benchmark" hidden
           style="background:var(--vault-console-surface); color:var(--vault-gold); border:1px solid var(--vault-gold); padding:5px 10px; border-radius:4px; font-weight:600; font-family:var(--font-body); cursor:pointer; font-size:10.5px; transition: background 0.2s;"
           type="button">ASR Benchmark</button>
         <button id="settings-btn-save"

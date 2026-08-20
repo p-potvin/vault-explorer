@@ -2,11 +2,40 @@ const fs = require('fs');
 const path = require('path');
 const { BrowserWindow } = require('electron');
 const utils = require('./utils');
+const { isOfflineCloudFile } = require('./cloud-files');
 
 let totalBatchCount = 0;
 let completedBatchCount = 0;
 
-const backgroundFfmpegQueue = new utils.PriorityQueue();
+class PreviewQueue {
+    constructor(concurrency) {
+        this.concurrency = concurrency;
+        this.running = 0;
+        this.queue = [];
+    }
+
+    push(task) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ task, resolve, reject });
+            this.drain();
+        });
+    }
+
+    drain() {
+        while (this.running < this.concurrency && this.queue.length > 0) {
+            const next = this.queue.shift();
+            this.running++;
+            Promise.resolve().then(next.task).then(next.resolve, next.reject).finally(() => {
+                this.running--;
+                this.drain();
+            });
+        }
+    }
+}
+
+// A preview includes validation, thumbnail extraction, and WebM generation.
+// Two workers keep it responsive without admitting a large FFmpeg burst.
+const backgroundFfmpegQueue = new PreviewQueue(2);
 const activeQueuePaths = new Set();
 const benchmarkPath = path.join(__dirname, '..', 'BENCHMARKS.md');
 
@@ -22,6 +51,10 @@ function writeBenchmark(entry) {
 async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false, silent = false) {
     const activeWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
     const finalSender = silent ? null : (sender || (activeWindow ? activeWindow.webContents : null));
+
+    if (await isOfflineCloudFile(videoPath)) {
+        throw new Error('File is not available offline; preview generation was skipped');
+    }
 
     if (finalSender && !finalSender.isDestroyed()) {
         finalSender.send('generate-webm-progress', {
@@ -42,32 +75,46 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     let hasAudio = meta.hasAudio;
     let hasVideo = meta.hasVideo;
     let isValid = meta.isValid;
+    let isValidCheckedAt = meta.isValidCheckedAt;
     let duration = 0;
 
-    // If metadata fields are missing in sidecar, query with ffprobe and save it
-    if (hasAudio === undefined || hasVideo === undefined || isValid === undefined) {
+    // Audio is optional for a preview. Probe only stream metadata first; the
+    // cached validity flag below is based on up to three video-only samples.
+    if (hasAudio === undefined || hasVideo === undefined) {
         const info = await utils.getVideoMetadata(videoPath);
         hasAudio = info.hasAudio;
         hasVideo = info.hasVideo;
-        isValid = info.isValid;
         duration = info.duration;
 
         meta.hasAudio = hasAudio;
         meta.hasVideo = hasVideo;
-        meta.isValid = isValid;
-        try {
-            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-        } catch (e) {
-            console.error(`[main:preview] Failed to write sidecar metadata: ${e.message}`);
-        }
     } else {
         duration = await utils.getVideoDuration(videoPath);
+    }
+
+    if (typeof isValid !== 'boolean' || !isValidCheckedAt) {
+        const validation = hasVideo
+            ? await utils.validateVideoSamples(videoPath, duration)
+            : { isValid: false, reason: 'No video stream found', sampleTime: null };
+        isValid = validation.isValid;
+        isValidCheckedAt = new Date().toISOString();
+        meta.isValid = isValid;
+        meta.isValidCheckedAt = isValidCheckedAt;
+        meta.isValidReason = validation.reason;
+        meta.isValidSampleTime = validation.sampleTime;
+        meta.isValidSamplesChecked = validation.samplesChecked;
+    }
+    meta.duration = duration;
+    try {
+        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+    } catch (e) {
+        console.error(`[main:preview] Failed to write sidecar metadata: ${e.message}`);
     }
 
     console.log(`[main:preview] Input: ${videoPath} -> thumb: ${thumbPath}, webm: ${hoverWebmPath}, force=${force}`);
 
     if (!isValid) {
-        console.log(`[main:preview] Skipping invalid video: ${videoPath} (hasVideo=${hasVideo}, hasAudio=${hasAudio}, isValid=${isValid})`);
+        console.log(`[main:preview] Skipping invalid video: ${videoPath} (hasVideo=${hasVideo}, hasAudio=${hasAudio}, checkedAt=${isValidCheckedAt})`);
         if (finalSender && !finalSender.isDestroyed()) {
             finalSender.send('generate-webm-progress', {
                 videoPath,
@@ -116,7 +163,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     let thumbTimeMs = null;
     const middleTime = duration > 0 ? (duration / 2).toFixed(2) : '5.00';
     try {
-        await utils.runLowPriorityProcess('ffmpeg', [
+        await utils.runFfmpegWithNvidiaFallback([
             '-y',
             '-ss', middleTime,
             '-i', videoPath,
@@ -130,7 +177,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         ]);
         if (!fs.existsSync(thumbWritePath)) {
             console.log(`[main:preview] Keyframe select produced no file, falling back to simple frame capture at ${middleTime}`);
-            await utils.runLowPriorityProcess('ffmpeg', [
+            await utils.runFfmpegWithNvidiaFallback([
                 '-y',
                 '-ss', middleTime,
                 '-i', videoPath,
@@ -146,7 +193,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     } catch (e) {
         console.error("Failed to generate keyframe thumbnail:", e.message);
         try {
-            await utils.runLowPriorityProcess('ffmpeg', [
+            await utils.runFfmpegWithNvidiaFallback([
                 '-y',
                 '-ss', middleTime,
                 '-i', videoPath,
@@ -170,7 +217,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
         // Use runLowPriorityProcess which handles priority, thread limiting, and cleanup
         const runFfmpegPromise = (args) => {
-            return utils.runLowPriorityProcess('ffmpeg', args);
+            return utils.runFfmpegWithNvidiaFallback(args);
         };
 
         if (duration <= 100) {
@@ -444,7 +491,9 @@ function registerPreviewHandlers(ipcMain) {
 
         console.log(`[main:generate-webm] Manual extraction requested for: ${base}`);
         try {
-            await generateThumbAndPreview(videoPath, thumbPath, webmPath, event.sender, true);
+            await backgroundFfmpegQueue.push(() =>
+                generateThumbAndPreview(videoPath, thumbPath, webmPath, event.sender, true)
+            );
             const success = fs.existsSync(thumbPath) && fs.existsSync(webmPath);
             if (success) {
                 return { success: true, thumbnail: thumbPath, hoverWebm: webmPath };
@@ -468,8 +517,9 @@ function registerPreviewHandlers(ipcMain) {
             return false;
         }
 
-        // Limit the active processing batch size to prevent locking the main thread or exhausting process limits
-        const candidateItems = items.slice(0, 80);
+        // Queue every requested item. PreviewQueue is the actual resource bound
+        // and runs at most two preview jobs concurrently.
+        const candidateItems = items;
         let added = 0;
 
         for (const item of candidateItems) {

@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteItem: (p) => ipcRenderer.invoke('delete-item', p),
   getFolderSizeBackground: (dirPath) => ipcRenderer.invoke('get-folder-size-background', dirPath),
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getLaunchIntent: () => ipcRenderer.invoke('get-launch-intent'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   getTheme: () => ipcRenderer.invoke('get-theme'),
   setTheme: (t) => ipcRenderer.invoke('set-theme', t),
@@ -37,6 +38,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpscaleStatus: (cb) => ipcRenderer.on('upscale-status', (_, data) => cb(data)),
   offUpscaleStatus: () => ipcRenderer.removeAllListeners('upscale-status'),
   findSubtitles: (videoPath) => ipcRenderer.invoke('find-subtitles', videoPath),
+  prepareSubtitleFile: (subtitlePath) => ipcRenderer.invoke('prepare-subtitle-file', subtitlePath),
+  chooseSubtitleFile: (videoPath) => ipcRenderer.invoke('choose-subtitle-file', videoPath),
   onWebmProgress: (cb) => ipcRenderer.on('generate-webm-progress', (_, data) => cb(data)),
   offWebmProgress: () => ipcRenderer.removeAllListeners('generate-webm-progress'),
   // One call per menu action. Each starts only its own pipeline: asking for

@@ -1,6 +1,56 @@
 // js/settings/core.js - settings panel wiring (open/save/dismiss) + sub-module bootstrapping
 window.initSettingsListeners = function initSettingsListeners() {
 
+    const grid = document.querySelector('.settings-panel-grid');
+    const sectionForControl = {
+        general: ['pill-tag-input-glob', 'settings-default-folder', 'settings-default-theme', 'settings-default-lang', 'settings-minimize-to-tray', 'settings-single-instance', 'settings-dev-mode'],
+        playback: ['settings-default-sub-lang', 'settings-sub-font-size', 'settings-playback-sort', 'settings-remember-position', 'settings-mute-previews'],
+        library: ['settings-default-home-tab', 'settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-misc'],
+        ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma'],
+    };
+    let activeSettingsSection = 'general';
+    const closeSettings = () => {
+        el('settings-panel').style.display = 'none';
+        const backdrop = el('settings-backdrop');
+        if (backdrop) backdrop.style.display = 'none';
+    };
+
+    function findSettingsCell(controlId) {
+        let node = el(controlId);
+        while (node && node.parentElement !== grid) node = node.parentElement;
+        return node;
+    }
+
+    function showSettingsSection(section) {
+        activeSettingsSection = section;
+        if (grid) {
+            grid.querySelectorAll('[data-settings-section]').forEach((cell) => {
+                cell.hidden = cell.dataset.settingsSection !== section;
+            });
+        }
+        document.querySelectorAll('.settings-section-tab').forEach((tab) => {
+            const active = tab.dataset.settingsSection === section;
+            tab.setAttribute('aria-selected', String(active));
+            tab.tabIndex = active ? 0 : -1;
+        });
+    }
+
+    if (grid) {
+        Object.entries(sectionForControl).forEach(([section, controlIds]) => {
+            controlIds.forEach((controlId, order) => {
+                const cell = findSettingsCell(controlId);
+                if (cell) {
+                    cell.dataset.settingsSection = section;
+                    cell.style.setProperty('--settings-order', String(order));
+                }
+            });
+        });
+        document.querySelectorAll('.settings-section-tab').forEach((tab) => {
+            tab.addEventListener('click', () => showSettingsSection(tab.dataset.settingsSection));
+        });
+        showSettingsSection(activeSettingsSection);
+    }
+
 
     const inputGlob = document.getElementById('pill-tag-input-glob');
     if (inputGlob) {
@@ -30,12 +80,14 @@ window.initSettingsListeners = function initSettingsListeners() {
             const backdrop = el('settings-backdrop');
             if (backdrop) backdrop.style.display = isOpening ? 'block' : 'none';
             if (isOpening) {
+                showSettingsSection(activeSettingsSection);
                 pillTagLoad(window.appSettings.globExclusions || []);
                 el('settings-default-folder').value = window.appSettings.defaultFolder || '';
                 el('settings-default-theme').value = window.appSettings.defaultTheme || 'vaultwares-revisited-console';
                 el('settings-default-lang').value = window.appSettings.defaultLang || 'en';
                 el('settings-default-sub-lang').value = window.appSettings.defaultSubLang || 'original';
                 el('settings-sub-font-size').value = window.appSettings.subFontSize || '20px';
+                el('settings-playback-sort').value = window.appSettings.playbackSort || 'mtime-desc';
                 el('settings-remember-position').checked = window.appSettings.rememberPosition !== false;
                 el('settings-mute-previews').checked = window.appSettings.mutePreviews === true;
                 el('settings-minimize-to-tray').checked = window.appSettings.minimizeToTray === true;
@@ -61,19 +113,16 @@ window.initSettingsListeners = function initSettingsListeners() {
         // Close on backdrop or outside click without saving
         const backdrop = el('settings-backdrop');
         if (backdrop) {
-            backdrop.addEventListener('click', () => {
-                el('settings-panel').style.display = 'none';
-                backdrop.style.display = 'none';
-            });
+            backdrop.addEventListener('click', closeSettings);
         }
+        const closeButton = el('settings-close');
+        if (closeButton) closeButton.addEventListener('click', closeSettings);
 
         document.addEventListener('click', (e) => {
             const panel = el('settings-panel');
             if (panel && panel.style.display === 'flex') {
                 if (!panel.contains(e.target) && !trigger.contains(e.target)) {
-                    panel.style.display = 'none';
-                    const backdrop = el('settings-backdrop');
-                    if (backdrop) backdrop.style.display = 'none';
+                    closeSettings();
                 }
             }
         });
@@ -136,6 +185,7 @@ window.initSettingsListeners = function initSettingsListeners() {
             window.appSettings.lang = chosenLang;
             if (typeof window.setLanguage === 'function') window.setLanguage(chosenLang);
             window.appSettings.defaultSubLang = el('settings-default-sub-lang').value;
+            window.appSettings.playbackSort = el('settings-playback-sort').value;
 
             const subSize = el('settings-sub-font-size').value;
             window.appSettings.subFontSize = subSize;
@@ -162,9 +212,7 @@ window.initSettingsListeners = function initSettingsListeners() {
             if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
             await window.electronAPI.saveSettings(window.appSettings);
             showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
-            el('settings-panel').style.display = 'none';
-            const backdrop = el('settings-backdrop');
-            if (backdrop) backdrop.style.display = 'none';
+            closeSettings();
 
             if (hasStructuralChange) {
                 console.log('[settings] Structural change detected (exclusions/folder). Reloading directory...');

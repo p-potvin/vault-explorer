@@ -2,6 +2,8 @@
 
 window.currentPlayingIndex = -1;
 window.currentPlayingItem = null;
+window.currentPlaybackItems = [];
+window.currentPlaybackFolder = '';
 window.autoplayTimer = null;
 window.autoplayCountdown = 5;
 window.autoplayMode = localStorage.getItem('autoplayMode') || '5s'; // off, instant, 3s, 5s
@@ -10,12 +12,94 @@ window.autoplayEnabled = (window.autoplayMode !== 'off');
 const PLAY_ICON_SVG = window.icons ? window.icons.play('', 'width:16px; height:16px; display:block;') : '';
 const PAUSE_ICON_SVG = window.icons ? window.icons.pause('', 'width:16px; height:16px; display:block;') : '';
 
+function getItemDirectory(itemPath) {
+    if (typeof itemPath !== 'string') return '';
+    const separator = Math.max(itemPath.lastIndexOf('\\'), itemPath.lastIndexOf('/'));
+    return separator >= 0 ? itemPath.slice(0, separator) : '';
+}
+
+function getPlaybackItems() {
+    return Array.isArray(window.currentPlaybackItems) && window.currentPlaybackItems.length > 0
+        ? window.currentPlaybackItems
+        : (window.displayedItems || []);
+}
+
+function getAdjacentPlaybackIndex(direction) {
+    const items = getPlaybackItems();
+    let index = window.currentPlayingIndex + direction;
+    while (index >= 0 && index < items.length && items[index].type !== 'video') index += direction;
+    return index;
+}
+
+function sortPlaybackItems(items) {
+    const [field, direction] = String((window.appSettings && window.appSettings.playbackSort) || 'mtime-desc').split('-');
+    const key = field === 'created' ? 'created' : field;
+    const multiplier = direction === 'asc' ? 1 : -1;
+    return [...items].sort((left, right) => {
+        let a = left[key];
+        let b = right[key];
+        if (key === 'name') {
+            a = String(a || '').toLocaleLowerCase();
+            b = String(b || '').toLocaleLowerCase();
+        } else {
+            a = Number(a) || 0;
+            b = Number(b) || 0;
+        }
+        if (a < b) return -1 * multiplier;
+        if (a > b) return multiplier;
+        return String(left.name || '').localeCompare(String(right.name || ''));
+    });
+}
+
+async function buildPlaybackContext(item) {
+    const folder = getItemDirectory(item && item.path);
+    let items = window.displayedItems || [];
+    if (folder && window.electronAPI && typeof window.electronAPI.scanDirectory === 'function') {
+        if (window.currentPlaybackFolder !== folder || !window.currentPlaybackItems.length) {
+            try {
+                window.currentPlaybackItems = sortPlaybackItems(await window.electronAPI.scanDirectory(folder));
+                window.currentPlaybackFolder = folder;
+            } catch (error) {
+                console.warn('[player] Could not scan playback folder:', error.message);
+                window.currentPlaybackItems = items;
+            }
+        }
+        items = window.currentPlaybackItems;
+    }
+    const normalize = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
+    const index = items.findIndex((candidate) => normalize(candidate.path) === normalize(item && item.path));
+    return { folder, items, index: index >= 0 ? index : items.indexOf(item) };
+}
+
+window.hydratePlaybackFolderContext = async function hydratePlaybackFolderContext(item) {
+    const context = await buildPlaybackContext(item);
+    if (context.index >= 0) {
+        window.currentPlaybackItems = context.items;
+        window.currentPlaybackFolder = context.folder;
+        window.currentPlayingIndex = context.index;
+    }
+    return context;
+};
+
+window.setPlaybackFolderContext = function setPlaybackFolderContext(items, item) {
+    const sortedItems = sortPlaybackItems(Array.isArray(items) ? items : []);
+    const normalize = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
+    const index = sortedItems.findIndex((candidate) => normalize(candidate.path) === normalize(item && item.path));
+    if (index >= 0) {
+        window.currentPlaybackItems = sortedItems;
+        window.currentPlaybackFolder = getItemDirectory(item.path);
+        window.currentPlayingIndex = index;
+    }
+    return index;
+};
+
 async function handlePlayerContextMenu(action, menuItem) {
     if (!action || action === 'closed' || action === 'show' || action === 'copied') return;
 
     const vp = el('video-player');
     const item = window.currentPlayingItem || {};
     const itemPath = item.path || menuItem.path;
+    const itemFolder = getItemDirectory(itemPath) || window.currentRealPath;
 
     if (action === 'play-pause') {
         if (!vp) return;
@@ -35,7 +119,7 @@ async function handlePlayerContextMenu(action, menuItem) {
         else document.exitFullscreen();
     } else if (action === 'generate-webm') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
-        window.electronAPI.generateWebm(itemPath, window.currentRealPath).then(async res => {
+        window.electronAPI.generateWebm(itemPath, itemFolder).then(async res => {
             if (!res.success) {
                 window.showToast('Preview failed: ' + res.error, 'error');
             } else {
@@ -56,7 +140,7 @@ async function handlePlayerContextMenu(action, menuItem) {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
         window.showToast('Enhancing audio in background...', 'success');
         const audioBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
-        window.electronAPI.enhanceAudio(itemPath, window.currentRealPath, { volumeBoost: audioBoost }).then(res => {
+        window.electronAPI.enhanceAudio(itemPath, itemFolder, { volumeBoost: audioBoost }).then(res => {
             if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                 window.showToast(`${menuItem.name || 'Video'}: Audio enhanced`, 'success');
             } else {
@@ -72,7 +156,7 @@ async function handlePlayerContextMenu(action, menuItem) {
             window.appSettings.preferredASRLangs = langs;
             window.electronAPI.saveSettings(window.appSettings);
             window.showToast(`Generating subtitles for ${menuItem.name || 'video'}: ${langs.join(', ').toUpperCase()}`, 'success');
-            window.electronAPI.generateSubtitles(itemPath, window.currentRealPath, { language: langs[0] }).then(res => {
+            window.electronAPI.generateSubtitles(itemPath, itemFolder, { language: langs[0] }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');
                     refreshDirectoryWithScrollPreservation();
@@ -91,7 +175,7 @@ async function handlePlayerContextMenu(action, menuItem) {
             window.electronAPI.saveSettings(window.appSettings);
             window.showToast(`Translating subtitles to ${lang[0].toUpperCase()} for ${menuItem.name || 'video'}...`, 'success');
             const sourceLanguage = ((window.appSettings && window.appSettings.preferredASRLangs) || ['en'])[0];
-            window.electronAPI.translateVideo(itemPath, window.currentRealPath, lang[0], { sourceLanguage }).then(res => {
+            window.electronAPI.translateVideo(itemPath, itemFolder, lang[0], { sourceLanguage }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Translation complete`, 'success');
                     refreshDirectoryWithScrollPreservation();
@@ -190,7 +274,7 @@ function updateVolumeIconUI(vol) {
     btnVol.innerHTML = window.icons ? window.icons.volume('', 'width:16px; height:16px; display:block;', pathContent) : '';
 }
 
-async function playItem(idx) {
+async function playItem(idx, sourceItems = null) {
     if (window.autoplayTimer) {
         clearInterval(window.autoplayTimer);
         window.autoplayTimer = null;
@@ -207,8 +291,16 @@ async function playItem(idx) {
     if (pipPrevBtn) pipPrevBtn.style.display = 'flex';
     if (pipNextBtn) pipNextBtn.style.display = 'flex';
 
-    if (idx < 0 || idx >= window.displayedItems.length) return;
-    const itm = window.displayedItems[idx];
+    let items = sourceItems || window.displayedItems || [];
+    let itm = items[idx];
+    if (!itm) return;
+    if (!sourceItems) {
+        const context = await buildPlaybackContext(itm);
+        items = context.items;
+        idx = context.index;
+        itm = items[idx];
+    }
+    if (!itm) return;
     if (itm.type !== 'video') return;
 
 
@@ -218,6 +310,8 @@ async function playItem(idx) {
 
     window.currentPlayingIndex = idx;
     window.currentPlayingItem = itm;
+    window.currentPlaybackItems = items;
+    window.currentPlaybackFolder = getItemDirectory(itm.path);
     trickFrames = [];
     vp.dataset.trickplay = itm.trickplayFolder || '';
     const activePath = itm.enhancedPath || itm.path;
@@ -307,14 +401,15 @@ async function playItem(idx) {
 }
 
 function updateNavHover(idx, btnEl) {
-    if (idx < 0 || idx >= window.displayedItems.length) {
+    const items = getPlaybackItems();
+    if (idx < 0 || idx >= items.length || !items[idx]) {
         navHoverPreview.style.display = 'none';
         return;
     }
-    let itm = window.displayedItems[idx];
+    let itm = items[idx];
     const rect = btnEl.getBoundingClientRect();
 
-    let thumbUrl = window.sanitizePath(itm.thumbnail || '');
+    let thumbUrl = window.sanitizePath(itm.thumbnail || itm.hoverWebm || '');
     if (thumbUrl) {
         navHoverPreview.style.backgroundImage = `url('${thumbUrl}')`;
         navHoverPreview.innerText = itm.name;
@@ -322,7 +417,11 @@ function updateNavHover(idx, btnEl) {
         navHoverPreview.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
         navHoverPreview.style.display = 'flex';
     } else {
-        navHoverPreview.style.display = 'none';
+        navHoverPreview.style.backgroundImage = 'none';
+        navHoverPreview.innerText = itm.name || '';
+        navHoverPreview.style.left = (rect.left + (rect.width / 2)) + 'px';
+        navHoverPreview.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+        navHoverPreview.style.display = 'flex';
     }
 }
 
@@ -509,7 +608,7 @@ function initPlayer() {
                     window.electronAPI.saveSettings(window.appSettings).catch(() => { });
                 }
             } else if (window.currentPlayingIndex !== -1) {
-                const closingItm = window.displayedItems[window.currentPlayingIndex];
+                const closingItm = getPlaybackItems()[window.currentPlayingIndex];
                 if (closingItm && closingItm.path) {
                     window.appSettings.playbackPositions = window.appSettings.playbackPositions || {};
                     const completed = vp.currentTime >= vp.duration - 15;
@@ -553,29 +652,25 @@ function initPlayer() {
     });
 
     btnPrev.addEventListener('mouseenter', () => {
-        let prevIdx = window.currentPlayingIndex - 1;
-        while (prevIdx >= 0 && window.displayedItems[prevIdx].type !== 'video') prevIdx--;
+        const prevIdx = getAdjacentPlaybackIndex(-1);
         updateNavHover(prevIdx, btnPrev);
     });
     btnPrev.addEventListener('mouseleave', () => navHoverPreview.style.display = 'none');
 
     btnNext.addEventListener('mouseenter', () => {
-        let nextIdx = window.currentPlayingIndex + 1;
-        while (nextIdx < window.displayedItems.length && window.displayedItems[nextIdx].type !== 'video') nextIdx++;
+        const nextIdx = getAdjacentPlaybackIndex(1);
         updateNavHover(nextIdx, btnNext);
     });
     btnNext.addEventListener('mouseleave', () => navHoverPreview.style.display = 'none');
 
     btnPrev.addEventListener('click', () => {
-        let prevIdx = window.currentPlayingIndex - 1;
-        while (prevIdx >= 0 && window.displayedItems[prevIdx].type !== 'video') prevIdx--;
-        if (prevIdx >= 0) playItem(prevIdx);
+        const prevIdx = getAdjacentPlaybackIndex(-1);
+        if (prevIdx >= 0) playItem(prevIdx, getPlaybackItems());
     });
 
     btnNext.addEventListener('click', () => {
-        let nextIdx = window.currentPlayingIndex + 1;
-        while (nextIdx < window.displayedItems.length && window.displayedItems[nextIdx].type !== 'video') nextIdx++;
-        if (nextIdx < window.displayedItems.length) playItem(nextIdx);
+        const nextIdx = getAdjacentPlaybackIndex(1);
+        if (nextIdx < getPlaybackItems().length) playItem(nextIdx, getPlaybackItems());
     });
 
     const savedVol = localStorage.getItem('player-volume');
@@ -658,7 +753,7 @@ function initPlayer() {
                     });
                 }
             } else if (window.currentPlayingIndex !== -1) {
-                const itm = window.displayedItems[window.currentPlayingIndex];
+                const itm = getPlaybackItems()[window.currentPlayingIndex];
                 if (itm && itm.path) {
                     window.electronAPI.setWatchProgress({
                         mediaType: 'local',
@@ -721,7 +816,7 @@ function initPlayer() {
                 });
             }
         } else if (window.currentPlayingIndex !== -1) {
-            const itm = window.displayedItems[window.currentPlayingIndex];
+            const itm = getPlaybackItems()[window.currentPlayingIndex];
             if (itm && itm.path) {
                 window.electronAPI.markWatched({
                     mediaType: 'local',
@@ -730,18 +825,16 @@ function initPlayer() {
             }
         }
 
-        let currentIdx = parseInt(window.currentPlayingIndex, 10);
-        let nextIdx = currentIdx + 1;
-        while (nextIdx < window.displayedItems.length && window.displayedItems[nextIdx].type !== 'video') nextIdx++;
+        const nextIdx = getAdjacentPlaybackIndex(1);
 
         const overlay = el('video-ended-overlay');
         if (!overlay) return;
 
         const countdownEl = el('ended-countdown');
-        if (nextIdx < window.displayedItems.length) {
+        if (nextIdx < getPlaybackItems().length) {
             if (window.autoplayMode !== 'off') {
                 if (window.autoplayMode === 'instant') {
-                    playItem(nextIdx);
+                    playItem(nextIdx, getPlaybackItems());
                     return;
                 }
 
@@ -756,7 +849,7 @@ function initPlayer() {
                     if (window.autoplayCountdown <= 0) {
                         clearInterval(window.autoplayTimer);
                         overlay.style.display = 'none';
-                        playItem(nextIdx);
+                        playItem(nextIdx, getPlaybackItems());
                     } else {
                         countdownEl.innerText = `Next video in ${window.autoplayCountdown} seconds... (Click to play now)`;
                     }
@@ -775,12 +868,10 @@ function initPlayer() {
 
     el('ended-play-btn').addEventListener('click', () => {
         if (window.autoplayTimer) clearInterval(window.autoplayTimer);
-        let currentIdx = parseInt(window.currentPlayingIndex, 10);
-        let nextIdx = currentIdx + 1;
-        while (nextIdx < window.displayedItems.length && window.displayedItems[nextIdx].type !== 'video') nextIdx++;
-        if (nextIdx < window.displayedItems.length) {
+        const nextIdx = getAdjacentPlaybackIndex(1);
+        if (nextIdx < getPlaybackItems().length) {
             el('video-ended-overlay').style.display = 'none';
-            playItem(nextIdx);
+            playItem(nextIdx, getPlaybackItems());
         } else {
             // Replay the current video if we are at the end of the playlist
             el('video-ended-overlay').style.display = 'none';
@@ -799,13 +890,11 @@ function initPlayer() {
     });
 
     el('ended-countdown').addEventListener('click', () => {
-        let currentIdx = parseInt(window.currentPlayingIndex, 10);
-        let nextIdx = currentIdx + 1;
-        while (nextIdx < window.displayedItems.length && window.displayedItems[nextIdx].type !== 'video') nextIdx++;
-        if (nextIdx < window.displayedItems.length) {
+        const nextIdx = getAdjacentPlaybackIndex(1);
+        if (nextIdx < getPlaybackItems().length) {
             if (window.autoplayTimer) { clearInterval(window.autoplayTimer); window.autoplayTimer = null; }
             el('video-ended-overlay').style.display = 'none';
-            playItem(nextIdx);
+            playItem(nextIdx, getPlaybackItems());
         } else {
             // Replay if clicked at the end of playlist
             if (window.autoplayTimer) { clearInterval(window.autoplayTimer); window.autoplayTimer = null; }
@@ -820,6 +909,12 @@ function initPlayer() {
         btnPlay.innerHTML = PAUSE_ICON_SVG;
         const pipPlayBtn = el('pip-btn-play');
         if (pipPlayBtn) pipPlayBtn.textContent = '⏸';
+    });
+    vp.addEventListener('playing', () => {
+        if (Array.isArray(window.__launchPriorityTrace)) window.__launchPriorityTrace.push('playing');
+        if (window.currentPlayingItem) {
+            window.dispatchEvent(new CustomEvent('vault-player-started', { detail: window.currentPlayingItem }));
+        }
     });
     vp.addEventListener('pause', () => {
         btnPlay.innerHTML = PLAY_ICON_SVG;
@@ -1172,7 +1267,7 @@ function initPlayer() {
             if (window.currentPlayingItem) {
                 itm = window.currentPlayingItem;
             } else if (window.currentPlayingIndex !== -1) {
-                itm = window.displayedItems[window.currentPlayingIndex];
+                itm = getPlaybackItems()[window.currentPlayingIndex];
             }
             if (!itm || !itm.path) return;
 

@@ -10,16 +10,24 @@ const html = read('index.html');
 const en = read('js/translations.en.js');
 const qc = read('js/translations.qc.js');
 
-assert.match(main, /const singleInstanceEnabled = loadSettings\(\)\.singleInstance === true;/,
+assert.match(main, /VAULT_EXPLORER_FORCE_SINGLE_INSTANCE === '1'[\s\S]*VAULT_EXPLORER_E2E !== '1'/,
     'single-instance mode must be driven by the saved setting');
+assert.match(main, /VAULT_EXPLORER_E2E_USER_DATA[\s\S]*app\.setPath\('userData'/,
+    'E2E launches must be able to isolate their single-instance user data');
 assert.match(main, /app\.requestSingleInstanceLock\(\)/,
     'single-instance mode must acquire Electron\'s application lock');
 assert.match(main, /function getOpenFileFromArgs\(args, workingDirectory\)[\s\S]*path\.resolve\(workingDirectory, arg\)/,
     'relative paths must be resolved from the second instance working directory');
-assert.match(main, /app\.quit\(\);\s*process\.exit\(0\);/,
-    'a rejected second instance must exit before it can run startup cleanup');
-assert.match(main, /app\.on\('second-instance',[\s\S]*openFileInMainWindow\(getOpenFileFromArgs\(argv\.slice\(1\), workingDirectory\)\)/,
-    'a subsequent Explorer open must forward its file to the existing window');
+assert.match(main, /exitingSecondaryInstance = true;\s*app\.quit\(\);/,
+    'a rejected second instance must exit without destroying the primary process');
+assert.match(main, /if \(exitingSecondaryInstance\) return;[\s\S]*killAllOwnProcesses\(false\)/,
+    'a rejected second instance must skip startup cleanup while forwarding its intent');
+assert.match(main, /function getLaunchIntentFromArgs\(args, workingDirectory\)[\s\S]*prioritizePlayer: args\.includes\('--prioritize-player'\)/,
+    'the explicit priority argument must travel with the file launch request');
+assert.match(main, /app\.on\('second-instance',[\s\S]*openLaunchIntentInMainWindow\(getLaunchIntentFromArgs\(argv\.slice\(1\), workingDirectory\)\)/,
+    'a subsequent Explorer open must forward its full launch intent to the existing window');
+assert.match(main, /ipcMain\.handle\('get-launch-intent'/,
+    'the renderer must be able to read the initial launch intent before startup work begins');
 assert.ok(main.indexOf('requestSingleInstanceLock') < main.indexOf('app.whenReady'),
     'the Electron lock must be acquired before the app becomes ready');
 assert.match(html, /id="settings-single-instance"/,
