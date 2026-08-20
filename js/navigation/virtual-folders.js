@@ -298,10 +298,19 @@
             ? new Map(window.allItems.map(i => [i.path, i.type]))
             : null;
 
+        function guessType(p) {
+            const ext = (p.split('.').pop() || '').toLowerCase();
+            if (['mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'opus', 'wma', 'aiff', 'ape'].includes(ext)) return 'audio';
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'avif', 'tiff', 'tif'].includes(ext)) return 'image';
+            if (['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', 'flv', 'wmv'].includes(ext)) return 'video';
+            if (ext === 'enc') return 'encrypted';
+            return null;
+        }
+
         for (const raw of list) {
             const p = (typeof raw === 'string') ? raw : (raw && raw.path);
             if (!p) continue;
-            const itemType = (raw && raw.type) ? raw.type : (lookup ? lookup.get(p) : null);
+            const itemType = (raw && raw.type) ? raw.type : (lookup ? lookup.get(p) : guessType(p));
             if (itemType && !accept.has(itemType)) { rejected++; continue; }
             if (!bucket.includes(p)) { bucket.push(p); added++; }
         }

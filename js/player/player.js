@@ -119,7 +119,7 @@ async function handlePlayerContextMenu(action, menuItem) {
         else document.exitFullscreen();
     } else if (action === 'generate-webm') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
-        window.electronAPI.generateWebm(itemPath, itemFolder).then(async res => {
+        window.electronAPI.generateWebm(itemPath, window.currentRealPath).then(async res => {
             if (!res.success) {
                 window.showToast('Preview failed: ' + res.error, 'error');
             } else {
@@ -143,6 +143,9 @@ async function handlePlayerContextMenu(action, menuItem) {
         window.electronAPI.enhanceAudio(itemPath, itemFolder, { volumeBoost: audioBoost }).then(res => {
             if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                 window.showToast(`${menuItem.name || 'Video'}: Audio enhanced`, 'success');
+                if (typeof refreshDirectoryWithScrollPreservation === 'function') {
+                    refreshDirectoryWithScrollPreservation();
+                }
             } else {
                 window.showToast(`${menuItem.name || 'Video'}: Audio enhancement failed: ` + (res.error || 'Unknown'), 'error');
             }
@@ -159,7 +162,12 @@ async function handlePlayerContextMenu(action, menuItem) {
             window.electronAPI.generateSubtitles(itemPath, itemFolder, { language: langs[0] }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');
-                    refreshDirectoryWithScrollPreservation();
+                    if (typeof refreshDirectoryWithScrollPreservation === 'function') {
+                        refreshDirectoryWithScrollPreservation();
+                    }
+                    if (typeof window.loadActiveSubtitles === 'function') {
+                        window.loadActiveSubtitles(itemPath);
+                    }
                 } else {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles failed: ` + (res.error || 'Unknown'), 'error');
                 }
@@ -178,7 +186,12 @@ async function handlePlayerContextMenu(action, menuItem) {
             window.electronAPI.translateVideo(itemPath, itemFolder, lang[0], { sourceLanguage }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Translation complete`, 'success');
-                    refreshDirectoryWithScrollPreservation();
+                    if (typeof refreshDirectoryWithScrollPreservation === 'function') {
+                        refreshDirectoryWithScrollPreservation();
+                    }
+                    if (typeof window.loadActiveSubtitles === 'function') {
+                        window.loadActiveSubtitles(itemPath);
+                    }
                 } else {
                     window.showToast(`${menuItem.name || 'Video'}: Translation failed: ` + (res.error || 'Unknown'), 'error');
                 }
@@ -190,10 +203,12 @@ async function handlePlayerContextMenu(action, menuItem) {
         const vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
         const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
         const vsrBitrate = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
+
         window.showToast(`AI video enhancement started for ${menuItem.name || 'video'}…`, 'info');
         try {
             const res = await window.electronAPI.upscaleVideo({
                 path: itemPath,
+                vaultRoot: itemFolder,
                 quality: vsrQuality,
                 scale: vsrScale,
                 bitrate: vsrBitrate,
@@ -201,12 +216,44 @@ async function handlePlayerContextMenu(action, menuItem) {
             });
             if (res && res.success) {
                 window.showToast(`${menuItem.name || 'Video'}: enhancement complete`, 'success');
-                if (typeof window.refreshDirectoryWithScrollPreservation === 'function') window.refreshDirectoryWithScrollPreservation();
+                if (typeof window.refreshDirectoryWithScrollPreservation === 'function') {
+                    window.refreshDirectoryWithScrollPreservation();
+                }
             } else {
                 window.showToast(`${menuItem.name || 'Video'}: enhancement failed: ` + ((res && res.error) || 'Unknown'), 'error');
             }
         } catch (error) {
             window.showToast(`${menuItem.name || 'Video'}: enhancement failed: ${error.message}`, 'error');
+        }
+    } else if (action === 'revert-enhancements' || action.startsWith('revert-enhancement:')) {
+        if (!itemPath) { window.showToast('No video path available', 'error'); return; }
+        const which = action.startsWith('revert-enhancement:') ? action.split(':')[1] : null;
+        const WHAT = {
+            audio: { name: 'audio enhancement', warns: 'This deletes the enhanced copy.' },
+            video: { name: 'video enhancement', warns: 'This deletes the enhanced copy.' },
+            subtitles: { name: 'generated subtitles', warns: 'This deletes the generated .srt files.' },
+            translation: { name: 'translated subtitles', warns: 'This deletes the translated .srt files.' },
+        };
+        const detail = which ? WHAT[which] : null;
+        if (which && !detail) { window.showToast(`Unknown enhancement: ${which}`, 'error'); return; }
+
+        const subject = detail ? detail.name : 'all enhancements';
+        const warning = detail ? detail.warns : 'This deletes the enhanced copy and every generated subtitle file.';
+
+        if (await window.showConfirmDialog(
+            `Revert ${subject} for "${menuItem.name || 'this video'}"? ${warning}`, 'Revert Video Enhancements')) {
+            const res = await window.electronAPI.revertEnhancements(itemPath, which);
+            if (res && res.success) {
+                window.showToast(`Reverted ${subject}`, 'success');
+                if (typeof window.refreshDirectoryWithScrollPreservation === 'function') {
+                    window.refreshDirectoryWithScrollPreservation();
+                }
+                if (typeof window.loadActiveSubtitles === 'function') {
+                    window.loadActiveSubtitles(itemPath);
+                }
+            } else {
+                window.showToast(`Revert failed: ${(res && res.error) || 'Unknown error'}`, 'error');
+            }
         }
     } else if (action === 'properties') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
@@ -537,13 +584,25 @@ function initPlayer() {
             e.preventDefault();
             e.stopPropagation();
             const item = window.currentPlayingItem || {};
+            const itemPath = item.path || (vp.src ? decodeURIComponent(vp.src.replace('file:///', '').replace(/\//g, '\\')) : '');
+            let enhState = item.enhancements || {};
+            if (itemPath && window.electronAPI && typeof window.electronAPI.getEnhancementState === 'function') {
+                try {
+                    const res = await window.electronAPI.getEnhancementState(itemPath);
+                    if (res && res.success && res.state) {
+                        enhState = res.state;
+                    }
+                } catch (_) { }
+            }
             const menuItem = {
                 type: 'videoPlayer',
-                path: item.path || (vp.src ? decodeURIComponent(vp.src.replace('file:///', '').replace(/\//g, '\\')) : ''),
+                path: itemPath,
                 name: item.name || 'Video',
                 isPlaying: !vp.paused,
                 isMuted: vp.muted,
-                speed: vp.playbackRate
+                speed: vp.playbackRate,
+                enhancements: enhState,
+                isStreaming: !!item.isStreaming
             };
             const action = await window.electronAPI.showContextMenu(menuItem);
             await handlePlayerContextMenu(action, menuItem);

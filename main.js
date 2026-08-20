@@ -98,25 +98,38 @@ let isQuitting = false;
 let pendingLaunchIntent = null;
 let exitingSecondaryInstance = false;
 
-function getOpenFileFromArgs(args, workingDirectory) {
+function getOpenTargetFromArgs(args, workingDirectory) {
     for (const arg of args) {
         if (!arg || arg.startsWith('--')) continue;
         try {
             const resolvedPath = workingDirectory
                 ? path.resolve(workingDirectory, arg)
                 : path.resolve(arg);
-            if (fs.statSync(resolvedPath).isFile()) return resolvedPath;
+            if (fs.existsSync(resolvedPath)) {
+                const stat = fs.statSync(resolvedPath);
+                if (stat.isDirectory()) return { type: 'folder', path: resolvedPath };
+                if (stat.isFile()) return { type: 'file', path: resolvedPath };
+            }
         } catch (_) { }
     }
     return null;
 }
 
 function getLaunchIntentFromArgs(args, workingDirectory) {
-    const filePath = getOpenFileFromArgs(args, workingDirectory);
-    return filePath ? {
-        filePath,
+    const target = getOpenTargetFromArgs(args, workingDirectory);
+    if (!target) return null;
+    if (target.type === 'folder') {
+        return {
+            type: 'folder',
+            folderPath: target.path,
+            prioritizePlayer: false,
+        };
+    }
+    return {
+        type: 'file',
+        filePath: target.path,
         prioritizePlayer: args.includes('--prioritize-player'),
-    } : null;
+    };
 }
 
 function focusMainWindow() {
@@ -127,7 +140,7 @@ function focusMainWindow() {
 }
 
 function openLaunchIntentInMainWindow(intent) {
-    if (!intent || !intent.filePath) return;
+    if (!intent || (!intent.filePath && !intent.folderPath)) return;
     if (!mainWindow || mainWindow.isDestroyed()) {
         pendingLaunchIntent = intent;
         return;

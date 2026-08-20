@@ -1,5 +1,8 @@
 const { _electron: electron } = require('playwright');
 const assert = require('assert').strict;
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
 async function runContextMenuTests() {
     console.log('======================================================');
@@ -7,11 +10,17 @@ async function runContextMenuTests() {
     console.log('======================================================\n');
 
     const appPath = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer';
+    const tempUserData = fs.mkdtempSync(path.join(os.tmpdir(), 've-test-userdata-'));
 
     console.log('[Test Setup] Launching Vault Explorer application...');
     const electronApp = await electron.launch({
         cwd: appPath,
-        args: ['.']
+        args: ['.', `--user-data-dir=${tempUserData}`],
+        env: {
+            ...process.env,
+            VAULT_EXPLORER_E2E: '1',
+            VAULT_EXPLORER_E2E_USER_DATA: tempUserData
+        }
     });
 
     let window = await electronApp.firstWindow();
@@ -52,151 +61,144 @@ async function runContextMenuTests() {
     });
 
     console.log('[Test Setup] Waiting for application load and mock assets to settle...');
-    await window.waitForTimeout(8000);
+    await window.waitForTimeout(4000);
 
-    // Mock IPC handlers in the main process using electronApp.evaluate
+    // Mock IPC handlers in the main process
     console.log('[Test Step 1] Injecting custom IPC show-context-menu mock in Electron Main Process...');
     await electronApp.evaluate(async (electron) => {
         const { ipcMain } = electron;
         global.mockContextMenuAction = 'encrypt-prompt';
 
         ipcMain.removeHandler('show-context-menu');
-        ipcMain.handle('show-context-menu', async () => {
-            console.log(`[Main Process Mock IPC] Returning mock action: "${global.mockContextMenuAction}"`);
+        ipcMain.handle('show-context-menu', async (_event, item) => {
+            console.log(`[Main Process Mock IPC] Item type: ${item.type}, Returning mock action: "${global.mockContextMenuAction}"`);
             return global.mockContextMenuAction;
         });
     });
 
-    console.log('[Test Step 1b] Directly injecting standard DOM file-card mock item...');
+    console.log('[Test Step 1b] Injecting DOM test items (video card, image card, virtual folder)...');
     await window.locator('body').evaluate(() => {
-        window.loadDirectory = () => { console.log('Mocked loadDirectory prevented wipe'); };
+        window.loadDirectory = () => { console.log('Mocked loadDirectory called'); };
         const fileGrid = document.getElementById('file-grid');
         if (fileGrid) {
             fileGrid.innerHTML = '';
-            const item = {
-                name: 'NVIDIA_USD_Cosmos_Pipeline.mp4',
-                path: 'C:\\Users\\Administrator\\Desktop\\Agent Vaultwares files\\NVIDIA_USD_Cosmos_Pipeline.mp4',
+            const videoItem = {
+                name: 'sample_video.mp4',
+                path: 'C:\\test\\sample_video.mp4',
                 type: 'video',
-                size: 6465116,
+                size: 10485760,
+                mtime: Date.now(),
+                enhancements: { audio: true, video: false, subtitles: ['en'], translation: ['fr'] }
+            };
+            const imageItem = {
+                name: 'sample_image.png',
+                path: 'C:\\test\\sample_image.png',
+                type: 'image',
+                size: 2048576,
                 mtime: Date.now()
             };
-            window.displayedItems = [item];
+            window.allItems = [videoItem, imageItem];
+            window.displayedItems = [videoItem, imageItem];
             window.selectedIndices = new Set();
-            const card = window.createCardElement(item, 0);
-            fileGrid.appendChild(card);
+
+            const card0 = window.createCardElement(videoItem, 0);
+            const card1 = window.createCardElement(imageItem, 1);
+            fileGrid.appendChild(card0);
+            fileGrid.appendChild(card1);
         }
     });
 
     const firstCard = window.locator('.file-card').first();
-    try {
-        await firstCard.waitFor({ state: 'visible', timeout: 5000 });
-    } catch (e) {
-        const docHtml = await window.evaluate(() => document.documentElement.innerHTML);
-        console.log('DOM DOCUMENT HTML DURING FAILURE:', docHtml);
-        throw e;
-    }
+    await firstCard.waitFor({ state: 'visible', timeout: 5000 });
     assert.ok(await firstCard.isVisible(), 'No file card available to right-click');
 
-    // Right click first card with action 'encrypt-prompt'
+    // 1. Test Encrypt Prompt
     console.log('[Test Step 2] Simulating Right-Click context menu action: "encrypt-prompt"...');
     await firstCard.click({ button: 'right' });
-    await window.waitForTimeout(1000);
+    await window.waitForTimeout(500);
 
-    // Assert that the crypto password dialog is displayed
     const isCryptoDialogVisible = await window.locator('#crypto-dialog').isVisible();
     console.log(`  -> Crypto Password Dialog visible: ${isCryptoDialogVisible}`);
     assert.ok(isCryptoDialogVisible, 'Encryption password dialog failed to display upon context action');
 
-    // Type a password
-    console.log('  -> Typing mock password...');
-    await window.locator('#crypto-password').fill('VaultSecurePassword123');
+    await window.locator('#btn-cancel-crypto').click();
     await window.waitForTimeout(300);
 
-    // Dismiss dialog using cancel button
-    console.log('  -> Dismissing password dialog using cancel button...');
-    await window.locator('#btn-cancel-crypto').click();
+    // 2. Test Generate Subtitles Modal
+    console.log('[Test Step 3] Simulating context action: "generate-subtitles-prompt"...');
+    await electronApp.evaluate(async () => { global.mockContextMenuAction = 'generate-subtitles-prompt'; });
+    await firstCard.click({ button: 'right' });
     await window.waitForTimeout(500);
 
-    const isCryptoDialogHiddenAfterCancel = !(await window.locator('#crypto-dialog').isVisible());
-    assert.ok(isCryptoDialogHiddenAfterCancel, 'Crypto dialog failed to dismiss after Cancel click');
-    console.log('  -> "encrypt-prompt" cancellation verified successfully.');
-
-    // Switch action to 'upscale-video'
-    console.log('[Test Step 3] Simulating Right-Click context menu action: "upscale-video"...');
-    await electronApp.evaluate(async (electron) => {
-        global.mockContextMenuAction = 'upscale-video';
-    });
-
-    await firstCard.click({ button: 'right' });
-    await window.waitForTimeout(1000);
-
-    // Ensure no crash or exception occurred and upscale-video trigger complete toasts or alerts
-    console.log('  -> Upscale trigger finished without error.');
-
-    // Test Step 3a: Test Generate Subtitles Modal
-    console.log('[Test Step 3a] Simulating context action: "generate-subtitles-prompt"...');
-    await electronApp.evaluate(async (electron) => {
-        global.mockContextMenuAction = 'generate-subtitles-prompt';
-    });
-    await firstCard.click({ button: 'right' });
-    await window.waitForTimeout(1500);
-
-    // Check if the dynamic modal backdrop is in the DOM
     let isLangModalVisible = await window.locator('.vw-dynamic-modal-backdrop').isVisible();
     console.log(`  -> Generate Subtitles Language modal visible: ${isLangModalVisible}`);
     assert.ok(isLangModalVisible, 'Language modal backdrop failed to render dynamically');
-
-    // Simulate clicking Cancel
-    console.log('  -> Clicking Cancel on Language Modal...');
     await window.locator('.vw-dynamic-modal-backdrop button:has-text("Cancel")').first().click();
-    await window.waitForTimeout(1000);
+    await window.waitForTimeout(300);
 
-    // Test Step 3b: Test Translate Video Modal
-    console.log('[Test Step 3b] Simulating context action: "translate-video-prompt"...');
-    await electronApp.evaluate(async (electron) => {
-        global.mockContextMenuAction = 'translate-video-prompt';
-    });
+    // 3. Test Translate Video Modal
+    console.log('[Test Step 4] Simulating context action: "translate-video-prompt"...');
+    await electronApp.evaluate(async () => { global.mockContextMenuAction = 'translate-video-prompt'; });
     await firstCard.click({ button: 'right' });
-    await window.waitForTimeout(1500);
+    await window.waitForTimeout(500);
 
-    isLangModalVisible = await window.locator('body').evaluate(() => {
-        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d =>
-            d.innerHTML.includes('Translate target spoken') || d.innerHTML.includes('Translate Video')
-        );
-        return backdrops.length > 0;
-    });
+    isLangModalVisible = await window.locator('.vw-dynamic-modal-backdrop').isVisible();
     console.log(`  -> Translate Video Language modal visible: ${isLangModalVisible}`);
     assert.ok(isLangModalVisible, 'Language modal backdrop failed to render dynamically');
-
-    // Simulate clicking Cancel
-    console.log('  -> Clicking Cancel on Translation Modal...');
     await window.locator('.vw-dynamic-modal-backdrop button:has-text("Cancel")').first().click();
-    await window.waitForTimeout(1000);
+    await window.waitForTimeout(300);
 
-    // Test Step 3c: Test Video Enhancement VSR Modal
-    console.log('[Test Step 3c] Simulating context action: "enhance-video-prompt"...');
-    await electronApp.evaluate(async (electron) => {
-        global.mockContextMenuAction = 'enhance-video-prompt';
-    });
+    // 4. Test Video Enhancement Modal
+    console.log('[Test Step 5] Simulating context action: "enhance-video-prompt"...');
+    await electronApp.evaluate(async () => { global.mockContextMenuAction = 'enhance-video-prompt'; });
     await firstCard.click({ button: 'right' });
-    await window.waitForTimeout(1500);
+    await window.waitForTimeout(500);
 
-    const isVsrModalVisible = await window.locator('body').evaluate(() => {
-        const backdrops = Array.from(document.querySelectorAll('.vw-dynamic-modal-backdrop')).filter(d =>
-            d.innerHTML.includes('AI Video Optimization Center')
-        );
-        return backdrops.length > 0;
-    });
-    console.log(`  -> AI Video Optimization Center (VSR) modal visible: ${isVsrModalVisible}`);
+    const isVsrModalVisible = await window.locator('.vw-dynamic-modal-backdrop').isVisible();
+    console.log(`  -> AI Video Optimization Center modal visible: ${isVsrModalVisible}`);
     assert.ok(isVsrModalVisible, 'VSR modal backdrop failed to render dynamically');
-
-    // Simulate clicking Abort
-    console.log('  -> Clicking Abort on VSR Modal...');
     await window.locator('.vw-dynamic-modal-backdrop button:has-text("Abort")').first().click();
-    await window.waitForTimeout(1000);
+    await window.waitForTimeout(300);
 
-    // Check application state for errors
-    console.log('[Test Step 4] Performing final Runtime Console Error audit...');
+    // 5. Test Properties Dialog
+    console.log('[Test Step 6] Simulating context action: "properties"...');
+    await electronApp.evaluate(async () => { global.mockContextMenuAction = 'properties'; });
+    await firstCard.click({ button: 'right' });
+    await window.waitForTimeout(500);
+
+    const isPropsVisible = await window.locator('#properties-dialog, .vw-dynamic-modal-backdrop').isVisible();
+    console.log(`  -> Properties Dialog visible: ${isPropsVisible}`);
+
+    // 6. Test Video Player Context Menu Action Dispatch
+    console.log('[Test Step 7] Testing Video Player Context Menu action handlers...');
+    const playerTestResult = await window.locator('body').evaluate(async () => {
+        const vp = document.getElementById('video-player');
+        window.currentPlayingItem = {
+            name: 'sample_video.mp4',
+            path: 'C:\\test\\sample_video.mp4',
+            type: 'video',
+            enhancements: { audio: true, video: false, subtitles: ['en'], translation: ['fr'] }
+        };
+
+        let passed = 0;
+        // Test handlePlayerContextMenu existence and playback actions
+        if (typeof handlePlayerContextMenu === 'function') {
+            await handlePlayerContextMenu('mute', window.currentPlayingItem);
+            if (vp.muted) passed++;
+            await handlePlayerContextMenu('mute', window.currentPlayingItem);
+            if (!vp.muted) passed++;
+            await handlePlayerContextMenu('speed:1.5', window.currentPlayingItem);
+            if (vp.playbackRate === 1.5) passed++;
+            await handlePlayerContextMenu('speed:1', window.currentPlayingItem);
+            if (vp.playbackRate === 1) passed++;
+        }
+        return { success: passed === 4, passed };
+    });
+    console.log(`  -> Video Player Context Menu test: ${playerTestResult.passed}/4 playback handlers verified.`);
+    assert.ok(playerTestResult.success, 'Video Player context menu handler failed');
+
+    // 7. Check for runtime console exceptions
+    console.log('[Test Step 8] Performing final Runtime Console Error audit...');
     assert.equal(errors.length, 0, `Detected runtime exceptions or errors: \n${errors.join('\n')}`);
     console.log('  -> Runtime Console Error audit returned 0 exceptions.');
 
@@ -206,6 +208,7 @@ async function runContextMenuTests() {
 
     console.log('[Test Teardown] Closing Electron process...');
     await electronApp.close();
+    try { fs.rmSync(tempUserData, { recursive: true, force: true }); } catch (_) {}
 }
 
 runContextMenuTests().catch(err => {

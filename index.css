@@ -2188,3 +2188,85 @@ body.clip-mode-active #btn-clip {
   background: rgba(255, 255, 255, 0.08);
   outline: none;
 }
+
+/* ==========================================================================
+   Music Tab & Photo Albums Tab Refined Styles
+   ========================================================================== */
+
+/* Photos River Layout */
+.photos-river {
+  column-count: 4;
+  column-gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .photos-river {
+    column-count: 3;
+  }
+}
+
+@media (max-width: 800px) {
+  .photos-river {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 500px) {
+  .photos-river {
+    column-count: 1;
+  }
+}
+
+.photo-item {
+  position: relative;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--vault-card-bg);
+  border: 1px solid var(--vault-border);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+  break-inside: avoid;
+}
+
+.photo-item:hover .photo-overlay-actions {
+  opacity: 1 !important;
+}
+
+/* Audio Tracklist & Sidebar */
+.audio-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+  user-select: none;
+  color: var(--vault-text);
+}
+
+.audio-sidebar-item:hover:not(.active) {
+  background: var(--vault-hover, rgba(255, 255, 255, 0.06));
+}
+
+.audio-track-row:hover {
+  background: var(--vault-hover, rgba(255, 255, 255, 0.04));
+}
+
+.audio-track-row:active {
+  background: var(--vault-selected, rgba(176, 124, 255, 0.12));
+}
+
+/* Audio Progress Track hover */
+#audio-bar-progress-track:hover {
+  height: 6px !important;
+}
+
+#audio-bar-play:hover {
+  transform: scale(1.08);
+  filter: brightness(1.1);
+}
+

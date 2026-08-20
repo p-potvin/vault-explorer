@@ -494,12 +494,17 @@
                 dataUrl: c.toDataURL('image/png'),
             });
             if (res && res.success) {
-                window.showToast(`Saved: ${res.outputPath}`, 'success');
+                if (window.showToast) window.showToast(`Saved: ${res.outputPath}`, 'success');
+                if (typeof window.renderAlbums === 'function' && window.currentTab === 'photoalbums') {
+                    window.renderAlbums();
+                } else if (typeof window.applyFilters === 'function') {
+                    window.applyFilters();
+                }
             } else {
-                window.showToast('Save failed: ' + ((res && res.error) || 'unknown'), 'error');
+                if (window.showToast) window.showToast('Save failed: ' + ((res && res.error) || 'unknown'), 'error');
             }
         } catch (e) {
-            window.showToast('Save failed: ' + e.message, 'error');
+            if (window.showToast) window.showToast('Save failed: ' + e.message, 'error');
         }
     }
 

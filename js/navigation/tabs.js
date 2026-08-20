@@ -154,13 +154,12 @@ window.switchTab = function (tabName, options = {}) {
         const ids = containers[tabName] || [];
         ids.forEach(id => {
             const el_ = el(id);
-            if (el_) el_.style.display = (id === 'audio-container') ? 'block' : 'grid';
+            if (el_) el_.style.display = 'block';
         });
 
         const renderTabContent = () => {
             if (tabName === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
             if (tabName === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
-
         };
 
         // Load this tab's default folder on switch, THEN render. renderAudio /

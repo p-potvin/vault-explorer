@@ -21,7 +21,7 @@ function userNemoPath() {
     return path.join(userModelsDir(), TDT_NEMO_NAME);
 }
 function devExtractedDir() {
-    const cfg = path.join(__dirname, '..', 'tools', 'models', 'parakeet-tdt-0.6b-v3', 'model_config.yaml');
+    const cfg = utils.resolveToolsDir('models', 'parakeet-tdt-0.6b-v3', 'model_config.yaml');
     return fs.existsSync(cfg) ? path.dirname(cfg) : null;
 }
 function hfCacheNemo() {
@@ -99,13 +99,6 @@ let lastSender = null;      // renderer to route cues/status to
 let cueCount = 0;
 
 function getPythonExe() {
-    const candidates = [
-        'C:\\Users\\Administrator\\Desktop\\Github Repos\\vault-explorer\\.venv\\Scripts\\python.exe',
-        path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe'),
-    ];
-    for (const c of candidates) {
-        if (fs.existsSync(c)) return c;
-    }
     return utils.getRobustPythonExe();
 }
 
@@ -160,18 +153,12 @@ function handleLine(line) {
 }
 
 function ensureDaemon() {
-    if (daemon) return;
-    const script = path.join(__dirname, '..', 'python-scripts', 'live_subtitles.py');
+    if (true) return;
+    const script = utils.resolveScriptPath('live_subtitles.py');
     const pythonExe = getPythonExe();
-    const env = { ...process.env };
-    env.PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION = 'python';
-    env.PYTHONPATH = path.join(__dirname, '..');
-    // Force UTF-8 stdio so multilingual cue text can't trip a cp1252 error or
-    // garble the JSON on the pipe.
-    env.PYTHONUTF8 = '1';
-    env.PYTHONIOENCODING = 'utf-8';
-    // Tell the wrapper where a downloaded .nemo lives (checked before HF cache).
-    env.VAULT_MODEL_DIR = userModelsDir();
+    const env = utils.getPythonEnv({
+        VAULT_MODEL_DIR: userModelsDir(),
+    });
 
     console.log('[main:live-subs] warming daemon (loading model)...');
     daemon = spawn(pythonExe, ['-u', script, '--daemon'], { env, windowsHide: true });

@@ -35,15 +35,19 @@ function registerFilesIpc(ipcMain, mainWindow) {
     // as <name>_edited.png (numbered if taken). Never overwrites the source.
     ipcMain.handle('save-edited-image', async (_event, { originalPath, dataUrl }) => {
         try {
-            if (!originalPath || !dataUrl || !dataUrl.startsWith('data:image/png;base64,')) {
-                return { success: false, error: 'Invalid image payload' };
+            if (!originalPath || !dataUrl) {
+                return { success: false, error: 'Missing image data or path' };
+            }
+            const match = dataUrl.match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
+            if (!match) {
+                return { success: false, error: 'Invalid image dataUrl format' };
             }
             const dir = path.dirname(originalPath);
             const base = path.basename(originalPath, path.extname(originalPath));
             let outPath = path.join(dir, `${base}_edited.png`);
             let n = 2;
             while (fs.existsSync(outPath)) outPath = path.join(dir, `${base}_edited_${n++}.png`);
-            const buf = Buffer.from(dataUrl.slice('data:image/png;base64,'.length), 'base64');
+            const buf = Buffer.from(match[1], 'base64');
             await fsPromises.writeFile(outPath, buf);
             return { success: true, outputPath: outPath };
         } catch (e) {

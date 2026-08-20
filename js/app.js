@@ -102,9 +102,20 @@ function updateSortOrderButtonUI() {
 }
 
 function normalizeLaunchIntent(intent) {
-    if (typeof intent === 'string') return { filePath: intent, prioritizePlayer: false };
-    if (!intent || typeof intent.filePath !== 'string') return null;
-    return { filePath: intent.filePath, prioritizePlayer: intent.prioritizePlayer === true };
+    if (typeof intent === 'string') {
+        if (/\.(mp4|webm|mkv|avi|mov)$/i.test(intent)) {
+            return { type: 'file', filePath: intent, prioritizePlayer: false };
+        }
+        return { type: 'folder', folderPath: intent, prioritizePlayer: false };
+    }
+    if (!intent) return null;
+    if (intent.folderPath || intent.type === 'folder') {
+        return { type: 'folder', folderPath: intent.folderPath, prioritizePlayer: false };
+    }
+    if (typeof intent.filePath === 'string') {
+        return { type: 'file', filePath: intent.filePath, prioritizePlayer: intent.prioritizePlayer === true };
+    }
+    return null;
 }
 
 function scheduleSecondaryStartupWork() {
@@ -117,7 +128,28 @@ function scheduleSecondaryStartupWork() {
 
 function openLaunchIntent(intent) {
     const launch = normalizeLaunchIntent(intent);
-    if (!launch || !/\.(mp4|webm|mkv|avi|mov)$/i.test(launch.filePath)) return false;
+    if (!launch) return false;
+
+    // ── Folder launch intent (open from Windows Explorer background context menu) ──
+    if (launch.type === 'folder' || launch.folderPath) {
+        const targetFolder = launch.folderPath;
+        if (!targetFolder) return false;
+        const folderName = targetFolder.split(/[\\/]/).filter(Boolean).pop() || 'root';
+        console.log('[app] Opening folder from launch intent:', targetFolder);
+        if (typeof window.switchTab === 'function') {
+            window.switchTab('files');
+        }
+        if (typeof window.loadDirectory === 'function') {
+            window.loadDirectory(`root/${folderName}`, targetFolder, false);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Opened folder: ' + targetFolder, 'success');
+            }
+        }
+        return true;
+    }
+
+    // ── File launch intent ──
+    if (!launch.filePath || !/\.(mp4|webm|mkv|avi|mov)$/i.test(launch.filePath)) return false;
     const item = {
         path: launch.filePath,
         name: launch.filePath.split(/[\\/]/).pop(),
@@ -423,6 +455,9 @@ async function initApp() {
     const initialPriorityLaunch = normalizeLaunchIntent(initialLaunchIntent);
     if (initialPriorityLaunch && initialPriorityLaunch.prioritizePlayer) {
         openLaunchIntent(initialPriorityLaunch);
+    } else if (initialPriorityLaunch && (initialPriorityLaunch.type === 'folder' || initialPriorityLaunch.folderPath)) {
+        openLaunchIntent(initialPriorityLaunch);
+        scheduleSecondaryStartupWork();
     } else {
         window.switchTab(homeTab);
         scheduleSecondaryStartupWork();

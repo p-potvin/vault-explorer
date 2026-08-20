@@ -1,5 +1,7 @@
 /* ==========================================================================
-   Vault Explorer — Modular In-App Image Viewer
+   Vault Explorer — Modular In-App Image Viewer (Maximized Lightbox)
+   Includes: Slideshow autoplay, Zoom, Pan, AI Super-Res/Denoise/Edge,
+   and direct bridge into the Canvas Photo Editor.
    ========================================================================== */
 
 (function () {
@@ -11,6 +13,7 @@
     let isDragging = false;
     let startX = 0;
     let startY = 0;
+    let slideshowTimer = null;
 
     // Inject styles dynamically to keep everything self-contained and modular
     const styleEl = document.createElement('style');
@@ -21,9 +24,9 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(8, 6, 16, 0.9);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(11, 8, 19, 0.92);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
             z-index: 99999;
             display: none;
             flex-direction: column;
@@ -33,7 +36,8 @@
             font-family: var(--font-body, system-ui, sans-serif);
             user-select: none;
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            box-sizing: border-box;
         }
 
         .image-viewer-modal.active {
@@ -43,23 +47,25 @@
 
         .iv-top-bar {
             width: 100%;
-            padding: 16px 24px;
+            padding: 16px 28px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0));
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0));
             z-index: 10;
+            box-sizing: border-box;
         }
 
         .iv-filename {
             font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            color: var(--vault-gold, #E5A93B);
-            max-width: 70%;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            color: var(--vault-accent, #B07CFF);
+            max-width: 65%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            font-family: var(--font-mono, monospace);
         }
 
         .iv-close-btn {
@@ -77,7 +83,7 @@
         }
 
         .iv-close-btn:hover {
-            background: var(--vault-signal-alert, #FF6B7A);
+            background: var(--vault-danger, #FF6B7A);
             border-color: transparent;
             transform: scale(1.05);
         }
@@ -94,8 +100,8 @@
 
         .iv-image-wrapper {
             position: relative;
-            max-width: 90%;
-            max-height: 80%;
+            max-width: 92%;
+            max-height: 85%;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -111,8 +117,8 @@
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            border-radius: 6px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+            border-radius: 8px;
             pointer-events: none;
             transition: transform 0.2s ease;
         }
@@ -121,8 +127,8 @@
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             color: #ffffff;
             width: 50px;
             height: 50px;
@@ -133,13 +139,13 @@
             cursor: pointer;
             z-index: 15;
             transition: all 0.2s ease;
-            opacity: 0.6;
+            opacity: 0.7;
         }
 
         .iv-nav-btn:hover {
-            background: rgba(229, 169, 59, 0.3);
-            border-color: var(--vault-gold);
-            color: var(--vault-gold);
+            background: var(--vault-accent);
+            border-color: transparent;
+            color: var(--vt-primary, #0b0813);
             opacity: 1;
             transform: translateY(-50%) scale(1.08);
         }
@@ -149,45 +155,53 @@
 
         .iv-bottom-bar {
             width: 100%;
-            padding: 24px;
-            background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));
+            padding: 16px 24px 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0));
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
             z-index: 10;
+            box-sizing: border-box;
         }
 
         .iv-toolbar {
             display: flex;
             align-items: center;
-            gap: 12px;
-            background: rgba(20, 16, 35, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 8px 16px;
+            gap: 8px;
+            background: rgba(19, 16, 28, 0.85);
+            border: 1px solid var(--vault-border, rgba(255, 255, 255, 0.1));
+            padding: 6px 14px;
             border-radius: 30px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
 
         .iv-tool-btn {
             background: transparent;
             border: none;
             color: #ffffff;
-            padding: 6px 12px;
-            border-radius: 20px;
+            padding: 6px 10px;
+            border-radius: 16px;
             cursor: pointer;
             font-size: 11px;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 6px;
-            transition: all 0.2s ease;
-            opacity: 0.8;
+            gap: 5px;
+            transition: all 0.15s ease;
+            opacity: 0.85;
+            font-family: var(--font-body);
         }
 
         .iv-tool-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.12);
+            opacity: 1;
+        }
+
+        .iv-tool-btn.active {
+            background: var(--vault-accent);
+            color: var(--vt-primary, #0b0813);
             opacity: 1;
         }
 
@@ -195,12 +209,13 @@
             width: 1px;
             height: 18px;
             background: rgba(255,255,255,0.15);
+            margin: 0 2px;
         }
 
         .iv-ai-section {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .iv-ai-badge {
@@ -216,19 +231,20 @@
 
         .iv-ai-btn {
             background: rgba(168, 85, 247, 0.15);
-            border: 1px solid rgba(168, 85, 247, 0.3);
+            border: 1px solid rgba(168, 85, 247, 0.35);
             color: #d8b4fe;
-            border-radius: 20px;
-            padding: 6px 12px;
+            border-radius: 16px;
+            padding: 5px 11px;
             cursor: pointer;
             font-size: 11px;
             font-weight: 600;
             transition: all 0.2s ease;
             position: relative;
+            font-family: var(--font-body);
         }
 
         .iv-ai-btn:hover {
-            background: rgba(168, 85, 247, 0.3);
+            background: rgba(168, 85, 247, 0.35);
             border-color: #a855f7;
             color: #ffffff;
             box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
@@ -267,6 +283,8 @@
 
     // Create Modal DOM dynamically
     function createModal() {
+        if (el('image-viewer-modal')) return;
+
         const modal = document.createElement('div');
         modal.id = 'image-viewer-modal';
         modal.className = 'image-viewer-modal';
@@ -311,14 +329,26 @@
 
                     <div class="iv-divider"></div>
 
+                    <button class="iv-tool-btn" id="iv-btn-slideshow" title="Toggle Auto Slideshow">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Slideshow
+                    </button>
+
+                    <button class="iv-tool-btn" id="iv-btn-open-editor" title="Open in Canvas Photo Editor">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Edit Photo
+                    </button>
+
+                    <div class="iv-divider"></div>
+
                     <div class="iv-ai-section">
                         <span class="iv-ai-badge">AI Core</span>
-                        <button class="iv-ai-btn" id="iv-btn-ai-upscale" title="Real-ESRGAN AI Super-Resolution (4x)">Super-Res</button>
+                        <button class="iv-ai-btn" id="iv-btn-ai-upscale" title="Real-ESRGAN AI Super-Resolution (4x)">Super-Res 🪄</button>
                         <button class="iv-ai-btn" id="iv-btn-ai-denoise" title="ImageMagick Median Denoise">Denoise</button>
                         <button class="iv-ai-btn" id="iv-btn-ai-edge" title="ImageMagick Edge Detection">Edge Detect</button>
                     </div>
                 </div>
-                <div class="iv-stats" id="iv-stats-lbl">Image size: 1920x1080 | Zoom: 100%</div>
+                <div class="iv-stats" id="iv-stats-lbl">Image size: --x-- | Zoom: 100%</div>
             </div>
         `;
 
@@ -335,6 +365,8 @@
         const zoomInBtn = el('iv-btn-zoomin');
         const zoomOutBtn = el('iv-btn-zoomout');
         const zoomResetBtn = el('iv-btn-zoomreset');
+        const slideshowBtn = el('iv-btn-slideshow');
+        const editPhotoBtn = el('iv-btn-open-editor');
         const wrapper = el('iv-img-wrapper');
         const img = el('iv-img-element');
 
@@ -346,8 +378,9 @@
         const _enhancedCache = new Map();
 
         async function runEnhancement(button, ipcFn, args, successLabel) {
-            const item = imagesInGrid.find(i => i.index === currentImageIndex)?.item;
-            if (!item || !window.electronAPI) return;
+            const currentObj = imagesInGrid[currentImageIndex];
+            const item = currentObj ? currentObj.item : null;
+            if (!item || !ipcFn) return;
 
             const originalPath = item.path;
             const cacheKey = `${originalPath}:${button.id}`;
@@ -359,7 +392,7 @@
             }
 
             button.classList.add('processing');
-            if (window.showToast) window.showToast(`${successLabel}… this may take a moment`, 'info');
+            if (window.showToast) window.showToast(`${successLabel}… processing in background`, 'info');
 
             try {
                 const result = await ipcFn(...args);
@@ -373,7 +406,7 @@
                         if (window.showToast) window.showToast(`${successLabel} complete!`, 'success');
                     };
                 } else {
-                    if (window.showToast) window.showToast(`${successLabel} failed: ${result.error || 'Unknown'}`, 'error');
+                    if (window.showToast) window.showToast(`${successLabel} failed: ${result?.error || 'Unknown'}`, 'error');
                 }
             } catch (e) {
                 button.classList.remove('processing');
@@ -381,45 +414,93 @@
             }
         }
 
-        aiUpscale.addEventListener('click', () => {
-            runEnhancement(aiUpscale, window.electronAPI.enhanceImageRealESRGAN, [imagesInGrid.find(i => i.index === currentImageIndex)?.item?.path], 'Real-ESRGAN upscale');
-        });
-        aiDenoise.addEventListener('click', () => {
-            const path = imagesInGrid.find(i => i.index === currentImageIndex)?.item?.path;
-            runEnhancement(aiDenoise, window.electronAPI.enhanceImageMagick, [path, 'denoise'], 'Denoise');
-        });
-        aiEdge.addEventListener('click', () => {
-            const path = imagesInGrid.find(i => i.index === currentImageIndex)?.item?.path;
-            runEnhancement(aiEdge, window.electronAPI.enhanceImageMagick, [path, 'edge'], 'Edge detect');
-        });
+        if (aiUpscale) {
+            aiUpscale.addEventListener('click', () => {
+                const item = imagesInGrid[currentImageIndex]?.item;
+                if (!item || !window.electronAPI?.enhanceImageRealESRGAN) return;
+                runEnhancement(aiUpscale, window.electronAPI.enhanceImageRealESRGAN, [item.path], 'Real-ESRGAN 4x');
+            });
+        }
+        if (aiDenoise) {
+            aiDenoise.addEventListener('click', () => {
+                const item = imagesInGrid[currentImageIndex]?.item;
+                if (!item || !window.electronAPI?.enhanceImageMagick) return;
+                runEnhancement(aiDenoise, window.electronAPI.enhanceImageMagick, [item.path, 'denoise'], 'Denoise');
+            });
+        }
+        if (aiEdge) {
+            aiEdge.addEventListener('click', () => {
+                const item = imagesInGrid[currentImageIndex]?.item;
+                if (!item || !window.electronAPI?.enhanceImageMagick) return;
+                runEnhancement(aiEdge, window.electronAPI.enhanceImageMagick, [item.path, 'edge'], 'Edge detect');
+            });
+        }
+
+        // Bridge to Photo Editor
+        if (editPhotoBtn) {
+            editPhotoBtn.addEventListener('click', () => {
+                const currentObj = imagesInGrid[currentImageIndex];
+                if (!currentObj || !currentObj.item) return;
+                closeModal();
+                if (typeof window.openPhotoEditor === 'function') {
+                    const allPhotos = imagesInGrid.map(i => i.item);
+                    window.openPhotoEditor(currentObj.item, allPhotos);
+                }
+            });
+        }
+
+        // Slideshow
+        if (slideshowBtn) {
+            slideshowBtn.addEventListener('click', () => {
+                if (slideshowTimer) {
+                    clearInterval(slideshowTimer);
+                    slideshowTimer = null;
+                    slideshowBtn.classList.remove('active');
+                    if (window.showToast) window.showToast('Slideshow stopped', 'info');
+                } else {
+                    slideshowBtn.classList.add('active');
+                    if (window.showToast) window.showToast('Slideshow started (3.5s per image)', 'info');
+                    slideshowTimer = setInterval(() => {
+                        navigateImage(1);
+                    }, 3500);
+                }
+            });
+        }
 
         // Close logic
         const closeModal = () => {
+            if (slideshowTimer) {
+                clearInterval(slideshowTimer);
+                slideshowTimer = null;
+                if (slideshowBtn) slideshowBtn.classList.remove('active');
+            }
             modal.classList.remove('active');
             setTimeout(() => {
                 modal.style.display = 'none';
-            }, 300);
+            }, 250);
             window.removeEventListener('keydown', handleKeydown);
         };
 
-        closeBtn.addEventListener('click', closeModal);
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
 
         // Grid Cycling
-        prevBtn.addEventListener('click', (e) => { e.stopPropagation(); navigateImage(-1); });
-        nextBtn.addEventListener('click', (e) => { e.stopPropagation(); navigateImage(1); });
+        if (prevBtn) prevBtn.addEventListener('click', (e) => { e.stopPropagation(); navigateImage(-1); });
+        if (nextBtn) nextBtn.addEventListener('click', (e) => { e.stopPropagation(); navigateImage(1); });
 
         // Zoom logic
-        zoomInBtn.addEventListener('click', () => adjustZoom(0.2));
-        zoomOutBtn.addEventListener('click', () => adjustZoom(-0.2));
-        zoomResetBtn.addEventListener('click', () => resetView());
+        if (zoomInBtn) zoomInBtn.addEventListener('click', () => adjustZoom(0.2));
+        if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => adjustZoom(-0.2));
+        if (zoomResetBtn) zoomResetBtn.addEventListener('click', () => resetView());
 
         // Pan/Drag functionality
-        wrapper.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            isDragging = true;
-            startX = e.clientX - translateX;
-            startY = e.clientY - translateY;
-        });
+        if (wrapper) {
+            wrapper.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                startX = e.clientX - translateX;
+                startY = e.clientY - translateY;
+            });
+        }
 
         window.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
@@ -432,22 +513,35 @@
             isDragging = false;
         });
 
-        // Double click resets view
-        wrapper.addEventListener('dblclick', (e) => {
-            e.stopPropagation();
-            resetView();
-        });
-
-        // Wheel Zoom
-        wrapper.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const delta = e.deltaY < 0 ? 0.1 : -0.1;
-            adjustZoom(delta);
-        }, { passive: false });
+        // Mouse Wheel Zoom
+        if (modal) {
+            modal.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.15 : 0.15;
+                adjustZoom(delta);
+            }, { passive: false });
+        }
     }
 
-    function adjustZoom(amount) {
-        scale = Math.max(0.2, Math.min(6, scale + amount));
+    function updateTransform() {
+        const wrapper = el('iv-img-wrapper');
+        const img = el('iv-img-element');
+        const stats = el('iv-stats-lbl');
+
+        if (!wrapper || !img) return;
+
+        wrapper.style.transform = `translate(${translateX}px, ${translateY}px)`;
+        img.style.transform = `scale(${scale})`;
+
+        if (stats) {
+            const nw = img.naturalWidth || 0;
+            const nh = img.naturalHeight || 0;
+            stats.innerText = `Image size: ${nw}x${nh} | Zoom: ${Math.round(scale * 100)}% | Image ${currentImageIndex + 1} of ${imagesInGrid.length}`;
+        }
+    }
+
+    function adjustZoom(delta) {
+        scale = Math.max(0.1, Math.min(6, scale + delta));
         updateTransform();
     }
 
@@ -458,38 +552,16 @@
         updateTransform();
     }
 
-    function updateTransform() {
-        const wrapper = el('iv-img-wrapper');
-        const stats = el('iv-stats-lbl');
-        const img = el('iv-img-element');
-
-        if (wrapper) {
-            wrapper.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-        }
-
-        if (stats && img) {
-            const pct = Math.round(scale * 100);
-            stats.innerText = `Source: ${img.naturalWidth}x${img.naturalHeight} | Zoom: ${pct}%`;
-        }
-    }
-
-    // Navigate to next or previous image inside the current grid/folder
     function navigateImage(direction) {
-        if (imagesInGrid.length <= 1) return;
-
-        let currentIndexInFilter = imagesInGrid.findIndex(item => item.index === currentImageIndex);
-        if (currentIndexInFilter === -1) return;
-
-        let nextIndexInFilter = (currentIndexInFilter + direction + imagesInGrid.length) % imagesInGrid.length;
-        const targetItem = imagesInGrid[nextIndexInFilter];
-
-        if (targetItem) {
-            loadImage(targetItem.item, targetItem.index);
-        }
+        if (!imagesInGrid.length) return;
+        let newIndex = (currentImageIndex + direction + imagesInGrid.length) % imagesInGrid.length;
+        loadImage(imagesInGrid[newIndex].item, newIndex);
     }
 
-    // Keyboard handlers
     function handleKeydown(e) {
+        const modal = el('image-viewer-modal');
+        if (!modal || !modal.classList.contains('active')) return;
+
         if (e.key === 'Escape') {
             const closeBtn = el('iv-btn-close');
             if (closeBtn) closeBtn.click();
@@ -501,6 +573,8 @@
             adjustZoom(0.2);
         } else if (e.key === '-') {
             adjustZoom(-0.2);
+        } else if (e.key === '0') {
+            resetView();
         }
     }
 
@@ -512,10 +586,8 @@
 
         if (!img || !filename) return;
 
-        img.src = '';
-        filename.innerText = item.name;
-        
-        // Premium fade/loading effect
+        filename.innerText = item.name || 'image';
+
         img.style.opacity = '0';
         img.src = window.sanitizePath(item.path);
 
@@ -526,21 +598,24 @@
 
         img.onerror = () => {
             if (window.showToast) window.showToast('Failed to load image file', 'error');
-            filename.innerText = 'Error loading: ' + item.name;
+            filename.innerText = 'Error loading: ' + (item.name || 'image');
         };
     }
 
     // Global hook to open image viewer
-    window.openImageViewer = function (selectedIndex) {
-        let modal = el('image-viewer-modal');
-        if (!modal) {
-            createModal();
-            modal = el('image-viewer-modal');
-        }
+    window.openImageViewer = function (selectedIndex, customList) {
+        createModal();
+        const modal = el('image-viewer-modal');
 
-        // Build list of all image items in the active grid
+        // Build list of image items
         imagesInGrid = [];
-        if (window.displayedItems) {
+        if (Array.isArray(customList) && customList.length) {
+            customList.forEach((item, idx) => {
+                if (item && (item.type === 'image' || isImageFilename(item.path || item.name))) {
+                    imagesInGrid.push({ item, index: idx });
+                }
+            });
+        } else if (window.displayedItems) {
             window.displayedItems.forEach((item, idx) => {
                 if (item.type === 'image') {
                     imagesInGrid.push({ item, index: idx });
@@ -548,18 +623,29 @@
             });
         }
 
-        const selectedItem = window.displayedItems[selectedIndex];
-        if (!selectedItem || selectedItem.type !== 'image') return;
+        if (!imagesInGrid.length) {
+            if (window.showToast) window.showToast('No images available to view', 'info');
+            return;
+        }
+
+        let targetIndex = 0;
+        if (typeof selectedIndex === 'number' && selectedIndex >= 0 && selectedIndex < imagesInGrid.length) {
+            targetIndex = selectedIndex;
+        } else if (typeof selectedIndex === 'object' && selectedIndex && selectedIndex.path) {
+            const found = imagesInGrid.findIndex(i => i.item.path === selectedIndex.path);
+            if (found !== -1) targetIndex = found;
+        }
 
         modal.style.display = 'flex';
-        // Force reflow/render before adding class to trigger slide/fade transition
         modal.offsetHeight;
         modal.classList.add('active');
 
-        loadImage(selectedItem, selectedIndex);
-
-        // Bind global keydown listeners
+        loadImage(imagesInGrid[targetIndex].item, targetIndex);
         window.addEventListener('keydown', handleKeydown);
     };
 
+    function isImageFilename(filename) {
+        if (!filename) return false;
+        return /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|avif|tiff|tif)$/i.test(filename);
+    }
 })();
