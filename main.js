@@ -36,6 +36,10 @@ function loadSettings() {
 
 async function saveSettings(settings) {
     try {
+        const dir = path.dirname(settingsPath);
+        if (!fs.existsSync(dir)) {
+            await fs.promises.mkdir(dir, { recursive: true });
+        }
         await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
         return true;
     } catch (e) {

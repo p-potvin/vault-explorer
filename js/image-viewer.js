@@ -376,18 +376,49 @@
 
         // AI enhancement cache: originalPath -> enhancedPath
         const _enhancedCache = new Map();
+        let _activeAiBtn = null;
+
+        function clearAiVisuals() {
+            if (_activeAiBtn) {
+                _activeAiBtn.classList.remove('applied');
+                _activeAiBtn.style.boxShadow = 'none';
+                _activeAiBtn.style.background = '';
+                _activeAiBtn.style.borderColor = '';
+                _activeAiBtn = null;
+            }
+        }
 
         async function runEnhancement(button, ipcFn, args, successLabel) {
             const currentObj = imagesInGrid[currentImageIndex];
             const item = currentObj ? currentObj.item : null;
             if (!item || !ipcFn) return;
 
+            // Toggle revert if already applied!
+            if (button.classList.contains('applied')) {
+                img.src = window.sanitizePath(item.path);
+                img.onload = () => {
+                    clearAiVisuals();
+                    updateTransform();
+                    if (window.showToast) window.showToast(`Reverted ${successLabel} to original`, 'info');
+                };
+                return;
+            }
+
             const originalPath = item.path;
             const cacheKey = `${originalPath}:${button.id}`;
 
             if (_enhancedCache.has(cacheKey)) {
                 img.src = window.sanitizePath(_enhancedCache.get(cacheKey));
-                if (window.showToast) window.showToast(`Showing cached ${successLabel}`, 'success');
+                img.onload = () => {
+                    clearAiVisuals();
+                    button.classList.add('applied');
+                    button.style.boxShadow = '0 0 14px rgba(176, 124, 255, 0.8)';
+                    button.style.background = 'rgba(176, 124, 255, 0.35)';
+                    button.style.borderColor = 'var(--vault-accent, #B07CFF)';
+                    _activeAiBtn = button;
+                    updateTransform();
+                    if (window.showToast) window.showToast(`Applied cached ${successLabel} ✓`, 'success');
+                };
                 return;
             }
 
@@ -402,8 +433,14 @@
                     _enhancedCache.set(cacheKey, result.path);
                     img.src = window.sanitizePath(result.path);
                     img.onload = () => {
+                        clearAiVisuals();
+                        button.classList.add('applied');
+                        button.style.boxShadow = '0 0 14px rgba(176, 124, 255, 0.8)';
+                        button.style.background = 'rgba(176, 124, 255, 0.35)';
+                        button.style.borderColor = 'var(--vault-accent, #B07CFF)';
+                        _activeAiBtn = button;
                         updateTransform();
-                        if (window.showToast) window.showToast(`${successLabel} complete!`, 'success');
+                        if (window.showToast) window.showToast(`${successLabel} complete! ✓`, 'success');
                     };
                 } else {
                     if (window.showToast) window.showToast(`${successLabel} failed: ${result?.error || 'Unknown'}`, 'error');
@@ -587,6 +624,7 @@
         if (!img || !filename) return;
 
         filename.innerText = item.name || 'image';
+        clearAiVisuals();
 
         img.style.opacity = '0';
         img.src = window.sanitizePath(item.path);

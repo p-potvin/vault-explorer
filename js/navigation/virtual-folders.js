@@ -52,8 +52,18 @@
 
     function store() {
         if (!window.appSettings) window.appSettings = {};
-        if (!window.appSettings.virtualFolders ||
-            typeof window.appSettings.virtualFolders !== 'object') {
+        if (!window.appSettings.virtualFolders || typeof window.appSettings.virtualFolders !== 'object' || !Array.isArray(window.appSettings.virtualFolders.folders)) {
+            try {
+                const backup = localStorage.getItem('vault-virtual-folders-backup');
+                if (backup) {
+                    const parsed = JSON.parse(backup);
+                    if (parsed && Array.isArray(parsed.folders)) {
+                        window.appSettings.virtualFolders = parsed;
+                    }
+                }
+            } catch (_) { }
+        }
+        if (!window.appSettings.virtualFolders || typeof window.appSettings.virtualFolders !== 'object') {
             window.appSettings.virtualFolders = { version: VERSION, folders: [], items: {} };
         }
         const vf = window.appSettings.virtualFolders;
@@ -64,7 +74,19 @@
     }
 
     function save() {
-        try { window.electronAPI.saveSettings(window.appSettings); } catch (_) { /* settings not ready yet */ }
+        const vf = store();
+        try {
+            localStorage.setItem('vault-virtual-folders-backup', JSON.stringify(vf));
+        } catch (_) { }
+        if (window.electronAPI && typeof window.electronAPI.saveSettings === 'function') {
+            try {
+                window.electronAPI.saveSettings(window.appSettings).catch(e => {
+                    console.error('[virtual-folders] saveSettings promise rejected:', e);
+                });
+            } catch (e) {
+                console.error('[virtual-folders] saveSettings error:', e);
+            }
+        }
     }
 
     // ── Migration from legacy {folders:[{name,parent,items,type}], folderContents:{}} ──
