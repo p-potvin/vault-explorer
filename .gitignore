@@ -1,6 +1,10 @@
-# ASR models — large binaries, kept local only (bundled .nemo + pre-extracted dir)
+# ASR models — large binaries, kept local only (bundled .nemo + pre-extracted dir + GGUF weights)
 tools/models/*.nemo
 tools/models/parakeet-tdt-0.6b-v3/
+tools/models/parakeet-tdt-0.6b-v3-gguf/
+tools/models/htdemucs-gguf/
+tools/models/*.gguf
+*.gguf
 
 # Logs
 logs

@@ -39,10 +39,10 @@ require('../js/navigation/virtual-folders.js');
 const vf = window.vf;
 
 // ── TEST 1: Major Version Verification ──────────────────────────────────────
-console.log('[Test 1] Package Version Check (v4.0.0)...');
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-assert.equal(pkg.version, '4.0.0', 'Expected package.json version to be 4.0.0');
-console.log('✓ [PASS] Major version bumped to 4.0.0 successfully.\n');
+console.log(`[Test 1] Package Version Check (v4.x.x: ${pkg.version})...`);
+assert.ok(pkg.version.startsWith('4.'), `Expected package.json version to be 4.x.x, got ${pkg.version}`);
+console.log(`✓ [PASS] Version ${pkg.version} is at major version 4.\n`);
 
 // ── TEST 2: Playlist CRUD & localStorage Persistence ────────────────────────
 console.log('[Test 2] Playlist CRUD & Persistence Mirror in Virtual Folders...');

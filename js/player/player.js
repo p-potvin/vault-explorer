@@ -837,20 +837,38 @@ function initPlayer() {
             console.log('[Video Player] Ignoring error during close/reset:', err && err.code);
             return;
         }
-        let errMsg = 'Unknown playback error.';
+        const isFr = window.currentLang === 'fr';
+        let errMsg = isFr ? 'Erreur de lecture inconnue.' : 'Unknown playback error.';
         if (err) {
             switch (err.code) {
                 case 1:
                     // User aborted - don't show error toast
                     console.log('[Video Player] Playback aborted by user - ignoring error');
                     return;
-                case 2: errMsg = 'Network error occurred while loading video.'; break;
-                case 3: errMsg = 'Video decoding failed or format is not supported.'; break;
-                case 4: errMsg = 'Video source could not be loaded (invalid or expired link).'; break;
+                case 2:
+                    errMsg = isFr ? 'Une erreur réseau est survenue lors du chargement de la vidéo.' : 'Network error occurred while loading video.';
+                    break;
+                case 3:
+                    errMsg = isFr ? 'Échec du décodage vidéo ou format non pris en charge.' : 'Video decoding failed or format is not supported.';
+                    break;
+                case 4: {
+                    const isLocal = vp.src && (vp.src.startsWith('file://') || !vp.src.startsWith('http'));
+                    if (isLocal) {
+                        errMsg = isFr
+                            ? 'Format ou codec vidéo non pris en charge par le décodeur (configuration non supportée).'
+                            : 'Video format, codec, or profile is not supported by the player decoder.';
+                    } else {
+                        errMsg = isFr
+                            ? 'La source vidéo n\'a pas pu être chargée (lien invalide ou expiré).'
+                            : 'Video source could not be loaded (invalid or expired link).';
+                    }
+                    break;
+                }
             }
         }
         console.error('[Video Player Error]', err || e);
-        window.showToast(`Playback Error: ${errMsg}`, 'error');
+        if (btnPlay) btnPlay.innerHTML = PLAY_ICON_SVG;
+        window.showToast(isFr ? `Erreur de lecture : ${errMsg}` : `Playback Error: ${errMsg}`, 'error');
     });
 
     vp.addEventListener('loadedmetadata', () => {

@@ -2,67 +2,6 @@
 
 Vault Explorer is a hybrid desktop media vault and decentralized Home Media Server. It bridges powerful local hardware AI workflows (Whisper/NeMo transcription, ESRGAN upscaling, custom search indexing) with frictionless, cross-platform streaming access across phones, TVs, and web browsers.
 
-## LAN XMLTV EPG server
-
-The optional Python EPG proxy serves the configured XMLTV feed from the PC's
-normal network interfaces. It defaults to IPTV-EPG's Canada feed and does not
-configure Tailscale Serve/Funnel or any public listener. Override it with an
-authorized TVHebdo/XMLTV source when one is available.
-
-```powershell
-.\scripts\Start-EpgServer.ps1
-```
-
-Point the ONN streamer at the compressed guide URL
-`http://<PC-LAN-IP>:8787/epg.xml.gz` (or the HTTPS proxy equivalent). The
-uncompressed `/epg.xml` route remains available for clients that require it.
-Override the
-source without committing credentials or URLs to the repository:
-
-```powershell
-$env:EPG_SOURCE_URL = 'https://your-authorized-xmltv-source.example/guide.xml'
-.\scripts\Start-EpgServer.ps1
-```
-
-The feed is fetched on demand and cached for six hours; `/health` reports the
-source and cache age. A local French XMLTV file can be served at
-`http://<PC-LAN-IP>:8787/epg-fr.xml.gz` by setting `EPG_FRENCH_FILE`; the
-uncompressed `/epg-fr.xml` route remains available. The launcher defaults this
-to `C:\Users\Administrator\Desktop\xmltv.xml` when present.
-
-Set `M3U_PLAYLIST_SOURCE_URL` to expose a curated M3U playlist at
-`/playlist.m3u`. The route is fetched on demand, size-limited to 8 MiB, validated
-as M3U, and uses the same cache interval as the EPG route.
-
-### m3u4u manual-sync automation
-
-`scripts/Run-M3u4uSync.ps1` drives a dedicated signed-in Chrome profile via
-the existing Patchright installation in `Prom-King\qa-automation`. It selects
-`Notre Playlist` and submits exactly one m3u4u bulk-sync request. It does not
-store, read, or transmit API tokens, cookies, or credentials itself.
-
-Initialize that dedicated profile once, sign in manually, and close Chrome:
-
-```powershell
-.\scripts\Initialize-M3u4uProfile.ps1
-```
-
-The scheduled task must run only while the Windows user is logged in and Chrome
-is closed, because it opens that same profile. Use a bounded dry run first:
-
-```powershell
-.\scripts\Run-M3u4uSync.ps1 -DryRun
-```
-
-`Sync-OnnTiviMate.ps1` runs one complete overnight refresh: it submits one
-m3u4u sync, fetches `playlist.m3u?refresh=1`, validates the expected 48
-channels, mutes the ONN streamer, uploads the local M3U, and foregrounds
-TiviMate to refresh its local playlists. It has a five-minute task limit and
-does not retry. Install the daily midnight local-time task with:
-
-```powershell
-.\scripts\Install-OnnTiviMateSyncTask.ps1
-```
 
 ## Features
 

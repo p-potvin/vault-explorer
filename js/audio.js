@@ -72,11 +72,8 @@
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
-        input.style.display = 'none';
-        document.body.appendChild(input);
         input.addEventListener('change', () => {
             const f = input.files && input.files[0];
-            input.remove();
             if (!f || !f.path) return;
             window.appSettings.playlistCovers = window.appSettings.playlistCovers || {};
             window.appSettings.playlistCovers[key] = f.path;

@@ -651,14 +651,15 @@
   <!-- Settings Panel Console Modal -->
   <div id="settings-panel" class="vw-console-shell settings-panel" role="dialog" aria-modal="true"
     aria-label="Settings Panel">
-    <div class="settings-panel-header-bar"
-      style="font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; color: var(--vault-accent); margin-bottom: 16px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vault-border); padding-bottom: 10px; user-select: none;">
+    <div class="settings-panel-header-bar">
       <div class="settings-panel-header-left">
         <span class="settings-panel-cog" aria-hidden="true">⚙</span>
         <span class="settings-panel-header">Settings / Paramètres</span>
       </div>
-      <button id="settings-close" type="button"
-        style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 16px;">✕</button>
+      <div class="settings-panel-header-actions">
+        <button id="settings-btn-save" type="button">Save</button>
+        <button id="settings-close" type="button" aria-label="Close Settings">✕</button>
+      </div>
     </div>
     <div class="settings-section-tabs" role="tablist" aria-label="Settings sections">
       <button type="button" class="settings-section-tab" data-settings-section="general" role="tab" aria-selected="true">General</button>
@@ -941,13 +942,7 @@
       </div>
 
 
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px;">
-        <button id="settings-btn-benchmark" hidden
-          style="background:var(--vault-console-surface); color:var(--vault-gold); border:1px solid var(--vault-gold); padding:5px 10px; border-radius:4px; font-weight:600; font-family:var(--font-body); cursor:pointer; font-size:10.5px; transition: background 0.2s;"
-          type="button">ASR Benchmark</button>
-        <button id="settings-btn-save"
-          style="background:var(--vault-accent); color:var(--vt-primary); border:none; padding:6px 12px; border-radius:4px; font-weight:600; font-family:var(--font-body); cursor:pointer;">Save</button>
-      </div>
+      <button id="settings-btn-benchmark" hidden type="button"></button>
     </div>
   </div>
 
@@ -1492,15 +1487,16 @@
               </div>
             </div>
 
-            <button id="btn-upscale" class="ctrl-btn-sm" title="AI Upscale" aria-label="Toggle AI Upscale">
+            <button id="btn-upscale" class="ctrl-btn-sm" title="AI Upscale" aria-label="Toggle AI Upscale"
+              style="display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:56px; white-space:nowrap; padding:5px 10px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" style="width:14px; height:14px; display:block;">
+                stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;">
                 <path d="M 12 20 V 14" />
                 <path d="M 12 10 V 4" />
                 <path d="M 7 9 L 12 4 L 17 9" />
                 <path d="M 18 14 L 19 16 L 21 17 L 19 18 L 18 20 L 17 18 L 15 17 L 17 16 Z" />
               </svg>
-              <span>AI</span>
+              <span style="font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:0.04em;">AI</span>
             </button>
             <button id="btn-fullscreen" class="ctrl-btn" title="Fullscreen (F)" aria-label="Toggle Fullscreen">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"

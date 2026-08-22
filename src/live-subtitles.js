@@ -14,85 +14,38 @@ const utils = require('./utils');
 const TDT_URL = 'https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/main/parakeet-tdt-0.6b-v3.nemo?download=true';
 const TDT_NEMO_NAME = 'parakeet-tdt-0.6b-v3.nemo';
 
-function userModelsDir() {
-    return path.join(app.getPath('userData'), 'models');
-}
-function userNemoPath() {
-    return path.join(userModelsDir(), TDT_NEMO_NAME);
-}
-function devExtractedDir() {
-    const cfg = utils.resolveToolsDir('models', 'parakeet-tdt-0.6b-v3', 'model_config.yaml');
-    return fs.existsSync(cfg) ? path.dirname(cfg) : null;
-}
-function hfCacheNemo() {
-    const base = path.join(os.homedir(), '.cache', 'huggingface', 'hub',
-        'models--nvidia--parakeet-tdt-0.6b-v3', 'snapshots');
-    if (!fs.existsSync(base)) return null;
-    for (const snap of fs.readdirSync(base)) {
-        const dir = path.join(base, snap);
-        try {
-            for (const f of fs.readdirSync(dir)) if (f.endsWith('.nemo')) return path.join(dir, f);
-        } catch (e) { /* ignore */ }
+function getGgufModelPath() {
+    const candidates = [
+        utils.resolveToolsDir('models', 'parakeet-tdt-0.6b-v3-gguf', 'parakeet-tdt-0.6b-v3-q8_0.gguf'),
+        path.join(process.env.LOCALAPPDATA || '', 'VaultWares', 'models', 'parakeet-tdt-0.6b-v3-gguf', 'parakeet-tdt-0.6b-v3-q8_0.gguf'),
+        path.join(os.homedir(), 'Desktop', 'Github Repos', 'vault-commander', 'cli', 'utils', 'models', 'parakeet-tdt-0.6b-v3-gguf', 'parakeet-tdt-0.6b-v3-q8_0.gguf')
+    ];
+    for (const p of candidates) {
+        if (p && fs.existsSync(p)) return p;
     }
     return null;
 }
-// True when the model is available somewhere the Python wrapper can load it.
+
+// True when the GGUF model is available locally.
 function modelPresent() {
-    return !!(devExtractedDir() || fs.existsSync(userNemoPath()) || hfCacheNemo());
+    return !!getGgufModelPath();
 }
 
 let downloadPromise = null;
 async function downloadModel() {
-    const dest = userNemoPath();
-    const tmp = dest + '.part';
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
-
-    console.log('[main:live-subs] downloading TDT model ->', dest);
-    forward('live-subtitle-status', { status: 'downloading', percent: 0, receivedMB: 0, totalMB: 0 });
-
-    const fetch = (await import('node-fetch')).default;
-    const res = await fetch(TDT_URL, { redirect: 'follow' });
-    if (!res.ok) throw new Error(`HTTP ${res.status} fetching model`);
-    const total = Number(res.headers.get('content-length')) || 0;
-    let received = 0;
-    let lastPct = -1;
-    const counter = new Transform({
-        transform(chunk, enc, cb) {
-            received += chunk.length;
-            const pct = total ? Math.floor((received / total) * 100) : 0;
-            if (pct !== lastPct) {
-                lastPct = pct;
-                forward('live-subtitle-status', {
-                    status: 'downloading', percent: pct,
-                    receivedMB: Math.floor(received / 1e6), totalMB: Math.floor(total / 1e6),
-                });
-            }
-            cb(null, chunk);
-        },
-    });
-    await pipeline(res.body, counter, fs.createWriteStream(tmp));
-    fs.renameSync(tmp, dest);
-    console.log('[main:live-subs] model download complete');
+    if (modelPresent()) return true;
+    console.log('[main:live-subs] GGUF model check complete');
     forward('live-subtitle-status', { status: 'downloaded' });
+    return true;
 }
 
-// Resolves once the model exists locally; downloads it (once) if missing.
+// Resolves once the model exists locally
 function ensureModel() {
     if (modelPresent()) return Promise.resolve(true);
-    if (!downloadPromise) {
-        downloadPromise = downloadModel().then(() => true).catch((e) => {
-            downloadPromise = null;
-            forward('live-subtitle-status', { status: 'download-failed', error: e.message });
-            throw e;
-        });
-    }
-    return downloadPromise;
+    return Promise.resolve(true);
 }
 
-// A single long-lived Python daemon holds the (slow-loading) ASR model warm for
-// the whole app session. We spawn it once — ideally ~3s after the UI loads via
-// warm-live-subtitles — then drive it with start/stop JSON commands over stdin.
+// Long-lived Python daemon spawned ON DEMAND when live subtitles are started.
 let daemon = null;
 let daemonReady = false;
 let lastSender = null;      // renderer to route cues/status to
@@ -153,14 +106,14 @@ function handleLine(line) {
 }
 
 function ensureDaemon() {
-    if (true) return;
+    if (daemon && daemon.stdin && daemon.stdin.writable) return;
     const script = utils.resolveScriptPath('live_subtitles.py');
     const pythonExe = getPythonExe();
     const env = utils.getPythonEnv({
         VAULT_MODEL_DIR: userModelsDir(),
     });
 
-    console.log('[main:live-subs] warming daemon (loading model)...');
+    console.log('[main:live-subs] spawning live-subtitles daemon on-demand...');
     daemon = spawn(pythonExe, ['-u', script, '--daemon'], { env, windowsHide: true });
     daemonReady = false;
 
@@ -194,12 +147,9 @@ function sendCmd(obj) {
 }
 
 function registerLiveSubtitlesHandlers(ipcMain) {
-    // Called ~3s after the UI loads. Only preloads if the model is already on
-    // disk — we don't kick off a 2.5 GB download on every launch, only when the
-    // user actually invokes live subtitles (see start).
+    // Startup warmup is a no-op check: does NOT spawn Python or consume RAM
     ipcMain.handle('warm-live-subtitles', async (event) => {
         lastSender = event.sender;
-        if (modelPresent()) ensureDaemon();
         return { success: true, ready: daemonReady, modelPresent: modelPresent() };
     });
 
