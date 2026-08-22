@@ -362,7 +362,9 @@
             leftActions.style.cssText = 'display: flex; gap: 6px; align-items: center;';
 
             // Favorite star
-            const isFav = !!(window.appSettings?.favorites && window.appSettings.favorites.includes(item.path));
+            const isFav = (typeof window.isFavorite === 'function')
+                ? window.isFavorite(item.path)
+                : !!(window.appSettings?.favorites && window.appSettings.favorites.some(p => (p || '').replace(/\\/g, '/').toLowerCase() === (item.path || '').replace(/\\/g, '/').toLowerCase()));
             const favBtn = document.createElement('button');
             favBtn.title = isFav ? 'Remove from Favorites' : 'Add to Favorites';
             favBtn.textContent = '★';
@@ -371,7 +373,8 @@
                 e.stopPropagation();
                 if (typeof window.toggleFavorite === 'function') {
                     window.toggleFavorite(item.path, favBtn);
-                    favBtn.style.color = favBtn.style.color.includes('gold') ? '#ffffff' : 'var(--vault-gold, #F0B94B)';
+                    const nowFav = (typeof window.isFavorite === 'function') ? window.isFavorite(item.path) : !isFav;
+                    favBtn.style.color = nowFav ? 'var(--vault-gold, #F0B94B)' : '#ffffff';
                 }
             });
             leftActions.appendChild(favBtn);

@@ -92,9 +92,10 @@ function applyFilters() {
         pool = [...allFakeFolders, ...allVaultFiles];
     } else if (currentFolder) {
         // Inside a virtual folder: sub-folders here + this folder's items.
+        const norm = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
         const subFolders = vf.list({ parentId: currentFolder.id }).map(projectFolder);
-        const memberSet = new Set(vf.itemsOf(currentFolder.id));
-        const memberItems = window.allItems.filter(v => memberSet.has(v.path) && matchesCategoryType(v.type));
+        const memberNormSet = new Set(vf.itemsOf(currentFolder.id).map(norm));
+        const memberItems = window.allItems.filter(v => memberNormSet.has(norm(v.path)) && matchesCategoryType(v.type));
         pool = [...subFolders, ...memberItems];
     } else if (subtabType) {
         // Category subtabs (Collections / Albums / Playlists) show ONLY the
@@ -147,7 +148,9 @@ function applyFilters() {
 
     window.displayedItems = filteredItems;
 
-    window.killAllHoverVideos();
+    if (typeof window.killAllHoverVideos === 'function') {
+        window.killAllHoverVideos();
+    }
 
     if (window.displayedItems.length === 0) {
         const hasActiveFilters = term !== '' || filterAttr !== 'all';

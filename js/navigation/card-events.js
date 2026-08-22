@@ -171,7 +171,9 @@ async function handleCardContextMenu(card, item, index) {
     const isMulti = selectedItems.length > 1;
 
     const hasClip = !!(window._clipboard && window._clipboard.paths.length > 0);
-    const isStarred = !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.includes(item.path));
+    const isStarred = (typeof window.isFavorite === 'function')
+        ? window.isFavorite(item.path)
+        : !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.some(p => (p || '').replace(/\\/g, '/').toLowerCase() === (item.path || '').replace(/\\/g, '/').toLowerCase()));
     // Project vf folders into the {name, parent, type} shape the native menu
     // expects, but tag each with an id so the action handler resolves by id (not name).
     const folderMenuList = (window.vf ? window.vf.list({}) : []).map(f => ({
@@ -216,6 +218,9 @@ async function handleCardContextMenu(card, item, index) {
                 if (si && si.path) window.toggleFavorite(si.path, null, true);
             });
             window.showToast('Favorites updated for selection', 'success');
+            if (window.currentTab === 'files' && window.currentFilesSubtab === 'favorites' && typeof window.renderFavorites === 'function') {
+                window.renderFavorites();
+            }
         } else {
             window.toggleFavorite(item.path);
         }
