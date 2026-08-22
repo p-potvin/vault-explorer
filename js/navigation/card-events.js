@@ -171,17 +171,21 @@ async function handleCardContextMenu(card, item, index) {
     const isMulti = selectedItems.length > 1;
 
     const hasClip = !!(window._clipboard && window._clipboard.paths.length > 0);
-    const isStarred = !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.includes(item.path));
-    // Project vf folders into the {name, parent, type} shape the native menu
-    // expects, but tag each with an id so the action handler resolves by id (not name).
-    const folderMenuList = (window.vf ? window.vf.list({}) : []).map(f => ({
+    const isStarred = (typeof window.isFavorite === 'function')
+        ? window.isFavorite(item.path)
+        : !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.some(p => (p || '').replace(/\\/g, '/').toLowerCase() === (item.path || '').replace(/\\/g, '/').toLowerCase()));
+    const expectedType = (item.type === 'image') ? 'album'
+        : (item.type === 'audio') ? 'playlist'
+            : 'collection';
+    // Project vf folders of the matching type into the {name, parent, type} shape the native menu expects
+    const folderMenuList = (window.vf ? window.vf.list({ type: expectedType }) : []).map(f => ({
         id: f.id,
         name: f.name,
         type: f.type,
         parent: f.parentId ? window.buildNavPath(f.parentId) : 'root',
         label: f.parentId
-            ? `${window.buildNavPath(f.parentId).replace(/^root\/?/, '')}/${f.name} (${f.type})`
-            : `${f.name} (${f.type})`,
+            ? `${window.buildNavPath(f.parentId).replace(/^root\/?/, '')}/${f.name}`
+            : f.name,
     }));
     const action = await window.electronAPI.showContextMenu({
         ...item,
@@ -216,8 +220,16 @@ async function handleCardContextMenu(card, item, index) {
                 if (si && si.path) window.toggleFavorite(si.path, null, true);
             });
             window.showToast('Favorites updated for selection', 'success');
+            if (window.currentTab === 'files' && window.currentFilesSubtab === 'favorites' && typeof window.renderFavorites === 'function') {
+                window.renderFavorites();
+            }
         } else {
             window.toggleFavorite(item.path);
+        }
+    } else if (action === 'open-photo-editor') {
+        if (typeof window.openPhotoEditor === 'function') {
+            const allImages = (window.displayedItems || []).filter(i => i.type === 'image');
+            window.openPhotoEditor(item, allImages.length ? allImages : [item]);
         }
     } else if (action === 'generate-webm') {
         const targetVideos = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
@@ -390,51 +402,59 @@ async function handleCardContextMenu(card, item, index) {
             window.showToast('Cannot enhance: missing file path', 'error');
             return;
         }
-        console.log('[ctx-menu:enhance] Enhancing path:', targetItem.path);
 
         const config = await window.showVideoEnhancementDialog(targetItem);
         if (config && config.execute) {
+            let vsrQuality = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
+            let vsrScale = (window.appSettings && window.appSettings.vsrScale) || '2';
+            if (config.method === 'cuda_tile') {
+                vsrQuality = 'ULTRA';
+                vsrScale = '4';
+            } else if (config.method === 'denoise') {
+                vsrQuality = 'LOW';
+                vsrScale = '1';
+            } else if (config.method === 'realesrgan') {
+                vsrQuality = 'HIGH';
+                vsrScale = '2';
+            }
+
+            const vsrChroma = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
+            const vsrBitrate = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
+
             window.showToast(`AI Video Optimization pipeline started for ${targetItems.length} video(s)...`, 'success');
-            targetItems.forEach(targetItem => {
-                const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-                const cardElement = Array.from(document.querySelectorAll('.file-card'))
-                    .find(c => normPath(c.dataset.path) === normPath(targetItem.path));
-                let overlay = null;
-                if (cardElement) {
-                    overlay = cardElement.querySelector('.webm-loading-overlay');
-                    if (!overlay) {
-                        overlay = document.createElement('div');
-                        overlay.className = 'webm-loading-overlay';
-                        overlay.innerHTML = `<div class="spinner-small" style="border-top-color:#e056fd;"></div><div class="webm-percent" style="margin-top:4px; font-size:10px; color:#e056fd;">0%</div><div class="normalize-lbl" style="font-size:8px; opacity:0.8; text-align:center; padding:0 4px; margin-top:2px;">VSR: Init...</div>`;
-                        const thumbCont = cardElement.querySelector('.thumbnail-container');
-                        if (thumbCont) thumbCont.appendChild(overlay);
-                    }
-                }
-                const progressHandler = (eventData) => {
-                    if (normPath(eventData.videoPath) === normPath(targetItem.path)) {
-                        if (overlay) {
-                            const pctEl = overlay.querySelector('.webm-percent');
-                            if (pctEl) pctEl.innerText = `${eventData.percent}%`;
-                            const lblEl = overlay.querySelector('.normalize-lbl');
-                            if (lblEl) lblEl.innerText = `VSR: ${eventData.label || 'Processing...'}`;
-                        }
-                    }
-                };
-                window.electronAPI.onUpscaleProgress(progressHandler);
-                const vsrQuality2 = (window.appSettings && window.appSettings.vsrQuality) || 'HIGH';
-                const vsrScale2 = (window.appSettings && window.appSettings.vsrScale) || '2';
-                const vsrChroma2 = (window.appSettings && window.appSettings.vsrChroma) || 'yuv420p';
-                const vsrBitrate2 = (window.appSettings && window.appSettings.vsrBitrate) || '12M';
-                window.electronAPI.upscaleVideo({ path: targetItem.path, quality: vsrQuality2, scale: vsrScale2, bitrate: vsrBitrate2, chroma: vsrChroma2 }).then(res => {
-                    if (overlay) overlay.remove();
-                    if (res.success) {
-                        window.showToast(`${targetItem.name}: Super-Resolution complete!`, 'success');
-                        refreshDirectoryWithScrollPreservation();
-                    } else {
-                        window.showToast(`${targetItem.name}: Super-Resolution failed: ` + (res.error || 'Unknown'), 'error');
-                    }
-                });
+            await runEnhancementBatch(targetItems, {
+                prefix: 'VSR',
+                initialLabel: 'VSR: Init...',
+                invoke: (target) => window.electronAPI.upscaleVideo({
+                    path: target.path,
+                    vaultRoot: window.currentRealPath,
+                    quality: vsrQuality,
+                    scale: vsrScale,
+                    chroma: vsrChroma,
+                    bitrate: vsrBitrate,
+                }),
+                successMsg: 'Super-Resolution complete!',
+                failMsg: 'Super-Resolution failed',
             });
+        }
+    } else if (action === 'enhance-image-realesrgan') {
+        const targetItems = isMulti ? selectedItems.filter(s => s.type === 'image') : [item];
+        if (targetItems.length === 0) { window.showToast('No images selected', 'error'); return; }
+        window.showToast(`Enhancing ${targetItems.length} image(s) with Real-ESRGAN...`, 'info');
+        let count = 0;
+        for (const target of targetItems) {
+            try {
+                const res = await window.electronAPI.enhanceImageRealESRGAN(target.path);
+                if (res && res.success) count++;
+            } catch (e) {
+                console.error('[enhance-image] error:', e);
+            }
+        }
+        if (count > 0) {
+            window.showToast(`Enhanced ${count}/${targetItems.length} image(s)`, 'success');
+            refreshDirectoryWithScrollPreservation();
+        } else {
+            window.showToast('Image enhancement failed', 'error');
         }
     } else if (action === 'encrypt-prompt' || action === 'decrypt-prompt') {
         window.triggerCryptoPrompt(action);

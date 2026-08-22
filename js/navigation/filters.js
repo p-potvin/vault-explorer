@@ -84,26 +84,26 @@ function applyFilters() {
 
     let pool = [];
     if (term) {
-        // Global search: every vault file + every (matching-type) virtual folder.
+        // Global search in Files tab: video vault files + collection virtual folders ONLY.
+        const searchCategory = subtabType || 'collection';
         const allVaultFiles = (window._rootItemsCache || window.allItems || []).filter(v => matchesCategoryType(v.type));
-        const allFakeFolders = vf.list({})
-            .filter(f => !subtabType || f.type === subtabType)
+        const allFakeFolders = vf.list({ type: searchCategory })
             .map(projectFolder);
         pool = [...allFakeFolders, ...allVaultFiles];
     } else if (currentFolder) {
         // Inside a virtual folder: sub-folders here + this folder's items.
-        const subFolders = vf.list({ parentId: currentFolder.id }).map(projectFolder);
-        const memberSet = new Set(vf.itemsOf(currentFolder.id));
-        const memberItems = window.allItems.filter(v => memberSet.has(v.path) && matchesCategoryType(v.type));
+        const norm = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+        const subFolders = vf.list({ parentId: currentFolder.id, type: currentFolder.type }).map(projectFolder);
+        const memberNormSet = new Set(vf.itemsOf(currentFolder.id).map(norm));
+        const memberItems = window.allItems.filter(v => memberNormSet.has(norm(v.path)) && matchesCategoryType(v.type));
         pool = [...subFolders, ...memberItems];
     } else if (subtabType) {
-        // Category subtabs (Collections / Albums / Playlists) show ONLY the
-        // user's virtual folders of that type — no vault files mixed in.
-        // Vault files for that category live inside the folders themselves.
+        // Category subtabs (Collections) show ONLY the user's collection folders.
         pool = vf.list({ parentId: null, type: subtabType }).map(projectFolder);
     } else {
-        // 'All' subtab: every top-level folder + every vault file (tagging model).
-        const rootFolders = vf.list({ parentId: null }).map(projectFolder);
+        // 'All' subtab in Files view: only collection top-level folders + vault files.
+        // Playlists and Albums belong strictly to Music and Photos tabs.
+        const rootFolders = vf.list({ parentId: null, type: 'collection' }).map(projectFolder);
         pool = [...rootFolders, ...window.allItems];
     }
 
@@ -147,7 +147,9 @@ function applyFilters() {
 
     window.displayedItems = filteredItems;
 
-    window.killAllHoverVideos();
+    if (typeof window.killAllHoverVideos === 'function') {
+        window.killAllHoverVideos();
+    }
 
     if (window.displayedItems.length === 0) {
         const hasActiveFilters = term !== '' || filterAttr !== 'all';

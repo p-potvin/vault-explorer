@@ -104,7 +104,9 @@ function createCardElement(item, index) {
       </div>`;
     }
 
-    const isStarred = !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.includes(item.path));
+    const isStarred = (typeof window.isFavorite === 'function')
+        ? window.isFavorite(item.path)
+        : !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.some(p => (p || '').replace(/\\/g, '/').toLowerCase() === (item.path || '').replace(/\\/g, '/').toLowerCase()));
     const starFill = isStarred ? '#E5A93B' : 'none';
     const starStroke = isStarred ? '#E5A93B' : '#ffffff';
     const starSvg = window.icons ? window.icons.star('star-svg', 'transition: transform 0.2s; display: block; margin: 0; padding: 0; pointer-events: none; width: 14px; height: 14px;', starFill, starStroke) : '';

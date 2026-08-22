@@ -1034,6 +1034,23 @@ body.titlebar-hovered #video-modal #player-topbar {
   letter-spacing: 0.04em;
   transition: color 0.2s, background 0.2s, border-color 0.2s;
   transform: none !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#btn-upscale {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px;
+  min-width: 56px;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+  padding: 5px 10px;
 }
 
 .ctrl-btn-sm:hover {
@@ -1412,8 +1429,10 @@ body.titlebar-hovered #video-modal #player-topbar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
+  transform: translateY(-0.5px);
+  color: var(--vault-gold, var(--vault-accent));
 }
 
 .settings-panel-header-bar {
@@ -1428,12 +1447,75 @@ body.titlebar-hovered #video-modal #player-topbar {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+  user-select: none;
 }
 
 .settings-panel-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  line-height: 1;
+}
+
+.settings-panel-header-bar .settings-panel-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.settings-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#settings-btn-save {
+  background: var(--vault-accent);
+  color: var(--vt-primary, #111);
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#settings-btn-save:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+#settings-btn-save:active {
+  transform: translateY(0);
+}
+
+#settings-close {
+  background: transparent;
+  border: none;
+  color: var(--vault-slate);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  transition: color 0.15s;
+}
+
+#settings-close:hover {
+  color: var(--vault-text);
 }
 
 .settings-panel-grid {
@@ -2188,3 +2270,92 @@ body.clip-mode-active #btn-clip {
   background: rgba(255, 255, 255, 0.08);
   outline: none;
 }
+
+/* ==========================================================================
+   Music Tab & Photo Albums Tab Refined Styles
+   ========================================================================== */
+
+/* Photos River Layout */
+.photos-river {
+  column-count: 4;
+  column-gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .photos-river {
+    column-count: 3;
+  }
+}
+
+@media (max-width: 800px) {
+  .photos-river {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 500px) {
+  .photos-river {
+    column-count: 1;
+  }
+}
+
+.photo-item {
+  position: relative;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--vault-card-bg);
+  border: 1px solid var(--vault-border);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+  break-inside: avoid;
+}
+
+.photo-item:hover .photo-overlay-actions,
+.photo-item:focus-within .photo-overlay-actions {
+  opacity: 1 !important;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .photo-item .photo-overlay-actions {
+    opacity: 1 !important;
+  }
+}
+
+/* Audio Tracklist & Sidebar */
+.audio-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+  user-select: none;
+  color: var(--vault-text);
+}
+
+.audio-sidebar-item:hover:not(.active) {
+  background: var(--vault-hover, rgba(255, 255, 255, 0.06));
+}
+
+.audio-track-row:hover {
+  background: var(--vault-hover, rgba(255, 255, 255, 0.04));
+}
+
+.audio-track-row:active {
+  background: var(--vault-selected, rgba(176, 124, 255, 0.12));
+}
+
+/* Audio Progress Track hover */
+#audio-bar-progress-track:hover {
+  height: 6px !important;
+}
+
+#audio-bar-play:hover {
+  transform: scale(1.08);
+  filter: brightness(1.1);
+}
+

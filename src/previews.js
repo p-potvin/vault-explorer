@@ -363,33 +363,59 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
         webmTimeMs = Date.now() - webmStart;
 
-        // Atomic-commit: only promote temp files to their final names if BOTH
-        // were created successfully. If either is missing, leave the existing
-        // originals untouched and clean up the orphan temp.
-        const thumbTmpOk = fs.existsSync(thumbWritePath);
-        const webmTmpOk = fs.existsSync(webmWritePath);
-        if (thumbTmpOk && webmTmpOk) {
-            try { fs.renameSync(thumbWritePath, thumbPath); } catch (e) { throw new Error(`thumb rename failed: ${e.message}`); }
-            try { fs.renameSync(webmWritePath, hoverWebmPath); } catch (e) { throw new Error(`webm rename failed: ${e.message}`); }
+        // Evaluate temp files independently: accept valid outputs even if one candidate fails.
+        let thumbTmpOk = false;
+        try {
+            thumbTmpOk = fs.existsSync(thumbWritePath) && fs.statSync(thumbWritePath).size > 0;
+        } catch (_) { }
+
+        let webmTmpOk = false;
+        try {
+            webmTmpOk = fs.existsSync(webmWritePath) && fs.statSync(webmWritePath).size > 0;
+        } catch (_) { }
+
+        let thumbPromoted = false;
+        let webmPromoted = false;
+
+        if (thumbTmpOk) {
+            try {
+                fs.renameSync(thumbWritePath, thumbPath);
+                thumbPromoted = true;
+            } catch (e) {
+                console.warn(`[preview] thumb rename failed: ${e.message}`);
+                try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (_) { }
+            }
         } else {
-            console.warn(`[preview] Partial output (thumb=${thumbTmpOk} webm=${webmTmpOk}). Keeping originals; discarding temp.`);
             try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (_) { }
-            try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
-            throw new Error('FFmpeg produced incomplete output (originals preserved)');
         }
 
-        // Final sanity check: ensure the renamed files actually exist
-        if (!fs.existsSync(thumbPath) || !fs.existsSync(hoverWebmPath)) {
-            throw new Error(`Atomic rename succeeded but final preview files are missing: thumb=${thumbPath}, webm=${hoverWebmPath}`);
+        if (webmTmpOk) {
+            try {
+                fs.renameSync(webmWritePath, hoverWebmPath);
+                webmPromoted = true;
+            } catch (e) {
+                console.warn(`[preview] webm rename failed: ${e.message}`);
+                try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
+            }
+        } else {
+            try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
         }
+
+        const anyPromoted = thumbPromoted || webmPromoted || fs.existsSync(thumbPath) || fs.existsSync(hoverWebmPath);
+        if (!anyPromoted) {
+            throw new Error('FFmpeg produced incomplete output: neither thumbnail nor video preview was valid');
+        }
+
+        const finalThumb = fs.existsSync(thumbPath) ? thumbPath : null;
+        const finalWebm = fs.existsSync(hoverWebmPath) ? hoverWebmPath : null;
 
         if (finalSender && !finalSender.isDestroyed()) {
             finalSender.send('generate-webm-progress', {
                 videoPath,
                 percent: 100,
                 label: `Preview completed!`,
-                thumbnail: thumbPath,
-                hoverWebm: hoverWebmPath
+                thumbnail: finalThumb,
+                hoverWebm: finalWebm
             });
         }
 
@@ -400,7 +426,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 duration,
                 thumbTime: thumbTimeMs,
                 webmTime: webmTimeMs,
-                status: 'SUCCESS'
+                status: (thumbPromoted && webmPromoted) ? 'SUCCESS' : 'PARTIAL_SUCCESS'
             });
         } catch (e) { }
     } catch (e) {
@@ -596,7 +622,9 @@ function registerPreviewHandlers(ipcMain) {
                 continue;
             }
             // Already generated — count as success so the card can refresh, no re-encode.
-            if (fs.existsSync(thumbPath) && fs.existsSync(webmPath)) {
+            const existingThumb = fs.existsSync(thumbPath);
+            const existingWebm = fs.existsSync(webmPath);
+            if (existingThumb && existingWebm) {
                 console.log(`[main:previews] idle already-exists: ${base}`);
                 succeeded++;
                 results.push({ path: item.path, success: true, thumbnail: thumbPath, hoverWebm: webmPath });
@@ -607,11 +635,12 @@ function registerPreviewHandlers(ipcMain) {
                 if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
                 console.log(`[main:previews] idle generating: ${base}`);
                 await generateThumbAndPreview(item.path, thumbPath, webmPath, event.sender, false, true);
-                const ok = fs.existsSync(thumbPath) && fs.existsSync(webmPath);
-                if (ok) {
-                    console.log(`[main:previews] idle OK: ${base}`);
+                const hasThumb = fs.existsSync(thumbPath);
+                const hasWebm = fs.existsSync(webmPath);
+                if (hasThumb || hasWebm) {
+                    console.log(`[main:previews] idle OK (thumb=${hasThumb}, webm=${hasWebm}): ${base}`);
                     succeeded++;
-                    results.push({ path: item.path, success: true, thumbnail: thumbPath, hoverWebm: webmPath });
+                    results.push({ path: item.path, success: true, thumbnail: hasThumb ? thumbPath : null, hoverWebm: hasWebm ? webmPath : null });
                 } else {
                     console.warn(`[main:previews] idle incomplete output: ${base}`);
                     failed++;

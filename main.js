@@ -7,6 +7,9 @@ if (process.env.VAULT_EXPLORER_E2E_USER_DATA) {
     app.setPath('userData', process.env.VAULT_EXPLORER_E2E_USER_DATA);
 }
 
+// Platform HEVC/H.265 hardware video decoding support
+app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
+
 const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
 // Seeded once into the user-editable "Glob Exclusions" pills in Settings when
 // the user has never set any. Junk/code-artifact files the hardcoded directory
@@ -36,6 +39,10 @@ function loadSettings() {
 
 async function saveSettings(settings) {
     try {
+        const dir = path.dirname(settingsPath);
+        if (!fs.existsSync(dir)) {
+            await fs.promises.mkdir(dir, { recursive: true });
+        }
         await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
         return true;
     } catch (e) {
@@ -98,25 +105,38 @@ let isQuitting = false;
 let pendingLaunchIntent = null;
 let exitingSecondaryInstance = false;
 
-function getOpenFileFromArgs(args, workingDirectory) {
+function getOpenTargetFromArgs(args, workingDirectory) {
     for (const arg of args) {
         if (!arg || arg.startsWith('--')) continue;
         try {
             const resolvedPath = workingDirectory
                 ? path.resolve(workingDirectory, arg)
                 : path.resolve(arg);
-            if (fs.statSync(resolvedPath).isFile()) return resolvedPath;
+            if (fs.existsSync(resolvedPath)) {
+                const stat = fs.statSync(resolvedPath);
+                if (stat.isDirectory()) return { type: 'folder', path: resolvedPath };
+                if (stat.isFile()) return { type: 'file', path: resolvedPath };
+            }
         } catch (_) { }
     }
     return null;
 }
 
 function getLaunchIntentFromArgs(args, workingDirectory) {
-    const filePath = getOpenFileFromArgs(args, workingDirectory);
-    return filePath ? {
-        filePath,
+    const target = getOpenTargetFromArgs(args, workingDirectory);
+    if (!target) return null;
+    if (target.type === 'folder') {
+        return {
+            type: 'folder',
+            folderPath: target.path,
+            prioritizePlayer: false,
+        };
+    }
+    return {
+        type: 'file',
+        filePath: target.path,
         prioritizePlayer: args.includes('--prioritize-player'),
-    } : null;
+    };
 }
 
 function focusMainWindow() {
@@ -127,7 +147,7 @@ function focusMainWindow() {
 }
 
 function openLaunchIntentInMainWindow(intent) {
-    if (!intent || !intent.filePath) return;
+    if (!intent || (!intent.filePath && !intent.folderPath)) return;
     if (!mainWindow || mainWindow.isDestroyed()) {
         pendingLaunchIntent = intent;
         return;

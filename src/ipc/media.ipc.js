@@ -177,12 +177,10 @@ function registerMediaIpc(ipcMain) {
 
         if (typeof videoPath !== 'string' || !fs.existsSync(videoPath)) {
             return { success: false, error: 'File not found' };
-        }
-
-        const pythonPath = process.platform === 'win32'
-            ? path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe')
-            : path.join(__dirname, '..', '..', '.venv', 'bin', 'python');
-        const scriptPath = path.join(__dirname, '..', '..', 'python-scripts', 'rtx_vsr_stream.py');
+		}
+		
+        const pythonPath = utils.getRobustPythonExe();
+        const scriptPath = utils.resolveScriptPath('rtx_vsr_stream.py');
 
         const args = [
             scriptPath,
@@ -198,10 +196,11 @@ function registerMediaIpc(ipcMain) {
         console.log(`[media.ipc:upscale-stream] Spawning: ${pythonPath} ${args.join(' ')}`);
 
         try {
+            const env = utils.getPythonEnv({ PYTHONUNBUFFERED: '1' });
             const proc = child_process.spawn(pythonPath, args, {
                 windowsHide: true,
                 // Ensure binary stdout is not mangled
-                env: { ...process.env, PYTHONUNBUFFERED: '1' },
+                env,
             });
             upscaleStreamProcess = proc;
 
@@ -316,7 +315,7 @@ function registerMediaIpc(ipcMain) {
             console.log(`[media.ipc:youtube] Returning cached stream URL for ${videoId}`);
             return { success: true, url: ytUrlCache.get(videoId) };
         }
-        const ytDlp = 'yt-dlp';
+        const ytDlp = utils.resolveToolPath('yt-dlp.exe') || 'yt-dlp';
         const url = `https://www.youtube.com/watch?v=${videoId}`;
         // Request progressive combined formats (22 for 720p, 18 for 360p) for native <video> tag playback
         const args = ['--format', '22/18/best', '--no-playlist', '--no-warnings', '--no-check-certificates', '--extractor-args', 'youtube:player_client=android,web', '--get-url', url];
@@ -357,11 +356,7 @@ function registerMediaIpc(ipcMain) {
     // AI Image Enhancement — RealESRGAN super-resolution (ncnn-vulkan)
     // ---------------------------------------------------------------------------
     function resolveToolPath(...segments) {
-        const devPath = path.join(__dirname, '..', '..', 'tools', ...segments);
-        const prodPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'tools', ...segments);
-        if (fs.existsSync(devPath)) return devPath;
-        if (fs.existsSync(prodPath)) return prodPath;
-        return null;
+        return utils.resolveToolPath(...segments);
     }
 
     ipcMain.handle('enhance-image-realesrgan', async (_event, filePath) => {

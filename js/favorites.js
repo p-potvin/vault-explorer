@@ -1,4 +1,12 @@
-// favorites.js — renders the local Explorer favorites collection.
+// favorites.js — renders the local Explorer favorites collection and manages favorites state.
+
+const _normFavPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+
+window.isFavorite = function isFavorite(filePath) {
+    if (!filePath || !window.appSettings || !Array.isArray(window.appSettings.favorites)) return false;
+    const targetPath = _normFavPath(filePath);
+    return window.appSettings.favorites.some(p => _normFavPath(p) === targetPath);
+};
 
 window.renderFavorites = async function renderFavorites(useCache = false) {
     const grid = el('favorites-grid');
@@ -10,8 +18,8 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
     settings.favorites = favorites;
 
     if (!favorites.length) {
-const t = window.translations[window.currentLang] || {};
-grid.innerHTML = `<div class="empty-state"><h3>${t.noFavoritesYet || 'No Favorites Yet'}</h3><p>${t.noFavoritesYetDesc || 'Click the star icon on any local file to save it here.'}</p></div>`;
+        const t = window.translations[window.currentLang] || {};
+        grid.innerHTML = `<div class="empty-state"><h3>${t.noFavoritesYet || 'No Favorites Yet'}</h3><p>${t.noFavoritesYetDesc || 'Click the star icon on any local file to save it here.'}</p></div>`;
         window.displayedItems = [];
         if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
         return;
@@ -19,20 +27,26 @@ grid.innerHTML = `<div class="empty-state"><h3>${t.noFavoritesYet || 'No Favorit
 
     let scanned = window.favoriteLocalItems;
     if (!useCache || !Array.isArray(scanned)) {
-        try { scanned = await window.electronAPI.scanSpecificFiles(favorites) || []; }
-        catch (error) { console.error('[favorites] scan failed:', error.message); scanned = []; }
-        const found = new Set(scanned.map(item => String(item.path || '').toLowerCase()));
-        settings.favorites = favorites.filter(pathValue => found.has(pathValue.toLowerCase()));
-        await window.electronAPI.saveSettings(settings);
-        scanned.forEach(item => { item.isFavorited = true; });
-        window.favoriteLocalItems = scanned;
+        try {
+            scanned = await window.electronAPI.scanSpecificFiles(favorites) || [];
+        } catch (error) {
+            console.error('[favorites] scan failed:', error.message);
+            scanned = [];
+        }
+        if (scanned && scanned.length > 0) {
+            scanned.forEach(item => { item.isFavorited = true; });
+            window.favoriteLocalItems = scanned;
+        } else if (favorites.length > 0 && (!scanned || scanned.length === 0)) {
+            scanned = [];
+            window.favoriteLocalItems = scanned;
+        }
     }
 
     const term = (el('search-box')?.value || '').toLowerCase();
     const filter = el('filter-type')?.value || 'all';
     const sortBy = el('sort-by')?.value || 'name';
     const descending = (el('btn-sort-order')?.dataset.order || 'desc') === 'desc';
-    const filtered = scanned.filter(item => {
+    const filtered = (scanned || []).filter(item => {
         if (term && !(item.name || '').toLowerCase().includes(term)) return false;
         if (filter === 'video') return item.type === 'video' || item.type === 'encrypted';
         if (filter === 'image') return item.type === 'image';
@@ -48,8 +62,8 @@ grid.innerHTML = `<div class="empty-state"><h3>${t.noFavoritesYet || 'No Favorit
     window.displayedItems = filtered;
     grid.innerHTML = '';
     if (!filtered.length) {
-const t = window.translations[window.currentLang] || {};
-grid.innerHTML = `<div class="empty-state"><h3>${t.noItemsFound || 'No Items Found'}</h3><p>${t.adjustFiltersFavorites || 'Adjust your search or filters.'}</p></div>`;
+        const t = window.translations[window.currentLang] || {};
+        grid.innerHTML = `<div class="empty-state"><h3>${t.noItemsFound || 'No Items Found'}</h3><p>${t.adjustFiltersFavorites || 'Adjust your search or filters.'}</p></div>`;
     } else {
         const fragment = document.createDocumentFragment();
         filtered.forEach((item, index) => fragment.appendChild(window.createCardElement(item, index)));
@@ -58,27 +72,25 @@ grid.innerHTML = `<div class="empty-state"><h3>${t.noItemsFound || 'No Items Fou
     if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
 };
 
-window.toggleFavorite = function toggleFavorite(filePath, btnEl) {
+window.toggleFavorite = function toggleFavorite(filePath, btnEl, isSilent = false) {
     if (!filePath) return;
     window.appSettings = window.appSettings || {};
     window.appSettings.favorites = Array.isArray(window.appSettings.favorites) ? window.appSettings.favorites : [];
     
-    const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-    const targetPath = normPath(filePath);
-    
-    const idx = window.appSettings.favorites.findIndex(p => normPath(p) === targetPath);
+    const targetPath = _normFavPath(filePath);
+    const idx = window.appSettings.favorites.findIndex(p => _normFavPath(p) === targetPath);
     let isNowStarred = false;
     const lang = window.currentLang === 'fr' ? 'fr' : 'en';
     
     if (idx !== -1) {
         window.appSettings.favorites.splice(idx, 1);
-        if (typeof window.showToast === 'function') {
+        if (!isSilent && typeof window.showToast === 'function') {
             window.showToast(lang === 'fr' ? 'Retiré des favoris' : 'Removed from Favorites', 'info');
         }
     } else {
         window.appSettings.favorites.push(filePath);
         isNowStarred = true;
-        if (typeof window.showToast === 'function') {
+        if (!isSilent && typeof window.showToast === 'function') {
             window.showToast(lang === 'fr' ? 'Ajouté aux favoris' : 'Added to Favorites', 'success');
         }
     }
@@ -90,7 +102,7 @@ window.toggleFavorite = function toggleFavorite(filePath, btnEl) {
     window.favoriteLocalItems = null;
     
     document.querySelectorAll('.file-card').forEach(card => {
-        const cardPath = normPath(card.dataset.path);
+        const cardPath = _normFavPath(card.dataset.path);
         if (cardPath === targetPath) {
             const svg = card.querySelector('.star-svg');
             if (svg) {
@@ -110,8 +122,9 @@ window.toggleFavorite = function toggleFavorite(filePath, btnEl) {
         }
     }
 
-    if (window.currentTab === 'files' && window.currentFilesSubtab === 'favorites') {
+    if (!isSilent && window.currentTab === 'files' && window.currentFilesSubtab === 'favorites') {
         window.renderFavorites();
     }
 };
+
 

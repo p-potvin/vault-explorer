@@ -283,6 +283,83 @@ function showConfirmDialog(message, title) {
   });
 }
 
+function showPromptDialog(message, defaultValue = '', title = '') {
+  return new Promise((resolve) => {
+    let dialog = document.getElementById('prompt-dialog');
+    if (!dialog) {
+      dialog = document.createElement('div');
+      dialog.id = 'prompt-dialog';
+      dialog.className = 'confirm-dialog';
+      dialog.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:3100; display:none; background:var(--card-bg, #1a1d24); border:1px solid var(--border-color, #2a2e39); border-radius:12px; padding:24px; width:90%; max-width:420px; box-shadow:0 20px 50px rgba(0,0,0,0.6);';
+      dialog.innerHTML = `
+        <h4 id="prompt-dialog-title" style="margin:0 0 10px; font-size:15px; font-weight:700; color:var(--vault-text, #fff); font-family:var(--font-mono, sans-serif);"></h4>
+        <p id="prompt-dialog-message" style="margin:0 0 14px; font-size:13px; color:var(--vault-slate, #aaa); font-family:var(--font-mono, sans-serif);"></p>
+        <input id="prompt-dialog-input" type="text" style="width:100%; background:var(--input-bg, #0d0f12); border:1px solid var(--border-color, #333); border-radius:8px; padding:10px 12px; color:#fff; font-size:13px; font-family:var(--font-mono, sans-serif); outline:none; box-sizing:border-box; margin-bottom:18px;" />
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button id="btn-prompt-cancel" class="btn" style="padding:8px 16px; border-radius:6px; background:rgba(255,255,255,0.08); color:#ccc; border:none; cursor:pointer; font-weight:600; font-family:var(--font-mono, sans-serif); font-size:12px;">Cancel</button>
+          <button id="btn-prompt-ok" class="btn" style="padding:8px 18px; border-radius:6px; background:var(--vault-accent, #3b82f6); color:#fff; border:none; cursor:pointer; font-weight:700; font-family:var(--font-mono, sans-serif); font-size:12px;">OK</button>
+        </div>
+      `;
+      document.body.appendChild(dialog);
+    }
+
+    const titleEl = document.getElementById('prompt-dialog-title');
+    const msgEl = document.getElementById('prompt-dialog-message');
+    const inputEl = document.getElementById('prompt-dialog-input');
+    const btnCancel = document.getElementById('btn-prompt-cancel');
+    const btnOk = document.getElementById('btn-prompt-ok');
+
+    titleEl.textContent = title || (window.currentLang === 'fr' ? 'Saisie requise' : 'Input Required');
+    msgEl.textContent = message || '';
+    inputEl.value = defaultValue || '';
+    dialog.style.display = 'block';
+
+    let backdrop = document.getElementById('dialog-backdrop');
+    if (!backdrop) {
+      backdrop = document.createElement('div');
+      backdrop.id = 'dialog-backdrop';
+      backdrop.style.position = 'fixed';
+      backdrop.style.top = '0';
+      backdrop.style.left = '0';
+      backdrop.style.width = '100vw';
+      backdrop.style.height = '100vh';
+      backdrop.style.background = 'rgba(0, 0, 0, 0.4)';
+      backdrop.style.backdropFilter = 'blur(2px)';
+      backdrop.style.zIndex = '3050';
+      document.body.appendChild(backdrop);
+    }
+    backdrop.style.display = 'block';
+
+    inputEl.focus();
+    inputEl.select();
+
+    const cleanup = (value) => {
+      dialog.style.display = 'none';
+      if (backdrop) backdrop.style.display = 'none';
+      btnCancel.removeEventListener('click', onCancel);
+      btnOk.removeEventListener('click', onOk);
+      inputEl.removeEventListener('keydown', onKeyDown);
+      resolve(value);
+    };
+
+    function onCancel() { cleanup(null); }
+    function onOk() { cleanup(inputEl.value); }
+    function onKeyDown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onOk();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    }
+
+    btnCancel.addEventListener('click', onCancel);
+    btnOk.addEventListener('click', onOk);
+    inputEl.addEventListener('keydown', onKeyDown);
+  });
+}
+
 function createFolderChooserEmptyState(message, onChoose) {
   const wrap = document.createElement('div');
   wrap.className = 'empty-state';
@@ -352,6 +429,8 @@ window.showClipboardNotification = showClipboardNotification;
 window.attachHoverWebmToCard = attachHoverWebmToCard;
 window.killAllHoverVideos = killAllHoverVideos;
 window.showConfirmDialog = showConfirmDialog;
+window.showPromptDialog = showPromptDialog;
 window.createFolderChooserEmptyState = createFolderChooserEmptyState;
 window.browseTabFolder = browseTabFolder;
 window.getTabDefaultFolder = getTabDefaultFolder;
+window.prompt = function(msg, def) { return window.showPromptDialog(msg, def); };

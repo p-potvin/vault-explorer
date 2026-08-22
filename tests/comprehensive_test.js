@@ -12,7 +12,7 @@ async function runTests() {
     console.log('[Test Setup] Launching Vault Explorer application...');
     const electronApp = await electron.launch({
         cwd: appPath,
-        args: ['.']
+        args: ['.', '--headless', '--disable-gpu-compositing']
     });
 
     // Wait for pages/windows to initialize and find the correct app window
@@ -81,7 +81,7 @@ async function runTests() {
     const initialLangText = (await window.locator('body').evaluate(() => window.currentLang)).toUpperCase();
 
     console.log(`  -> Initial Lang Button Text: "${initialLangText}"`);
-    const initialBrowseTitle = (await window.locator('#path-display').getAttribute('title')).toLowerCase();
+    const initialBrowseTitle = (await window.locator('#path-display').getAttribute('title'))?.toLowerCase();
     console.log(`  -> Initial Browse Vault Title: "${initialBrowseTitle}"`);
 
     if (initialLangText.includes('EN')) {
