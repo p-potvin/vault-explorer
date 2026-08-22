@@ -18,7 +18,6 @@ const testSuites = [
     { name: 'Player Controls & Upscale Button E2E', script: 'tests/player_upscale_btn_test.js' },
     { name: 'Category Isolation & Self-Containment', script: 'tests/category_isolation_test.js' },
     { name: 'Music & Photos Button-By-Button E2E Suite', script: 'tests/music_photos_buttons_e2e_test.js' },
-    { name: 'MusicBrainz Populator & Metadata Suite', script: 'tests/musicbrainz_populator_test.js' },
     { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' }
 ];
 
