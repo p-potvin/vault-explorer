@@ -342,10 +342,14 @@ async function playItem(idx, sourceItems = null) {
     let itm = items[idx];
     if (!itm) return;
     if (!sourceItems) {
-        const context = await buildPlaybackContext(itm);
-        items = context.items;
-        idx = context.index;
-        itm = items[idx];
+        try {
+            const context = await buildPlaybackContext(itm);
+            if (context && Array.isArray(context.items) && context.items.length && context.index >= 0) {
+                items = context.items;
+                idx = context.index;
+                itm = items[idx] || itm;
+            }
+        } catch (_) { /* fallback to current displayed items */ }
     }
     if (!itm) return;
     if (itm.type !== 'video') return;

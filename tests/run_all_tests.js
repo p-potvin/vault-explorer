@@ -13,6 +13,7 @@ const testSuites = [
     { name: 'Preview Validity Regression', script: 'tests/preview_validity_regression_test.js' },
     { name: 'Preview Candidate Acceptance', script: 'tests/preview_candidate_acceptance_test.js' },
     { name: 'Settings Modal & Player Error E2E Suite', script: 'tests/settings_and_error_handling_test.js' },
+    { name: 'Video Double Click & Playback E2E', script: 'tests/video_double_click_and_playback_test.js' },
     { name: 'Player Controls & Upscale Button E2E', script: 'tests/player_upscale_btn_test.js' },
     { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' }
 ];

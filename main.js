@@ -7,10 +7,6 @@ if (process.env.VAULT_EXPLORER_E2E_USER_DATA) {
     app.setPath('userData', process.env.VAULT_EXPLORER_E2E_USER_DATA);
 }
 
-// Enable hardware-accelerated video decoding and platform HEVC/H.265 decode support on Windows
-app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
-app.commandLine.appendSwitch('enable-accelerated-video-decode');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
 // Centralized GPU compositing mitigation for NVIDIA/CUDA stability
 app.commandLine.appendSwitch('disable-gpu-compositing');
 app.commandLine.appendSwitch('disable-gpu-composite');
