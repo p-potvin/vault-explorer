@@ -14,6 +14,17 @@
     let startX = 0;
     let startY = 0;
     let slideshowTimer = null;
+    let _activeAiBtn = null;
+
+    function clearAiVisuals() {
+        if (_activeAiBtn) {
+            _activeAiBtn.classList.remove('applied');
+            _activeAiBtn.style.boxShadow = 'none';
+            _activeAiBtn.style.background = '';
+            _activeAiBtn.style.borderColor = '';
+            _activeAiBtn = null;
+        }
+    }
 
     // Inject styles dynamically to keep everything self-contained and modular
     const styleEl = document.createElement('style');
@@ -376,17 +387,6 @@
 
         // AI enhancement cache: originalPath -> enhancedPath
         const _enhancedCache = new Map();
-        let _activeAiBtn = null;
-
-        function clearAiVisuals() {
-            if (_activeAiBtn) {
-                _activeAiBtn.classList.remove('applied');
-                _activeAiBtn.style.boxShadow = 'none';
-                _activeAiBtn.style.background = '';
-                _activeAiBtn.style.borderColor = '';
-                _activeAiBtn = null;
-            }
-        }
 
         async function runEnhancement(button, ipcFn, args, successLabel) {
             const currentObj = imagesInGrid[currentImageIndex];
@@ -606,6 +606,10 @@
             navigateImage(-1);
         } else if (e.key === 'ArrowRight') {
             navigateImage(1);
+        } else if (e.code === 'Space') {
+            e.preventDefault();
+            const ssBtn = el('iv-btn-slideshow');
+            if (ssBtn) ssBtn.click();
         } else if (e.key === '+' || e.key === '=') {
             adjustZoom(0.2);
         } else if (e.key === '-') {
@@ -631,6 +635,8 @@
 
         img.onload = () => {
             img.style.opacity = '1';
+            const stats = el('iv-stats-lbl');
+            if (stats) stats.innerText = `Image size: ${img.naturalWidth}x${img.naturalHeight} | Zoom: ${Math.round(scale * 100)}%`;
             resetView();
         };
 

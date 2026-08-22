@@ -174,16 +174,18 @@ async function handleCardContextMenu(card, item, index) {
     const isStarred = (typeof window.isFavorite === 'function')
         ? window.isFavorite(item.path)
         : !!(window.appSettings && window.appSettings.favorites && window.appSettings.favorites.some(p => (p || '').replace(/\\/g, '/').toLowerCase() === (item.path || '').replace(/\\/g, '/').toLowerCase()));
-    // Project vf folders into the {name, parent, type} shape the native menu
-    // expects, but tag each with an id so the action handler resolves by id (not name).
-    const folderMenuList = (window.vf ? window.vf.list({}) : []).map(f => ({
+    const expectedType = (item.type === 'image') ? 'album'
+        : (item.type === 'audio') ? 'playlist'
+            : 'collection';
+    // Project vf folders of the matching type into the {name, parent, type} shape the native menu expects
+    const folderMenuList = (window.vf ? window.vf.list({ type: expectedType }) : []).map(f => ({
         id: f.id,
         name: f.name,
         type: f.type,
         parent: f.parentId ? window.buildNavPath(f.parentId) : 'root',
         label: f.parentId
-            ? `${window.buildNavPath(f.parentId).replace(/^root\/?/, '')}/${f.name} (${f.type})`
-            : `${f.name} (${f.type})`,
+            ? `${window.buildNavPath(f.parentId).replace(/^root\/?/, '')}/${f.name}`
+            : f.name,
     }));
     const action = await window.electronAPI.showContextMenu({
         ...item,

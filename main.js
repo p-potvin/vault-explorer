@@ -7,9 +7,8 @@ if (process.env.VAULT_EXPLORER_E2E_USER_DATA) {
     app.setPath('userData', process.env.VAULT_EXPLORER_E2E_USER_DATA);
 }
 
-// Centralized GPU compositing mitigation for NVIDIA/CUDA stability
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('disable-gpu-composite');
+// Platform HEVC/H.265 hardware video decoding support
+app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
 
 const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
 // Seeded once into the user-editable "Glob Exclusions" pills in Settings when

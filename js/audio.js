@@ -23,6 +23,9 @@
     let activeSortedTracks = [];
     let renderedCount = 0;
     let isScrollBound = false;
+    let trackFilterTerm = '';
+    let isVisualizerActive = false;
+    let visualizerAnimId = null;
 
     function isAudioItem(item) {
         if (!item) return false;
@@ -129,10 +132,10 @@
     }
 
     // ── Playlist CRUD Operations ────────────────────────────────────────────
-    function createPlaylist(initialName, initialItems = []) {
+    async function createPlaylist(initialName, initialItems = []) {
         const name = (typeof initialName === 'string' && initialName.trim())
             ? initialName.trim()
-            : prompt('New playlist name:');
+            : (window.showPromptDialog ? await window.showPromptDialog('New playlist name:', '', 'Enter playlist title') : null);
         if (!name || !name.trim()) return null;
 
         const res = window.vf
@@ -153,8 +156,10 @@
         }
     }
 
-    function renamePlaylist(vfId, oldName) {
-        const newName = prompt('Rename playlist:', oldName);
+    async function renamePlaylist(vfId, oldName) {
+        const newName = window.showPromptDialog
+            ? await window.showPromptDialog('Rename playlist:', oldName, 'Enter new name')
+            : null;
         if (!newName || !newName.trim() || newName.trim() === oldName) return;
         if (window.vf && typeof window.vf.rename === 'function') {
             const res = window.vf.rename(vfId, newName.trim());
@@ -167,8 +172,11 @@
         }
     }
 
-    function deletePlaylist(vfId, name) {
-        if (!confirm(`Are you sure you want to delete the playlist "${name}"? Tracks will not be deleted from disk.`)) return;
+    async function deletePlaylist(vfId, name) {
+        const confirmed = window.showConfirmDialog
+            ? await window.showConfirmDialog(`Are you sure you want to delete the playlist "${name}"? Tracks will not be deleted from disk.`, 'Delete Playlist')
+            : confirm(`Are you sure you want to delete the playlist "${name}"? Tracks will not be deleted from disk.`);
+        if (!confirmed) return;
         if (window.vf && typeof window.vf.remove === 'function') {
             window.vf.remove(vfId);
             if (selectedPlaylist === 'vf:' + vfId) {
@@ -441,7 +449,18 @@
             return;
         }
 
-        activeSortedTracks = sortItems(items);
+        // Apply tracklist filter search
+        let filteredItems = items;
+        if (trackFilterTerm) {
+            const term = trackFilterTerm.toLowerCase().trim();
+            filteredItems = items.filter(it =>
+                (it.name || '').toLowerCase().includes(term) ||
+                (it.artist || '').toLowerCase().includes(term) ||
+                (it.folder || '').toLowerCase().includes(term)
+            );
+        }
+
+        activeSortedTracks = sortItems(filteredItems);
         renderedCount = 0;
 
         // Header (clickable sort)
@@ -571,8 +590,133 @@
         [...playlists.keys()].filter(k => k.startsWith('folder:')).forEach(k => addEntry(k, playlists.get(k)));
     }
 
+    // ── Audio Visualizer ───────────────────────────────────────────────────
+    function startVisualizer() {
+        const container = el('audio-visualizer-container');
+        const canvas = el('audio-visualizer-canvas');
+        if (!container || !canvas) return;
+        container.style.display = 'block';
+        isVisualizerActive = true;
+        const btn = el('audio-btn-visualizer');
+        if (btn) {
+            btn.style.background = 'rgba(176, 124, 255, 0.2)';
+            btn.style.color = 'var(--vault-accent)';
+            btn.style.borderColor = 'var(--vault-accent)';
+        }
+
+        const ctx = canvas.getContext('2d');
+        const numBars = 48;
+
+        function draw() {
+            if (!isVisualizerActive) return;
+            const w = canvas.width = canvas.parentElement.clientWidth || 300;
+            const h = canvas.height = canvas.parentElement.clientHeight || 60;
+            ctx.clearRect(0, 0, w, h);
+
+            const isPlaying = window.getAudioPlaylist ? window.getAudioPlaylist().isPlaying : false;
+            const barWidth = Math.max(2, (w / numBars) - 2);
+            const now = Date.now() / 250;
+
+            for (let i = 0; i < numBars; i++) {
+                let barHeight = 4;
+                if (isPlaying) {
+                    const wave1 = Math.sin(now + i * 0.3) * 0.5 + 0.5;
+                    const wave2 = Math.cos(now * 1.3 + i * 0.2) * 0.5 + 0.5;
+                    barHeight = Math.max(4, (wave1 * 0.6 + wave2 * 0.4) * (h - 8));
+                }
+                const x = i * (barWidth + 2);
+                const y = h - barHeight;
+
+                const grad = ctx.createLinearGradient(0, y, 0, h);
+                grad.addColorStop(0, '#B07CFF');
+                grad.addColorStop(0.5, '#4DEEEA');
+                grad.addColorStop(1, '#E5A93B');
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.roundRect(x, y, barWidth, barHeight, [2, 2, 0, 0]);
+                } else {
+                    ctx.rect(x, y, barWidth, barHeight);
+                }
+                ctx.fill();
+            }
+
+            visualizerAnimId = requestAnimationFrame(draw);
+        }
+        if (visualizerAnimId) cancelAnimationFrame(visualizerAnimId);
+        visualizerAnimId = requestAnimationFrame(draw);
+    }
+
+    function stopVisualizer() {
+        const container = el('audio-visualizer-container');
+        if (container) container.style.display = 'none';
+        isVisualizerActive = false;
+        if (visualizerAnimId) {
+            cancelAnimationFrame(visualizerAnimId);
+            visualizerAnimId = null;
+        }
+        const btn = el('audio-btn-visualizer');
+        if (btn) {
+            btn.style.background = 'rgba(255,255,255,0.06)';
+            btn.style.color = 'var(--vault-slate)';
+            btn.style.borderColor = 'var(--vault-border)';
+        }
+    }
+
+    function toggleVisualizer() {
+        if (isVisualizerActive) stopVisualizer();
+        else startVisualizer();
+    }
+
+    function setupHeaderControls() {
+        const playAllBtn = el('audio-btn-play-all');
+        const shuffleBtn = el('audio-btn-shuffle');
+        const visBtn = el('audio-btn-visualizer');
+        const searchInput = el('audio-track-search');
+
+        if (playAllBtn && !playAllBtn._bound) {
+            playAllBtn._bound = true;
+            playAllBtn.addEventListener('click', () => {
+                if (activeSortedTracks.length > 0 && typeof window.playAudio === 'function') {
+                    bumpPlayCount(activeSortedTracks[0].path);
+                    window.playAudio(activeSortedTracks[0], activeSortedTracks, 0);
+                }
+            });
+        }
+
+        if (shuffleBtn && !shuffleBtn._bound) {
+            shuffleBtn._bound = true;
+            shuffleBtn.addEventListener('click', () => {
+                if (activeSortedTracks.length > 0 && typeof window.playAudio === 'function') {
+                    const rnd = Math.floor(Math.random() * activeSortedTracks.length);
+                    bumpPlayCount(activeSortedTracks[rnd].path);
+                    window.playAudio(activeSortedTracks[rnd], activeSortedTracks, rnd);
+                }
+            });
+        }
+
+        if (visBtn && !visBtn._bound) {
+            visBtn._bound = true;
+            visBtn.addEventListener('click', toggleVisualizer);
+        }
+
+        if (searchInput && !searchInput._bound) {
+            searchInput._bound = true;
+            searchInput.addEventListener('input', (e) => {
+                trackFilterTerm = e.target.value;
+                const items = getAudioItems();
+                const playlists = getPlaylists(items);
+                const pl = playlists.get(selectedPlaylist) || playlists.get('all');
+                const key = playlists.has(selectedPlaylist) ? selectedPlaylist : 'all';
+                renderTrack(pl.items, pl.name, key);
+            });
+        }
+    }
+
     // ── Master Render ───────────────────────────────────────────────────────
     function renderAudio() {
+        setupHeaderControls();
         const items = getAudioItems();
         const playlists = getPlaylists(items);
         renderSidebar(playlists);
@@ -585,4 +729,7 @@
     window.createAudioPlaylist = createPlaylist;
     window.renameAudioPlaylist = renamePlaylist;
     window.deleteAudioPlaylist = deletePlaylist;
+    window.createPlaylist = createPlaylist;
+    window.renamePlaylist = renamePlaylist;
+    window.deletePlaylist = deletePlaylist;
 })();

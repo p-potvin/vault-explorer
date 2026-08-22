@@ -84,10 +84,10 @@
     }
 
     // ── Album CRUD ──────────────────────────────────────────────────────────
-    function createCustomAlbum(initialName, initialItems = []) {
+    async function createCustomAlbum(initialName, initialItems = []) {
         const name = (typeof initialName === 'string' && initialName.trim())
             ? initialName.trim()
-            : prompt('New album / gallery name:');
+            : (window.showPromptDialog ? await window.showPromptDialog('New album / gallery name:', '', 'Enter album name') : null);
         if (!name || !name.trim()) return null;
 
         const res = window.vf
@@ -107,8 +107,10 @@
         }
     }
 
-    function renameCustomAlbum(vfId, oldName) {
-        const newName = prompt('Rename album:', oldName);
+    async function renameCustomAlbum(vfId, oldName) {
+        const newName = window.showPromptDialog
+            ? await window.showPromptDialog('Rename album:', oldName, 'Enter new album name')
+            : null;
         if (!newName || !newName.trim() || newName.trim() === oldName) return;
         if (window.vf && typeof window.vf.rename === 'function') {
             const res = window.vf.rename(vfId, newName.trim());
@@ -126,8 +128,11 @@
         }
     }
 
-    function deleteCustomAlbum(vfId, name) {
-        if (!confirm(`Are you sure you want to delete the album "${name}"? Photos will not be deleted from disk.`)) return;
+    async function deleteCustomAlbum(vfId, name) {
+        const confirmed = window.showConfirmDialog
+            ? await window.showConfirmDialog(`Are you sure you want to delete the album "${name}"? Photos will not be deleted from disk.`, 'Delete Album')
+            : confirm(`Are you sure you want to delete the album "${name}"? Photos will not be deleted from disk.`);
+        if (!confirmed) return;
         if (window.vf && typeof window.vf.remove === 'function') {
             window.vf.remove(vfId);
             if (window.showToast) window.showToast(`Album "${name}" deleted`, 'info');
@@ -625,6 +630,9 @@
     window.createCustomPhotoAlbum = createCustomAlbum;
     window.renameCustomPhotoAlbum = renameCustomAlbum;
     window.deleteCustomPhotoAlbum = deleteCustomAlbum;
+    window.createCustomAlbum = createCustomAlbum;
+    window.renameCustomAlbum = renameCustomAlbum;
+    window.deleteCustomAlbum = deleteCustomAlbum;
 
     setupAlbumListeners();
 })();

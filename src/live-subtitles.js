@@ -4,21 +4,29 @@ const { spawn } = require('child_process');
 const readline = require('readline');
 const fs = require('fs');
 const { app } = require('electron');
-const { pipeline } = require('stream/promises');
-const { Transform } = require('stream');
 const utils = require('./utils');
 
-// The TDT model (~2.5 GB) is NOT shipped in the installer. It's fetched on first
-// use into userData/models/ (writable), the way apps download large runtime
-// components after install. Dev machines already have it extracted in the repo.
-const TDT_URL = 'https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/main/parakeet-tdt-0.6b-v3.nemo?download=true';
-const TDT_NEMO_NAME = 'parakeet-tdt-0.6b-v3.nemo';
-
-function getGgufModelPath() {
+function resolveAudioCppDir() {
     const candidates = [
+        process.env.VW_AUDIOCPP,
+        path.join(app.getAppPath(), 'tools', 'audiocpp'),
+        path.join(os.homedir(), 'Desktop', 'Github Repos', 'vault-cacophony', 'audio.cpp'),
+    ];
+    for (const cand of candidates) {
+        if (cand && fs.existsSync(path.join(cand, 'audiocpp_cli.exe'))) {
+            return cand;
+        }
+    }
+    return null;
+}
+
+function resolveGgufModelPath() {
+    const audioCppDir = resolveAudioCppDir();
+    const candidates = [
+        audioCppDir ? path.join(audioCppDir, 'models', 'Parakeet-TDT-0.6B-v3-GGUF', 'parakeet-tdt-0.6b-v3-q8_0.gguf') : null,
         utils.resolveToolsDir('models', 'parakeet-tdt-0.6b-v3-gguf', 'parakeet-tdt-0.6b-v3-q8_0.gguf'),
         path.join(process.env.LOCALAPPDATA || '', 'VaultWares', 'models', 'parakeet-tdt-0.6b-v3-gguf', 'parakeet-tdt-0.6b-v3-q8_0.gguf'),
-        path.join(os.homedir(), 'Desktop', 'Github Repos', 'vault-commander', 'cli', 'utils', 'models', 'parakeet-tdt-0.6b-v3-gguf', 'parakeet-tdt-0.6b-v3-q8_0.gguf')
+        path.join(os.homedir(), 'Desktop', 'Github Repos', 'vault-commander', 'cli', 'utils', 'models', 'parakeet-tdt-0.6b-v3-gguf', 'parakeet-tdt-0.6b-v3-q8_0.gguf'),
     ];
     for (const p of candidates) {
         if (p && fs.existsSync(p)) return p;
@@ -26,34 +34,12 @@ function getGgufModelPath() {
     return null;
 }
 
-// True when the GGUF model is available locally.
 function modelPresent() {
-    return !!getGgufModelPath();
+    return !!resolveGgufModelPath();
 }
 
-let downloadPromise = null;
-async function downloadModel() {
-    if (modelPresent()) return true;
-    console.log('[main:live-subs] GGUF model check complete');
-    forward('live-subtitle-status', { status: 'downloaded' });
-    return true;
-}
-
-// Resolves once the model exists locally
-function ensureModel() {
-    if (modelPresent()) return Promise.resolve(true);
-    return Promise.resolve(true);
-}
-
-// Long-lived Python daemon spawned ON DEMAND when live subtitles are started.
-let daemon = null;
-let daemonReady = false;
-let lastSender = null;      // renderer to route cues/status to
-let cueCount = 0;
-
-function getPythonExe() {
-    return utils.getRobustPythonExe();
-}
+let activeSession = null;
+let lastSender = null;
 
 function forward(channel, payload) {
     if (lastSender && !lastSender.isDestroyed()) {
@@ -61,135 +47,139 @@ function forward(channel, payload) {
     }
 }
 
-function handleLine(line) {
-    const marks = {
-        cue: 'SUBTITLE_CUE:',
-        status: 'LIVE_STATUS:',
-        done: 'JSON_STATUS:',
-        daemon: 'DAEMON:',
-    };
-    if (line.includes(marks.cue)) {
-        try {
-            const cue = JSON.parse(line.slice(line.indexOf(marks.cue) + marks.cue.length).trim());
-            cueCount++;
-            if (!cue.partial) {
-                console.log(`[live-subs] FINAL #${cue.index} [${cue.start}-${cue.end}] ${JSON.stringify(cue.text)}`);
-            }
-            forward('live-subtitle-cue', cue);
-        } catch (e) { /* ignore */ }
-        return;
-    }
-    if (line.includes(marks.status)) {
-        try {
-            const data = JSON.parse(line.slice(line.indexOf(marks.status) + marks.status.length).trim());
-            console.log(`[live-subs] status: ${data.status} — ${data.message || ''}`);
-            forward('live-subtitle-status', data);
-        } catch (e) { /* ignore */ }
-        return;
-    }
-    if (line.includes(marks.done)) {
-        try {
-            const data = JSON.parse(line.slice(line.indexOf(marks.done) + marks.done.length).trim());
-            console.log(`[live-subs] final: ${data.status} (cues: ${data.cues})`);
-            forward('live-subtitle-status', { final: true, ...data });
-        } catch (e) { /* ignore */ }
-        return;
-    }
-    if (line.includes(marks.daemon)) {
-        try {
-            const data = JSON.parse(line.slice(line.indexOf(marks.daemon) + marks.daemon.length).trim());
-            daemonReady = !!data.ready;
-            console.log(`[live-subs] daemon ready=${daemonReady}`);
-        } catch (e) { /* ignore */ }
-        return;
-    }
-}
-
-function ensureDaemon() {
-    if (daemon && daemon.stdin && daemon.stdin.writable) return;
-    const script = utils.resolveScriptPath('live_subtitles.py');
-    const pythonExe = getPythonExe();
-    const env = utils.getPythonEnv({
-        VAULT_MODEL_DIR: userModelsDir(),
-    });
-
-    console.log('[main:live-subs] spawning live-subtitles daemon on-demand...');
-    daemon = spawn(pythonExe, ['-u', script, '--daemon'], { env, windowsHide: true });
-    daemonReady = false;
-
-    const rlOut = readline.createInterface({ input: daemon.stdout, terminal: false });
-    const rlErr = readline.createInterface({ input: daemon.stderr, terminal: false });
-    rlOut.on('line', handleLine);
-    rlErr.on('line', (line) => { if (line.trim()) console.log(`[live-subs:stderr] ${line.trim()}`); });
-
-    daemon.on('error', (err) => {
-        console.error('[main:live-subs] daemon spawn error:', err);
-        forward('live-subtitle-status', { final: true, status: 'FAILED', error: err.message });
-    });
-    daemon.on('close', (code) => {
-        console.log(`[main:live-subs] daemon exited (code ${code})`);
-        daemon = null;
-        daemonReady = false;
-    });
-}
-
-function sendCmd(obj) {
-    ensureDaemon();
+function convertSrtToVtt(sourcePath) {
+    if (path.extname(sourcePath).toLowerCase() !== '.srt') return sourcePath;
+    const subtitleDir = path.join(path.dirname(sourcePath), '.subtitles');
+    const vttPath = path.join(subtitleDir, `${path.basename(sourcePath, path.extname(sourcePath))}.vtt`);
     try {
-        if (daemon && daemon.stdin.writable) {
-            daemon.stdin.write(JSON.stringify(obj) + '\n');
-            return true;
-        }
-    } catch (e) {
-        console.error('[main:live-subs] sendCmd failed:', e.message);
+        fs.mkdirSync(subtitleDir, { recursive: true });
+        const srtText = fs.readFileSync(sourcePath, 'utf8').replace(/^\uFEFF/, '');
+        const vttText = `WEBVTT\n\n${srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')}`;
+        fs.writeFileSync(vttPath, vttText, 'utf8');
+        return vttPath;
+    } catch (error) {
+        console.warn('[live-subs] SRT conversion failed:', error.message);
+        return sourcePath;
     }
-    return false;
+}
+
+function startSubtitlesPipeline({ videoPath, langs, volumeBoost, startTime, translateTo }) {
+    if (activeSession && activeSession.process) {
+        try { activeSession.process.kill(); } catch (_) { }
+        activeSession = null;
+    }
+
+    const scriptPath = path.resolve(__dirname, '..', 'scripts', 'pwsh', 'Start-SubtitlesAudioCpp.ps1');
+    const langStr = Array.isArray(langs) ? langs.join(',') : (langs || translateTo || 'en');
+    const boost = Number(volumeBoost) || 1.5;
+
+    const args = [
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', scriptPath,
+        '-TargetDir', videoPath,
+        '-Langs', langStr,
+        '-NoSeparate', // Fast mode for live subtitles
+        '-VolumeBoost', String(boost)
+    ];
+
+    console.log('[main:live-subs] Launching Audio.cpp / GGML pipeline:', args.join(' '));
+    forward('live-subtitle-status', {
+        status: 'started',
+        videoPath,
+        message: 'Starting Audio.cpp / GGML Parakeet-TDT ASR pipeline...'
+    });
+
+    const child = spawn('powershell.exe', args, {
+        windowsHide: true,
+        env: {
+            ...process.env,
+            VW_AUDIOCPP: resolveAudioCppDir() || '',
+        }
+    });
+
+    activeSession = {
+        process: child,
+        videoPath,
+        langStr
+    };
+
+    const rlOut = readline.createInterface({ input: child.stdout, terminal: false });
+    const rlErr = readline.createInterface({ input: child.stderr, terminal: false });
+
+    rlOut.on('line', (line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        console.log(`[live-subs:out] ${trimmed}`);
+        forward('live-subtitle-status', {
+            status: 'processing',
+            videoPath,
+            message: trimmed
+        });
+    });
+
+    rlErr.on('line', (line) => {
+        const trimmed = line.trim();
+        if (trimmed) console.log(`[live-subs:err] ${trimmed}`);
+    });
+
+    child.on('close', (code) => {
+        console.log(`[main:live-subs] Audio.cpp process exited with code ${code}`);
+        if (activeSession && activeSession.process === child) {
+            activeSession = null;
+        }
+
+        const base = path.basename(videoPath, path.extname(videoPath));
+        const srtPath = path.join(path.dirname(videoPath), `${base}.srt`);
+        let vttPath = null;
+        const success = fs.existsSync(srtPath);
+
+        if (success) {
+            vttPath = convertSrtToVtt(srtPath);
+        }
+
+        forward('live-subtitle-status', {
+            final: true,
+            status: success ? 'SUCCESS' : 'FAILED',
+            videoPath,
+            srtPath: success ? srtPath : null,
+            vttPath,
+            error: success ? null : `Process exited with code ${code}`
+        });
+    });
+
+    return true;
 }
 
 function registerLiveSubtitlesHandlers(ipcMain) {
-    // Startup warmup is a no-op check: does NOT spawn Python or consume RAM
     ipcMain.handle('warm-live-subtitles', async (event) => {
         lastSender = event.sender;
-        return { success: true, ready: daemonReady, modelPresent: modelPresent() };
+        return { success: true, ready: true, modelPresent: modelPresent() };
     });
 
-    ipcMain.handle('start-live-subtitles', async (event, { videoPath, langs, volumeBoost, startTime, translateTo } = {}) => {
+    ipcMain.handle('start-live-subtitles', async (event, params = {}) => {
+        const { videoPath } = params;
         if (!videoPath || /^https?:\/\//i.test(videoPath)) {
             return { success: false, error: 'Live subtitles require a local playback source.' };
         }
         lastSender = event.sender;
-        // First use on a fresh install: fetch the model (with progress) before
-        // the daemon can load it.
-        try {
-            await ensureModel();
-        } catch (e) {
-            return { success: false, error: 'Model download failed: ' + e.message };
-        }
-        cueCount = 0;
-        const parsedBoost = Number.parseFloat(volumeBoost);
-        const ok = sendCmd({
-            cmd: 'start',
-            videoPath,
-            langs: Array.isArray(langs) && langs.length ? langs : ['en'],
-            volumeBoost: Number.isFinite(parsedBoost) ? Math.min(2.5, Math.max(1, parsedBoost)) : 1.5,
-            start: Math.max(0, Number.parseFloat(startTime) || 0),
-            translateTo: translateTo === 'qc' || translateTo === 'ca-fr' ? 'fr' : (translateTo || null),
-        });
-        return { success: ok, ready: daemonReady };
+        const ok = startSubtitlesPipeline(params);
+        return { success: ok, ready: true };
     });
 
     ipcMain.handle('stop-live-subtitles', async () => {
-        const ok = sendCmd({ cmd: 'stop' });
-        return { success: ok };
+        if (activeSession && activeSession.process) {
+            try { activeSession.process.kill(); } catch (_) { }
+            activeSession = null;
+        }
+        return { success: true };
     });
 }
 
-// Cleanly shut the daemon down on app quit.
 function shutdownLiveSubtitles() {
-    if (daemon) {
-        try { daemon.stdin.write(JSON.stringify({ cmd: 'quit' }) + '\n'); } catch (e) { /* noop */ }
-        try { daemon.kill(); } catch (e) { /* noop */ }
-        daemon = null;
+    if (activeSession && activeSession.process) {
+        try { activeSession.process.kill(); } catch (_) { }
+        activeSession = null;
     }
 }
 

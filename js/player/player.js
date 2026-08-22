@@ -341,19 +341,10 @@ async function playItem(idx, sourceItems = null) {
     let items = sourceItems || window.displayedItems || [];
     let itm = items[idx];
     if (!itm) return;
-    if (!sourceItems) {
-        try {
-            const context = await buildPlaybackContext(itm);
-            if (context && Array.isArray(context.items) && context.items.length && context.index >= 0) {
-                items = context.items;
-                idx = context.index;
-                itm = items[idx] || itm;
-            }
-        } catch (_) { /* fallback to current displayed items */ }
-    }
-    if (!itm) return;
     if (itm.type !== 'video') return;
 
+    const vp = el('video-player');
+    if (!vp) return;
 
     // A live subtitle session is bound to the previous file — end it before we
     // swap sources so its cues don't bleed onto the new video.
@@ -369,7 +360,8 @@ async function playItem(idx, sourceItems = null) {
     const newSrc = window.sanitizePath(activePath);
     vp.src = newSrc;
     vp.muted = false;
-    if (lastScrubSrc !== newSrc) {
+    const scrubVideo = el('seek-scrub-video');
+    if (scrubVideo && lastScrubSrc !== newSrc) {
         scrubVideo.src = newSrc;
         lastScrubSrc = newSrc;
     }
@@ -395,30 +387,21 @@ async function playItem(idx, sourceItems = null) {
         tbTitle.style.display = 'inline-block';
     }
 
-    vp.querySelectorAll('track').forEach(t => t.remove());
-    window._allAvailableSubtitles = [];
-    window._selectedSubtitleIdx = -1;
-    try {
-        const subs = await window.electronAPI.findSubtitles(itm.path);
-        window._allAvailableSubtitles = subs || [];
-        if (window._allAvailableSubtitles.length > 0) {
-            const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
-            const bestIndex = prefLang === 'und'
-                ? -1
-                : window._allAvailableSubtitles.findIndex(sub => prefLang === 'original'
-                    ? sub.lang === 'und'
-                    : (sub.lang || '').toLowerCase().startsWith(prefLang.toLowerCase()));
-            const selectedIndex = bestIndex >= 0 ? bestIndex : (prefLang === 'und' ? -1 : 0);
-            if (selectedIndex >= 0) window.selectSubtitleByIndex(selectedIndex);
-            window.refreshSubtitlesList();
-        } else {
-            window.refreshSubtitlesList();
-            window.selectSubtitleTrack(-1);
-        }
-    } catch (err) {
-        console.error('Auto subtitle loading error:', err);
-        window.refreshSubtitlesList();
-        window.selectSubtitleTrack(-1);
+    // Show modal and start playback immediately (0ms delay)
+    const vm = el('video-modal');
+    if (vm) {
+        vm.classList.remove('minimized');
+        vm.style.display = 'flex';
+        vm.focus();
+    }
+    const btnPlay = el('btn-play');
+    if (btnPlay) btnPlay.innerHTML = PAUSE_ICON_SVG;
+
+    const btnUpscale = el('btn-upscale');
+    if (btnUpscale) {
+        btnUpscale.disabled = false;
+        btnUpscale.style.opacity = '1';
+        btnUpscale.style.cursor = 'pointer';
     }
 
     const savedPos = (window.appSettings && window.appSettings.rememberPosition !== false &&
@@ -434,21 +417,54 @@ async function playItem(idx, sourceItems = null) {
         vp.addEventListener('loadedmetadata', restoreOnce);
     }
 
-    el('video-modal').classList.remove('minimized');
-    btnPlay.innerHTML = PAUSE_ICON_SVG;
-    el('video-modal').style.display = 'flex';
-    el('video-modal').focus();
+    vp.play().catch(e => console.log("Playback start prevented or failed:", e));
 
-    // Enable AI upscale for local vault files
-    // TODO: VERIFY - Need to verify AI upscaling functionality and quality
-    const btnUpscale = el('btn-upscale');
-    if (btnUpscale) {
-        btnUpscale.disabled = false;
-        btnUpscale.style.opacity = '1';
-        btnUpscale.style.cursor = 'pointer';
+    // Asynchronously resolve playback folder context in background
+    if (!sourceItems) {
+        (async () => {
+            try {
+                const context = await buildPlaybackContext(itm);
+                if (window.currentPlayingItem && window.currentPlayingItem.path === itm.path) {
+                    if (context && Array.isArray(context.items) && context.items.length && context.index >= 0) {
+                        window.currentPlaybackItems = context.items;
+                        window.currentPlayingIndex = context.index;
+                        window.currentPlaybackFolder = context.folder;
+                    }
+                }
+            } catch (_) { }
+        })();
     }
 
-    vp.play().catch(e => console.log("Playback start prevented or failed:", e));
+    // Asynchronously load subtitles in background
+    vp.querySelectorAll('track').forEach(t => t.remove());
+    window._allAvailableSubtitles = [];
+    window._selectedSubtitleIdx = -1;
+    (async () => {
+        try {
+            const subs = await window.electronAPI.findSubtitles(itm.path);
+            if (window.currentPlayingItem && window.currentPlayingItem.path === itm.path) {
+                window._allAvailableSubtitles = subs || [];
+                if (window._allAvailableSubtitles.length > 0) {
+                    const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
+                    const bestIndex = prefLang === 'und'
+                        ? -1
+                        : window._allAvailableSubtitles.findIndex(sub => prefLang === 'original'
+                            ? sub.lang === 'und'
+                            : (sub.lang || '').toLowerCase().startsWith(prefLang.toLowerCase()));
+                    const selectedIndex = bestIndex >= 0 ? bestIndex : (prefLang === 'und' ? -1 : 0);
+                    if (selectedIndex >= 0) window.selectSubtitleByIndex(selectedIndex);
+                    window.refreshSubtitlesList();
+                } else {
+                    window.refreshSubtitlesList();
+                    window.selectSubtitleTrack(-1);
+                }
+            }
+        } catch (err) {
+            console.error('Auto subtitle loading error:', err);
+            window.refreshSubtitlesList();
+            window.selectSubtitleTrack(-1);
+        }
+    })();
 }
 
 function updateNavHover(idx, btnEl) {
@@ -737,12 +753,13 @@ function initPlayer() {
     });
 
     const savedVol = localStorage.getItem('player-volume');
-    if (savedVol !== null) {
-        const volFloat = parseFloat(savedVol);
+    if (savedVol !== null && !isNaN(parseFloat(savedVol))) {
+        const volFloat = Math.max(0, Math.min(1, parseFloat(savedVol)));
         vp.volume = volFloat;
         volSlider.value = volFloat;
     } else {
-        vp.volume = parseFloat(volSlider.value || '1');
+        vp.volume = 1.0;
+        volSlider.value = 1.0;
     }
     updateVolumeIconUI(vp.volume);
 

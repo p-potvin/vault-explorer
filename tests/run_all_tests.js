@@ -14,7 +14,11 @@ const testSuites = [
     { name: 'Preview Candidate Acceptance', script: 'tests/preview_candidate_acceptance_test.js' },
     { name: 'Settings Modal & Player Error E2E Suite', script: 'tests/settings_and_error_handling_test.js' },
     { name: 'Video Double Click & Playback E2E', script: 'tests/video_double_click_and_playback_test.js' },
+    { name: 'Playlist & Album Prompts, Volume, and Perf E2E', script: 'tests/playlist_album_prompt_and_player_perf_test.js' },
     { name: 'Player Controls & Upscale Button E2E', script: 'tests/player_upscale_btn_test.js' },
+    { name: 'Category Isolation & Self-Containment', script: 'tests/category_isolation_test.js' },
+    { name: 'Music & Photos Button-By-Button E2E Suite', script: 'tests/music_photos_buttons_e2e_test.js' },
+    { name: 'MusicBrainz Populator & Metadata Suite', script: 'tests/musicbrainz_populator_test.js' },
     { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' }
 ];
 
