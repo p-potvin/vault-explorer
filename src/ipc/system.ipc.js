@@ -51,14 +51,14 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                     click: () => once(`add-to-folder:${f.id || f.name}`)
                   }))
                 : [{ label: 'No virtual folders created', enabled: false }];
-            
-            if (item.isMultiSelect) {
+                       if (item.isMultiSelect) {
                 const selected = item.selectedItems || [];
                 const hasVideo = selected.some(s => s.type === 'video');
+                const hasImage = selected.some(s => s.type === 'image');
                 const hasEncrypted = selected.some(s => s.path && s.path.toLowerCase().endsWith('.enc'));
                 const hasNonEncrypted = selected.some(s => s.path && !s.path.toLowerCase().endsWith('.enc'));
                 const hasEnhanced = selected.some(s => s.enhancedPath || (s.enhancements && (s.enhancements.audio || s.enhancements.video || s.enhancements.subtitles || s.enhancements.translation)));
- 
+
                 const aiSubmenu = [];
                 if (hasVideo) {
                     aiSubmenu.push(
@@ -74,7 +74,11 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                         );
                     }
                 }
- 
+                if (hasImage) {
+                    if (aiSubmenu.length > 0) aiSubmenu.push({ type: 'separator' });
+                    aiSubmenu.push({ label: 'Enhance Selected Images (Real-ESRGAN x4) 🪄', click: () => once('enhance-image-realesrgan') });
+                }
+
                 templ = [
                     { label: 'Add to Favorites', click: () => once('toggle-favorite') },
                     { label: 'Add Selection to Virtual Folder', submenu: folderSubmenu },
@@ -145,25 +149,43 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                             { label: 'Revert', submenu: revertItems }
                         );
                     }
+                } else if (item.type === 'image') {
+                    aiSubmenu.push(
+                        { label: 'Enhance Image (Real-ESRGAN x4) 🪄', click: () => once('enhance-image-realesrgan') }
+                    );
+                } else if (item.type === 'audio') {
+                    aiSubmenu.push(
+                        { label: 'Normalize Audio 🪄', click: () => once('normalize-audio') }
+                    );
                 }
+
+                const openActionLabel = item.type === 'image' ? 'Open in Image Viewer' : (item.type === 'audio' ? 'Play Audio' : 'Open File');
+                const virtualFolderLabel = item.type === 'image' ? 'Add to Photo Album' : (item.type === 'audio' ? 'Add to Playlist' : 'Add to Virtual Folder');
 
                 templ = [
                     {
-                        label: 'Open File', click: () => {
+                        label: openActionLabel, click: () => {
                             safeOpenFile(item.path)
                                 .then(() => once('opened'))
                                 .catch(() => once('open-error'));
                         }
                     },
+                ];
+
+                if (item.type === 'image') {
+                    templ.push({ label: 'Edit in Photo Editor', click: () => once('open-photo-editor') });
+                }
+
+                templ.push(
                     { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); once('show'); } },
                     { label: item.isFavorite ? 'Remove from Favorites' : 'Add to Favorites', click: () => once('toggle-favorite') },
-                    { label: 'Add to Virtual Folder', submenu: folderSubmenu },
+                    { label: virtualFolderLabel, submenu: folderSubmenu },
                     { type: 'separator' },
                     { label: 'Copy Path', click: () => { clipboard.writeText(item.path); once('copied'); } },
                     { label: 'Cut', click: () => once('cut') },
                     { label: 'Copy', click: () => once('copy') },
                     { label: 'Rename', click: () => once('rename') }
-                ];
+                );
 
                 const hasAiOrPreview = (aiSubmenu.length > 0) || (item.type === 'video' || (item.type === 'encrypted' && !isEnc));
                 if (hasAiOrPreview) {
@@ -200,17 +222,49 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                     { type: 'separator' },
                     { label: 'Refresh', click: () => once('bg-refresh') },
                     { label: 'Select All', click: () => once('bg-select-all') },
+                    { label: 'Generate Previews for All Videos', click: () => once('bg-generate-previews') },
                     { type: 'separator' },
                     { label: 'New Virtual Folder…', click: () => once('bg-new-folder') },
                 ];
             } else if (item.type === 'videoPlayer') {
                 const isLocal = !item.isStreaming;
-                const aiSubmenu = isLocal ? [
-                    { label: 'Enhance Audio 🪄', click: () => once('normalize-audio') },
-                    { label: 'Generate Subtitles', click: () => once('generate-subtitles-prompt') },
-                    { label: 'Translate this video', click: () => once('translate-video-prompt') },
-                    { label: 'Enhance Video 🪄', click: () => once('enhance-video-prompt') }
-                ] : [];
+                const enh = item.enhancements || {};
+                const subLangs = Array.isArray(enh.subtitles) ? enh.subtitles : [];
+                const transLangs = Array.isArray(enh.translation) ? enh.translation : [];
+                const hasAudioEnh = !!enh.audio;
+                const hasVideoEnh = !!enh.video;
+
+                const withLangs = (label, langs) =>
+                    langs.length ? `${label} (${langs.join(', ').toUpperCase()})` : label;
+
+                const aiSubmenu = [];
+                if (isLocal) {
+                    aiSubmenu.push(
+                        { label: 'Enhance Audio 🪄', type: 'checkbox', checked: hasAudioEnh, click: () => once('normalize-audio') },
+                        { label: withLangs('Generate Subtitles', subLangs), type: 'checkbox', checked: subLangs.length > 0, click: () => once('generate-subtitles-prompt') },
+                        { label: withLangs('Translate this video', transLangs), type: 'checkbox', checked: transLangs.length > 0, click: () => once('translate-video-prompt') },
+                        { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') }
+                    );
+
+                    // Revert only what has actually been applied.
+                    const revertItems = [];
+                    if (hasAudioEnh) revertItems.push({ label: 'Audio Enhancement', click: () => once('revert-enhancement:audio') });
+                    if (hasVideoEnh) revertItems.push({ label: 'Video Enhancement', click: () => once('revert-enhancement:video') });
+                    if (subLangs.length) revertItems.push({ label: withLangs('Subtitles', subLangs), click: () => once('revert-enhancement:subtitles') });
+                    if (transLangs.length) revertItems.push({ label: withLangs('Translations', transLangs), click: () => once('revert-enhancement:translation') });
+
+                    if (revertItems.length) {
+                        if (revertItems.length > 1) {
+                            revertItems.push({ type: 'separator' });
+                            revertItems.push({ label: 'Everything', click: () => once('revert-enhancements') });
+                        }
+                        aiSubmenu.push(
+                            { type: 'separator' },
+                            { label: 'Revert', submenu: revertItems }
+                        );
+                    }
+                }
+
                 templ = [
                     { label: item.isPlaying ? 'Pause' : 'Play', click: () => once('play-pause') },
                     { label: item.isMuted ? 'Unmute' : 'Mute', click: () => once('mute') },

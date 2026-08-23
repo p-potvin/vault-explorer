@@ -52,8 +52,18 @@
 
     function store() {
         if (!window.appSettings) window.appSettings = {};
-        if (!window.appSettings.virtualFolders ||
-            typeof window.appSettings.virtualFolders !== 'object') {
+        if (!window.appSettings.virtualFolders || typeof window.appSettings.virtualFolders !== 'object' || !Array.isArray(window.appSettings.virtualFolders.folders)) {
+            try {
+                const backup = localStorage.getItem('vault-virtual-folders-backup');
+                if (backup) {
+                    const parsed = JSON.parse(backup);
+                    if (parsed && Array.isArray(parsed.folders)) {
+                        window.appSettings.virtualFolders = parsed;
+                    }
+                }
+            } catch (_) { }
+        }
+        if (!window.appSettings.virtualFolders || typeof window.appSettings.virtualFolders !== 'object') {
             window.appSettings.virtualFolders = { version: VERSION, folders: [], items: {} };
         }
         const vf = window.appSettings.virtualFolders;
@@ -64,8 +74,22 @@
     }
 
     function save() {
-        try { window.electronAPI.saveSettings(window.appSettings); } catch (_) { /* settings not ready yet */ }
+        const vf = store();
+        try {
+            localStorage.setItem('vault-virtual-folders-backup', JSON.stringify(vf));
+        } catch (_) { }
+        if (window.electronAPI && typeof window.electronAPI.saveSettings === 'function') {
+            try {
+                window.electronAPI.saveSettings(window.appSettings).catch(e => {
+                    console.error('[virtual-folders] saveSettings promise rejected:', e);
+                });
+            } catch (e) {
+                console.error('[virtual-folders] saveSettings error:', e);
+            }
+        }
     }
+
+    const _normVfPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
 
     // ── Migration from legacy {folders:[{name,parent,items,type}], folderContents:{}} ──
     // Runs once. Builds id-keyed model, preserves parent chain by resolving each
@@ -79,11 +103,17 @@
 
         // Already migrated and no legacy left over? Just ensure shape.
         const alreadyHasV2 = s.virtualFolders && s.virtualFolders.version === VERSION;
-        if (alreadyHasV2 && !legacyFolders && !legacyContents) return;
+        if (alreadyHasV2 && (!legacyFolders || legacyFolders.length === 0) && (!legacyContents || Object.keys(legacyContents).length === 0)) {
+            delete s.folders;
+            delete s.folderContents;
+            return;
+        }
 
         const vf = store();
         // If we have nothing legacy to read but v2 is fresh-empty, nothing to do.
         if (alreadyHasV2 && (!legacyFolders || legacyFolders.length === 0) && (!legacyContents || Object.keys(legacyContents).length === 0)) {
+            delete s.folders;
+            delete s.folderContents;
             return;
         }
 
@@ -294,16 +324,31 @@
         const accept = ACCEPTS[folder.type] || new Set();
         let added = 0, rejected = 0;
         const list = Array.isArray(paths) ? paths : [paths];
+        const normBucketSet = new Set(bucket.map(_normVfPath));
         const lookup = window.allItems && window.allItems.length
-            ? new Map(window.allItems.map(i => [i.path, i.type]))
+            ? new Map(window.allItems.map(i => [_normVfPath(i.path), i.type]))
             : null;
+
+        function guessType(p) {
+            const ext = (p.split('.').pop() || '').toLowerCase();
+            if (['mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'opus', 'wma', 'aiff', 'ape'].includes(ext)) return 'audio';
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'avif', 'tiff', 'tif', 'svg', 'ico'].includes(ext)) return 'image';
+            if (['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', 'flv', 'wmv', 'ts', 'm2ts', '3gp', 'mpg', 'mpeg'].includes(ext)) return 'video';
+            if (ext === 'enc') return 'encrypted';
+            return null;
+        }
 
         for (const raw of list) {
             const p = (typeof raw === 'string') ? raw : (raw && raw.path);
             if (!p) continue;
-            const itemType = (raw && raw.type) ? raw.type : (lookup ? lookup.get(p) : null);
+            const np = _normVfPath(p);
+            const itemType = (raw && raw.type) ? raw.type : (lookup ? lookup.get(np) : guessType(p));
             if (itemType && !accept.has(itemType)) { rejected++; continue; }
-            if (!bucket.includes(p)) { bucket.push(p); added++; }
+            if (!normBucketSet.has(np)) {
+                bucket.push(p);
+                normBucketSet.add(np);
+                added++;
+            }
         }
         if (added) {
             folder.lastUsed = Date.now();
@@ -316,9 +361,9 @@
         const vf = store();
         const bucket = vf.items[id];
         if (!Array.isArray(bucket)) return 0;
-        const drop = new Set(Array.isArray(paths) ? paths : [paths]);
+        const dropNormSet = new Set((Array.isArray(paths) ? paths : [paths]).map(_normVfPath));
         const before = bucket.length;
-        vf.items[id] = bucket.filter(p => !drop.has(p));
+        vf.items[id] = bucket.filter(p => !dropNormSet.has(_normVfPath(p)));
         const removed = before - vf.items[id].length;
         if (removed) save();
         return removed;
@@ -327,11 +372,12 @@
     function pruneMissing(existingPathSet) {
         if (!(existingPathSet instanceof Set)) return 0;
         const vf = store();
+        const normExisting = new Set([...existingPathSet].map(_normVfPath));
         let removed = 0;
         Object.keys(vf.items).forEach(id => {
             const bucket = vf.items[id];
             const before = bucket.length;
-            vf.items[id] = bucket.filter(p => existingPathSet.has(p));
+            vf.items[id] = bucket.filter(p => normExisting.has(_normVfPath(p)));
             removed += before - vf.items[id].length;
         });
         if (removed) save();
@@ -340,18 +386,10 @@
 
     // ── Default folders ──────────────────────────────────────────────────────
     function ensureDefaultFavorites() {
-        const vf = store();
-        let changed = false;
-        vf.folders = vf.folders.filter(f => {
-            const isFav = f.name.toLowerCase() === 'favorites' && (f.parentId || null) === null && f.type === 'collection';
-            if (isFav) {
-                delete vf.items[f.id];
-                changed = true;
-                return false;
-            }
-            return true;
-        });
-        if (changed) save();
+        if (window.appSettings && !Array.isArray(window.appSettings.favorites)) {
+            window.appSettings.favorites = [];
+            save();
+        }
     }
 
     function syncFavorites() {

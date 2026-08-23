@@ -39,10 +39,11 @@ function registerNormalizationHandlers(ipcMain) {
     ipcMain.handle('run-asr-benchmark', async (_event, { forceSimulation } = {}) => {
         console.log(`[main:benchmark] Starting ASR benchmark (forceSimulation: ${forceSimulation})`);
         return new Promise((resolve) => {
-            const pythonScript = path.join(__dirname, '..', 'python-scripts', 'benchmark_asr.py');
+            const utils = require('./utils');
+            const pythonScript = utils.resolveScriptPath('benchmark_asr.py');
             const args = ['-u', pythonScript, forceSimulation ? '--force-simulation' : '--native'];
 
-            const env = { ...process.env, PYTHONPATH: path.join(__dirname, '..') };
+            const env = utils.getPythonEnv();
             const pyProc = spawn(enhancements.getPythonExe(), args, { env, windowsHide: true });
 
             let outputData = '';

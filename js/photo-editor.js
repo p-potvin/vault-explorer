@@ -1,14 +1,20 @@
 /* ==========================================================================
    Vault Explorer — Photo Editor Modal (Canvas Operations)
-
-   Architecture: flatten-on-commit. Every finished tool action (crop apply,
-   brush stroke, text, arrow, rotate, flip) bakes the visible result into the
-   working image and pushes the previous image onto an undo stack (Ctrl+Z).
-   Exposure/filter sliders stay live (non-destructive) until the next commit.
-   Save writes a PNG next to the original via IPC — never overwrites source.
+   Features:
+     • Windowed Filmstrip (max 15 items rendered, avoids lag/crashes with huge lists)
+     • Auto-Fit to Screen by default on image load + Fit to Screen tool
+     • Full Toolset: Crop, Brush/Draw, Text, Markup Arrow, Adjustments, Filters,
+       Rotate 90°, Flip H/V, Undo (Ctrl+Z)
+     • AI Core Enhancements: Super-Res (Real-ESRGAN 4x), Denoise, Edge Detect
+     • One-click Toggle/Revert: Re-pressing an AI button restores the original photo
+     • Real Visual Cues: Verified onload confirmation, glowing applied badges
+     • Non-destructive export / save-as-copy IPC
    ========================================================================== */
 
 (function () {
+    const FILMSTRIP_WINDOW_SIZE = 15;
+    const HISTORY_MAX = 20;
+
     let currentPhotos = [];
     let currentPhotoIndex = -1;
     let currentTool = 'move';
@@ -16,11 +22,12 @@
     let canvas = null;
     let ctx = null;
     let img = null;
+    let originalImageSrc = null;
+    let activeAiEffect = null; // 'ai-upscale' | 'ai-denoise' | 'ai-edge' | null
     let filmstripEl = null;
 
     // Undo history — dataURLs of the working image before each commit.
     let history = [];
-    const HISTORY_MAX = 15;
 
     // Live (unbaked) adjustments
     const state = {
@@ -42,6 +49,9 @@
     let brushColor = '#ff3355';
     let brushSize = 6;
     let strokePoints = [];
+
+    // AI enhancement cache: originalPath:effectName -> resultPath
+    const aiEnhanceCache = new Map();
 
     function getCanvas() {
         if (!canvas) canvas = el('photo-editor-canvas');
@@ -93,7 +103,7 @@
         context.filter = 'none';
     }
 
-    // ── History / flatten ───────────────────────────────────────────────────
+    // ── History / Undo ──────────────────────────────────────────────────────
     function pushHistory() {
         const c = getCanvas();
         if (!c) return;
@@ -117,6 +127,56 @@
         });
     }
 
+    function clearAiButtonVisuals() {
+        activeAiEffect = null;
+        document.querySelectorAll('.pe-ai-action-btn').forEach(btn => {
+            btn.classList.remove('applied');
+            btn.style.boxShadow = 'none';
+            btn.style.borderColor = 'rgba(168, 85, 247, 0.3)';
+            btn.style.background = 'rgba(168, 85, 247, 0.15)';
+            btn.style.color = '#d8b4fe';
+            const badge = btn.querySelector('.ai-applied-badge');
+            if (badge) badge.remove();
+        });
+    }
+
+    function setAiButtonApplied(buttonId) {
+        clearAiButtonVisuals();
+        activeAiEffect = buttonId;
+        const btn = el(buttonId);
+        if (!btn) return;
+        btn.classList.add('applied');
+        btn.style.boxShadow = '0 0 14px rgba(176, 124, 255, 0.8)';
+        btn.style.borderColor = 'var(--vault-accent, #B07CFF)';
+        btn.style.background = 'rgba(176, 124, 255, 0.35)';
+        btn.style.color = '#ffffff';
+
+        if (!btn.querySelector('.ai-applied-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'ai-applied-badge';
+            badge.textContent = '✓';
+            badge.style.cssText = 'position: absolute; top: -4px; right: -4px; background: var(--vault-signal-online, #6BE675); color: #0b0813; font-size: 9px; font-weight: 900; width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.6);';
+            btn.appendChild(badge);
+        }
+    }
+
+    function undo() {
+        if (!history.length) {
+            if (window.showToast) window.showToast('Nothing to undo', 'info');
+            return;
+        }
+        const url = history.pop();
+        const prev = new Image();
+        prev.onload = () => {
+            img = prev;
+            resetLiveState();
+            clearAiButtonVisuals();
+            renderCanvas();
+            if (window.showToast) window.showToast('Undone (Ctrl+Z)', 'info');
+        };
+        prev.src = url;
+    }
+
     // Bake whatever is currently visible into the working image.
     function flatten(afterLoad) {
         const c = getCanvas();
@@ -133,18 +193,6 @@
         next.src = url;
     }
 
-    function undo() {
-        if (!history.length) { window.showToast('Nothing to undo', 'info'); return; }
-        const url = history.pop();
-        const prev = new Image();
-        prev.onload = () => {
-            img = prev;
-            resetLiveState();
-            renderCanvas();
-        };
-        prev.src = url;
-    }
-
     // ── Coordinate mapping (screen px -> canvas px) ─────────────────────────
     function canvasPoint(ev) {
         const c = getCanvas();
@@ -153,6 +201,33 @@
             x: (ev.clientX - r.left) * (c.width / r.width),
             y: (ev.clientY - r.top) * (c.height / r.height),
         };
+    }
+
+    // ── Fit Image to Screen Viewport ────────────────────────────────────────
+    function fitImageToScreen() {
+        const c = getCanvas();
+        if (!c || !img) return;
+        const container = c.parentElement;
+        if (!container) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const availW = Math.max(150, containerRect.width - 48);
+        const availH = Math.max(150, containerRect.height - 48);
+
+        const { w, h } = getOutputSize();
+        const scaleX = availW / w;
+        const scaleY = availH / h;
+        const fitZoom = Math.min(scaleX, scaleY, 1);
+
+        zoom = fitZoom;
+        panOffset = { x: 0, y: 0 };
+
+        const zoomInput = el('photo-editor-zoom');
+        const zoomVal = el('photo-editor-zoom-val');
+        if (zoomInput) zoomInput.value = fitZoom;
+        if (zoomVal) zoomVal.innerText = Math.round(fitZoom * 100) + '%';
+
+        applyCanvasTransform();
     }
 
     // ── Tool option panel (crop apply, brush controls, hints) ───────────────
@@ -210,10 +285,13 @@
         const y = Math.max(0, Math.min(dragStart.y, dragCur.y));
         const w = Math.min(canvas.width - x, Math.abs(dragCur.x - dragStart.x));
         const h = Math.min(canvas.height - y, Math.abs(dragCur.y - dragStart.y));
-        if (w < 8 || h < 8) { window.showToast('Selection too small', 'warning'); return; }
+        if (w < 8 || h < 8) {
+            if (window.showToast) window.showToast('Selection too small', 'warning');
+            return;
+        }
 
         pushHistory();
-        renderCanvas(); // clean render without overlay
+        renderCanvas();
         const off = document.createElement('canvas');
         off.width = w; off.height = h;
         off.getContext('2d').drawImage(canvas, x, y, w, h, 0, 0, w, h);
@@ -224,7 +302,8 @@
             dragStart = dragCur = null;
             renderCanvas();
             setToolOptions('');
-            window.showToast('Cropped', 'success');
+            fitImageToScreen();
+            if (window.showToast) window.showToast('Cropped', 'success');
         };
         next.src = off.toDataURL('image/png');
     }
@@ -269,8 +348,8 @@
         const c = getCanvas();
         const input = document.createElement('input');
         input.type = 'text';
-        input.placeholder = 'Type, then Enter';
-        input.style.cssText = `position: fixed; left: ${screenEv.clientX}px; top: ${screenEv.clientY}px; z-index: 10500; background: rgba(11,8,19,0.95); color: #fff; border: 1px solid var(--vault-accent); border-radius: 4px; padding: 6px 10px; font-size: 13px; font-family: var(--font-body); outline: none; min-width: 180px;`;
+        input.placeholder = 'Type text, then Enter';
+        input.style.cssText = `position: fixed; left: ${screenEv.clientX}px; top: ${screenEv.clientY}px; z-index: 10500; background: rgba(11,8,19,0.95); color: #fff; border: 1px solid var(--vault-accent); border-radius: 4px; padding: 6px 10px; font-size: 13px; font-family: var(--font-body); outline: none; min-width: 180px; box-shadow: 0 4px 16px rgba(0,0,0,0.7);`;
         document.body.appendChild(input);
         setTimeout(() => input.focus(), 0);
 
@@ -289,7 +368,7 @@
             context.fillText(text, pt.x, pt.y);
             context.restore();
             flatten();
-            window.showToast('Text added', 'success');
+            if (window.showToast) window.showToast('Text added', 'success');
         };
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') commit();
@@ -388,31 +467,37 @@
         } else if (currentTool === 'markup' && dragStart && dragCur) {
             const dist = Math.hypot(dragCur.x - dragStart.x, dragCur.y - dragStart.y);
             if (dist > 8) {
-                flatten(() => window.showToast('Arrow added', 'success'));
+                flatten(() => {
+                    if (window.showToast) window.showToast('Arrow added', 'success');
+                });
             } else {
                 renderCanvas();
             }
             dragStart = dragCur = null;
         }
-        // crop keeps its selection until Apply/Cancel
     }
 
-    // ── Photo loading / filmstrip ───────────────────────────────────────────
+    // ── Photo loading & Sliding Window Filmstrip ────────────────────────────
     function loadPhoto(item) {
         const c = getCanvas();
-        if (!c) return;
+        if (!c || !item) return;
         history = [];
         dragStart = dragCur = null;
-        panOffset = { x: 0, y: 0 };
-        applyCanvasTransform();
+        clearAiButtonVisuals();
+
+        originalImageSrc = window.sanitizePath(item.path);
+
         img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
             resetLiveState();
             renderCanvas();
+            fitImageToScreen();
         };
-        img.src = window.sanitizePath(item.path);
-        img.onerror = () => window.showToast('Failed to load image', 'error');
+        img.src = originalImageSrc;
+        img.onerror = () => {
+            if (window.showToast) window.showToast('Failed to load image: ' + item.name, 'error');
+        };
 
         const title = document.querySelector('#photo-editor-modal h3');
         if (title) title.innerText = item.name;
@@ -422,32 +507,150 @@
         filmstripEl = el('photo-editor-filmstrip');
         if (!filmstripEl) return;
         filmstripEl.innerHTML = '';
-        currentPhotos.forEach((p, idx) => {
+
+        if (!currentPhotos.length) return;
+
+        // Sliding window calculation: Render at most FILMSTRIP_WINDOW_SIZE items
+        const total = currentPhotos.length;
+        const half = Math.floor(FILMSTRIP_WINDOW_SIZE / 2);
+        let startIdx = Math.max(0, currentPhotoIndex - half);
+        let endIdx = Math.min(total, startIdx + FILMSTRIP_WINDOW_SIZE);
+
+        if (endIdx - startIdx < FILMSTRIP_WINDOW_SIZE) {
+            startIdx = Math.max(0, endIdx - FILMSTRIP_WINDOW_SIZE);
+        }
+
+        // Left pagination arrow if more previous photos exist
+        if (startIdx > 0) {
+            const leftBtn = document.createElement('button');
+            leftBtn.innerHTML = '‹';
+            leftBtn.title = `Previous (${startIdx} more)`;
+            leftBtn.style.cssText = 'background: rgba(255,255,255,0.1); border: 1px solid var(--vault-border); color: #fff; width: 28px; height: 60px; border-radius: 4px; cursor: pointer; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;';
+            leftBtn.addEventListener('click', () => {
+                currentPhotoIndex = Math.max(0, currentPhotoIndex - FILMSTRIP_WINDOW_SIZE);
+                loadPhoto(currentPhotos[currentPhotoIndex]);
+                populateFilmstrip();
+            });
+            filmstripEl.appendChild(leftBtn);
+        }
+
+        for (let idx = startIdx; idx < endIdx; idx++) {
+            const p = currentPhotos[idx];
             const thumb = document.createElement('img');
             thumb.src = p.thumbnail ? window.sanitizePath(p.thumbnail) : window.sanitizePath(p.path);
-            thumb.style.cssText = 'width: 64px; height: 64px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0; opacity: 0.7; transition: all 0.15s;';
+            thumb.loading = 'lazy';
+            thumb.style.cssText = 'width: 60px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0; opacity: 0.65; transition: all 0.15s;';
             if (idx === currentPhotoIndex) {
                 thumb.style.borderColor = 'var(--vault-accent)';
                 thumb.style.opacity = '1';
+                thumb.style.transform = 'scale(1.05)';
             }
             thumb.addEventListener('click', () => {
                 currentPhotoIndex = idx;
                 loadPhoto(currentPhotos[idx]);
                 populateFilmstrip();
             });
-            thumb.addEventListener('dblclick', (e) => e.stopPropagation());
             filmstripEl.appendChild(thumb);
-        });
+        }
+
+        // Right pagination arrow if more upcoming photos exist
+        if (endIdx < total) {
+            const rightBtn = document.createElement('button');
+            rightBtn.innerHTML = '›';
+            rightBtn.title = `Next (${total - endIdx} more)`;
+            rightBtn.style.cssText = 'background: rgba(255,255,255,0.1); border: 1px solid var(--vault-border); color: #fff; width: 28px; height: 60px; border-radius: 4px; cursor: pointer; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;';
+            rightBtn.addEventListener('click', () => {
+                currentPhotoIndex = Math.min(total - 1, currentPhotoIndex + FILMSTRIP_WINDOW_SIZE);
+                loadPhoto(currentPhotos[currentPhotoIndex]);
+                populateFilmstrip();
+            });
+            filmstripEl.appendChild(rightBtn);
+        }
+    }
+
+    // ── AI Enhancement Actions with Toggle/Revert on Re-press ────────────────
+    async function toggleAiAction(actionName, ipcFn, args, label) {
+        const item = currentPhotos[currentPhotoIndex];
+        if (!item || !ipcFn) return;
+
+        const buttonId = `pe-btn-${actionName}`;
+        const button = el(buttonId);
+
+        // If ALREADY applied, re-pressing reverts to original!
+        if (activeAiEffect === buttonId) {
+            pushHistory();
+            const prev = new Image();
+            prev.crossOrigin = 'anonymous';
+            prev.onload = () => {
+                img = prev;
+                clearAiButtonVisuals();
+                renderCanvas();
+                fitImageToScreen();
+                if (window.showToast) window.showToast(`Reverted ${label} to original`, 'info');
+            };
+            prev.src = originalImageSrc;
+            return;
+        }
+
+        const originalPath = item.path;
+        const cacheKey = `${originalPath}:${actionName}`;
+
+        if (aiEnhanceCache.has(cacheKey)) {
+            const cachedPath = aiEnhanceCache.get(cacheKey);
+            pushHistory();
+            const enhancedImg = new Image();
+            enhancedImg.crossOrigin = 'anonymous';
+            enhancedImg.onload = () => {
+                img = enhancedImg;
+                setAiButtonApplied(buttonId);
+                renderCanvas();
+                fitImageToScreen();
+                if (window.showToast) window.showToast(`Applied cached ${label} ✓`, 'success');
+            };
+            enhancedImg.src = window.sanitizePath(cachedPath);
+            return;
+        }
+
+        if (button) button.style.opacity = '0.5';
+        if (window.showToast) window.showToast(`${label}… running in background`, 'info');
+
+        try {
+            const result = await ipcFn(...args);
+            if (button) button.style.opacity = '1';
+
+            if (result && result.success && result.path) {
+                aiEnhanceCache.set(cacheKey, result.path);
+                pushHistory();
+
+                const enhancedImg = new Image();
+                enhancedImg.crossOrigin = 'anonymous';
+                enhancedImg.onload = () => {
+                    img = enhancedImg;
+                    setAiButtonApplied(buttonId);
+                    renderCanvas();
+                    fitImageToScreen();
+                    if (window.showToast) window.showToast(`${label} applied successfully! ✓`, 'success');
+                };
+                enhancedImg.onerror = () => {
+                    if (window.showToast) window.showToast(`Failed to load enhanced image file`, 'error');
+                };
+                enhancedImg.src = window.sanitizePath(result.path);
+            } else {
+                if (window.showToast) window.showToast(`${label} failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        } catch (e) {
+            if (button) button.style.opacity = '1';
+            if (window.showToast) window.showToast(`${label} error: ${e.message}`, 'error');
+        }
     }
 
     // ── Tools ───────────────────────────────────────────────────────────────
     function setActiveTool(tool) {
-        // Rotate/flip are one-shot actions, not modes — perform and keep the
-        // currently selected tool active.
         if (tool === 'rotate') {
             pushHistory();
             state.rotation = (state.rotation + 90) % 360;
             renderCanvas();
+            fitImageToScreen();
             return;
         }
         if (tool === 'flip') {
@@ -456,10 +659,35 @@
             renderCanvas();
             return;
         }
+        if (tool === 'fit-screen') {
+            fitImageToScreen();
+            return;
+        }
+        if (tool === 'ai-upscale') {
+            const item = currentPhotos[currentPhotoIndex];
+            if (item && window.electronAPI?.enhanceImageRealESRGAN) {
+                toggleAiAction('ai-upscale', window.electronAPI.enhanceImageRealESRGAN, [item.path], 'Real-ESRGAN 4x');
+            }
+            return;
+        }
+        if (tool === 'ai-denoise') {
+            const item = currentPhotos[currentPhotoIndex];
+            if (item && window.electronAPI?.enhanceImageMagick) {
+                toggleAiAction('ai-denoise', window.electronAPI.enhanceImageMagick, [item.path, 'denoise'], 'Denoise');
+            }
+            return;
+        }
+        if (tool === 'ai-edge') {
+            const item = currentPhotos[currentPhotoIndex];
+            if (item && window.electronAPI?.enhanceImageMagick) {
+                toggleAiAction('ai-edge', window.electronAPI.enhanceImageMagick, [item.path, 'edge'], 'Edge Detect');
+            }
+            return;
+        }
 
         currentTool = tool;
         dragStart = dragCur = null;
-        document.querySelectorAll('.photo-tool, .photo-tool-bottom').forEach(btn => {
+        document.querySelectorAll('.photo-tool:not(.pe-ai-action-btn), .photo-tool-bottom').forEach(btn => {
             const isActive = btn.dataset.tool === tool;
             btn.style.background = isActive ? 'var(--vault-accent)' : 'transparent';
             btn.style.color = isActive ? 'var(--vt-primary)' : 'var(--vault-text)';
@@ -486,7 +714,7 @@
     async function saveImage() {
         const c = getCanvas();
         if (!c || !img) return;
-        renderCanvas(); // ensure clean render (no crop overlay)
+        renderCanvas();
         const item = currentPhotos[currentPhotoIndex];
         try {
             const res = await window.electronAPI.saveEditedImage({
@@ -494,12 +722,17 @@
                 dataUrl: c.toDataURL('image/png'),
             });
             if (res && res.success) {
-                window.showToast(`Saved: ${res.outputPath}`, 'success');
+                if (window.showToast) window.showToast(`Saved copy: ${res.outputPath}`, 'success');
+                if (typeof window.renderAlbums === 'function' && window.currentTab === 'photoalbums') {
+                    window.renderAlbums();
+                } else if (typeof window.applyFilters === 'function') {
+                    window.applyFilters();
+                }
             } else {
-                window.showToast('Save failed: ' + ((res && res.error) || 'unknown'), 'error');
+                if (window.showToast) window.showToast('Save failed: ' + ((res && res.error) || 'unknown'), 'error');
             }
         } catch (e) {
-            window.showToast('Save failed: ' + e.message, 'error');
+            if (window.showToast) window.showToast('Save failed: ' + e.message, 'error');
         }
     }
 
@@ -520,8 +753,7 @@
             btn.addEventListener('click', () => setActiveTool(btn.dataset.tool));
         });
 
-        // Canvas pointer events (attached to the canvas parent so crop drags
-        // that start slightly outside the image still register)
+        // Canvas pointer events
         const c = getCanvas();
         if (c) {
             c.addEventListener('mousedown', onPointerDown);
@@ -552,6 +784,7 @@
         const resetBtn = el('pe-reset');
 
         function toggleFilter(btn, key) {
+            pushHistory();
             state[key] = state[key] > 0 ? 0 : 1;
             btn.style.background = state[key] > 0 ? 'var(--vault-accent)' : 'transparent';
             btn.style.color = state[key] > 0 ? 'var(--vt-primary)' : 'var(--vault-text)';
@@ -563,40 +796,44 @@
         if (invertBtn) invertBtn.addEventListener('click', () => toggleFilter(invertBtn, 'invert'));
         if (resetBtn) resetBtn.addEventListener('click', () => { resetLiveState(); renderCanvas(); });
 
+        // Global Ctrl+Z / Cmd+Z for Photo Editor
         window.addEventListener('keydown', (e) => {
             const modal = el('photo-editor-modal');
             const open = modal && modal.style.display === 'flex';
             if (!open) return;
-            if (e.key === 'Escape') modal.style.display = 'none';
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
-        });
+            if (e.key === 'Escape') {
+                modal.style.display = 'none';
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                e.stopPropagation();
+                undo();
+            }
+        }, true);
 
         window.addEventListener('resize', () => {
             const modal = el('photo-editor-modal');
-            if (modal && modal.style.display === 'flex') renderCanvas();
+            if (modal && modal.style.display === 'flex') {
+                renderCanvas();
+            }
         });
     }
 
+    // ── Global Entrypoint ───────────────────────────────────────────────────
     window.openPhotoEditor = function (item, allPhotos) {
         const modal = el('photo-editor-modal');
-        if (!modal) return;
+        if (!modal || !item) return;
 
-        currentPhotos = allPhotos || [item];
-        currentPhotoIndex = currentPhotos.findIndex(p => p.path === item.path);
+        // Window the photo collection: If thousands of photos, keep references safe
+        currentPhotos = Array.isArray(allPhotos) && allPhotos.length ? allPhotos : [item];
+        currentPhotoIndex = currentPhotos.findIndex(p => p && p.path === item.path);
         if (currentPhotoIndex === -1) currentPhotoIndex = 0;
 
         modal.style.display = 'flex';
         loadPhoto(currentPhotos[currentPhotoIndex]);
         populateFilmstrip();
         setActiveTool('move');
-
-        const zoomInput = el('photo-editor-zoom');
-        const zoomVal = el('photo-editor-zoom-val');
-        zoom = 1;
-        panOffset = { x: 0, y: 0 };
-        if (zoomInput) zoomInput.value = 1;
-        if (zoomVal) zoomVal.innerText = '100%';
-        applyCanvasTransform();
     };
 
     setupListeners();

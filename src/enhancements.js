@@ -35,18 +35,11 @@ const PROGRESS_CHANNEL = 'normalize-progress';
  * Resolve the Python that carries NeMo, Demucs and the heavy ASR dependencies.
  */
 function getPythonExe() {
-    const candidates = [
-        path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe'),
-        path.join(__dirname, '..', '.venv', 'bin', 'python'),
-    ];
-    for (const candidate of candidates) {
-        if (fs.existsSync(candidate)) return candidate;
-    }
     return utils.getRobustPythonExe();
 }
 
 function scriptPath(script) {
-    return path.join(__dirname, '..', 'python-scripts', script);
+    return utils.resolveScriptPath(script);
 }
 
 function sidecarPath(videoPath) {
@@ -237,7 +230,7 @@ function runAction(event, action, opts) {
     console.log(`[enhancements:${action}] Spawning: ${pythonExe} -u ${script} ${args.join(' ')}`);
 
     return new Promise((resolve) => {
-        const env = { ...process.env, PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: 'python' };
+        const env = utils.getPythonEnv({ PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: 'python' });
         const proc = spawn(pythonExe, ['-u', script, ...args], { env, windowsHide: true });
 
         let log = '';
