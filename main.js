@@ -10,7 +10,10 @@ if (process.env.VAULT_EXPLORER_E2E_USER_DATA) {
 // Platform HEVC/H.265 hardware video decoding support
 app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
 
-const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
+function getSettingsPath() {
+    return path.join(app.getPath('userData'), 'vault-settings.json');
+}
+
 // Seeded once into the user-editable "Glob Exclusions" pills in Settings when
 // the user has never set any. Junk/code-artifact files the hardcoded directory
 // skip-list can't catch (repo TREES are skipped by the .git marker in scanner).
@@ -20,6 +23,7 @@ const DEFAULT_GLOB_EXCLUSIONS = [
 ];
 
 function loadSettings() {
+    const settingsPath = getSettingsPath();
     try {
         if (fs.existsSync(settingsPath)) {
             const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
@@ -38,10 +42,16 @@ function loadSettings() {
 }
 
 async function saveSettings(settings) {
+    const settingsPath = getSettingsPath();
     try {
         const dir = path.dirname(settingsPath);
         if (!fs.existsSync(dir)) {
             await fs.promises.mkdir(dir, { recursive: true });
+        }
+        if (fs.existsSync(settingsPath)) {
+            try {
+                await fs.promises.copyFile(settingsPath, settingsPath + '.bak');
+            } catch (_) { }
         }
         await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
         return true;
@@ -680,7 +690,7 @@ const { registerSubtitlesIpc } = require('./src/ipc/subtitles.ipc');
 
 registerFilesIpc(ipcMain, mainWindow);
 registerFolderIpc(ipcMain, mainWindow);
-registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings);
+registerSystemIpc(ipcMain, getSettingsPath(), loadSettings, saveSettings);
 registerMediaIpc(ipcMain);
 registerCryptoIpc(ipcMain);
 registerSubtitlesIpc(ipcMain, loadSettings);

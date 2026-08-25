@@ -102,9 +102,11 @@ window.initSettingsListeners = function initSettingsListeners() {
                 if (el('settings-default-folder-music')) {
                     el('settings-default-folder-music').value = window.appSettings.defaultFolderAudio || '';
                 }
-                if (el('settings-vsr-quality')) el('settings-vsr-quality').value = window.appSettings.vsrQuality || 'HIGH';
+                if (el('settings-vsr-algo')) el('settings-vsr-algo').value = window.appSettings.vsrAlgo || 'ngx-vsr';
+                if (el('settings-vsr-quality')) el('settings-vsr-quality').value = window.appSettings.vsrQuality || '3';
                 if (el('settings-vsr-scale')) el('settings-vsr-scale').value = window.appSettings.vsrScale || '2';
-                if (el('settings-vsr-bitrate')) el('settings-vsr-bitrate').value = window.appSettings.vsrBitrate || '12M';
+                if (el('settings-vsr-codec')) el('settings-vsr-codec').value = window.appSettings.vsrCodec || 'hevc';
+                if (el('settings-vsr-bitrate')) el('settings-vsr-bitrate').value = window.appSettings.vsrBitrate || '25M';
                 if (el('settings-vsr-chroma')) el('settings-vsr-chroma').value = window.appSettings.vsrChroma || 'yuv420p';
                 document.getElementById('pill-tag-input-glob').focus();
             }
@@ -206,8 +208,10 @@ window.initSettingsListeners = function initSettingsListeners() {
             if (el('settings-default-folder-music')) {
                 window.appSettings.defaultFolderAudio = el('settings-default-folder-music').value.trim() || undefined;
             }
+            if (el('settings-vsr-algo')) window.appSettings.vsrAlgo = el('settings-vsr-algo').value;
             if (el('settings-vsr-quality')) window.appSettings.vsrQuality = el('settings-vsr-quality').value;
             if (el('settings-vsr-scale')) window.appSettings.vsrScale = el('settings-vsr-scale').value;
+            if (el('settings-vsr-codec')) window.appSettings.vsrCodec = el('settings-vsr-codec').value;
             if (el('settings-vsr-bitrate')) window.appSettings.vsrBitrate = el('settings-vsr-bitrate').value;
             if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
             await window.electronAPI.saveSettings(window.appSettings);

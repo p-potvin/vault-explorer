@@ -28,9 +28,48 @@ function getFullProbeMetadata(filePath) {
 const enhancements = require('../enhancements');
 
 function registerMediaIpc(ipcMain) {
-    // RTX VSR video upscaling. The pipeline itself now lives in
-    // python-scripts/enhance_video.py, which owns output routing, atomic
-    // promotion and sidecar state just like the other three actions.
+    // Check NVEncC status & capabilities
+    ipcMain.handle('nvencc-status', async () => {
+        const nvencc = require('../nvencc');
+        const available = nvencc.isNvenccAvailable();
+        const exePath = nvencc.resolveNvenccPath();
+        return { available, path: exePath };
+    });
+
+    // Detailed enhancement status / sidecar breakdown
+    ipcMain.handle('get-video-enhancement-details', async (_event, filePath) => {
+        if (typeof filePath !== 'string' || !filePath) {
+            return { success: false, error: 'Invalid file path' };
+        }
+        const meta = enhancements.readSidecar(filePath);
+        const state = enhancements.getState(filePath);
+        return {
+            success: true,
+            state,
+            details: meta.enhancementDetails || {},
+            enhancements: meta.enhancements || {},
+            enhancedPath: meta.enhancedPath || null
+        };
+    });
+
+    // Custom multi-effect NVEnc enhancement pipeline
+    ipcMain.handle('enhance-video-custom', async (event, opts) => {
+        const filePath = typeof opts === 'string' ? opts : (opts && (opts.videoPath || opts.path));
+        if (typeof filePath !== 'string' || !filePath) {
+            return { success: false, error: 'Invalid file path' };
+        }
+        if (!fs.existsSync(filePath)) {
+            return { success: false, error: `File not found: ${filePath}` };
+        }
+
+        const options = (typeof opts === 'object' && opts) ? opts : {};
+        return enhancements.runAction(event, 'enhance-video', {
+            videoPath: filePath,
+            ...options
+        });
+    });
+
+    // RTX VSR video upscaling.
     ipcMain.handle('upscale-video', async (event, opts) => {
         const filePath = typeof opts === 'string' ? opts : (opts && opts.path);
         if (typeof filePath !== 'string' || !filePath) {

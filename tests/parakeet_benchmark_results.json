@@ -1,0 +1,93 @@
+{
+  "benchmark_title": "audio.cpp GGUF ASR Comparative Benchmark: Parakeet-TDT 0.6B v3 vs Nemotron 3.5 ASR 0.6B",
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 3060",
+    "cuda_cores": 3584,
+    "vram_mb": 12287,
+    "cpu": "AMD Ryzen 5 7600X 6-Core Processor (12 threads)"
+  },
+  "sample_media": {
+    "path": "C:\\Users\\Administrator\\Desktop\\Medias\\Julien Lacroix - Les frères magie ! [HD].mp4",
+    "duration_sec": 178.515,
+    "format": "1080p H.264 / 44.1kHz Stereo AAC -> 16kHz Mono PCM"
+  },
+  "real_world_live_results": [
+    {
+      "model": "Parakeet-TDT 0.6B v3 GGUF (Q8_0)",
+      "family": "parakeet_tdt",
+      "mode": "offline (full context)",
+      "backend": "cuda",
+      "wall_sec": 8.24,
+      "rtf": 0.0461,
+      "speedup_x": 21.67,
+      "peak_vram_mb": 1220,
+      "language": "fr",
+      "words": 372
+    },
+    {
+      "model": "Parakeet-TDT 0.6B v3 GGUF (Q8_0)",
+      "family": "parakeet_tdt",
+      "mode": "offline (bounded long_form)",
+      "backend": "cuda",
+      "wall_sec": 13.25,
+      "rtf": 0.0742,
+      "speedup_x": 13.47,
+      "peak_vram_mb": 950,
+      "language": "fr",
+      "words": 368
+    },
+    {
+      "model": "Parakeet-TDT 0.6B v3 GGUF (Q8_0)",
+      "family": "parakeet_tdt",
+      "mode": "offline",
+      "backend": "cpu (8 threads)",
+      "wall_sec": 30.24,
+      "rtf": 0.1694,
+      "speedup_x": 5.90,
+      "ram_mb": 1100,
+      "language": "fr",
+      "words": 372
+    },
+    {
+      "model": "HTDemucs 4-Stem Separation (F16)",
+      "family": "htdemucs",
+      "mode": "offline",
+      "backend": "cuda",
+      "wall_sec": 39.82,
+      "rtf": 0.2231,
+      "speedup_x": 4.48,
+      "peak_vram_mb": 1850,
+      "stems": ["drums", "bass", "other", "vocals"]
+    }
+  ],
+  "engine_test_suite_comparison": {
+    "nemotron_3_5_asr_streaming_0_6b": {
+      "offline_session": {
+        "speed_vs_realtime_f16": "277.8x - 384.6x",
+        "speed_vs_realtime_q8_0": "285.7x - 400.0x",
+        "peak_vram_f16_mb": 5125,
+        "peak_vram_q8_0_mb": 4028,
+        "wer": "3.18%"
+      },
+      "streaming_session_30min": {
+        "ttft_ms": "205.0 - 214.8 ms",
+        "speed_vs_realtime_q8_0": "33.4x",
+        "peak_vram_q8_0_mb": 2497,
+        "wer": "3.45%"
+      }
+    },
+    "parakeet_tdt_0_6b_v3": {
+      "offline_session": {
+        "speed_vs_realtime_f16": "44.0x",
+        "speed_vs_realtime_q8_0": "56.8x",
+        "peak_vram_q8_0_mb": 1220,
+        "wer": "3.4%"
+      },
+      "bounded_long_form_session": {
+        "speed_vs_realtime_q8_0": "46.4x",
+        "peak_vram_q8_0_mb": 950,
+        "wer": "3.4% - 6.8%"
+      }
+    }
+  }
+}

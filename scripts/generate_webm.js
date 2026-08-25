@@ -71,13 +71,13 @@ async function start() {
     const videos = findVideosSync(TARGET_DIR);
     console.log(`Found ${videos.length} videos. Commencing preview generation...\n`);
 
-	let erroredFilenames = [];
+    let erroredFilenames = [];
     let count = 0;
     for (const vidPath of videos) {
         const dir = path.dirname(vidPath);
         const ext = path.extname(vidPath);
         const baseName = path.basename(vidPath, ext);
-        
+
         // Ensure local .thumbs folder at the exact folder level of the video
         const thumbsDir = path.join(dir, '.thumbs');
         if (!fs.existsSync(thumbsDir)) {
@@ -121,7 +121,7 @@ async function start() {
                 ]);
                 console.log(`  -> Created thumbnail: ${baseName}.jpg`);
             } catch (err) {
-				erroredFilenames.push(vidPath);
+                erroredFilenames.push(vidPath);
                 console.error(`  -> Failed to create thumbnail: ${err.message}`);
             }
         }
@@ -143,9 +143,9 @@ async function start() {
                     ]);
                 } else {
                     // Larger video: extract 5 pieces of 2 seconds each
-                    const numClips = 5;
+                    const numClips = 15;
                     const interval = duration / numClips;
-                    const clipDuration = 2.0;
+                    const clipDuration = 3.0;
 
                     const args = ['-y'];
                     let filterStr = '';
@@ -155,7 +155,7 @@ async function start() {
                         filterStr += `[${i}:v]`;
                     }
                     filterStr += `concat=n=${numClips}:v=1:a=0[outv]`;
-                    
+
                     args.push(
                         '-filter_complex', filterStr,
                         '-map', '[outv]',
@@ -171,21 +171,21 @@ async function start() {
                 }
                 console.log(`  -> Created WebM preview: ${baseName}.webm`);
             } catch (err) {
-				if (erroredFilenames.at(-1) != vidPath) erroredFilenames.push(vidPath);
+                if (erroredFilenames.at(-1) != vidPath) erroredFilenames.push(vidPath);
                 console.error(`  -> Failed to create WebM preview: ${err.message}`);
             }
         }
     }
 
-	if (erroredFilenames.length > 0) {
-		console.log(`\nAll the following files have failed, usually due to a corrupted stream: `);
-		let i = 0;
-		erroredFilenames.forEach((filename) => {
-			console.log(`\n#${i}: ${filename}`);
-			++i;
-		});
-	}
-	
+    if (erroredFilenames.length > 0) {
+        console.log(`\nAll the following files have failed, usually due to a corrupted stream: `);
+        let i = 0;
+        erroredFilenames.forEach((filename) => {
+            console.log(`\n#${i}: ${filename}`);
+            ++i;
+        });
+    }
+
     console.log(`\nAll previews fully synchronized inside the directory structures!`);
 }
 

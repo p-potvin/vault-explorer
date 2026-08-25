@@ -274,6 +274,10 @@ async function handleCardContextMenu(card, item, index) {
                 }
             });
         }
+    } else if (action === 'open-video-studio') {
+        if (typeof window.openVideoEnhancerModal === 'function') {
+            window.openVideoEnhancerModal(item && item.path);
+        }
     } else if (action === 'normalize-audio') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
