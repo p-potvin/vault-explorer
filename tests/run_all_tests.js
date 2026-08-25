@@ -17,6 +17,8 @@ const testSuites = [
     { name: 'Playlist & Album Prompts, Volume, and Perf E2E', script: 'tests/playlist_album_prompt_and_player_perf_test.js' },
     { name: 'Player Controls & Upscale Button E2E', script: 'tests/player_upscale_btn_test.js' },
     { name: 'Category Isolation & Self-Containment', script: 'tests/category_isolation_test.js' },
+    { name: 'Seek Preview & Frame Scrubbing E2E', script: 'tests/seek_preview_verification_test.js' },
+    { name: 'NVEnc AI Video Studio & Subtitles -Separate E2E', script: 'tests/nvencc_studio_and_separate_test.js' },
     { name: 'Music & Photos Button-By-Button E2E Suite', script: 'tests/music_photos_buttons_e2e_test.js' },
     { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' }
 ];
@@ -39,6 +41,7 @@ for (let i = 0; i < testSuites.length; i++) {
             env: {
                 ...process.env,
                 VAULT_EXPLORER_E2E: '1',
+                VAULT_EXPLORER_E2E_USER_DATA: path.join(require('os').tmpdir(), 'vault-explorer-isolated-test-data'),
                 NODE_ENV: 'test'
             }
         });

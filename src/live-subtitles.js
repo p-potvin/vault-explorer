@@ -400,7 +400,7 @@ async function runSession(session) {
     });
 }
 
-function startSubtitlesPipeline({ videoPath, volumeBoost, startTime, translateTo }) {
+function startSubtitlesPipeline({ videoPath, volumeBoost, startTime, translateTo, separate = true }) {
     stopActive();
     if (translateTo) {
         // Live cues carry the source text. Translation belongs to the batch path
@@ -417,6 +417,7 @@ function startSubtitlesPipeline({ videoPath, volumeBoost, startTime, translateTo
         videoPath,
         startTime: startTime || 0,
         volumeBoost: Number(volumeBoost) || 1.5,
+        separate: !!separate,
         cues: [],
         cancelled: false,
         ffmpeg: null,

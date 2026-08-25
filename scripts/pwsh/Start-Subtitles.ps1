@@ -33,6 +33,7 @@ param(
     [switch]$Recurse,
     [string]$TranslateTo = "",
     [switch]$SkipExisting,
+    [switch]$Separate,
     [switch]$NoSeparate,
     [double]$VolumeBoost = 1.5,
     [string]$Cacophony
@@ -64,6 +65,7 @@ if ($OutputDir)    { $forward.OutputDir = $OutputDir }
 if ($Recurse)      { $forward.Recurse = $true }
 if ($TranslateTo)  { $forward.Langs = $TranslateTo }
 if ($SkipExisting) { $forward.SkipExisting = $true }
+if ($Separate)     { $forward.Separate = $true }
 if ($NoSeparate)   { $forward.NoSeparate = $true }
 
 & $script @forward

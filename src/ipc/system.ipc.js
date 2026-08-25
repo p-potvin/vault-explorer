@@ -129,7 +129,9 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                         { label: 'Enhance Audio 🪄', type: 'checkbox', checked: hasAudioEnh, click: () => once('normalize-audio') },
                         { label: withLangs('Generate Subtitles', subLangs), type: 'checkbox', checked: subLangs.length > 0, click: () => once('generate-subtitles-prompt') },
                         { label: withLangs('Translate this video', transLangs), type: 'checkbox', checked: transLangs.length > 0, click: () => once('translate-video-prompt') },
-                        { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') }
+                        { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') },
+                        { type: 'separator' },
+                        { label: '✨ AI Video Studio (Experimental)…', click: () => once('open-video-studio') }
                     );
 
                     // Revert only what has actually been applied.
@@ -243,7 +245,9 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                         { label: 'Enhance Audio 🪄', type: 'checkbox', checked: hasAudioEnh, click: () => once('normalize-audio') },
                         { label: withLangs('Generate Subtitles', subLangs), type: 'checkbox', checked: subLangs.length > 0, click: () => once('generate-subtitles-prompt') },
                         { label: withLangs('Translate this video', transLangs), type: 'checkbox', checked: transLangs.length > 0, click: () => once('translate-video-prompt') },
-                        { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') }
+                        { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') },
+                        { type: 'separator' },
+                        { label: '✨ AI Video Studio (Experimental)…', click: () => once('open-video-studio') }
                     );
 
                     // Revert only what has actually been applied.

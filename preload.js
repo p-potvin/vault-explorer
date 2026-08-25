@@ -60,7 +60,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offNormalizeProgress: () => ipcRenderer.removeAllListeners('normalize-progress'),
   onUpscaleProgress: (cb) => ipcRenderer.on('upscale-progress', (_, data) => cb(data)),
   offUpscaleProgress: () => ipcRenderer.removeAllListeners('upscale-progress'),
-  runASRBenchmark: (forceSimulation) => ipcRenderer.invoke('run-asr-benchmark', { forceSimulation }),
+  getNvenccStatus: () => ipcRenderer.invoke('nvencc-status'),
+  enhanceVideoCustom: (options) => ipcRenderer.invoke('enhance-video-custom', options),
+  getVideoEnhancementDetails: (videoPath) => ipcRenderer.invoke('get-video-enhancement-details', videoPath),
   // Omit `action` to revert everything, or pass 'audio' | 'video' | 'subtitles'
   // | 'translation' to undo a single enhancement.
   revertEnhancements: (p, action) => ipcRenderer.invoke('revert-enhancements', { path: p, action }),

@@ -234,7 +234,13 @@ function stopUpscaleMode() {
 function initUpscaleListeners() {
     const button = el('btn-upscale');
     if (!button) return;
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', async (e) => {
+        if (typeof window.openVideoEnhancerModal === 'function') {
+            const vp = el('video-player');
+            const path = window.currentPlayingItem ? window.currentPlayingItem.path : (vp ? sourcePathFromFileUrl(vp.src) : null);
+            window.openVideoEnhancerModal(path);
+            return;
+        }
         if (upscaleActive) {
             upscaleActive = false;
             button.classList.remove('active');

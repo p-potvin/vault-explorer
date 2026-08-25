@@ -136,6 +136,10 @@ async function handlePlayerContextMenu(action, menuItem) {
                 window.showToast('Preview generated', 'success');
             }
         });
+    } else if (action === 'open-video-studio') {
+        if (typeof window.openVideoEnhancerModal === 'function') {
+            window.openVideoEnhancerModal(itemPath);
+        }
     } else if (action === 'normalize-audio') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
         window.showToast('Enhancing audio in background...', 'success');
@@ -360,7 +364,6 @@ async function playItem(idx, sourceItems = null) {
     const newSrc = window.sanitizePath(activePath);
     vp.src = newSrc;
     vp.muted = false;
-    const scrubVideo = el('seek-scrub-video');
     if (scrubVideo && lastScrubSrc !== newSrc) {
         scrubVideo.src = newSrc;
         lastScrubSrc = newSrc;
@@ -530,24 +533,43 @@ function initPlayer() {
     volSlider = el('volume-slider');
 
     // Scrubber elements setup
-    scrubVideo = document.createElement('video');
-    scrubVideo.muted = true;
-    scrubVideo.preload = 'metadata';
-    scrubVideo.style.display = 'none';
-    document.body.appendChild(scrubVideo);
+    let existingScrub = el('seek-scrub-video');
+    if (existingScrub) {
+        scrubVideo = existingScrub;
+    } else {
+        scrubVideo = document.createElement('video');
+        scrubVideo.id = 'seek-scrub-video';
+        scrubVideo.muted = true;
+        scrubVideo.preload = 'auto';
+        scrubVideo.style.display = 'none';
+        document.body.appendChild(scrubVideo);
+    }
 
     seekCanvas = seekPreview;
-    seekCtx = seekCanvas.getContext('2d');
-    seekCanvas.width = 320;
-    seekCanvas.height = 180;
+    if (seekCanvas) {
+        seekCtx = seekCanvas.getContext('2d');
+        seekCanvas.width = 320;
+        seekCanvas.height = 180;
+    }
+
+    const drawFrameToCanvas = (sourceEl) => {
+        try {
+            if (seekCtx && seekCanvas && sourceEl) {
+                const w = sourceEl.videoWidth || sourceEl.naturalWidth || sourceEl.width || 0;
+                const h = sourceEl.videoHeight || sourceEl.naturalHeight || sourceEl.height || 0;
+                if (w > 0 && h > 0) {
+                    seekCtx.drawImage(sourceEl, 0, 0, seekCanvas.width, seekCanvas.height);
+                }
+            }
+        } catch (_) {}
+    };
+
+    scrubVideo.addEventListener('loadeddata', () => drawFrameToCanvas(scrubVideo));
+    scrubVideo.addEventListener('seeked', () => drawFrameToCanvas(scrubVideo));
 
     navHoverPreview = document.createElement('div');
     navHoverPreview.className = 'nav-hover-preview';
     document.body.appendChild(navHoverPreview);
-
-    scrubVideo.addEventListener('seeked', () => {
-        seekCtx.drawImage(scrubVideo, 0, 0, seekCanvas.width, seekCanvas.height);
-    });
 
     // Close on PiP or Modal Close
     el('minimize-modal').addEventListener('click', (e) => {
@@ -1296,6 +1318,13 @@ function initPlayer() {
             }
         }
 
+        // Keep scrubVideo source synchronized with active video playback
+        const activeSrc = vp.src || '';
+        if (scrubVideo && activeSrc && lastScrubSrc !== activeSrc) {
+            scrubVideo.src = activeSrc;
+            lastScrubSrc = activeSrc;
+        }
+
         const tpFolder = vp.dataset.trickplay;
         let usedTrickplay = false;
         if (tpFolder) {
@@ -1304,16 +1333,41 @@ function initPlayer() {
                 usedTrickplay = true;
                 const idx = Math.min(Math.floor(percent * trickFrames.length), trickFrames.length - 1);
                 const img = new Image();
-                img.onload = () => seekCtx.drawImage(img, 0, 0, seekCanvas.width, seekCanvas.height);
+                img.onload = () => {
+                    if (seekCtx && seekCanvas) seekCtx.drawImage(img, 0, 0, seekCanvas.width, seekCanvas.height);
+                };
                 img.src = window.sanitizePath(trickFrames[idx]);
             }
         }
-        if (!usedTrickplay && vp.duration && isFinite(vp.duration) && scrubVideo.src) {
+
+        if (!usedTrickplay && vp.duration && isFinite(vp.duration)) {
             const targetTime = percent * vp.duration;
-            clearTimeout(seekDebounceTimer);
-            seekDebounceTimer = setTimeout(() => {
-                scrubVideo.currentTime = targetTime;
-            }, 60);
+
+            // Instant non-black fallback: if scrubVideo hasn't rendered yet, draw active playing video frame
+            if (vp.readyState >= 2 && (!scrubVideo || scrubVideo.readyState < 2)) {
+                try {
+                    if (seekCtx && seekCanvas) seekCtx.drawImage(vp, 0, 0, seekCanvas.width, seekCanvas.height);
+                } catch (_) {}
+            }
+
+            if (scrubVideo && scrubVideo.src) {
+                clearTimeout(seekDebounceTimer);
+                seekDebounceTimer = setTimeout(() => {
+                    try {
+                        if (typeof scrubVideo.fastSeek === 'function') {
+                            scrubVideo.fastSeek(targetTime);
+                        } else {
+                            scrubVideo.currentTime = targetTime;
+                        }
+                    } catch (_) {}
+                }, 30);
+            } else if (window.currentPlayingItem && window.currentPlayingItem.thumbnail) {
+                const thumbImg = new Image();
+                thumbImg.onload = () => {
+                    if (seekCtx && seekCanvas) seekCtx.drawImage(thumbImg, 0, 0, seekCanvas.width, seekCanvas.height);
+                };
+                thumbImg.src = window.sanitizePath(window.currentPlayingItem.thumbnail);
+            }
         }
     });
 

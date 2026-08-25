@@ -17,6 +17,7 @@ const fs = require('fs');
 const readline = require('readline');
 const { spawn } = require('child_process');
 const utils = require('./utils');
+const nvencc = require('./nvencc');
 
 /** Every user-facing enhancement, and the script that performs it. */
 const ACTIONS = {
@@ -198,6 +199,118 @@ function buildArgs(action, opts) {
     return args;
 }
 
+async function runNvenccAction(event, opts) {
+    const { videoPath } = opts;
+    const dirname = path.dirname(videoPath);
+    const ext = path.extname(videoPath);
+    const basename = path.basename(videoPath, ext);
+    const enhancedDir = path.join(dirname, '.enhanced');
+    const finalEnhancedPath = path.join(enhancedDir, `${basename}_enhanced.mp4`);
+    const tempOutputPath = path.join(enhancedDir, `${basename}_tmp_${Date.now()}.mp4`);
+
+    try {
+        if (!fs.existsSync(enhancedDir)) {
+            fs.mkdirSync(enhancedDir, { recursive: true });
+        }
+
+        const progressCb = (progress) => {
+            if (event && event.sender && !event.sender.isDestroyed()) {
+                event.sender.send(PROGRESS_CHANNEL, {
+                    videoPath,
+                    action: 'enhance-video',
+                    percent: progress.percent !== null ? progress.percent : 50,
+                    label: progress.message || 'Enhancing video with NVEncC...'
+                });
+            }
+        };
+
+        if (event && event.sender && !event.sender.isDestroyed()) {
+            event.sender.send(PROGRESS_CHANNEL, {
+                videoPath,
+                action: 'enhance-video',
+                percent: 0,
+                label: 'Initializing NVEncC hardware acceleration...'
+            });
+        }
+
+        await nvencc.runNvenccPipeline(videoPath, tempOutputPath, opts, progressCb);
+
+        if (fs.existsSync(finalEnhancedPath)) {
+            try { fs.unlinkSync(finalEnhancedPath); } catch (_) {}
+        }
+        fs.renameSync(tempOutputPath, finalEnhancedPath);
+
+        const meta = readSidecar(videoPath);
+        meta.enhancedPath = finalEnhancedPath;
+        meta.enhancements = meta.enhancements || blankEnhancements();
+        meta.enhancements.video = true;
+
+        meta.enhancementDetails = meta.enhancementDetails || {};
+        meta.enhancementDetails.video = {
+            engine: 'nvencc',
+            vsr: opts.vsr !== false ? {
+                algo: opts.algo || 'ngx-vsr',
+                quality: opts.quality !== undefined ? opts.quality : 3,
+                scale: opts.scale || 2,
+                res: opts.res || null
+            } : null,
+            truehdr: opts.truehdr ? {
+                contrast: opts.hdrContrast !== undefined ? opts.hdrContrast : 125,
+                saturation: opts.hdrSaturation !== undefined ? opts.hdrSaturation : 75,
+                middlegray: opts.hdrMiddlegray !== undefined ? opts.hdrMiddlegray : 44,
+                maxluminance: opts.hdrMaxLuminance !== undefined ? opts.hdrMaxLuminance : 1000
+            } : null,
+            sharpen: opts.sharpen ? {
+                mode: opts.sharpenMode || 'unsharp',
+                radius: opts.unsharpRadius || 3,
+                weight: opts.unsharpWeight || 0.5,
+                strength: opts.edgeStrength || 5.0
+            } : null,
+            deband: opts.deband ? {
+                mode: opts.debandMode || 'libplacebo',
+                iterations: opts.debandIterations || 2,
+                threshold: opts.debandThreshold || 4.0
+            } : null,
+            denoise: opts.denoise ? {
+                mode: opts.denoiseMode || 'fft3d',
+                sigma: opts.denoiseSigma || 1.5
+            } : null,
+            fruc: opts.fruc ? { enabled: true, mode: 'nvoffruc' } : null,
+            codec: opts.codec || 'hevc',
+            appliedAt: new Date().toISOString()
+        };
+
+        writeSidecar(videoPath, meta);
+
+        if (event && event.sender && !event.sender.isDestroyed()) {
+            event.sender.send(PROGRESS_CHANNEL, {
+                videoPath,
+                action: 'enhance-video',
+                percent: 100,
+                label: 'Video enhancement completed successfully!'
+            });
+        }
+
+        return {
+            success: true,
+            status: 'SUCCESS',
+            action: 'enhance-video',
+            path: finalEnhancedPath,
+            state: getState(videoPath)
+        };
+    } catch (err) {
+        if (fs.existsSync(tempOutputPath)) {
+            try { fs.unlinkSync(tempOutputPath); } catch (_) {}
+        }
+        return {
+            success: false,
+            status: 'FAILED',
+            action: 'enhance-video',
+            error: err.message
+        };
+    }
+}
+
 /**
  * Run one enhancement script, streaming its progress to the renderer.
  *
@@ -211,6 +324,10 @@ function runAction(event, action, opts) {
     }
     if (!opts || typeof opts.videoPath !== 'string' || !opts.videoPath) {
         return Promise.resolve({ success: false, error: 'No video path supplied' });
+    }
+
+    if (action === 'enhance-video' && nvencc.isNvenccAvailable()) {
+        return runNvenccAction(event, opts);
     }
 
     let args;

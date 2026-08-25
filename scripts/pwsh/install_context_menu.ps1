@@ -1,29 +1,27 @@
 $ErrorActionPreference = "Stop"
 
-$RepoPath = "C:\Users\Administrator\Desktop\Github Repos\vault-explorer"
-$ProdExe = "$RepoPath\dist\win-unpacked\vault-explorer.exe"
-$DevElectron = "$RepoPath\node_modules\electron\dist\electron.exe"
+$RepoPath = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$NodeExe = (Get-Command node.exe -CommandType Application -ErrorAction Stop).Source
+$ElectronCli = "$RepoPath\node_modules\electron\cli.js"
 
 $FileCommand = ""
 $FolderBgCommand = ""
 $FolderItemCommand = ""
 
-if (Test-Path $ProdExe) {
-    $FileCommand = "`"$ProdExe`" `"%1`""
-    $FolderBgCommand = "`"$ProdExe`" `"%V`""
-    $FolderItemCommand = "`"$ProdExe`" `"%1`""
-    Write-Host "Found production executable, using it for context menus ($ProdExe)." -ForegroundColor Cyan
-} elseif (Test-Path $DevElectron) {
-    $FileCommand = "`"$DevElectron`" `"$RepoPath`" `"%1`""
-    $FolderBgCommand = "`"$DevElectron`" `"$RepoPath`" `"%V`""
-    $FolderItemCommand = "`"$DevElectron`" `"$RepoPath`" `"%1`""
-    Write-Host "Found development electron, using it for context menus." -ForegroundColor Cyan
+if ((Test-Path $NodeExe) -and (Test-Path $ElectronCli)) {
+    # `npm run start` resolves `electron .` through Electron's cli.js with
+    # Node. Keep the registry command identical in shape so it uses this
+    # checkout's source rather than a possibly stale dist build.
+    $FileCommand = "`"$NodeExe`" `"$ElectronCli`" `"$RepoPath`" --prioritize-player `"%1`""
+    $FolderBgCommand = "`"$NodeExe`" `"$ElectronCli`" `"$RepoPath`" `"%V`""
+    $FolderItemCommand = "`"$NodeExe`" `"$ElectronCli`" `"$RepoPath`" `"%1`""
+    Write-Host "Using the Node + Electron CLI command from npm run start for context menus." -ForegroundColor Cyan
 } else {
-    Write-Host "Could not find Vault Explorer executable. Please build the app first or install dependencies." -ForegroundColor Red
+    Write-Host "Could not find Node or the local Electron CLI. Please install dependencies first." -ForegroundColor Red
     exit 1
 }
 
-$IconPath = if (Test-Path "$RepoPath\build\icon.ico") { "$RepoPath\build\icon.ico" } elseif (Test-Path $ProdExe) { $ProdExe } else { $null }
+$IconPath = if (Test-Path "$RepoPath\build\icon.ico") { "$RepoPath\build\icon.ico" } else { $null }
 
 # 1. Video Files Context Menu
 $VideoFileRegPath = "HKCU:\Software\Classes\SystemFileAssociations\video\shell\VaultExplorer"
@@ -56,4 +54,3 @@ New-Item -Path "$DirItemRegPath\command" -Force | Out-Null
 Set-ItemProperty -Path "$DirItemRegPath\command" -Name "(default)" -Value $FolderItemCommand
 
 Write-Host "Successfully registered all Vault Explorer context menus in Windows Registry!" -ForegroundColor Green
-
