@@ -58,7 +58,11 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
             const baseName = item.name || '';
             for (const pattern of exclusions) {
                 if (!pattern) continue;
-                const rx = window.globToRegex ? window.globToRegex(pattern) : new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$', 'i');
+                const rx = window.globToRegex
+                    ? window.globToRegex(pattern)
+                    : new RegExp('^' + pattern
+                        .replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+                        .replace(/\\\*/g, '.*') + '$', 'i');
                 if (rx.test(baseName) || rx.test(normP)) return true;
             }
         }
