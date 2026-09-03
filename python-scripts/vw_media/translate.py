@@ -13,7 +13,7 @@ from .subtitles import source_code
 def _find_riva_model():
     candidates = [
         os.environ.get("VW_RIVA_MODEL"),
-        os.path.join(os.path.expanduser("~"), "Desktop", "Github Repos", "vault-cacophony", "audio.cpp", "models", "Riva-Translate-4B-Instruct.i1-Q4_K_M.gguf"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "audio.cpp", "models", "Riva-Translate-4B-Instruct.i1-Q4_K_M.gguf"),
     ]
     for c in candidates:
         if c and os.path.isfile(c):
