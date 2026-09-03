@@ -92,18 +92,20 @@ function applyFilters() {
             : [];
         if (exclusions.length > 0) {
             const baseName = item.name || '';
-            for (const pattern of exclusions) {
-                if (!pattern) continue;
-                const rx = window.globToRegex
-                    ? window.globToRegex(pattern)
-                    : new RegExp(
-                        '^' +
-                        pattern
-                            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                            .replace(/\\\*/g, '.*') +
-                        '$',
-                        'i'
-                    );
+    const exclusions = (window.appSettings && Array.isArray(window.appSettings.globExclusions))
+        ? window.appSettings.globExclusions.filter(Boolean)
+        : [];
+    const exclusionRegexes = exclusions.map(pattern => 
+        window.globToRegex ? window.globToRegex(pattern) : new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$', 'i')
+    );
+
+    const isGlobOrThumbsExcluded = (item) => {
+        if (!item || !item.path) return false;
+        const normP = item.path.replace(/\\/g, '/').toLowerCase();
+        if (normP.includes('/.thumbs/') || normP.includes('/thumbs/')) return true;
+        if (exclusionRegexes.length > 0) {
+            const baseName = item.name || '';
+            for (const rx of exclusionRegexes) {
                 if (rx.test(baseName) || rx.test(normP)) return true;
             }
         }
