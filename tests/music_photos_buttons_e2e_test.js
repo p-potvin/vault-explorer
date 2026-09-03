@@ -130,8 +130,10 @@ async function run() {
         const volInput = document.getElementById('audio-bar-volume');
 
         // Toggle shuffle
+        const shuffleBefore = shuffleBtn.title;
         shuffleBtn.click();
-        const shuffleState = shuffleBtn.style.color.includes('accent') || shuffleBtn.style.background.includes('rgba');
+        const shuffleAfter = shuffleBtn.title;
+        const shuffleToggled = shuffleBefore !== shuffleAfter;
 
         // Cycle repeat: off -> all -> one -> off
         repeatBtn.click(); // 'all'
@@ -148,7 +150,7 @@ async function run() {
         const volAfterUnmute = volInput.value;
 
         return {
-            shuffleState,
+            shuffleToggled,
             repeatTitle1,
             repeatTitle2,
             repeatTitle3,
@@ -158,7 +160,7 @@ async function run() {
     });
 
     console.log('Audio bar controls result:', audioBarResult);
-    assert.ok(audioBarResult.shuffleState, 'Shuffle button must be active');
+    assert.ok(audioBarResult.shuffleToggled, 'Shuffle button must toggle state');
     assert.equal(audioBarResult.repeatTitle1, 'Repeat: All', 'First click must activate Repeat: All');
     assert.equal(audioBarResult.repeatTitle2, 'Repeat: Current Track', 'Second click must activate Repeat: Current Track');
     assert.equal(audioBarResult.repeatTitle3, 'Repeat: Off', 'Third click must activate Repeat: Off');

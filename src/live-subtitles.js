@@ -33,7 +33,7 @@ const utils = require('./utils');
 
 const SAMPLE_RATE = 16000;
 const SERVER_PORT = 8099;
-const MODEL_ID = 'parakeet';
+const MODEL_ID = 'nemotron';
 
 // Measured on 113 s of speech, sweeping this and scoring the sidecar against
 // ground truth: 8 s scored 13.6% WER (short windows duplicate across seams),
@@ -125,6 +125,43 @@ function ensureServer() {
 // ── transcription ───────────────────────────────────────────────────────────
 
 /**
+ * Nemotron times sub-word pieces (e.g. 'The', 'y', "'ve", ' got').
+ * Mirrors merge_tokens() from words_to_srt.py (vw better-subtitles).
+ */
+function mergeTokens(tokens) {
+    const PIECE_GAP_S = 0.5;
+    const words = [];
+    let cur = null;
+
+    for (const t of tokens) {
+        const piece = t.word || '';
+        if (!piece.trim()) {
+            if (cur) { words.push(cur); cur = null; }
+            continue;
+        }
+        const start = t.start_sample != null ? t.start_sample / SAMPLE_RATE : (t.start || 0);
+        const end = t.end_sample != null ? t.end_sample / SAMPLE_RATE : (t.end || 0);
+
+        const stranded = cur !== null && (start - cur.end) > PIECE_GAP_S;
+        if (stranded && !/[a-zA-Z0-9]/.test(piece)) {
+            cur.word += piece;
+            continue;
+        }
+
+        if (piece.startsWith(' ') || cur === null || stranded) {
+            if (cur) words.push(cur);
+            cur = { word: piece.trim(), start, end };
+        } else {
+            cur.word += piece;
+            cur.start = Math.min(cur.start, start);
+            cur.end = Math.max(cur.end, end);
+        }
+    }
+    if (cur) words.push(cur);
+    return words;
+}
+
+/**
  * The OpenAI-shaped /v1/audio/transcriptions endpoint hard-codes its response to
  * {text, timing} and drops word timestamps, which is where cue boundaries come
  * from -- so this posts to the generic task endpoint instead.
@@ -142,11 +179,8 @@ async function transcribeWav(wavPath) {
     });
     const payload = await res.json();
     if (payload.error) throw new Error(payload.error.message || 'audiocpp error');
-    return (payload.words || []).map((w) => ({
-        word: w.word,
-        start: w.start_sample / SAMPLE_RATE,
-        end: w.end_sample / SAMPLE_RATE,
-    }));
+    const raw = payload.words || [];
+    return mergeTokens(raw);
 }
 
 /**

@@ -111,7 +111,7 @@ def process_one(video_path, args, _output_path):
             raise RuntimeError("No speech was recognised in this file")
 
     report_progress(45, f"Translating {len(segments)} cues to {target_code.upper()}...")
-    translator = Translator(target_language)
+    translator = Translator(target_language, source=source_language)
     translated = translator.translate_segments(
         segments, on_progress=ScaledProgress(45, 40, f"Translating to {target_code.upper()}"))
 

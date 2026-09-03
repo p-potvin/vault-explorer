@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, Tray, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu, Tray, session, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
@@ -291,6 +291,9 @@ function createTray() {
     }
 }
 
+/**
+ * Creates and configures the main application window, including bounded zoom controls, media request handling, close-to-tray behavior, cleanup, and the system tray.
+ */
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200, height: 800,
@@ -379,6 +382,10 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
+    mainWindow.once('ready-to-show', () => {
+        updateThumbarButtons(false);
+    });
+
     mainWindow.on('close', (e) => {
         if (!isQuitting) {
             const settings = loadSettings();
@@ -393,6 +400,73 @@ function createWindow() {
     });
 
     createTray();
+}
+
+/**
+ * Configures Windows taskbar thumbnail toolbar controls for media playback.
+ * @param {boolean} isPlaying - Whether playback is active, determining the play or pause control.
+ */
+function updateThumbarButtons(isPlaying = false) {
+    if (!mainWindow || mainWindow.isDestroyed() || process.platform !== 'win32') return;
+
+    const thumbarDir = path.join(__dirname, 'build', 'thumbar');
+    const getIcon = (name) => {
+        const p = path.join(thumbarDir, name);
+        return fs.existsSync(p) ? nativeImage.createFromPath(p) : nativeImage.createEmpty();
+    };
+
+    try {
+        const buttons = [
+            {
+                tooltip: 'Previous',
+                icon: getIcon('prev.png'),
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('thumbar-action', 'prev');
+                    }
+                }
+            },
+            {
+                tooltip: 'Stop',
+                icon: getIcon('stop.png'),
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('thumbar-action', 'stop');
+                    }
+                }
+            },
+            {
+                tooltip: isPlaying ? 'Pause' : 'Play',
+                icon: isPlaying ? getIcon('pause.png') : getIcon('play.png'),
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('thumbar-action', 'playpause');
+                    }
+                }
+            },
+            {
+                tooltip: 'Next',
+                icon: getIcon('next.png'),
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('thumbar-action', 'next');
+                    }
+                }
+            },
+            {
+                tooltip: 'Fullscreen',
+                icon: getIcon('fullscreen.png'),
+                click: () => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('thumbar-action', 'fullscreen');
+                    }
+                }
+            }
+        ];
+        mainWindow.setThumbarButtons(buttons);
+    } catch (e) {
+        console.warn('[thumbar] Failed to set thumbnail toolbar buttons:', e.message);
+    }
 }
 
 app.whenReady().then(() => {
@@ -705,3 +779,10 @@ watchHistoryHandlers.registerWatchHistoryHandlers(ipcMain, app);
 
 // Register Clip Handler
 registerClipHandler(ipcMain);
+
+// Register Taskbar Thumbnail Toolbar State IPC Handler
+ipcMain.handle('update-thumbar-state', (event, data) => {
+    const isPlaying = data && data.isPlaying;
+    updateThumbarButtons(Boolean(isPlaying));
+    return true;
+});

@@ -5,8 +5,8 @@ window.initSettingsListeners = function initSettingsListeners() {
     const sectionForControl = {
         general: ['pill-tag-input-glob', 'settings-default-folder', 'settings-default-theme', 'settings-default-lang', 'settings-minimize-to-tray', 'settings-single-instance', 'settings-dev-mode'],
         playback: ['settings-default-sub-lang', 'settings-sub-font-size', 'settings-playback-sort', 'settings-remember-position', 'settings-mute-previews'],
-        library: ['settings-default-home-tab', 'settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-misc'],
-        ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma'],
+        library: ['settings-default-home-tab', 'settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-debrids', 'settings-default-folder-misc'],
+        ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma', 'settings-ai-separate'],
     };
     let activeSettingsSection = 'general';
     const closeSettings = () => {
@@ -102,12 +102,16 @@ window.initSettingsListeners = function initSettingsListeners() {
                 if (el('settings-default-folder-music')) {
                     el('settings-default-folder-music').value = window.appSettings.defaultFolderAudio || '';
                 }
+                if (el('settings-default-folder-debrids')) {
+                    el('settings-default-folder-debrids').value = window.appSettings.defaultFolderDebrids || '';
+                }
                 if (el('settings-vsr-algo')) el('settings-vsr-algo').value = window.appSettings.vsrAlgo || 'ngx-vsr';
                 if (el('settings-vsr-quality')) el('settings-vsr-quality').value = window.appSettings.vsrQuality || '3';
                 if (el('settings-vsr-scale')) el('settings-vsr-scale').value = window.appSettings.vsrScale || '2';
                 if (el('settings-vsr-codec')) el('settings-vsr-codec').value = window.appSettings.vsrCodec || 'hevc';
                 if (el('settings-vsr-bitrate')) el('settings-vsr-bitrate').value = window.appSettings.vsrBitrate || '25M';
                 if (el('settings-vsr-chroma')) el('settings-vsr-chroma').value = window.appSettings.vsrChroma || 'yuv420p';
+                if (el('settings-ai-separate')) el('settings-ai-separate').checked = window.appSettings.aiSeparate !== false;
                 document.getElementById('pill-tag-input-glob').focus();
             }
         });
@@ -208,12 +212,16 @@ window.initSettingsListeners = function initSettingsListeners() {
             if (el('settings-default-folder-music')) {
                 window.appSettings.defaultFolderAudio = el('settings-default-folder-music').value.trim() || undefined;
             }
+            if (el('settings-default-folder-debrids')) {
+                window.appSettings.defaultFolderDebrids = el('settings-default-folder-debrids').value.trim() || undefined;
+            }
             if (el('settings-vsr-algo')) window.appSettings.vsrAlgo = el('settings-vsr-algo').value;
             if (el('settings-vsr-quality')) window.appSettings.vsrQuality = el('settings-vsr-quality').value;
             if (el('settings-vsr-scale')) window.appSettings.vsrScale = el('settings-vsr-scale').value;
             if (el('settings-vsr-codec')) window.appSettings.vsrCodec = el('settings-vsr-codec').value;
             if (el('settings-vsr-bitrate')) window.appSettings.vsrBitrate = el('settings-vsr-bitrate').value;
             if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
+            if (el('settings-ai-separate')) window.appSettings.aiSeparate = el('settings-ai-separate').checked;
             await window.electronAPI.saveSettings(window.appSettings);
             showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
             closeSettings();

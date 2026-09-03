@@ -53,4 +53,19 @@ if ($IconPath) { Set-ItemProperty -Path $DirItemRegPath -Name "Icon" -Value $Ico
 New-Item -Path "$DirItemRegPath\command" -Force | Out-Null
 Set-ItemProperty -Path "$DirItemRegPath\command" -Name "(default)" -Value $FolderItemCommand
 
+# 4. M3U & M3U8 Playlist Files Context Menu (open in Debrids playlist view)
+$M3uFileRegPaths = @(
+    "HKCU:\Software\Classes\SystemFileAssociations\.m3u\shell\VaultExplorer",
+    "HKCU:\Software\Classes\SystemFileAssociations\.m3u8\shell\VaultExplorer"
+)
+Write-Host "Adding context menu entry for M3U / M3U8 playlist files..."
+foreach ($regPath in $M3uFileRegPaths) {
+    if (Test-Path $regPath) { Remove-Item -Path $regPath -Recurse -Force }
+    New-Item -Path $regPath -Force | Out-Null
+    Set-ItemProperty -Path $regPath -Name "(default)" -Value "Open in Vault Explorer"
+    if ($IconPath) { Set-ItemProperty -Path $regPath -Name "Icon" -Value $IconPath }
+    New-Item -Path "$regPath\command" -Force | Out-Null
+    Set-ItemProperty -Path "$regPath\command" -Name "(default)" -Value $FileCommand
+}
+
 Write-Host "Successfully registered all Vault Explorer context menus in Windows Registry!" -ForegroundColor Green

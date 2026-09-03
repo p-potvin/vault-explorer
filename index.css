@@ -2415,3 +2415,44 @@ body.clip-mode-active #btn-clip {
   filter: brightness(1.1);
 }
 
+/* ── Global Scrollbar Styles (All Tabs & Subtabs) ──────────────────── */
+html, body, .main-layout, .content-container, .file-grid,
+#files-container, #debrids-container, #music-container, #photos-container,
+#favorites-grid, #debrids-grid, #debrids-streams-grid, .modal-content, .subtabs-container {
+  overflow-x: hidden !important;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 0px !important;
+  transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::-webkit-scrollbar:horizontal {
+  display: none !important;
+  height: 0px !important;
+  width: 0px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Grow vertical scrollbar larger on hover */
+::-webkit-scrollbar:vertical:hover {
+  width: 12px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vault-accent, #E5A93B) !important;
+  box-shadow: 0 0 10px rgba(229, 169, 59, 0.4);
+}
+

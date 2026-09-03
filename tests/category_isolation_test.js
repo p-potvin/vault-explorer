@@ -87,19 +87,26 @@ assert.ok(pl1.ok && pl2.ok, 'Playlists created');
 assert.ok(alb1.ok && alb2.ok, 'Albums created');
 console.log('✓ [PASS] Collections, Playlists, and Albums minted successfully.\n');
 
-// ── TEST 2: Verify Files Tab ("All Files" Subtab) Isolation ─────────────────
-console.log('[Test 2] Verifying Files Tab "All Files" subtab strictly contains Collections ONLY...');
+// ── TEST 2: Verify Files Tab ("All Files" vs "Collections" Subtab) Isolation ──
+console.log('[Test 2] Verifying Files Tab subtab isolation (All Files has 0 collections; Collections subtab contains Collections ONLY)...');
 window.currentTab = 'files';
 window.currentFilesSubtab = 'all';
 window.currentFolderId = null;
 
 window.applyFilters();
 
-const renderedFolders = window.displayedItems.filter(i => i.type === 'fakeFolder');
-console.log('Rendered folders in Files -> All Files:', renderedFolders.map(f => `${f.name} (${f.folderType})`));
+const renderedInAll = window.displayedItems.filter(i => i.type === 'fakeFolder');
+assert.equal(renderedInAll.length, 0, 'Collections must NOT appear in All Files subtab');
 
-assert.ok(renderedFolders.some(f => f.name === 'Sci-Fi Movies'), 'Sci-Fi Movies must be present');
-assert.ok(renderedFolders.some(f => f.name === 'Documentaries'), 'Documentaries must be present');
+// Switch to Collections subtab
+window.currentFilesSubtab = 'collections';
+window.applyFilters();
+
+const renderedFolders = window.displayedItems.filter(i => i.type === 'fakeFolder');
+console.log('Rendered folders in Files -> Collections:', renderedFolders.map(f => `${f.name} (${f.folderType})`));
+
+assert.ok(renderedFolders.some(f => f.name === 'Sci-Fi Movies'), 'Sci-Fi Movies must be present in Collections');
+assert.ok(renderedFolders.some(f => f.name === 'Documentaries'), 'Documentaries must be present in Collections');
 
 // Playlists and Albums MUST NOT appear in Files tab!
 assert.ok(!renderedFolders.some(f => f.name === 'Synthwave Beats'), 'Playlists must NOT appear in Files tab');
@@ -111,7 +118,7 @@ assert.ok(!renderedFolders.some(f => f.name === 'Architecture Shots'), 'Albums m
 renderedFolders.forEach(f => {
     assert.equal(f.folderType, 'collection', `Expected folderType 'collection', got '${f.folderType}' for folder ${f.name}`);
 });
-console.log('✓ [PASS] Files Tab correctly excludes Playlists and Albums.\n');
+console.log('✓ [PASS] Files Tab Collections subtab correctly isolates Collections and excludes Playlists and Albums.\n');
 
 // ── TEST 3: Verify Search Isolation in Files Tab ───────────────────────────
 console.log('[Test 3] Verifying global search in Files tab excludes Playlists and Albums...');
