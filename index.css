@@ -2447,9 +2447,7 @@ html, body, .main-layout, .content-container, .file-grid,
 }
 
 /* Grow vertical scrollbar larger on hover */
-::-webkit-scrollbar:vertical:hover,
-:hover::-webkit-scrollbar:vertical,
-*:hover::-webkit-scrollbar {
+::-webkit-scrollbar:vertical:hover {
   width: 12px;
 }
 
