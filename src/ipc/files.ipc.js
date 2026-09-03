@@ -213,6 +213,111 @@ function registerFilesIpc(ipcMain, mainWindow) {
             return 0;
         }
     });
+
+    // Read Text File (for M3U playlists and JSON manifests)
+    ipcMain.handle('read-text-file', async (_event, filePath) => {
+        if (typeof filePath !== 'string' || !fs.existsSync(filePath)) return null;
+        try {
+            return await fsPromises.readFile(filePath, 'utf8');
+        } catch (e) {
+            console.error('[files.ipc:read-text-file]', e.message);
+            return null;
+        }
+    });
+
+    // Download HTTP Stream Locally
+    ipcMain.handle('download-stream', async (_event, { url, filename, outputDir }) => {
+        if (!url || typeof url !== 'string') {
+            return { success: false, error: 'Invalid stream URL' };
+        }
+        try {
+            const { app } = require('electron');
+            const destDir = outputDir || app.getPath('downloads') || path.join(process.env.USERPROFILE || '', 'Downloads');
+            if (!fs.existsSync(destDir)) {
+                await fsPromises.mkdir(destDir, { recursive: true });
+            }
+            const safeName = (filename || 'stream_video.mp4').replace(/[\\/*?:"<>|]/g, '_');
+            let targetPath = path.join(destDir, safeName);
+            let counter = 2;
+            const ext = path.extname(safeName) || '.mp4';
+            const base = path.basename(safeName, ext);
+            while (fs.existsSync(targetPath)) {
+                targetPath = path.join(destDir, `${base}_${counter++}${ext}`);
+            }
+
+            const httpModule = url.startsWith('https') ? require('https') : require('http');
+            return new Promise((resolve) => {
+                const req = httpModule.get(url, { headers: { 'User-Agent': 'vault-explorer/1.0' } }, (res) => {
+                    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                        const redirectUrl = res.headers.location;
+                        const redirHttp = redirectUrl.startsWith('https') ? require('https') : require('http');
+                        redirHttp.get(redirectUrl, { headers: { 'User-Agent': 'vault-explorer/1.0' } }, (redirRes) => {
+                            if (redirRes.statusCode !== 200) {
+                                return resolve({ success: false, error: `HTTP ${redirRes.statusCode}` });
+                            }
+                            const totalBytes = parseInt(redirRes.headers['content-length'] || '0', 10);
+                            let receivedBytes = 0;
+                            const fileStream = fs.createWriteStream(targetPath);
+                            redirRes.on('data', (chunk) => {
+                                receivedBytes += chunk.length;
+                                if (totalBytes > 0 && mainWindow && !mainWindow.isDestroyed()) {
+                                    const percent = Math.round((receivedBytes / totalBytes) * 100);
+                                    mainWindow.webContents.send('download-stream-progress', {
+                                        url,
+                                        filename: safeName,
+                                        percent,
+                                        receivedBytes,
+                                        totalBytes
+                                    });
+                                }
+                            });
+                            redirRes.pipe(fileStream);
+                            fileStream.on('finish', () => {
+                                fileStream.close(() => resolve({ success: true, path: targetPath, size: receivedBytes }));
+                            });
+                            fileStream.on('error', (err) => {
+                                fs.unlink(targetPath, () => { });
+                                resolve({ success: false, error: err.message });
+                            });
+                        }).on('error', (err) => resolve({ success: false, error: err.message }));
+                        return;
+                    }
+
+                    if (res.statusCode !== 200) {
+                        return resolve({ success: false, error: `HTTP ${res.statusCode}` });
+                    }
+                    const totalBytes = parseInt(res.headers['content-length'] || '0', 10);
+                    let receivedBytes = 0;
+                    const fileStream = fs.createWriteStream(targetPath);
+                    res.on('data', (chunk) => {
+                        receivedBytes += chunk.length;
+                        if (totalBytes > 0 && mainWindow && !mainWindow.isDestroyed()) {
+                            const percent = Math.round((receivedBytes / totalBytes) * 100);
+                            mainWindow.webContents.send('download-stream-progress', {
+                                url,
+                                filename: safeName,
+                                percent,
+                                receivedBytes,
+                                totalBytes
+                            });
+                        }
+                    });
+                    res.pipe(fileStream);
+                    fileStream.on('finish', () => {
+                        fileStream.close(() => resolve({ success: true, path: targetPath, size: receivedBytes }));
+                    });
+                    fileStream.on('error', (err) => {
+                        fs.unlink(targetPath, () => { });
+                        resolve({ success: false, error: err.message });
+                    });
+                });
+                req.on('error', (err) => resolve({ success: false, error: err.message }));
+            });
+        } catch (e) {
+            console.error('[files.ipc:download-stream]', e.message);
+            return { success: false, error: e.message };
+        }
+    });
 }
 
 module.exports = {

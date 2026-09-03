@@ -74,6 +74,8 @@ function Resolve-Model([string]$audioCpp, [string]$kind) {
     $store = Join-Path $env:LOCALAPPDATA "VaultWares\models"
     $candidates = switch ($kind) {
         "asr" { @(
+            (Join-Path $store "Nemotron-3.5-ASR-Streaming-0.6B-GGUF"),
+            (Join-Path $audioCpp "models\Nemotron-3.5-ASR-Streaming-0.6B-GGUF"),
             (Join-Path $store "parakeet-tdt-0.6b-v3-gguf\parakeet-tdt-0.6b-v3-q8_0.gguf"),
             (Join-Path $audioCpp "models\Parakeet-TDT-0.6B-v3-GGUF\parakeet-tdt-0.6b-v3-q8_0.gguf")) }
         "diar" { @(
@@ -91,7 +93,7 @@ function Test-Ready([int]$port, [string]$id) {
     } catch { return $false }
 }
 
-$modelId = if ($Model -eq "asr") { "parakeet" } else { "sortformer" }
+$modelId = if ($Model -eq "asr") { "nemotron" } else { "sortformer" }
 
 if ($Stop) {
     $stopped = 0
@@ -115,6 +117,21 @@ $root = Resolve-Cacophony
 $audioCpp = Join-Path $root "audio.cpp"
 $weights = Resolve-Model $audioCpp $Model
 
+$isNemotron = ($weights -match "Nemotron")
+$family = if ($Model -eq "asr") { if ($isNemotron) { "nemotron_asr" } else { "parakeet_tdt" } } else { "sortformer_diar" }
+$mode = if ($isNemotron) { "streaming" } else { "offline" }
+
+$modelEntry = [ordered]@{
+    id     = $modelId
+    family = $family
+    path   = ($weights -replace '\\', '/')
+    task   = if ($Model -eq "asr") { "asr" } else { "diar" }
+    mode   = $mode
+}
+if ($family -eq "parakeet_tdt") {
+    $modelEntry.session_options = @{ "parakeet_tdt.offline_mode" = "full_context" }
+}
+
 $config = [ordered]@{
     host      = "127.0.0.1"
     port      = $Port
@@ -122,29 +139,7 @@ $config = [ordered]@{
     device    = $Device
     threads   = 8
     lazy_load = $false
-    models    = @(
-        if ($Model -eq "asr") {
-            [ordered]@{
-                id   = $modelId
-                family = "parakeet_tdt"
-                path = ($weights -replace '\\', '/')
-                task = "asr"
-                mode = "offline"
-                # A live window is a few seconds long, far below the length where
-                # bounded windows are needed -- and bounded windows are what cost
-                # the batch pipeline 40% of its words before -AsrWindow was set.
-                session_options = @{ "parakeet_tdt.offline_mode" = "full_context" }
-            }
-        } else {
-            [ordered]@{
-                id   = $modelId
-                family = "sortformer_diar"
-                path = ($weights -replace '\\', '/')
-                task = "diar"
-                mode = "offline"
-            }
-        }
-    )
+    models    = @($modelEntry)
 }
 
 $configPath = Join-Path $env:LOCALAPPDATA "VaultWares\audiocpp-server-$Port.json"

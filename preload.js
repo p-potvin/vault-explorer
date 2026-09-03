@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveEditedImage: (data) => ipcRenderer.invoke('save-edited-image', data),
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   showContextMenu: (item) => ipcRenderer.invoke('show-context-menu', item),
-  generateWebm: (p, vaultRoot) => ipcRenderer.invoke('generate-webm', p, vaultRoot),
+  generateWebm: (p, vaultRoot, customFilename) => ipcRenderer.invoke('generate-webm', p, vaultRoot, customFilename),
   upscaleVideo: (p) => ipcRenderer.invoke('upscale-video', p),
   renameFile: (oldPath, newName) => ipcRenderer.invoke('rename-file', oldPath, newName),
   deleteItem: (p) => ipcRenderer.invoke('delete-item', p),
@@ -97,5 +97,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clipVideo: (data) => ipcRenderer.invoke('clipVideo', data),
   onClipProgress: (cb) => ipcRenderer.on('clip-progress', (_, data) => cb(data)),
   offClipProgress: () => ipcRenderer.removeAllListeners('clip-progress'),
-  onInitialFile: (cb) => ipcRenderer.on('open-initial-file', (_, data) => cb(data))
+  onInitialFile: (cb) => ipcRenderer.on('open-initial-file', (_, data) => cb(data)),
+
+  // Debrids Streaming & File API
+  readTextFile: (filePath) => ipcRenderer.invoke('read-text-file', filePath),
+  downloadStream: (data) => ipcRenderer.invoke('download-stream', data),
+  onDownloadStreamProgress: (cb) => ipcRenderer.on('download-stream-progress', (_, data) => cb(data)),
+  offDownloadStreamProgress: () => ipcRenderer.removeAllListeners('download-stream-progress'),
+
+  // Windows Taskbar Media Controls API
+  updateThumbarState: (state) => ipcRenderer.invoke('update-thumbar-state', state),
+  onThumbarAction: (cb) => ipcRenderer.on('thumbar-action', (_, action) => cb(action)),
+  offThumbarAction: () => ipcRenderer.removeAllListeners('thumbar-action')
 });

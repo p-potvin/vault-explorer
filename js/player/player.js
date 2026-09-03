@@ -360,8 +360,12 @@ async function playItem(idx, sourceItems = null) {
     window.currentPlaybackFolder = getItemDirectory(itm.path);
     trickFrames = [];
     vp.dataset.trickplay = itm.trickplayFolder || '';
+
+    const isStream = Boolean(itm.isStreaming || itm.isDebrid || (typeof itm.path === 'string' && (itm.path.startsWith('http://') || itm.path.startsWith('https://'))));
+    itm.isStreaming = isStream;
+
     const activePath = itm.enhancedPath || itm.path;
-    const newSrc = window.sanitizePath(activePath);
+    const newSrc = isStream ? (itm.streamUrl || itm.path) : window.sanitizePath(activePath);
     vp.src = newSrc;
     vp.muted = false;
     if (scrubVideo && lastScrubSrc !== newSrc) {
@@ -369,7 +373,42 @@ async function playItem(idx, sourceItems = null) {
         lastScrubSrc = newSrc;
     }
 
-    const baseTitle = itm.name.replace(/\.[^.]+$/, '');
+    // Toggle Stream vs Local enhancement controls
+    const btnSaveStream = el('btn-save-stream');
+    const btnUpscale = el('btn-upscale');
+    const btnClip = el('btn-clip');
+
+    if (isStream) {
+        if (btnSaveStream) btnSaveStream.style.display = 'inline-flex';
+        if (btnUpscale) {
+            btnUpscale.disabled = true;
+            btnUpscale.style.opacity = '0.35';
+            btnUpscale.style.cursor = 'not-allowed';
+            btnUpscale.title = 'AI Upscaling is disabled for HTTP streams';
+        }
+        if (btnClip) {
+            btnClip.disabled = true;
+            btnClip.style.opacity = '0.35';
+            btnClip.style.cursor = 'not-allowed';
+            btnClip.title = 'Clipping is disabled for HTTP streams';
+        }
+    } else {
+        if (btnSaveStream) btnSaveStream.style.display = 'none';
+        if (btnUpscale) {
+            btnUpscale.disabled = false;
+            btnUpscale.style.opacity = '1';
+            btnUpscale.style.cursor = 'pointer';
+            btnUpscale.title = 'Toggle AI Upscale';
+        }
+        if (btnClip) {
+            btnClip.disabled = false;
+            btnClip.style.opacity = '1';
+            btnClip.style.cursor = 'pointer';
+            btnClip.title = 'Create Clip (C)';
+        }
+    }
+
+    const baseTitle = (itm.name || 'Stream Video').replace(/\.[^.]+$/, '');
     const titleEl = el('player-title');
     if (titleEl) {
         if (itm.enhancedPath) {
@@ -400,13 +439,6 @@ async function playItem(idx, sourceItems = null) {
     const btnPlay = el('btn-play');
     if (btnPlay) btnPlay.innerHTML = PAUSE_ICON_SVG;
 
-    const btnUpscale = el('btn-upscale');
-    if (btnUpscale) {
-        btnUpscale.disabled = false;
-        btnUpscale.style.opacity = '1';
-        btnUpscale.style.cursor = 'pointer';
-    }
-
     const savedPos = (window.appSettings && window.appSettings.rememberPosition !== false &&
         window.appSettings.playbackPositions && window.appSettings.playbackPositions[itm.path]) || 0;
     if (savedPos > 0) {
@@ -421,6 +453,10 @@ async function playItem(idx, sourceItems = null) {
     }
 
     vp.play().catch(e => console.log("Playback start prevented or failed:", e));
+
+    if (typeof window.refreshQualityMenu === 'function') {
+        window.refreshQualityMenu();
+    }
 
     // Asynchronously resolve playback folder context in background
     if (!sourceItems) {
@@ -438,36 +474,38 @@ async function playItem(idx, sourceItems = null) {
         })();
     }
 
-    // Asynchronously load subtitles in background
+    // Asynchronously load subtitles in background (local files only)
     vp.querySelectorAll('track').forEach(t => t.remove());
     window._allAvailableSubtitles = [];
     window._selectedSubtitleIdx = -1;
-    (async () => {
-        try {
-            const subs = await window.electronAPI.findSubtitles(itm.path);
-            if (window.currentPlayingItem && window.currentPlayingItem.path === itm.path) {
-                window._allAvailableSubtitles = subs || [];
-                if (window._allAvailableSubtitles.length > 0) {
-                    const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
-                    const bestIndex = prefLang === 'und'
-                        ? -1
-                        : window._allAvailableSubtitles.findIndex(sub => prefLang === 'original'
-                            ? sub.lang === 'und'
-                            : (sub.lang || '').toLowerCase().startsWith(prefLang.toLowerCase()));
-                    const selectedIndex = bestIndex >= 0 ? bestIndex : (prefLang === 'und' ? -1 : 0);
-                    if (selectedIndex >= 0) window.selectSubtitleByIndex(selectedIndex);
-                    window.refreshSubtitlesList();
-                } else {
-                    window.refreshSubtitlesList();
-                    window.selectSubtitleTrack(-1);
+    if (!isStream && window.electronAPI && typeof window.electronAPI.findSubtitles === 'function') {
+        (async () => {
+            try {
+                const subs = await window.electronAPI.findSubtitles(itm.path);
+                if (window.currentPlayingItem && window.currentPlayingItem.path === itm.path) {
+                    window._allAvailableSubtitles = subs || [];
+                    if (window._allAvailableSubtitles.length > 0) {
+                        const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
+                        const bestIndex = prefLang === 'und'
+                            ? -1
+                            : window._allAvailableSubtitles.findIndex(sub => prefLang === 'original'
+                                ? sub.lang === 'und'
+                                : (sub.lang || '').toLowerCase().startsWith(prefLang.toLowerCase()));
+                        const selectedIndex = bestIndex >= 0 ? bestIndex : (prefLang === 'und' ? -1 : 0);
+                        if (selectedIndex >= 0) window.selectSubtitleByIndex(selectedIndex);
+                        window.refreshSubtitlesList();
+                    } else {
+                        window.refreshSubtitlesList();
+                    }
                 }
+            } catch (err) {
+                console.warn('[subtitles] Find subtitles failed:', err);
+                window.refreshSubtitlesList();
             }
-        } catch (err) {
-            console.error('Auto subtitle loading error:', err);
-            window.refreshSubtitlesList();
-            window.selectSubtitleTrack(-1);
-        }
-    })();
+        })();
+    } else {
+        window.refreshSubtitlesList();
+    }
 }
 
 function updateNavHover(idx, btnEl) {
@@ -506,10 +544,45 @@ function saveAndSetVolume(vol) {
 function initPlayer() {
     vp = el('video-player');
 
+    // Windows Taskbar Thumbnail Toolbar Action Handler
+    if (window.electronAPI && typeof window.electronAPI.onThumbarAction === 'function') {
+        window.electronAPI.onThumbarAction((action) => {
+            console.log('[player] Received taskbar thumbar action:', action);
+            if (action === 'playpause') {
+                const btn = el('btn-playpause');
+                if (btn) btn.click();
+            } else if (action === 'stop') {
+                const closeBtn = el('close-modal');
+                if (closeBtn) closeBtn.click();
+            } else if (action === 'prev') {
+                const prevBtn = el('btn-prev');
+                if (prevBtn) prevBtn.click();
+            } else if (action === 'next') {
+                const nextBtn = el('btn-next');
+                if (nextBtn) nextBtn.click();
+            } else if (action === 'fullscreen') {
+                const fsBtn = el('btn-fullscreen');
+                if (fsBtn) fsBtn.click();
+            }
+        });
+    }
+
+    const notifyThumbarState = (isPlaying) => {
+        if (window.electronAPI && typeof window.electronAPI.updateThumbarState === 'function') {
+            window.electronAPI.updateThumbarState({ isPlaying: Boolean(isPlaying) });
+        }
+    };
+    if (vp) {
+        vp.addEventListener('play', () => notifyThumbarState(true));
+        vp.addEventListener('pause', () => notifyThumbarState(false));
+        vp.addEventListener('ended', () => notifyThumbarState(false));
+    }
+
     // Close / stop video, trailers, and livestream when app is minimized to tray
     if (window.electronAPI && typeof window.electronAPI.onAppHidden === 'function') {
         window.electronAPI.onAppHidden(() => {
             console.log('[Player] App minimized to tray. Stopping active media players...');
+            notifyThumbarState(false);
             const closeModalBtn = el('close-modal');
             if (closeModalBtn && el('video-modal').style.display === 'flex') {
                 closeModalBtn.click();
@@ -570,6 +643,44 @@ function initPlayer() {
     navHoverPreview = document.createElement('div');
     navHoverPreview.className = 'nav-hover-preview';
     document.body.appendChild(navHoverPreview);
+
+    // Save Stream Locally Listener
+    const btnSaveStream = el('btn-save-stream');
+    if (btnSaveStream) {
+        btnSaveStream.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const itm = window.currentPlayingItem;
+            if (!itm) return;
+            const streamUrl = itm.streamUrl || itm.path;
+            const filename = itm.filename || itm.name || 'stream_video.mp4';
+            if (!streamUrl) return;
+
+            window.showToast(`[Download] Saving "${filename}" to Downloads...`, 'info');
+            btnSaveStream.style.opacity = '0.6';
+            btnSaveStream.disabled = true;
+
+            try {
+                if (window.electronAPI && typeof window.electronAPI.downloadStream === 'function') {
+                    const res = await window.electronAPI.downloadStream({
+                        url: streamUrl,
+                        filename: filename
+                    });
+                    if (res && res.success) {
+                        window.showToast(`[Download] ✓ Saved to Downloads: ${filename}`, 'success');
+                    } else {
+                        window.showToast(`[Download] Failed: ${(res && res.error) || 'Download failed'}`, 'error');
+                    }
+                } else {
+                    window.showToast('Download API not available', 'error');
+                }
+            } catch (err) {
+                window.showToast(`[Download] Error: ${err.message}`, 'error');
+            } finally {
+                btnSaveStream.style.opacity = '1';
+                btnSaveStream.disabled = false;
+            }
+        });
+    }
 
     // Close on PiP or Modal Close
     el('minimize-modal').addEventListener('click', (e) => {
@@ -1149,6 +1260,50 @@ function initPlayer() {
         const menu = el('quality-menu');
         const container = el('quality-dropdown-container');
         if (!menu || !container) return;
+
+        // 1. Support Debrid Streams with alternative qualities
+        const currentItem = window.currentPlayingItem;
+        if (currentItem && currentItem.isStreaming && Array.isArray(currentItem.qualities) && currentItem.qualities.length > 1) {
+            container.style.display = 'inline-block';
+            const activeQual = currentItem.activeQuality || currentItem.qualities[0].quality || 'Source';
+            const txt = el('quality-btn-text');
+            if (txt) txt.innerText = String(activeQual).toUpperCase();
+
+            menu.innerHTML = '';
+            currentItem.qualities.forEach(q => {
+                const opt = document.createElement('div');
+                const qLabel = (q.quality || q.label || 'Stream').toUpperCase();
+                const isActive = activeQual.toUpperCase() === qLabel;
+                opt.style.cssText = `padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-mono); font-size:11px; transition:background 0.2s; color:${isActive ? 'var(--vault-accent)' : 'var(--vault-text)'}; font-weight:${isActive ? '700' : '500'};`;
+                opt.innerHTML = `${qLabel}${q.size ? ` <span style="color:var(--vault-slate); font-weight:400; font-size:10px;">${q.size}</span>` : ''}`;
+                opt.addEventListener('mouseenter', () => { opt.style.background = 'rgba(245,185,41,0.08)'; });
+                opt.addEventListener('mouseleave', () => { opt.style.background = 'transparent'; });
+                opt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menu.style.display = 'none';
+                    if (isActive) return;
+                    const vpEl = el('video-player');
+                    const at = vpEl ? vpEl.currentTime : 0;
+                    currentItem.activeQuality = qLabel;
+                    const newUrl = q.url || q.link || q.streamUrl;
+                    if (newUrl && vpEl) {
+                        window.showToast(`Switching quality to ${qLabel}…`, 'info');
+                        const seekOnce = () => {
+                            if (at > 0 && at < vpEl.duration - 3) vpEl.currentTime = at;
+                            vpEl.play().catch(_ => {});
+                            vpEl.removeEventListener('loadedmetadata', seekOnce);
+                        };
+                        vpEl.addEventListener('loadedmetadata', seekOnce);
+                        vpEl.src = newUrl;
+                        if (txt) txt.innerText = qLabel;
+                    }
+                });
+                menu.appendChild(opt);
+            });
+            return;
+        }
+
+        // 2. Support Torrent Media list qualities
         const list = Array.isArray(window.currentTorrentList) ? window.currentTorrentList : [];
         if (!list.length) { container.style.display = 'none'; return; }
         container.style.display = 'inline-block';

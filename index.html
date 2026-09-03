@@ -40,6 +40,7 @@
   <script src="js/audio.js" defer></script>
   <script src="js/audio-bar.js" defer></script>
   <script src="js/albums.js" defer></script>
+  <script src="js/debrids.js" defer></script>
 
   <script src="js/app.js" defer></script>
   <script src="js/image-viewer.js" defer></script>
@@ -81,6 +82,14 @@
           <circle cx="12" cy="12" r="10" />
           <circle cx="12" cy="12" r="3" />
         </svg>Photos</button>
+      <button id="tab-debrids" class="top-tab"
+        style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg
+          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;">
+          <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+          <path d="M12 12v9"/>
+          <path d="m8 17 4 4 4-4"/>
+        </svg>Debrids</button>
 
       <!-- class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>Others</button> -->
     </div>
@@ -464,6 +473,47 @@
             Album</h3>
         </div>
         <div id="album-photos-river" class="photos-river" style="column-count: 4; column-gap: 16px;"></div>
+      </div>
+    </div>
+
+    <!-- Debrids Section — M3U Playlists Folder Homepage & Video Streams Grid -->
+    <div id="debrids-container"
+      style="display:none; width: 100%; height: 100%; overflow-y: auto; padding: 24px; box-sizing: border-box;">
+      <!-- Playlist Folder Grid Overview -->
+      <div id="debrids-grid" class="file-grid" style="display: grid;">
+        <div class="empty-state">
+          <div class="spinner-small" style="margin-bottom:12px;"></div>
+          <p>Scanning M3U playlists...</p>
+        </div>
+      </div>
+      <!-- Single Playlist Video Streams Grid -->
+      <div id="debrids-playlist-view" style="display: none; width: 100%;">
+        <div id="debrids-playlist-header"
+          style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--vault-border);">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <button id="btn-back-to-debrids"
+              style="background: transparent; border: 1px solid var(--vault-border); color: var(--vault-text); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              Back to Playlists
+            </button>
+            <div>
+              <h3 id="debrids-playlist-title"
+                style="margin: 0; font-size: 15px; font-weight: 700; color: var(--vault-text); font-family: var(--font-sans); letter-spacing: 0.02em;">
+                Playlist</h3>
+              <p id="debrids-playlist-count" style="margin: 2px 0 0; font-size: 11px; color: var(--vault-slate); font-family: var(--font-mono);">0 Videos</p>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div id="debrids-type-filters" style="display:flex; align-items:center; gap:6px;"></div>
+            <button id="btn-debrids-change-folder"
+              style="background: rgba(255,255,255,0.05); border: 1px solid var(--vault-border); color: var(--vault-slate); padding: 5px 10px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+              📁 Change Folder
+            </button>
+          </div>
+        </div>
+        <div id="debrids-streams-grid" class="file-grid" style="display: grid;"></div>
       </div>
     </div>
 
@@ -877,6 +927,22 @@
               placeholder="Same as Vault Files" readonly />
           </div>
         </div>
+        <div>
+          <label for="settings-default-folder-debrids"
+            style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Debrids
+            Playlists:</label>
+          <div class="settings-folder-input" data-target="settings-default-folder-debrids"
+            style="position: relative; cursor: pointer; display: flex; align-items: center;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"
+              style="position: absolute; left: 8px; color: var(--vault-slate); pointer-events: none;">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            <input type="text" id="settings-default-folder-debrids" class="search-box"
+              style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px 8px 6px 28px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px; cursor: pointer;"
+              placeholder="python-zipper/playlists" readonly />
+          </div>
+        </div>
         <div style="display:none;">
           <label for="settings-default-folder-misc"
             style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Misc:</label>
@@ -977,6 +1043,15 @@
             <option value="yuv420p" selected>4:2:0 (smaller files)</option>
             <option value="yuv444p">4:4:4 (better color fidelity)</option>
           </select>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--vault-warm-border-subtle);">
+          <div>
+            <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block;">AI Vocal Separation (BS-RoFormer):</span>
+            <span style="font-size: 10px; color: var(--vault-text-muted); display: block;">Isolate clean vocal stem before ASR subtitle generation &amp; translation</span>
+          </div>
+          <input type="checkbox" id="settings-ai-separate" checked
+            style="accent-color: var(--vault-accent); width: 16px; height: 16px; cursor: pointer;" />
         </div>
       </div>
 
@@ -1767,6 +1842,16 @@
               </div>
             </div>
 
+            <button id="btn-save-stream" class="ctrl-btn-sm" title="Save Stream Locally" aria-label="Save Stream Locally"
+              style="display:none; align-items:center; justify-content:center; gap:6px; padding:5px 10px; background:rgba(229,169,59,0.15); border:1px solid var(--vault-accent); color:var(--vault-accent); border-radius:4px; cursor:pointer;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span style="font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:0.04em;">SAVE</span>
+            </button>
             <button id="btn-upscale" class="ctrl-btn-sm" title="AI Upscale" aria-label="Toggle AI Upscale"
               style="display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:56px; white-space:nowrap; padding:5px 10px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"

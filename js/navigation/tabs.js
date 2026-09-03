@@ -60,12 +60,12 @@ window.switchTab = function (tabName, options = {}) {
     // Mark the active tab on <body> so CSS can scope tab-specific layout
     document.body.classList.remove(
         'tab-files-active', 'tab-music-active',
-        'tab-photoalbums-active'
+        'tab-photoalbums-active', 'tab-debrids-active'
     );
     document.body.classList.add(`tab-${tabName}-active`);
 
     // Toggle active state on tabs
-    const tabIds = ['files', 'music', 'photoalbums'];
+    const tabIds = ['files', 'music', 'photoalbums', 'debrids'];
     tabIds.forEach(name => {
         const btn = el(`tab-${name}`);
         if (!btn) return;
@@ -89,12 +89,13 @@ window.switchTab = function (tabName, options = {}) {
         'files': ['file-grid', 'favorites-grid'],
         'music': ['audio-container'],
         'photoalbums': ['albums-container'],
+        'debrids': ['debrids-container'],
     };
 
     // Hide all known content containers first
     const allContainerIds = [
         'file-grid', 'favorites-grid', 'playlist-view-container',
-        'audio-container', 'albums-container',
+        'audio-container', 'albums-container', 'debrids-container',
     ];
     allContainerIds.forEach(id => {
         const el_ = el(id);
@@ -136,7 +137,7 @@ window.switchTab = function (tabName, options = {}) {
                 // older builds saved lastPath from Music/Photos loads, which
                 // booted the Videos tab into e.g. the music folder (looked empty).
                 const s = window.appSettings || {};
-                const otherTabFolders = [s.defaultFolderAudio, s.defaultFolderAlbums].filter(Boolean);
+                const otherTabFolders = [s.defaultFolderAudio, s.defaultFolderAlbums, s.defaultFolderDebrids].filter(Boolean);
                 const lp = s.lastPath && s.lastPath.realPath && !otherTabFolders.includes(s.lastPath.realPath)
                     ? s.lastPath : null;
                 if (lp) {
@@ -160,12 +161,10 @@ window.switchTab = function (tabName, options = {}) {
         const renderTabContent = () => {
             if (tabName === 'music' && typeof window.renderAudio === 'function') window.renderAudio();
             if (tabName === 'photoalbums' && typeof window.renderAlbums === 'function') window.renderAlbums();
+            if (tabName === 'debrids' && typeof window.renderDebrids === 'function') window.renderDebrids();
         };
 
-        // Load this tab's default folder on switch, THEN render. renderAudio /
-        // renderAlbums read window.displayedItems, which loadDirectory populates
-        // asynchronously — rendering before the load resolved showed stale/empty
-        // content (the Music/Photos "not loading" bug). Wait for the load first.
+        // Load this tab's default folder on switch, THEN render.
         const folder = (['music', 'photoalbums'].includes(tabName) && typeof window.getTabDefaultFolder === 'function')
             ? window.getTabDefaultFolder(tabName) : null;
         if (folder && window.loadDirectory && window.currentRealPath !== folder) {
@@ -214,8 +213,22 @@ window.switchFilesSubtab = function (subtab) {
     if (cb) cb.style.display = 'none';
 
     if (subtab !== 'favorites') {
-        if (typeof window.navigateTo === 'function') {
-            window.navigateTo('root', window.currentRealPath);
+        window.currentFolderId = null;
+        window.currentNavPath = 'root';
+        if (typeof el === 'function') {
+            const pd = el('path-display');
+            if (pd) pd.innerText = (typeof window.getDisplayPath === 'function') ? window.getDisplayPath('root') : 'root';
+            const bb = el('btn-back');
+            if (bb) { bb.style.display = 'none'; bb.disabled = true; }
+            const ld = el('loading');
+            if (ld) ld.style.display = 'none';
+        }
+
+        if (window._rootItemsCache && window._rootItemsCache.length > 0) {
+            window.allItems = window._rootItemsCache;
+        }
+        if (typeof window.applyFilters === 'function') {
+            window.applyFilters();
         }
     }
 };
@@ -227,7 +240,7 @@ window.initTabListeners = function () {
     // tab-photoalbums). This list previously used legacy names
     // ('photos','audio','albums','playlists'), so the Music and Photos buttons
     // never received click listeners — the "tabs don't work" bug.
-    const tabIds = ['files', 'music', 'photoalbums'];
+    const tabIds = ['files', 'music', 'photoalbums', 'debrids'];
     tabIds.forEach(name => {
         const btn = el(`tab-${name}`);
         if (btn) btn.addEventListener('click', () => window.switchTab(name));

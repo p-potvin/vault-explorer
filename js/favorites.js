@@ -46,7 +46,30 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
     const filter = el('filter-type')?.value || 'all';
     const sortBy = el('sort-by')?.value || 'name';
     const descending = (el('btn-sort-order')?.dataset.order || 'desc') === 'desc';
+
+    const isGlobOrThumbsExcluded = (item) => {
+        if (!item || !item.path) return false;
+        const normP = item.path.replace(/\\/g, '/').toLowerCase();
+        if (normP.includes('/.thumbs/') || normP.includes('/thumbs/')) return true;
+        const exclusions = (window.appSettings && Array.isArray(window.appSettings.globExclusions))
+            ? window.appSettings.globExclusions
+            : [];
+        if (exclusions.length > 0) {
+            const baseName = item.name || '';
+            for (const pattern of exclusions) {
+                if (!pattern) continue;
+                const rx = window.globToRegex ? window.globToRegex(pattern) : new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$', 'i');
+                if (rx.test(baseName) || rx.test(normP)) return true;
+            }
+        }
+        return false;
+    };
+
+    const isVideosTab = window.currentTab === 'files';
+
     const filtered = (scanned || []).filter(item => {
+        if (isGlobOrThumbsExcluded(item)) return false;
+        if (isVideosTab && item.type !== 'video' && item.type !== 'encrypted') return false;
         if (term && !(item.name || '').toLowerCase().includes(term)) return false;
         if (filter === 'video') return item.type === 'video' || item.type === 'encrypted';
         if (filter === 'image') return item.type === 'image';

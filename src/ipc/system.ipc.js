@@ -209,6 +209,23 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                     { type: 'separator' },
                     { label: 'Properties', click: () => once('properties') }
                 );
+            } else if (item.type === 'stream' || item.isStream) {
+                const isVideo = item.mediaType === 'video' || (typeof item.path === 'string' && (item.path.includes('.mp4') || item.path.includes('.mkv') || item.path.includes('.webm') || item.path.includes('.ts') || item.path.includes('.mov') || item.path.includes('.m4v') || item.path.includes('.avi') || item.path.includes('.flv') || item.path.includes('.wmv')));
+                templ = [
+                    { label: isVideo ? 'Play Stream' : 'Open Image', click: () => once('play-stream') },
+                    { type: 'separator' }
+                ];
+                if (isVideo) {
+                    templ.push({ label: 'Generate Preview', click: () => once('generate-webm') });
+                }
+                templ.push(
+                    { label: 'Save Stream Locally', click: () => once('download-stream') },
+                    { type: 'separator' },
+                    { label: 'Copy Stream URL', click: () => { clipboard.writeText(item.path); once('copied'); } },
+                    { label: 'Copy Title', click: () => { clipboard.writeText(item.name || item.title || item.path); once('copied'); } },
+                    { type: 'separator' },
+                    { label: 'Properties', click: () => once('properties') }
+                );
             } else if (item.type === 'fakeFolder') {
                 templ = [
                     { label: `Open Folder: ${item.name}`, click: () => once('open-folder') },

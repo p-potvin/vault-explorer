@@ -308,6 +308,28 @@ function createCardElement(item, index) {
         window.updateStatusBar();
     });
 
+    // Single click on thumbnail preview to open/play immediately
+    const thumbContainer = card.querySelector('.thumbnail-container');
+    if (thumbContainer) {
+        thumbContainer.addEventListener('click', (e) => {
+            if (e.target.closest('.star-btn') || e.target.closest('.file-checkbox') || e.target.closest('input')) return;
+            e.stopPropagation();
+            if (item.isStreaming) {
+                if (typeof window.showMediaDetails === 'function') window.showMediaDetails(item.meta || item);
+            } else if (item.type === 'video') {
+                if (typeof window.playItem === 'function') window.playItem(index);
+            } else if (item.type === 'image') {
+                if (typeof window.openImageViewer === 'function') {
+                    window.openImageViewer(index);
+                } else if (window.electronAPI) {
+                    window.electronAPI.openFile(item.path);
+                }
+            } else if (item.type === 'audio') {
+                if (window.electronAPI) window.electronAPI.openFile(item.path);
+            }
+        });
+    }
+
     card.addEventListener('dblclick', () => {
         if (item.isStreaming) {
             if (typeof window.showMediaDetails === 'function') window.showMediaDetails(item.meta || item);

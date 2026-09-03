@@ -412,10 +412,14 @@ function getTabDefaultFolder(tabName) {
   const keyMap = {
     'music': 'defaultFolderAudio',
     'photoalbums': 'defaultFolderAlbums',
-
+    'debrids': 'defaultFolderDebrids',
   };
   const key = keyMap[tabName] || ('defaultFolder' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
-  return window.appSettings[key] || window.appSettings.defaultFolder || null;
+  if (tabName === 'debrids') {
+    return (window.appSettings && window.appSettings.defaultFolderDebrids) ||
+           'C:\\Users\\Administrator\\Desktop\\Github Repos\\python-zipper\\playlists';
+  }
+  return (window.appSettings && window.appSettings[key]) || (window.appSettings && window.appSettings.defaultFolder) || null;
 }
 
 // Bind globals for accessibility

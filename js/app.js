@@ -121,9 +121,6 @@ function normalizeLaunchIntent(intent) {
 function scheduleSecondaryStartupWork() {
     if (window._secondaryStartupScheduled) return;
     window._secondaryStartupScheduled = true;
-    if (window.electronAPI && typeof window.electronAPI.warmLiveSubtitles === 'function') {
-        setTimeout(() => window.electronAPI.warmLiveSubtitles().catch(() => { }), 3000);
-    }
 }
 
 function openLaunchIntent(intent) {
@@ -145,6 +142,20 @@ function openLaunchIntent(intent) {
                 window.showToast('Opened folder: ' + targetFolder, 'success');
             }
         }
+        return true;
+    }
+
+    // ── M3U / M3U8 Playlist launch intent (open from Windows Explorer context menu) ──
+    if (launch.filePath && /\.(m3u8?)$/i.test(launch.filePath)) {
+        console.log('[app] Opening M3U playlist from launch intent:', launch.filePath);
+        if (typeof window.switchTab === 'function') {
+            window.switchTab('debrids');
+        }
+        setTimeout(() => {
+            if (typeof window.openDebridPlaylist === 'function') {
+                window.openDebridPlaylist(launch.filePath);
+            }
+        }, 100);
         return true;
     }
 
@@ -336,7 +347,7 @@ async function initApp() {
             const { videoPath, percent } = data;
             const normPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
             const card = Array.from(document.querySelectorAll('.file-card'))
-                .find(c => normPath(c.dataset.path) === normPath(videoPath));
+                .find(c => normPath(c.dataset.path) === normPath(videoPath) || normPath(c.dataset.streamUrl) === normPath(videoPath));
 
             if (card) {
                 let overlay = card.querySelector('.webm-loading-overlay');
@@ -352,23 +363,38 @@ async function initApp() {
                     if (overlayPctText) overlayPctText.innerText = `${percent}%`;
                 } else {
                     if (overlay) overlay.remove();
+                    const idx = parseInt(card.dataset.index);
                     if (data.hoverWebm) {
                         card.dataset.hasWebm = "true";
-                        const idx = parseInt(card.dataset.index);
-                        if (window.displayedItems[idx]) {
+                        if (window.currentTab === 'debrids' && window.currentDebridStreams && window.currentDebridStreams[idx]) {
+                            window.currentDebridStreams[idx].hoverWebm = data.hoverWebm;
+                        } else if (window.displayedItems && window.displayedItems[idx]) {
                             window.displayedItems[idx].hoverWebm = data.hoverWebm;
                         }
-                        window.attachHoverWebmToCard(card, data.hoverWebm);
+                        if (typeof window.attachHoverWebmToCard === 'function') {
+                            window.attachHoverWebmToCard(card, data.hoverWebm);
+                        }
                     }
                     if (data.thumbnail) {
                         card.dataset.hasThumb = "true";
-                        const idx = parseInt(card.dataset.index);
-                        if (window.displayedItems[idx]) {
+                        if (window.currentTab === 'debrids' && window.currentDebridStreams && window.currentDebridStreams[idx]) {
+                            window.currentDebridStreams[idx].thumbnail = data.thumbnail;
+                        } else if (window.displayedItems && window.displayedItems[idx]) {
                             window.displayedItems[idx].thumbnail = data.thumbnail;
                         }
-                        const imgEl = card.querySelector('img.thumbnail');
+                        let imgEl = card.querySelector('img.thumbnail');
+                        const thumbCont = card.querySelector('.thumbnail-container');
+                        if (!imgEl && thumbCont) {
+                            imgEl = document.createElement('img');
+                            imgEl.className = 'thumbnail';
+                            imgEl.alt = card.title || 'thumbnail';
+                            thumbCont.insertBefore(imgEl, thumbCont.firstChild);
+                        }
                         if (imgEl) {
                             imgEl.src = window.sanitizePath(data.thumbnail);
+                            imgEl.style.display = 'block';
+                            const fallbackSvg = thumbCont ? thumbCont.querySelector('svg') : null;
+                            if (fallbackSvg) fallbackSvg.style.display = 'none';
                         }
                     }
                     window.showToast('Preview generated and loaded!', 'success');

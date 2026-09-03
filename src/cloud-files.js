@@ -18,7 +18,7 @@ foreach ($path in $paths) {
 `;
 
 function getOfflineCloudPaths(paths) {
-    const candidates = [...new Set((paths || []).filter((filePath) => typeof filePath === 'string' && filePath))];
+    const candidates = [...new Set((paths || []).filter((filePath) => typeof filePath === 'string' && filePath && !filePath.startsWith('http://') && !filePath.startsWith('https://')))];
     if (process.platform !== 'win32' || candidates.length === 0) return Promise.resolve(new Set());
 
     return new Promise((resolve) => {

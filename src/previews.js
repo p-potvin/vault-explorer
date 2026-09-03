@@ -52,7 +52,16 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     const activeWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
     const finalSender = silent ? null : (sender || (activeWindow ? activeWindow.webContents : null));
 
-    if (await isOfflineCloudFile(videoPath)) {
+    const isHttp = typeof videoPath === 'string' && (videoPath.startsWith('http://') || videoPath.startsWith('https://'));
+
+    if (thumbPath) {
+        try { fs.mkdirSync(path.dirname(thumbPath), { recursive: true }); } catch (_) {}
+    }
+    if (hoverWebmPath) {
+        try { fs.mkdirSync(path.dirname(hoverWebmPath), { recursive: true }); } catch (_) {}
+    }
+
+    if (!isHttp && await isOfflineCloudFile(videoPath)) {
         throw new Error('File is not available offline; preview generation was skipped');
     }
 
@@ -64,9 +73,12 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         });
     }
 
-    const metaPath = videoPath + '.meta.json';
+    const metaPath = isHttp
+        ? (thumbPath ? thumbPath.replace(/\.[^.]+$/, '.meta.json') : null)
+        : (videoPath + '.meta.json');
+
     let meta = {};
-    if (fs.existsSync(metaPath)) {
+    if (metaPath && fs.existsSync(metaPath)) {
         try {
             meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
         } catch (e) { }
@@ -105,10 +117,12 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         meta.isValidSamplesChecked = validation.samplesChecked;
     }
     meta.duration = duration;
-    try {
-        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-    } catch (e) {
-        console.error(`[main:preview] Failed to write sidecar metadata: ${e.message}`);
+    if (metaPath) {
+        try {
+            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+        } catch (e) {
+            console.error(`[main:preview] Failed to write sidecar metadata: ${e.message}`);
+        }
     }
 
     console.log(`[main:preview] Input: ${videoPath} -> thumb: ${thumbPath}, webm: ${hoverWebmPath}, force=${force}`);
@@ -124,8 +138,8 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             });
         }
         writeBenchmark({
-            name: path.basename(videoPath),
-            size: fs.existsSync(videoPath) ? utils.formatBytes(fs.statSync(videoPath).size) : '0 B',
+            name: isHttp ? path.basename(thumbPath || videoPath) : path.basename(videoPath),
+            size: (!isHttp && fs.existsSync(videoPath)) ? utils.formatBytes(fs.statSync(videoPath).size) : '0 B',
             duration: duration || 0,
             thumbTime: null,
             webmTime: null,
@@ -169,6 +183,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             '-i', videoPath,
             '-vf', "select='eq(pict_type,I)'",
             '-vframes', '1',
+            '-update', '1',
             '-q:v', '2',
             '-strict', '-2',
             '-f', 'image2',
@@ -182,6 +197,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-ss', middleTime,
                 '-i', videoPath,
                 '-vframes', '1',
+                '-update', '1',
                 '-q:v', '2',
                 '-strict', '-2',
                 '-f', 'image2',
@@ -198,6 +214,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 '-ss', middleTime,
                 '-i', videoPath,
                 '-vframes', '1',
+                '-update', '1',
                 '-q:v', '2',
                 '-strict', '-2',
                 '-f', 'image2',
@@ -497,18 +514,41 @@ function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
 }
 
 
+function getCleanPreviewBase(input) {
+    if (!input) return 'stream';
+    let str = String(input);
+    if (str.includes('/') || str.includes('\\')) {
+        str = str.split('?')[0].split(/[/\\]/).pop();
+    }
+    try {
+        let prev;
+        let count = 0;
+        do {
+            prev = str;
+            str = decodeURIComponent(str);
+            count++;
+        } while (str !== prev && str.includes('%') && count < 5);
+    } catch (_) {}
+
+    str = str.replace(/\.[^.]+$/, '');
+    str = str.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    return str || 'stream';
+}
+
 function registerPreviewHandlers(ipcMain) {
-    ipcMain.handle('generate-webm', async (event, videoPath, vaultRoot) => {
+    ipcMain.handle('generate-webm', async (event, videoPath, vaultRoot, customFilename) => {
         if (typeof videoPath !== 'string' || !videoPath) {
             return { success: false, error: 'Missing video path' };
         }
-        if (!fs.existsSync(videoPath)) {
+        const isHttp = videoPath.startsWith('http://') || videoPath.startsWith('https://');
+        if (!isHttp && !fs.existsSync(videoPath)) {
             console.error('[main:generate-webm] Input video does not exist:', videoPath);
             return { success: false, error: 'Video not found: ' + videoPath };
         }
-        const ext = path.extname(videoPath);
-        const base = path.basename(videoPath, ext);
-        const thumbsDir = path.join(path.dirname(videoPath), '.thumbs');
+        const ext = isHttp ? (videoPath.match(/\.([a-z0-9]+)(\?|$)/i) ? `.${videoPath.match(/\.([a-z0-9]+)(\?|$)/i)[1]}` : '.mp4') : path.extname(videoPath);
+        const base = isHttp ? getCleanPreviewBase(customFilename || videoPath) : path.basename(videoPath, ext);
+        const baseDir = isHttp ? (vaultRoot || path.resolve('C:/Users/Administrator/Desktop/Github Repos/python-zipper/playlists')) : path.dirname(videoPath);
+        const thumbsDir = path.join(baseDir, '.thumbs');
         if (!fs.existsSync(thumbsDir)) {
             fs.mkdirSync(thumbsDir, { recursive: true });
         }

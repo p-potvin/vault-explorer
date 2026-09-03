@@ -110,7 +110,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
             const cachedItems = await window.electronAPI.getCachedDirectory(realPath);
             if (cachedItems && cachedItems.length > 0) {
                 window.allItems = cachedItems;
-                if (navPath === 'root') window._rootItemsCache = cachedItems;
+                if (navPath === 'root' || navPath.startsWith('root')) window._rootItemsCache = cachedItems;
                 window.applyFilters();
                 emitDirectoryLoaded(realPath, cachedItems);
                 loadedFromCache = true;
@@ -146,7 +146,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                 if (Array.isArray(window.__launchPriorityTrace)) window.__launchPriorityTrace.push('folder-scan');
                 const freshItems = await window.electronAPI.scanDirectory(realPath);
                 window.allItems = freshItems;
-                if (navPath === 'root') window._rootItemsCache = freshItems;
+                if (navPath === 'root' || navPath.startsWith('root')) window._rootItemsCache = freshItems;
                 window.applyFilters();
                 emitDirectoryLoaded(realPath, freshItems);
 
@@ -245,79 +245,66 @@ async function navigateTo(target, realPath) {
     window.currentFolderId = folderId;
     window.currentNavPath = folderId ? window.buildNavPath(folderId) : 'root';
     window.currentRealPath = realPath;
-    el('path-display').innerText = getDisplayPath(window.currentNavPath);
+    if (el('path-display')) el('path-display').innerText = getDisplayPath(window.currentNavPath);
     clearSearchBox();
 
     if (!folderId) {
-        el('btn-back').style.display = 'none';
-        el('btn-back').disabled = true;
+        if (el('btn-back')) {
+            el('btn-back').style.display = 'none';
+            el('btn-back').disabled = true;
+        }
 
-        // Always show loading indicator when navigating to root to prevent UI from appearing to refresh without warning
-        el('loading').style.display = 'flex';
-
-        if (window._rootItemsCache) {
+        // Fast path: in-memory cache renders instantaneously with zero delays or scan spinners
+        if (window._rootItemsCache && window._rootItemsCache.length > 0) {
             window.allItems = window._rootItemsCache;
+            if (el('loading')) el('loading').style.display = 'none';
             window.applyFilters();
-            // Update loading text to indicate background refresh when using cache
-            el('loading-text').innerText = window.translations[window.currentLang].refreshing || 'Refreshing...';
-            // Hide loading after a reasonable delay to show refresh is happening
-            setTimeout(() => {
-                el('loading').style.display = 'none';
-                el('loading-text').innerText = window.translations[window.currentLang].scanning || 'Scanning directory...';
-            }, 2000);
-        } else {
-            let loadedFromCache = false;
-            try {
-                const cachedItems = await window.electronAPI.getCachedDirectory(realPath);
-                if (cachedItems && cachedItems.length > 0) {
-                    window.allItems = cachedItems;
-                    window._rootItemsCache = cachedItems;
-                    window.applyFilters();
-                    loadedFromCache = true;
-                }
-            } catch (e) { }
+            return;
+        }
 
-            (async () => {
-                try {
-                    const freshItems = await window.electronAPI.scanDirectory(realPath);
-                    window.allItems = freshItems;
-                    window._rootItemsCache = freshItems;
-                    window.applyFilters();
-                } catch (e) {
-                    if (!loadedFromCache) {
-                        window.allItems = [];
-                        window.applyFilters();
-                    }
-                } finally {
-                    el('loading').style.display = 'none';
-                }
-            })();
+        let loadedFromCache = false;
+        try {
+            const cachedItems = await window.electronAPI.getCachedDirectory(realPath);
+            if (cachedItems && cachedItems.length > 0) {
+                window.allItems = cachedItems;
+                window._rootItemsCache = cachedItems;
+                if (el('loading')) el('loading').style.display = 'none';
+                window.applyFilters();
+                loadedFromCache = true;
+            }
+        } catch (e) { }
+
+        if (!loadedFromCache) {
+            if (el('loading')) el('loading').style.display = 'flex';
+        }
+
+        try {
+            const freshItems = await window.electronAPI.scanDirectory(realPath);
+            window.allItems = freshItems;
+            window._rootItemsCache = freshItems;
+            window.applyFilters();
+        } catch (e) {
+            if (!loadedFromCache) {
+                window.allItems = [];
+                window.applyFilters();
+            }
+        } finally {
+            if (el('loading')) el('loading').style.display = 'none';
         }
     } else {
-        el('btn-back').style.display = 'inline-flex';
-        el('btn-back').disabled = false;
+        if (el('btn-back')) {
+            el('btn-back').style.display = 'inline-flex';
+            el('btn-back').disabled = false;
+        }
 
         const targetFolder = window.vf.get(folderId);
         if (targetFolder) {
-            el('loading').style.display = 'flex';
-            const folderFiles = window.vf.itemsOf(folderId);
-
-            if (folderFiles.length > 0) {
-                const localPaths = folderFiles.filter(it => typeof it === 'string');
-
-                let loadedLocal = [];
-                if (localPaths.length > 0) {
-                    loadedLocal = await window.electronAPI.scanSpecificFiles(localPaths);
-                }
-
-                window.allItems = loadedLocal;
-            } else {
-                window.allItems = [];
+            // Keep the root vault items in memory so applyFilters isolates membership instantly
+            if (window._rootItemsCache && window._rootItemsCache.length > 0) {
+                window.allItems = window._rootItemsCache;
             }
-            el('loading').style.display = 'none';
-        } else {
-            window.allItems = [];
         }
+        if (el('loading')) el('loading').style.display = 'none';
         window.applyFilters();
     }
 }
