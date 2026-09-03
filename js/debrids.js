@@ -276,9 +276,9 @@
 
     function getCleanPreviewBase(input) {
         if (!input) return 'stream';
-        let str = String(input);
+        let str = String(input).split('?')[0];
         if (str.includes('/') || str.includes('\\')) {
-            str = str.split('?')[0].split(/[/\\]/).pop();
+            str = str.split(/[\\\/]/).pop();
         }
         try {
             let prev;
