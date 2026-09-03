@@ -128,8 +128,8 @@
         let folder = typeof window.getTabDefaultFolder === 'function' ? window.getTabDefaultFolder('debrids') : null;
         
         // Sensible default to python-zipper/playlists if empty
-        if (!folder && window.appSettings && window.appSettings.defaultFolder) {
-            folder = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\python-zipper\\playlists';
+        if (!folder) {
+            folder = (window.appSettings && window.appSettings.defaultFolder) || 'playlists';
         }
 
         const container = el('debrids-grid');
