@@ -342,7 +342,9 @@
             const streams = parseM3U(m3uContent, playlist.manifest);
             window.currentDebridStreams = streams;
 
-            const playlistDir = playlist.path ? playlist.path.substring(0, Math.max(playlist.path.lastIndexOf('\\'), playlist.path.lastIndexOf('/'))) : '';
+            const playlistDir = playlist.path && (playlist.path.includes('\\') || playlist.path.includes('/'))
+                ? playlist.path.substring(0, Math.max(playlist.path.lastIndexOf('\\'), playlist.path.lastIndexOf('/')))
+                : '.';
 
             // Derive and link cached thumbnails and WebM previews
             streams.forEach(s => {
