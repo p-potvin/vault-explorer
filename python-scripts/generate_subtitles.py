@@ -25,6 +25,17 @@ for _path in (_SCRIPT_DIR, _PROJECT_ROOT):
 from vw_media import asr, cli, enhanced, media, state, subtitles     # noqa: E402
 from vw_media.progress import ScaledProgress, emit_status, log, report_progress  # noqa: E402
 
+try:
+    from vaultwares_adk.telemetry import ModelRun
+except ImportError:
+    try:
+        _adk_dir = os.path.join(_PROJECT_ROOT, "vaultwares-adk")
+        if _adk_dir not in sys.path:
+            sys.path.insert(0, _adk_dir)
+        from vaultwares_adk.telemetry import ModelRun
+    except Exception:
+        ModelRun = None
+
 ACTION = "subtitles"
 
 
@@ -68,9 +79,17 @@ def process_one(video_path, args, _output_path):
             duration=duration)
 
         report_progress(14, "Loading speech recognition model...")
-        segments = asr.transcribe(
-            wav_path, language=language,
-            status_callback=lambda msg: report_progress(18, msg))
+        if ModelRun:
+            with ModelRun(provider="local", runtime="faster-whisper", task="audio-asr", project="vault-explorer") as run:
+                segments = asr.transcribe(
+                    wav_path, language=language,
+                    status_callback=lambda msg: report_progress(18, msg))
+                if segments:
+                    run.set(audio_seconds=duration, completion_chars=sum(len(getattr(s, "text", "") or "") for s in segments))
+        else:
+            segments = asr.transcribe(
+                wav_path, language=language,
+                status_callback=lambda msg: report_progress(18, msg))
 
         if not segments:
             raise RuntimeError("No speech was recognised in this file")

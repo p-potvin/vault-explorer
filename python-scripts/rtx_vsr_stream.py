@@ -25,6 +25,17 @@ import time
 import torch
 import torch.nn.functional as F
 
+try:
+    from vaultwares_adk.telemetry import ModelRun
+except ImportError:
+    try:
+        _adk_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "vaultwares-adk"))
+        if _adk_dir not in sys.path:
+            sys.path.insert(0, _adk_dir)
+        from vaultwares_adk.telemetry import ModelRun
+    except Exception:
+        ModelRun = None
+
 # nvvfx has nanobind leak warnings on exit; we suppress them by flushing
 # stdout before exit and using os._exit(0) in non-error paths.
 def check_nvvfx():
@@ -569,11 +580,19 @@ def main():
     args = parser.parse_args()
 
     if args.cmd == "stream":
-        stream_mode(args.video_path, args.start_time, args.quality, args.scale, args.bitrate, args.chroma)
+        if ModelRun:
+            with ModelRun(provider="local", runtime="rtx-vsr", model="RTX-VSR", task="media-processing", project="vault-explorer"):
+                stream_mode(args.video_path, args.start_time, args.quality, args.scale, args.bitrate, args.chroma)
+        else:
+            stream_mode(args.video_path, args.start_time, args.quality, args.scale, args.bitrate, args.chroma)
         sys.stdout.flush()
         os._exit(0)
     elif args.cmd == "enhance":
-        enhance_mode(args.video_path, args.output_path, args.quality, args.scale, args.chroma)
+        if ModelRun:
+            with ModelRun(provider="local", runtime="rtx-vsr", model="RTX-VSR", task="media-processing", project="vault-explorer"):
+                enhance_mode(args.video_path, args.output_path, args.quality, args.scale, args.chroma)
+        else:
+            enhance_mode(args.video_path, args.output_path, args.quality, args.scale, args.chroma)
         sys.stdout.flush()
         os._exit(0)
 
