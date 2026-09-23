@@ -1,6 +1,6 @@
 {
   "name": "vault-explorer",
-  "version": "4.1.12",
+  "version": "4.1.13",
   "description": "Re-discover the joys of browsing your files on a christmas morning or a rainy tuesday at work.",
   "main": "main.js",
   "scripts": {
