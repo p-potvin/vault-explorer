@@ -13,6 +13,7 @@
  */
 
 const path = require('path');
+const sidecarNames = require('./sidecar-names');
 const fs = require('fs');
 const readline = require('readline');
 const { spawn } = require('child_process');
@@ -43,8 +44,17 @@ function scriptPath(script) {
     return utils.resolveScriptPath(script);
 }
 
+/**
+ * Where this video's sidecar is.
+ *
+ * Was `${videoPath}.meta.json`, unconditionally. Sidecars are being renamed to
+ * the canonical `${videoPath}.json` across the library, so assuming the old
+ * name means reading nothing once the rename has run. Resolves an existing
+ * sidecar under any of the four historical names, and falls back to the
+ * canonical one for a file that has none yet.
+ */
 function sidecarPath(videoPath) {
-    return `${videoPath}.meta.json`;
+    return sidecarNames.resolveSync(videoPath).path;
 }
 
 function blankEnhancements() {

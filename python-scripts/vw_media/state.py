@@ -31,6 +31,8 @@ import json
 import os
 import time
 
+from . import sidecar_names
+
 ACTIONS = ("audio", "video", "subtitles", "translation")
 
 # List-shaped actions track language codes; bool-shaped ones are a simple flag.
@@ -40,7 +42,16 @@ TIMESTAMP_FORMAT = "%a, %d %b %Y %H:%M"
 
 
 def sidecar_path(video_path):
-    return video_path + '.meta.json'
+    """Where this video's sidecar is.
+
+    Was `video_path + '.meta.json'`, unconditionally. Sidecars across the
+    library are being renamed to the canonical `<file.ext>.json`, so assuming
+    the old name means reading nothing once the rename has run — and writing a
+    second sidecar beside the real one. Resolves an existing sidecar under any
+    of the four historical names, and falls back to the canonical name for a
+    video that has none yet, which is what `save()` then creates.
+    """
+    return sidecar_names.resolve(video_path)[0]
 
 
 def _blank():

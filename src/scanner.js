@@ -1,6 +1,7 @@
 const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
+const sidecarNames = require('./sidecar-names');
 const { app } = require('electron');
 const { getOfflineCloudPaths } = require('./cloud-files');
 
@@ -106,7 +107,11 @@ function classifyFile(filePath) {
 }
 
 async function readSidecar(filePath) {
-    try { return JSON.parse(await fsPromises.readFile(`${filePath}.meta.json`, 'utf8')); }
+    // Any of the four historical names, not just `.meta.json` — the library is
+    // mid-rename to the canonical `<file.ext>.json` form.
+    const { path: metaPath, exists } = await sidecarNames.resolveAsync(filePath);
+    if (!exists) return null;
+    try { return JSON.parse(await fsPromises.readFile(metaPath, 'utf8')); }
     catch (_) { return null; }
 }
 

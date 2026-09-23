@@ -1,6 +1,7 @@
 // media.ipc.js — handles VSR upscaling subprocess wrappers, enhancements tracking, and ffprobe stream introspection.
 
 const path = require('path');
+const sidecarNames = require('../sidecar-names');
 const fs = require('fs');
 const child_process = require('child_process');
 const utils = require('../utils');
@@ -112,7 +113,7 @@ function registerMediaIpc(ipcMain) {
         if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
             return { success: false, error: 'File not found' };
         }
-        const metaPath = filePath + '.meta.json';
+        const metaPath = sidecarNames.resolveSync(filePath).path;
         try {
             const stats = fs.statSync(filePath);
             const ext = path.extname(filePath).toLowerCase();
