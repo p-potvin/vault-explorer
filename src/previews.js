@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const sidecarNames = require('./sidecar-names');
 const { BrowserWindow } = require('electron');
 const utils = require('./utils');
 const { isOfflineCloudFile } = require('./cloud-files');
@@ -73,9 +74,11 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         });
     }
 
+    // The http branch keeps its own rule: there is no local master to resolve
+    // against, so the sidecar sits beside the thumbnail instead.
     const metaPath = isHttp
         ? (thumbPath ? thumbPath.replace(/\.[^.]+$/, '.meta.json') : null)
-        : (videoPath + '.meta.json');
+        : sidecarNames.resolveSync(videoPath).path;
 
     let meta = {};
     if (metaPath && fs.existsSync(metaPath)) {
