@@ -128,8 +128,8 @@
         let folder = typeof window.getTabDefaultFolder === 'function' ? window.getTabDefaultFolder('debrids') : null;
         
         // Sensible default to python-zipper/playlists if empty
-        if (!folder && window.appSettings && window.appSettings.defaultFolder) {
-            folder = 'C:\\Users\\Administrator\\Desktop\\Github Repos\\python-zipper\\playlists';
+        if (!folder) {
+            folder = (window.appSettings && window.appSettings.defaultFolder) || 'playlists';
         }
 
         const container = el('debrids-grid');
@@ -276,9 +276,9 @@
 
     function getCleanPreviewBase(input) {
         if (!input) return 'stream';
-        let str = String(input);
+        let str = String(input).split('?')[0];
         if (str.includes('/') || str.includes('\\')) {
-            str = str.split('?')[0].split(/[/\\]/).pop();
+            str = str.split(/[\\\/]/).pop();
         }
         try {
             let prev;
@@ -342,7 +342,9 @@
             const streams = parseM3U(m3uContent, playlist.manifest);
             window.currentDebridStreams = streams;
 
-            const playlistDir = playlist.path ? playlist.path.substring(0, Math.max(playlist.path.lastIndexOf('\\'), playlist.path.lastIndexOf('/'))) : '';
+            const playlistDir = playlist.path && (playlist.path.includes('\\') || playlist.path.includes('/'))
+                ? playlist.path.substring(0, Math.max(playlist.path.lastIndexOf('\\'), playlist.path.lastIndexOf('/')))
+                : '.';
 
             // Derive and link cached thumbnails and WebM previews
             streams.forEach(s => {

@@ -27,7 +27,7 @@ app.whenReady().then(async () => {
     for (const [filename, svg] of Object.entries(icons)) {
         const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         const pngBase64 = await win.webContents.executeJavaScript(`
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
@@ -38,6 +38,7 @@ app.whenReady().then(async () => {
                     ctx.drawImage(img, 0, 0, 24, 24);
                     resolve(canvas.toDataURL('image/png').split(',')[1]);
                 };
+                img.onerror = () => reject(new Error("Failed to load SVG image"));
                 img.src = "${dataUrl}";
             });
         `);

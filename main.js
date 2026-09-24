@@ -291,6 +291,9 @@ function createTray() {
     }
 }
 
+/**
+ * Creates and configures the main application window, including bounded zoom controls, media request handling, close-to-tray behavior, cleanup, and the system tray.
+ */
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200, height: 800,
@@ -399,6 +402,10 @@ function createWindow() {
     createTray();
 }
 
+/**
+ * Configures Windows taskbar thumbnail toolbar controls for media playback.
+ * @param {boolean} isPlaying - Whether playback is active, determining the play or pause control.
+ */
 function updateThumbarButtons(isPlaying = false) {
     if (!mainWindow || mainWindow.isDestroyed() || process.platform !== 'win32') return;
 

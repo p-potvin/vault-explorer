@@ -1287,7 +1287,10 @@ function initPlayer() {
                     currentItem.activeQuality = qLabel;
                     const newUrl = q.url || q.link || q.streamUrl;
                     if (newUrl && vpEl) {
-                        window.showToast(`Switching quality to ${qLabel}…`, 'info');
+                         window.showToast(`Switching quality to ${qLabel}…`, 'info');
+                         if (vpEl._qualitySeekListener)
+                            vpEl.removeEventListener('loadedmetadata', vpEl._qualitySeekListener);
+                                               
                         const seekOnce = () => {
                             if (at > 0 && at < vpEl.duration - 3) vpEl.currentTime = at;
                             vpEl.play().catch(_ => {});
