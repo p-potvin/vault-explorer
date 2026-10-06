@@ -5,13 +5,16 @@ const path = require('path');
 const rootDir = path.resolve(__dirname, '..');
 
 const testSuites = [
+    { name: 'Renderer Script Syntax', script: 'tests/renderer_scripts_syntax_test.js' },
     { name: 'Music & Photos Full Feature Suite', script: 'tests/music_photos_suite_test.js' },
     { name: 'Favorites & Virtual Folders Persistence', script: 'tests/favorites_and_virtual_folders_persistence_test.js' },
     { name: 'AI Action Paths Regression', script: 'tests/ai_paths_regression_test.js' },
     { name: 'Cloud Files Placeholder Safety', script: 'tests/cloud_files_regression_test.js' },
     { name: 'Local Subtitles Detection & Formats', script: 'tests/local_subtitles_test.js' },
+    { name: 'Generate Subtitles vw Pipeline Routing', script: 'tests/generate_subtitles_vw_pipeline_test.js' },
     { name: 'Preview Validity Regression', script: 'tests/preview_validity_regression_test.js' },
     { name: 'Preview Candidate Acceptance', script: 'tests/preview_candidate_acceptance_test.js' },
+    { name: 'Preview Thumbnail Survives WebM Failure', script: 'tests/preview_thumbnail_survives_webm_failure_test.js' },
     { name: 'Settings Modal & Player Error E2E Suite', script: 'tests/settings_and_error_handling_test.js' },
     { name: 'Video Double Click & Playback E2E', script: 'tests/video_double_click_and_playback_test.js' },
     { name: 'Playlist & Album Prompts, Volume, and Perf E2E', script: 'tests/playlist_album_prompt_and_player_perf_test.js' },

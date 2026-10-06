@@ -47,10 +47,6 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
     const sortBy = el('sort-by')?.value || 'name';
     const descending = (el('btn-sort-order')?.dataset.order || 'desc') === 'desc';
 
-    const isGlobOrThumbsExcluded = (item) => {
-        if (!item || !item.path) return false;
-        const normP = item.path.replace(/\\/g, '/').toLowerCase();
-        if (normP.includes('/.thumbs/') || normP.includes('/thumbs/')) return true;
     const exclusions = (window.appSettings && Array.isArray(window.appSettings.globExclusions))
         ? window.appSettings.globExclusions.filter(Boolean)
         : [];
