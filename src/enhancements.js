@@ -28,6 +28,9 @@ const ACTIONS = {
     'enhance-video': { script: 'enhance_video.py', key: 'video', label: 'Enhance Video' },
 };
 
+/** `vw better-subtitles -Separator` values; the Settings > AI dropdown picks one. */
+const SUBTITLE_SEPARATORS = new Set(['rnnoise', 'mel_band_roformer', 'bs_roformer', 'htdemucs', 'none']);
+
 /** Actions whose sidecar value is a list of language codes rather than a flag. */
 const LIST_KEYS = new Set(['subtitles', 'translation']);
 
@@ -189,6 +192,7 @@ function buildArgs(action, opts) {
         }
         case 'generate-subtitles':
             args.push('--language', opts.language || 'en');
+            args.push('--separator', SUBTITLE_SEPARATORS.has(opts.separator) ? opts.separator : 'rnnoise');
             break;
         case 'translate-video':
             if (!opts.translateTo) throw new Error('translate-video requires a target language');

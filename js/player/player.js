@@ -163,7 +163,10 @@ async function handlePlayerContextMenu(action, menuItem) {
             window.appSettings.preferredASRLangs = langs;
             window.electronAPI.saveSettings(window.appSettings);
             window.showToast(`Generating subtitles for ${menuItem.name || 'video'}: ${langs.join(', ').toUpperCase()}`, 'success');
-            window.electronAPI.generateSubtitles(itemPath, itemFolder, { language: langs[0] }).then(res => {
+            window.electronAPI.generateSubtitles(itemPath, itemFolder, {
+                language: langs[0],
+                separator: typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise',
+            }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');
                     if (typeof refreshDirectoryWithScrollPreservation === 'function') {

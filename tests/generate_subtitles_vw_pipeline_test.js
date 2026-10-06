@@ -1,4 +1,4 @@
-// generate_subtitles.py must transcribe through `vw better-subtitles -NoSeparate`
+// generate_subtitles.py must transcribe through `vw better-subtitles -Separator <setting>`
 // (via scripts/pwsh/Start-Subtitles.ps1), fall back to vw_media.asr when vw
 // yields no SRT, and construct ModelRun with its required model= argument.
 // Python is driven with subprocess, ASR and ModelRun stubbed; no GPU needed.
@@ -40,7 +40,7 @@ gs.transcribe_native = lambda *a: [{"start": 0.0, "end": 1.0, "text": "native"}]
 
 work = tempfile.mkdtemp()
 try:
-    segments, engine = gs.transcribe("C:/media/Don't.mkv", "en", 1.0, work)
+    segments, engine = gs.transcribe("C:/media/Don't.mkv", "en", 1.0, work, os.environ["PROBE_SEPARATOR"])
 finally:
     gs.shutil.rmtree(work, ignore_errors=True)
 with FakeRun(provider="local", runtime="nemo-speech",
@@ -49,10 +49,10 @@ with FakeRun(provider="local", runtime="nemo-speech",
 print(json.dumps({"engine": engine, "text": segments[0]["text"], "cmd": calls["cmd"]}))
 `;
 
-function runProbe(writeSrt) {
+function runProbe(writeSrt, separator = 'rnnoise') {
     const result = spawnSync(utils.getRobustPythonExe(), ['-c', probe], {
         cwd: rootDir, encoding: 'utf8',
-        env: { ...process.env, PROBE_WRITE_SRT: writeSrt ? '1' : '0', VW_SUBTITLES_ENGINE: '' },
+        env: { ...process.env, PROBE_WRITE_SRT: writeSrt ? '1' : '0', PROBE_SEPARATOR: separator, VW_SUBTITLES_ENGINE: '' },
     });
     assert.equal(result.status, 0, `probe failed:\n${result.stderr}`);
     return JSON.parse(result.stdout.trim().split('\n').pop());
@@ -61,7 +61,10 @@ function runProbe(writeSrt) {
 const viaVw = runProbe(true);
 assert.equal(viaVw.engine, 'vw better-subtitles');
 assert.equal(viaVw.text, 'hello');
-assert.ok(viaVw.cmd.includes('-NoSeparate'), `-NoSeparate missing: ${viaVw.cmd.join(' ')}`);
+assert.equal(viaVw.cmd[viaVw.cmd.indexOf('-Separator') + 1], 'rnnoise', `default separator: ${viaVw.cmd.join(' ')}`);
+assert.ok(!viaVw.cmd.includes('-NoSeparate'), 'The separator setting replaces the hard-coded -NoSeparate');
+const viaMel = runProbe(true, 'mel_band_roformer');
+assert.equal(viaMel.cmd[viaMel.cmd.indexOf('-Separator') + 1], 'mel_band_roformer', 'Setting must reach vw');
 assert.ok(viaVw.cmd.some(a => a.endsWith('Start-Subtitles.ps1')), 'Must go through Start-Subtitles.ps1');
 assert.equal(viaVw.cmd[viaVw.cmd.indexOf('-Target') + 1], "C:/media/Don't.mkv", 'Path must be passed as one argv entry');
 

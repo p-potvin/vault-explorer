@@ -8,8 +8,8 @@ reach the ASR step at the end, which meant asking for subtitles cost a full GPU
 encode of the file.
 
 Transcription goes through `vw better-subtitles` (via
-scripts/pwsh/Start-Subtitles.ps1) with -NoSeparate, so the cues match the ones
-the CLI produces. Projects that receive this file through sync-vw-media.ps1 have
+scripts/pwsh/Start-Subtitles.ps1) with the --separator chosen in Settings > AI
+(default rnnoise), so the cues match the ones the CLI produces. Projects that receive this file through sync-vw-media.ps1 have
 no vw CLI; they, and any vw failure, fall back to decoding a 16 kHz mono WAV and
 running vw_media.asr directly. VW_SUBTITLES_ENGINE=native forces the fallback.
 
@@ -82,8 +82,11 @@ def find_subtitles_delegator():
     return path if os.path.isfile(path) else None
 
 
-def transcribe_via_vw(video_path, language, work_dir):
-    """Run `vw better-subtitles -NoSeparate` on *video_path*.
+SEPARATORS = ("rnnoise", "mel_band_roformer", "bs_roformer", "htdemucs", "none")
+
+
+def transcribe_via_vw(video_path, language, work_dir, separator="rnnoise"):
+    """Run `vw better-subtitles -Separator <separator>` on *video_path*.
 
     Returns segment dicts, or None when the vw CLI is unavailable or produced
     no SRT. Start-BetterSubtitles.ps1 reports per-file failures but still exits
@@ -95,7 +98,7 @@ def transcribe_via_vw(video_path, language, work_dir):
         return None
 
     cmd = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", delegator,
-           "-Target", video_path, "-OutputDir", work_dir, "-NoSeparate"]
+           "-Target", video_path, "-OutputDir", work_dir, "-Separator", separator]
     model = os.environ.get("VW_ASR_MODEL")
     if model:
         cmd += ["-Model", model]
@@ -136,11 +139,11 @@ def transcribe_native(video_path, language, duration, work_dir):
         status_callback=lambda msg: report_progress(26, msg))
 
 
-def transcribe(video_path, language, duration, work_dir):
+def transcribe(video_path, language, duration, work_dir, separator="rnnoise"):
     """Returns (segments, engine)."""
     if os.environ.get("VW_SUBTITLES_ENGINE", "").lower() != "native":
-        report_progress(10, "Starting vw better-subtitles...")
-        segments = transcribe_via_vw(video_path, language, work_dir)
+        report_progress(10, f"Starting vw better-subtitles ({separator})...")
+        segments = transcribe_via_vw(video_path, language, work_dir, separator)
         if segments is not None:
             return segments, VW_ENGINE
         report_progress(12, "vw better-subtitles unavailable, using built-in ASR...")
@@ -164,12 +167,12 @@ def process_one(video_path, args, _output_path):
             with ModelRun(provider="local", runtime="nemo-speech",
                           model=os.environ.get("VW_ASR_MODEL") or asr.NEMO_SPEECH_MODEL,
                           task="audio-asr", project="vault-explorer") as run:
-                segments, engine = transcribe(video_path, language, duration, work_dir)
-                run.set(engine=engine)
+                segments, engine = transcribe(video_path, language, duration, work_dir, args.separator)
+                run.set(engine=engine, separator=args.separator)
                 if segments:
                     run.set(audio_seconds=duration, completion_chars=sum(len(s.get("text", "")) for s in segments))
         else:
-            segments, engine = transcribe(video_path, language, duration, work_dir)
+            segments, engine = transcribe(video_path, language, duration, work_dir, args.separator)
         log(ACTION, f"Transcribed with {engine}")
 
         if not segments:
@@ -195,7 +198,7 @@ def process_one(video_path, args, _output_path):
                    languages=[subtitles.external_code(spoken)],
                    params={"language": spoken, "requested_language": language,
                            "detected": bool(detected), "segments": len(segments),
-                           "engine": engine},
+                           "engine": engine, "separator": args.separator},
                    outputs=written)
 
         report_progress(100, f"Subtitles generated ({len(segments)} cues)")
@@ -211,6 +214,9 @@ def main():
     parser.add_argument("--language", default="en",
                         help="Fallback language tag, used only when the transcript's "
                              "language cannot be detected (default: en)")
+    parser.add_argument("--separator", default="rnnoise", choices=SEPARATORS,
+                        help="Audio cleanup before transcription, passed to vw better-subtitles "
+                             "-Separator (default: rnnoise)")
     args = parser.parse_args()
     try:
         return cli.run(args, ACTION, process_one, needs_output=False)

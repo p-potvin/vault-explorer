@@ -43,6 +43,8 @@ param(
     [string]$TranslateTo = "",
     [switch]$SkipExisting,
     [switch]$NoSeparate,
+    [ValidateSet("mel_band_roformer", "bs_roformer", "htdemucs", "rnnoise", "none")]
+    [string]$Separator,
     [string]$Model,
     [string]$Language,
     [switch]$LowMemory,
@@ -81,6 +83,7 @@ if ($Recurse)      { $forward.Recurse = $true }
 if ($TranslateTo)  { $forward.TranslateTo = $TranslateTo }
 if ($SkipExisting) { $forward.SkipExisting = $true }
 if ($NoSeparate)   { $forward.NoSeparate = $true }
+if ($Separator)    { $forward.Separator = $Separator }
 if ($Model)        { $forward.Model = $Model }
 if ($Language)     { $forward.Language = $Language }
 if ($LowMemory)    { $forward.LowMemory = $true }

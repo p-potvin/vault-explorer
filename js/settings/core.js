@@ -6,7 +6,7 @@ window.initSettingsListeners = function initSettingsListeners() {
         general: ['pill-tag-input-glob', 'settings-default-folder', 'settings-default-theme', 'settings-default-lang', 'settings-minimize-to-tray', 'settings-single-instance', 'settings-dev-mode'],
         playback: ['settings-default-sub-lang', 'settings-sub-font-size', 'settings-playback-sort', 'settings-remember-position', 'settings-mute-previews'],
         library: ['settings-default-home-tab', 'settings-default-folder-photoalbums', 'settings-default-folder-music', 'settings-default-folder-debrids', 'settings-default-folder-misc'],
-        ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma', 'settings-ai-separate'],
+        ai: ['settings-vsr-quality', 'settings-vsr-scale', 'settings-vsr-bitrate', 'settings-vsr-chroma', 'settings-ai-separator'],
     };
     let activeSettingsSection = 'general';
     const closeSettings = () => {
@@ -111,7 +111,7 @@ window.initSettingsListeners = function initSettingsListeners() {
                 if (el('settings-vsr-codec')) el('settings-vsr-codec').value = window.appSettings.vsrCodec || 'hevc';
                 if (el('settings-vsr-bitrate')) el('settings-vsr-bitrate').value = window.appSettings.vsrBitrate || '25M';
                 if (el('settings-vsr-chroma')) el('settings-vsr-chroma').value = window.appSettings.vsrChroma || 'yuv420p';
-                if (el('settings-ai-separate')) el('settings-ai-separate').checked = window.appSettings.aiSeparate !== false;
+                if (el('settings-ai-separator')) el('settings-ai-separator').value = window.getSubtitleSeparator();
                 document.getElementById('pill-tag-input-glob').focus();
             }
         });
@@ -221,7 +221,10 @@ window.initSettingsListeners = function initSettingsListeners() {
             if (el('settings-vsr-codec')) window.appSettings.vsrCodec = el('settings-vsr-codec').value;
             if (el('settings-vsr-bitrate')) window.appSettings.vsrBitrate = el('settings-vsr-bitrate').value;
             if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
-            if (el('settings-ai-separate')) window.appSettings.aiSeparate = el('settings-ai-separate').checked;
+            if (el('settings-ai-separator')) {
+                window.appSettings.aiSeparator = el('settings-ai-separator').value;
+                delete window.appSettings.aiSeparate;
+            }
             await window.electronAPI.saveSettings(window.appSettings);
             showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
             closeSettings();
@@ -257,3 +260,15 @@ window.initSettingsListeners = function initSettingsListeners() {
 }
 
 window.initSettingsListeners = initSettingsListeners;
+
+// Audio cleanup applied before Generate Subtitles transcribes, passed through to
+// `vw better-subtitles -Separator`. RNNoise is the default: a fast filter, no
+// separation model.
+const SUBTITLE_SEPARATORS = ['rnnoise', 'mel_band_roformer', 'bs_roformer', 'htdemucs', 'none'];
+window.getSubtitleSeparator = function getSubtitleSeparator() {
+    const settings = window.appSettings || {};
+    if (SUBTITLE_SEPARATORS.includes(settings.aiSeparator)) return settings.aiSeparator;
+    // The old on/off checkbox (aiSeparate) was never wired to anything, but an
+    // unchecked box clearly meant "leave the audio alone".
+    return settings.aiSeparate === false ? 'none' : 'rnnoise';
+};
