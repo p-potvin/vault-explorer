@@ -232,11 +232,15 @@ def transcribe(wav_path, language="en", model=None, status_callback=None):
         if model is None and os.environ.get("VW_ASR_ENGINE", "").lower() != "torch":
             native_model = (
                 os.environ.get("VW_ASR_MODEL") or NEMO_SPEECH_MODEL)
-            result = _nemo_speech_transcribe(
-                wav_path, language, native_model, status_callback)
-            if result is not None:
-                run.set(model=native_model)
-                run.tag("nemo-speech")
+            try:
+                result = _nemo_speech_transcribe(
+                    wav_path, language, native_model, status_callback)
+                if result is not None:
+                    run.set(model=native_model)
+                    run.tag("nemo-speech")
+            except Exception as err:
+                if status_callback:
+                    status_callback(f"nemo-speech failed: {err}. Falling back to PyTorch...")
 
         if result is None:
             engine = model or get_model(status_callback=status_callback)
