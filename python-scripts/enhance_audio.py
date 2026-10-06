@@ -25,6 +25,17 @@ for _path in (_SCRIPT_DIR, _PROJECT_ROOT):
 from vw_media import cli, enhanced, media, state                    # noqa: E402
 from vw_media.progress import ScaledProgress, emit_status, log, report_progress  # noqa: E402
 
+try:
+    from vaultwares_adk.telemetry import ModelRun
+except ImportError:
+    try:
+        _adk_dir = os.path.join(_PROJECT_ROOT, "vaultwares-adk")
+        if _adk_dir not in sys.path:
+            sys.path.insert(0, _adk_dir)
+        from vaultwares_adk.telemetry import ModelRun
+    except Exception:
+        ModelRun = None
+
 ACTION = "audio"
 
 # Background is ducked this far below the isolated vocals before remixing.
@@ -54,15 +65,29 @@ def separate_vocals(source_path, temp_dir, duration):
         "--filename", "{stem}.{ext}", source_path,
     ]
 
-    try:
-        media.run_command_with_progress(
-            cmd, "Separating vocals",
-            on_progress=ScaledProgress(5, 50, "Separating vocals (GPU)"),
-            duration=duration)
-    except Exception:
-        report_progress(10, "Demucs GPU separation failed. Retrying on CPU...")
-        cpu_cmd = [c for c in cmd]
-        if "-d" in cpu_cmd:
+    def _exec():
+        try:
+            media.run_command_with_progress(
+                cmd, "Separating vocals",
+                on_progress=ScaledProgress(5, 50, "Separating vocals (GPU)"),
+                duration=duration)
+        except Exception:
+            report_progress(10, "Demucs GPU separation failed. Retrying on CPU...")
+            cpu_cmd = [c for c in cmd]
+            if "-d" in cpu_cmd:
+                device_index = cpu_cmd.index("-d")
+                del cpu_cmd[device_index:device_index + 2]
+            media.run_command_with_progress(
+                cpu_cmd, "Separating vocals",
+                on_progress=ScaledProgress(10, 45, "Separating vocals (CPU)"),
+                duration=duration)
+
+    if ModelRun:
+        with ModelRun(provider="local", runtime="demucs", model="htdemucs", task="audio-separation", project="vault-explorer") as run:
+            _exec()
+            run.set(audio_seconds=duration)
+    else:
+        _exec()
             device_index = cpu_cmd.index("-d")
             del cpu_cmd[device_index:device_index + 2]
         media.run_command_with_progress(
