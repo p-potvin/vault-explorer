@@ -28,6 +28,8 @@ gs.shutil.which = lambda name: "pwsh.exe"
 class FakeProc:
     def __init__(self, cmd, **kw):
         calls["cmd"] = cmd
+        if os.environ.get("PROBE_OSERROR") == "1":
+            raise OSError("pwsh cannot be executed")
         self.stdout = iter(["  [ASR] Transcribing\n"])
         self.returncode = 0
         if os.environ.get("PROBE_WRITE_SRT") == "1":
@@ -49,10 +51,10 @@ with FakeRun(provider="local", runtime="nemo-speech",
 print(json.dumps({"engine": engine, "text": segments[0]["text"], "cmd": calls["cmd"]}))
 `;
 
-function runProbe(writeSrt, separator = 'rnnoise') {
+function runProbe(writeSrt, separator = 'rnnoise', osError = false) {
     const result = spawnSync(utils.getRobustPythonExe(), ['-c', probe], {
         cwd: rootDir, encoding: 'utf8',
-        env: { ...process.env, PROBE_WRITE_SRT: writeSrt ? '1' : '0', PROBE_SEPARATOR: separator, VW_SUBTITLES_ENGINE: '' },
+        env: { ...process.env, PROBE_WRITE_SRT: writeSrt ? '1' : '0', PROBE_SEPARATOR: separator, PROBE_OSERROR: osError ? '1' : '0', VW_SUBTITLES_ENGINE: '' },
     });
     assert.equal(result.status, 0, `probe failed:\n${result.stderr}`);
     return JSON.parse(result.stdout.trim().split('\n').pop());
@@ -71,6 +73,9 @@ assert.equal(viaVw.cmd[viaVw.cmd.indexOf('-Target') + 1], "C:/media/Don't.mkv", 
 const fallback = runProbe(false);
 assert.equal(fallback.engine, 'vw_media.asr', 'No SRT from vw must fall back to native ASR');
 assert.equal(fallback.text, 'native');
+
+const launchFailure = runProbe(true, 'rnnoise', true);
+assert.equal(launchFailure.engine, 'vw_media.asr', 'A shell that cannot start must fall back, not crash');
 
 // The track is tagged with the transcript's language, never the user-facing `qc`.
 const langProbe = String.raw`

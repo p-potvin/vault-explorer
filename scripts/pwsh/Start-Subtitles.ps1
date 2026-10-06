@@ -72,7 +72,7 @@ if (-not $registry) {
 }
 
 $command = (& $registry)['better-subtitles']
-if (-not $command -or -not (Test-Path -LiteralPath $command.ScriptPath)) {
+if (-not $command -or -not $command.ScriptPath -or -not (Test-Path -LiteralPath $command.ScriptPath)) {
     Write-Error "vw registry at $registry has no runnable 'better-subtitles' command."
     exit 1
 }

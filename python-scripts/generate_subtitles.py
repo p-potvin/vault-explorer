@@ -107,21 +107,27 @@ def transcribe_via_vw(video_path, language, work_dir, separator="rnnoise"):
             cmd += ["-Language", language]
 
     tail = []
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, encoding="utf-8", errors="replace")
-    for line in proc.stdout:
-        line = line.rstrip()
-        if not line:
-            continue
-        tail = (tail + [line])[-5:]
-        for marker, percent, label in _VW_STAGES:
-            if marker in line:
-                report_progress(percent, label)
-    proc.wait()
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, encoding="utf-8", errors="replace")
+        for line in proc.stdout:
+            line = line.rstrip()
+            if not line:
+                continue
+            tail = (tail + [line])[-5:]
+            for marker, percent, label in _VW_STAGES:
+                if marker in line:
+                    report_progress(percent, label)
+        proc.wait()
+    except OSError as err:
+        # A shell that cannot be launched is the same as no vw CLI: fall back.
+        log(ACTION, f"vw better-subtitles could not be started: {err}")
+        return None
+    returncode = proc.returncode
 
     produced = glob.glob(os.path.join(work_dir, "*.srt"))
     if not produced:
-        log(ACTION, f"vw better-subtitles produced no SRT (exit {proc.returncode}): "
+        log(ACTION, f"vw better-subtitles produced no SRT (exit {returncode}): "
                     + " | ".join(tail))
         return None
     return subtitles.read_srt(produced[0])

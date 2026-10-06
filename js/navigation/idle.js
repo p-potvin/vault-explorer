@@ -114,7 +114,10 @@
         for (const r of (result.results || [])) {
             if (r.success && r.hoverWebm) {
                 markPreviewReady(r.path, r.hoverWebm);
-            } else if (!r.success) {
+            } else {
+                // Failed outright, or only the thumbnail landed (the WebM
+                // encode failed). Either way the hover preview is still
+                // missing; without this it was re-encoded every idle cycle.
                 failedPaths.add(r.path);
             }
         }
