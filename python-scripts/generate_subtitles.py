@@ -85,7 +85,7 @@ def process_one(video_path, args, _output_path):
                     wav_path, language=language,
                     status_callback=lambda msg: report_progress(18, msg))
                 if segments:
-                    run.set(audio_seconds=duration, completion_chars=sum(len(getattr(s, "text", "") or "") for s in segments))
+                    run.set(audio_seconds=duration, completion_chars=sum(len(s.get("text", "")) for s in segments))
         else:
             segments = asr.transcribe(
                 wav_path, language=language,
