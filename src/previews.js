@@ -41,12 +41,33 @@ const activeQueuePaths = new Set();
 const benchmarkPath = path.join(__dirname, '..', 'BENCHMARKS.md');
 
 function writeBenchmark(entry) {
-    const header = `| Timestamp | Video Name | Size | Duration | Thumb Time | WebM Time | Status \n| --- | --- | --- | --- | --- | --- | --- |`;
-    if (!fs.existsSync(benchmarkPath)) {
-        fs.writeFileSync(benchmarkPath, header, 'utf8');
+    // Best effort: the app directory is read-only inside a packaged asar.
+    try {
+        const header = `| Timestamp | Video Name | Size | Duration | Thumb Time | WebM Time | Status \n| --- | --- | --- | --- | --- | --- | --- |`;
+        if (!fs.existsSync(benchmarkPath)) {
+            fs.writeFileSync(benchmarkPath, header, 'utf8');
+        }
+        const row = `\n| ${new Date().toISOString()} | ${entry.name} | ${entry.size} | ${(entry.duration || 0).toFixed(1)}s | ${entry.thumbTime ? entry.thumbTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.webmTime ? entry.webmTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.status} |`;
+        fs.appendFileSync(benchmarkPath, row, 'utf8');
+    } catch (e) {
+        console.warn(`[main:preview] Benchmark write skipped: ${e.message}`);
     }
-    const row = `\n| ${new Date().toISOString()} | ${entry.name} | ${entry.size} | ${entry.duration.toFixed(1)}s | ${entry.thumbTime ? entry.thumbTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.webmTime ? entry.webmTime.toFixed(0) + 'ms' : 'N/A'} | ${entry.status} |`;
-    fs.appendFileSync(benchmarkPath, row, 'utf8');
+}
+
+/** Rename a non-empty `.tmp` output over its final path; otherwise discard it. */
+function promoteTemp(tmpPath, finalPath, label) {
+    let ok = false;
+    try { ok = fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0; } catch (_) { }
+    if (ok) {
+        try {
+            fs.renameSync(tmpPath, finalPath);
+            return true;
+        } catch (e) {
+            console.warn(`[preview] ${label} rename failed: ${e.message}`);
+        }
+    }
+    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch (_) { }
+    return false;
 }
 
 async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, sender = null, force = false, silent = false) {
@@ -230,6 +251,10 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         }
     }
 
+    // Promote the thumbnail before the WebM encode starts. It used to wait
+    // for the WebM, so a WebM failure deleted a perfectly good poster frame.
+    const thumbPromoted = promoteTemp(thumbWritePath, thumbPath, 'thumb');
+
     let webmStart = Date.now();
     let webmTimeMs = null;
     try {
@@ -248,12 +273,16 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                     label: `Creating preview...`
                 });
             }
+            // duration is 0 when the probe failed; without a cap this branch
+            // would re-encode an entire feature-length file as the "preview".
+            const clipLimit = (duration > 0 ? duration : 24).toFixed(2);
             let success = false;
             if (hasAudio) {
                 try {
                     await runFfmpegPromise([
                         '-y',
                         '-threads', '2',
+                        '-t', clipLimit,
                         '-i', videoPath,
                         '-vf', 'scale=320:-2',
                         '-c:v', 'libvpx',
@@ -275,6 +304,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
                 await runFfmpegPromise([
                     '-y',
                     '-threads', '2',
+                    '-t', clipLimit,
                     '-i', videoPath,
                     '-vf', 'scale=320:-2',
                     '-c:v', 'libvpx',
@@ -384,42 +414,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         webmTimeMs = Date.now() - webmStart;
 
         // Evaluate temp files independently: accept valid outputs even if one candidate fails.
-        let thumbTmpOk = false;
-        try {
-            thumbTmpOk = fs.existsSync(thumbWritePath) && fs.statSync(thumbWritePath).size > 0;
-        } catch (_) { }
-
-        let webmTmpOk = false;
-        try {
-            webmTmpOk = fs.existsSync(webmWritePath) && fs.statSync(webmWritePath).size > 0;
-        } catch (_) { }
-
-        let thumbPromoted = false;
-        let webmPromoted = false;
-
-        if (thumbTmpOk) {
-            try {
-                fs.renameSync(thumbWritePath, thumbPath);
-                thumbPromoted = true;
-            } catch (e) {
-                console.warn(`[preview] thumb rename failed: ${e.message}`);
-                try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (_) { }
-            }
-        } else {
-            try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (_) { }
-        }
-
-        if (webmTmpOk) {
-            try {
-                fs.renameSync(webmWritePath, hoverWebmPath);
-                webmPromoted = true;
-            } catch (e) {
-                console.warn(`[preview] webm rename failed: ${e.message}`);
-                try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
-            }
-        } else {
-            try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
-        }
+        const webmPromoted = promoteTemp(webmWritePath, hoverWebmPath, 'webm');
 
         const anyPromoted = thumbPromoted || webmPromoted || fs.existsSync(thumbPath) || fs.existsSync(hoverWebmPath);
         if (!anyPromoted) {
@@ -452,8 +447,31 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     } catch (e) {
         console.error("Failed to generate WebM preview:", e.message);
         // Discard any partial temp output so we don't leave orphan .tmp files.
-        try { if (fs.existsSync(thumbWritePath)) fs.unlinkSync(thumbWritePath); } catch (_) { }
         try { if (fs.existsSync(webmWritePath)) fs.unlinkSync(webmWritePath); } catch (_) { }
+
+        // The thumbnail already landed; the card can use it, so this is a
+        // partial result rather than a failure.
+        if (thumbPromoted) {
+            if (finalSender && !finalSender.isDestroyed()) {
+                finalSender.send('generate-webm-progress', {
+                    videoPath,
+                    percent: 100,
+                    label: 'Thumbnail only (preview failed)',
+                    thumbnail: thumbPath,
+                    hoverWebm: fs.existsSync(hoverWebmPath) ? hoverWebmPath : null,
+                    error: e.message || 'FFmpeg error'
+                });
+            }
+            writeBenchmark({
+                name: path.basename(videoPath),
+                size: fs.existsSync(videoPath) ? utils.formatBytes(fs.statSync(videoPath).size) : '0 B',
+                duration,
+                thumbTime: thumbTimeMs,
+                webmTime: null,
+                status: 'PARTIAL_SUCCESS'
+            });
+            return;
+        }
         // Tell the renderer the job is over so the toolbar spinner clears.
         // Without a terminal event the spinner sat at the last reported %
         // forever, masking the failure.

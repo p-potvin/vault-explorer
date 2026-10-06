@@ -1,24 +1,33 @@
 <#
 .SYNOPSIS
-    Generate .srt sidecars for a file or a tree, through vault-cacophony.
+    Generate .srt sidecars for a file or a tree, through `vw better-subtitles`.
 
 .DESCRIPTION
-    A delegator, deliberately. The subtitle pipeline -- ffmpeg, chunked CUDA
-    htdemucs separation, Parakeet-TDT, cues from word gaps, translation -- is
-    developed in vault-cacophony and this project depends on that checkout for
-    the engine and the weights anyway. A second copy here would drift, and the
-    copy it replaces already had: it predated the chunked separation that keeps
-    a feature-length file inside memory, and the -AsrWindow default that stopped
-    the transcript losing 40% of its words.
+    A delegator, deliberately. The subtitle pipeline -- vocal separation,
+    NeMo-Speech.cpp with Parakeet TDT on the resident server, optional Riva
+    translation -- is the `vw better-subtitles` command in vault-commander. A
+    second copy here would drift.
 
-    This is the batch path, for building a sidecar up front. Subtitles that
-    appear while a video plays come from src/live-subtitles.js, which streams
-    cues out of the resident server instead.
+    The command is looked up in vw's own registry (cli\vw-commands.ps1) and its
+    script is called with named parameters, rather than going through vw.ps1.
+    vw.ps1 rebuilds its arguments into an Invoke-Expression string and quotes
+    only arguments that contain whitespace, so a media path such as
+    D:\Media\Don't.mkv breaks the parse. The registry lookup keeps the same
+    command and defaults without that hazard.
 
-    Created Sat, 22 Aug 2026
+    Used by python-scripts/generate_subtitles.py (the "Generate Subtitles"
+    context-menu action) and for building sidecars up front in batch. Subtitles
+    that appear while a video plays come from src/live-subtitles.js instead.
+
+    Created Sat, 22 Aug 2026. Repointed from vault-cacophony's
+    Start-SubtitlesAudioCpp.ps1 to vw better-subtitles Tue, 06 Oct 2026.
 
 .PARAMETER Target
     One media file, or a directory to scan.
+
+.PARAMETER VwCli
+    Directory holding vw.ps1 and vw-commands.ps1. Defaults to $env:VW_CLI, then
+    the vault-commander checkout beside this repo.
 
 .EXAMPLE
     .\Start-Subtitles.ps1 -Target "D:\Media\episode.mkv" -TranslateTo fr
@@ -33,40 +42,51 @@ param(
     [switch]$Recurse,
     [string]$TranslateTo = "",
     [switch]$SkipExisting,
-    [switch]$Separate,
     [switch]$NoSeparate,
-    [double]$VolumeBoost = 1.5,
-    [string]$Cacophony
+    [ValidateSet("mel_band_roformer", "bs_roformer", "htdemucs", "rnnoise", "none")]
+    [string]$Separator,
+    [string]$Model,
+    [string]$Language,
+    [switch]$LowMemory,
+    [string]$VwCli
 )
 
 $ErrorActionPreference = 'Stop'
 
 $candidates = @(
-    $Cacophony,
-    $env:VW_CACOPHONY,
-    $(if ($env:VW_AUDIOCPP) { Split-Path -Parent $env:VW_AUDIOCPP } else { $null }),
-    (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "..\vault-cacophony"),
-    (Join-Path $env:USERPROFILE "Desktop\Github Repos\vault-cacophony")
+    $VwCli,
+    $env:VW_CLI,
+    (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) "vault-commander\cli"),
+    (Join-Path $env:USERPROFILE "Desktop\Github Repos\vault-commander\cli")
 ) | Where-Object { $_ }
 
-$script = $null
+$registry = $null
 foreach ($c in $candidates) {
-    $p = Join-Path $c "scripts\Start-SubtitlesAudioCpp.ps1"
-    if (Test-Path -LiteralPath $p) { $script = $p; break }
+    $p = Join-Path $c "vw-commands.ps1"
+    if (Test-Path -LiteralPath $p) { $registry = $p; break }
 }
-if (-not $script) {
-    Write-Error ("vault-cacophony not found. It is this project's AI dependency: clone it beside " +
-                 "vault-explorer, or set VW_CACOPHONY to the checkout.")
+if (-not $registry) {
+    Write-Error ("vw CLI not found. Clone vault-commander beside vault-explorer, " +
+                 "or set VW_CLI to its cli directory.")
     exit 1
 }
 
-$forward = @{ TargetDir = $Target; VolumeBoost = $VolumeBoost }
-if ($OutputDir)    { $forward.OutputDir = $OutputDir }
-if ($Recurse)      { $forward.Recurse = $true }
-if ($TranslateTo)  { $forward.Langs = $TranslateTo }
-if ($SkipExisting) { $forward.SkipExisting = $true }
-if ($Separate)     { $forward.Separate = $true }
-if ($NoSeparate)   { $forward.NoSeparate = $true }
+$command = (& $registry)['better-subtitles']
+if (-not $command -or -not $command.ScriptPath -or -not (Test-Path -LiteralPath $command.ScriptPath)) {
+    Write-Error "vw registry at $registry has no runnable 'better-subtitles' command."
+    exit 1
+}
 
-& $script @forward
+$forward = @{ Input = $Target }
+if ($OutputDir)    { $forward.Output = $OutputDir }
+if ($Recurse)      { $forward.Recurse = $true }
+if ($TranslateTo)  { $forward.TranslateTo = $TranslateTo }
+if ($SkipExisting) { $forward.SkipExisting = $true }
+if ($NoSeparate)   { $forward.NoSeparate = $true }
+if ($Separator)    { $forward.Separator = $Separator }
+if ($Model)        { $forward.Model = $Model }
+if ($Language)     { $forward.Language = $Language }
+if ($LowMemory)    { $forward.LowMemory = $true }
+
+& $command.ScriptPath @forward
 exit $LASTEXITCODE

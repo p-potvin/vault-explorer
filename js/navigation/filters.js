@@ -83,15 +83,6 @@ function applyFilters() {
     });
 
     // Helper to test if item should be excluded by .thumbs or glob exclusions
-    const isGlobOrThumbsExcluded = (item) => {
-        if (!item || !item.path) return false;
-        const normP = item.path.replace(/\\/g, '/').toLowerCase();
-        if (normP.includes('/.thumbs/') || normP.includes('/thumbs/')) return true;
-        const exclusions = (window.appSettings && Array.isArray(window.appSettings.globExclusions))
-            ? window.appSettings.globExclusions
-            : [];
-        if (exclusions.length > 0) {
-            const baseName = item.name || '';
     const exclusions = (window.appSettings && Array.isArray(window.appSettings.globExclusions))
         ? window.appSettings.globExclusions.filter(Boolean)
         : [];

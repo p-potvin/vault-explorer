@@ -54,12 +54,14 @@ async function runUnitAndE2ETest() {
     assert(argStr.includes('--audio-copy'), 'Must copy audio losslessly');
     console.log('✓ [PASS] NVEncC buildNvenccArgs generated all required flags correctly.');
 
-    // 3. Verify Start-Subtitles.ps1 contains -Separate
+    // 3. Verify Start-Subtitles.ps1 forwards the separator to vw better-subtitles
+    // (the old -Separate switch became -Separator <family>, chosen in Settings > AI).
     const startSubtitlesPath = path.join(appRoot, 'scripts', 'pwsh', 'Start-Subtitles.ps1');
     const startSubtitlesContent = fs.readFileSync(startSubtitlesPath, 'utf8');
-    assert(startSubtitlesContent.includes('[switch]$Separate'), 'Start-Subtitles.ps1 must declare [switch]$Separate');
-    assert(startSubtitlesContent.includes('$forward.Separate = $true'), 'Start-Subtitles.ps1 must forward Separate parameter');
-    console.log('✓ [PASS] Start-Subtitles.ps1 has [switch]$Separate support.');
+    assert(startSubtitlesContent.includes('[string]$Separator'), 'Start-Subtitles.ps1 must declare [string]$Separator');
+    assert(/ValidateSet\([^)]*"rnnoise"/.test(startSubtitlesContent), 'Start-Subtitles.ps1 must accept rnnoise');
+    assert(startSubtitlesContent.includes('$forward.Separator = $Separator'), 'Start-Subtitles.ps1 must forward Separator');
+    console.log('✓ [PASS] Start-Subtitles.ps1 forwards -Separator.');
 
     // 4. Launch Electron App for UI & DOM Verification
     console.log('--- Launching Electron for Video Studio Modal E2E Verification ---');

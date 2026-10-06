@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vault Explorer</title>
-  <!-- v4.1.13 -->
+  <!-- v4.1.14 -->
   <link href="themes.css" rel="stylesheet">
   <link href="index.css" rel="stylesheet">
   <script src="themes.js" defer></script>
@@ -1045,13 +1045,19 @@
           </select>
         </div>
 
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--vault-warm-border-subtle);">
-          <div>
-            <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block;">AI Vocal Separation (BS-RoFormer):</span>
-            <span style="font-size: 10px; color: var(--vault-text-muted); display: block;">Isolate clean vocal stem before ASR subtitle generation &amp; translation</span>
-          </div>
-          <input type="checkbox" id="settings-ai-separate" checked
-            style="accent-color: var(--vault-accent); width: 16px; height: 16px; cursor: pointer;" />
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--vault-warm-border-subtle);">
+          <label id="label-ai-separator" for="settings-ai-separator"
+            style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vault-slate); display: block; margin-bottom: 4px;">Subtitle
+            Audio Cleanup:</label>
+          <select id="settings-ai-separator"
+            style="width: 100%; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px; font-family:var(--font-body); outline:none; border-radius:4px;">
+            <option value="rnnoise" selected>RNNoise (fast noise filter)</option>
+            <option value="mel_band_roformer">Mel-Band RoFormer (vocal separation)</option>
+            <option value="bs_roformer">BS-RoFormer (vocal separation)</option>
+            <option value="htdemucs">HTDemucs (vocal separation)</option>
+            <option value="none">None (raw audio)</option>
+          </select>
+          <span id="hint-ai-separator" style="font-size: 10px; color: var(--vault-text-muted); display: block; margin-top: 4px;">Applied to the audio before Generate Subtitles transcribes it. Separation models are slower but cope better with music.</span>
         </div>
       </div>
 

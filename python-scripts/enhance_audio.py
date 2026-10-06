@@ -88,12 +88,6 @@ def separate_vocals(source_path, temp_dir, duration):
             run.set(audio_seconds=duration)
     else:
         _exec()
-            device_index = cpu_cmd.index("-d")
-            del cpu_cmd[device_index:device_index + 2]
-        media.run_command_with_progress(
-            cpu_cmd, "Separating vocals",
-            on_progress=ScaledProgress(10, 45, "Separating vocals (CPU)"),
-            duration=duration)
 
     vocals_path = os.path.join(temp_dir, "htdemucs", "vocals.wav")
     if not os.path.exists(vocals_path):

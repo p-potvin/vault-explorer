@@ -422,8 +422,18 @@ function getTabDefaultFolder(tabName) {
   return (window.appSettings && window.appSettings[key]) || (window.appSettings && window.appSettings.defaultFolder) || null;
 }
 
+// Glob (`*`, `?`) to case-insensitive anchored RegExp; every other character is literal.
+function globToRegex(pattern) {
+  const source = String(pattern)
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
+  return new RegExp('^' + source + '$', 'i');
+}
+
 // Bind globals for accessibility
 window.el = el;
+window.globToRegex = globToRegex;
 window.escapeHtml = escapeHtml;
 window.formatBytes = formatBytes;
 window.formatDuration = formatDuration;

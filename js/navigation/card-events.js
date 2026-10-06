@@ -370,7 +370,10 @@ async function handleCardContextMenu(card, item, index) {
                 prefix: 'Subs',
                 initialLabel: 'Subs: Init...',
                 invoke: (target) => window.electronAPI.generateSubtitles(
-                    target.path, window.currentRealPath, { language: langs[0] }),
+                    target.path, window.currentRealPath, {
+                        language: langs[0],
+                        separator: typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise',
+                    }),
                 successMsg: 'Subtitles generated successfully!',
                 failMsg: 'Subtitles failed',
             });

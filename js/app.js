@@ -63,6 +63,18 @@ function setLanguage(lang) {
         });
     }
     if (el('single-instance-setting')) el('single-instance-setting').title = window.translations[lang].singleInstanceHint;
+    if (el('label-ai-separator')) el('label-ai-separator').innerText = window.translations[lang].aiSeparatorLabel;
+    if (el('hint-ai-separator')) el('hint-ai-separator').innerText = window.translations[lang].aiSeparatorHint;
+    const aiSeparator = el('settings-ai-separator');
+    if (aiSeparator) {
+        const aiSeparatorLabels = {
+            rnnoise: 'aiSeparatorRnnoise', mel_band_roformer: 'aiSeparatorMelBand',
+            bs_roformer: 'aiSeparatorBsRoformer', htdemucs: 'aiSeparatorHtdemucs', none: 'aiSeparatorNone',
+        };
+        Array.from(aiSeparator.options).forEach((option) => {
+            option.text = window.translations[lang][aiSeparatorLabels[option.value]] || option.text;
+        });
+    }
     document.querySelectorAll('.settings-section-tab').forEach((tab) => {
         const section = tab.dataset.settingsSection;
         if (!section || !window.translations || !window.translations[lang]) return;
