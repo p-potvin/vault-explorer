@@ -591,6 +591,11 @@ def main():
         if ModelRun:
             with ModelRun(provider="local", runtime="rtx-vsr", model="RTX-VSR", task="media-processing", project="vault-explorer"):
                 enhance_mode(args.video_path, args.output_path, args.quality, args.scale, args.chroma)
+            try:
+                from vaultwares_adk.telemetry import shutdown
+                shutdown(timeout=5.0)
+            except Exception:
+                pass
         else:
             enhance_mode(args.video_path, args.output_path, args.quality, args.scale, args.chroma)
         sys.stdout.flush()
