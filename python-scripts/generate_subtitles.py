@@ -14,7 +14,9 @@ scripts/pwsh/Start-Subtitles.ps1) with the --separator chosen in Settings > AI
 --language is the language to translate *to*, not the spoken one: Parakeet
 identifies the spoken language by itself, and Riva translates the finished
 cues (`vw better-subtitles -TranslateTo`). The transcript is written as the
-default `<video>.srt` track, the translation as `<video>.<lang>.srt`. Projects that receive this file through sync-vw-media.ps1 have
+default `<video>.srt` track, the translation as `<video>.<lang>.srt`. An
+English target skips Riva: the transcript is also written as `<video>.en.srt`.
+Riva only translates from English, so other targets assume English audio. Projects that receive this file through sync-vw-media.ps1 have
 no vw CLI; they, and any vw failure, fall back to decoding a 16 kHz mono WAV and
 running vw_media.asr directly. VW_SUBTITLES_ENGINE=native forces the fallback.
 
@@ -194,6 +196,10 @@ def process_one(video_path, args, _output_path):
     translate_to = subtitles.source_code(args.language)
     if translate_to in ("", "und", "original", "none"):
         translate_to = None
+    # English subtitles skip Riva entirely: the transcript is the English track.
+    # Riva only translates from English (known limitation), so any other target
+    # assumes English audio.
+    riva_target = None if translate_to == "en" else translate_to
     duration = media.get_video_duration(video_path)
 
     emit_status("STARTING", path=video_path)
@@ -208,20 +214,22 @@ def process_one(video_path, args, _output_path):
                           model=os.environ.get("VW_ASR_MODEL") or asr.NEMO_SPEECH_MODEL,
                           task="audio-asr", project="vault-explorer") as run:
                 segments, translation, engine = transcribe(
-                    video_path, translate_to, duration, work_dir, args.separator)
+                    video_path, riva_target, duration, work_dir, args.separator)
                 run.set(engine=engine, separator=args.separator)
                 if segments:
                     run.set(audio_seconds=duration, completion_chars=sum(len(s.get("text", "")) for s in segments))
         else:
             segments, translation, engine = transcribe(
-                video_path, translate_to, duration, work_dir, args.separator)
+                video_path, riva_target, duration, work_dir, args.separator)
         log(ACTION, f"Transcribed with {engine}")
 
         if not segments:
             raise RuntimeError("No speech was recognised in this file")
 
-        if translate_to and translation is None:
-            log(ACTION, f"No '{translate_to}' translation available; wrote the transcript only")
+        if riva_target and translation is None:
+            log(ACTION, f"No '{riva_target}' translation available; wrote the transcript only")
+        if translate_to == "en":
+            translation = segments
 
         report_progress(88, "Writing subtitle tracks...")
         written = []
@@ -239,7 +247,8 @@ def process_one(video_path, args, _output_path):
         report_progress(96, "Recording enhancement state...")
         state.mark(video_path, ACTION,
                    languages=[subtitles.external_code(translate_to)] if translation else [],
-                   params={"translate_to": translate_to, "translated": bool(translation),
+                   params={"translate_to": translate_to,
+                           "translated": bool(riva_target and translation),
                            "segments": len(segments), "engine": engine,
                            "separator": args.separator},
                    outputs=written)

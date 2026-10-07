@@ -97,20 +97,28 @@ assert.equal(argAfter(runProbe({ separator: 'mel_band_roformer' }).cmd, '-Separa
 assert.ok(qc.cmd.some(a => a.endsWith('Start-Subtitles.ps1')), 'Must go through Start-Subtitles.ps1');
 assert.ok(argAfter(qc.cmd, '-Target').endsWith("Don't.mkv"), 'Path must be passed as one argv entry');
 
+// English skips Riva: the transcript is the English track.
+const en = runProbe({ language: 'en' });
+assert.ok(!en.cmd.includes('-TranslateTo'), 'English must not go through Riva');
+assert.deepEqual(en.tracks, { "Don't.srt": 'bonjour', "Don't.en.srt": 'bonjour' });
+assert.deepEqual(en.languages, ['en']);
+
 // Translation missing: transcript only, never mislabelled as the target.
 const noTrans = runProbe({ language: 'es', translate: false });
 assert.deepEqual(noTrans.tracks, { "Don't.srt": 'bonjour' });
 assert.deepEqual(noTrans.languages, []);
 
 // Riva handing the transcript back unchanged is not a translation.
-const passthrough = runProbe({ language: 'en', passthrough: true });
+const passthrough = runProbe({ language: 'es', passthrough: true });
 assert.deepEqual(passthrough.tracks, { "Don't.srt": 'bonjour' }, 'An unchanged transcript must not be labelled as the target');
 assert.deepEqual(passthrough.languages, []);
 
 // Fallbacks: no vw transcript, or a shell that cannot start, use the built-in ASR.
 const fallback = runProbe({ writeSrt: false });
 assert.equal(fallback.engine, 'vw_media.asr', 'No SRT from vw must fall back to native ASR');
-assert.deepEqual(fallback.tracks, { "Don't.srt": 'native' });
+assert.deepEqual(fallback.tracks, { "Don't.srt": 'native', "Don't.en.srt": 'native' });
+assert.deepEqual(runProbe({ writeSrt: false, language: 'es' }).tracks, { "Don't.srt": 'native' },
+    'The built-in path cannot translate: transcript only');
 assert.equal(runProbe({ osError: true }).engine, 'vw_media.asr', 'A shell that cannot start must fall back, not crash');
 
 console.log('Generate Subtitles vw pipeline routing passed.');
