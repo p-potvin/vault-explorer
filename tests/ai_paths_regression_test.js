@@ -38,7 +38,8 @@ assert.doesNotMatch(translatePy, /h264_nvenc|libx264/, 'translating must never r
 assert.match(enhanceAudioPy, /demucs\.separate/, 'audio enhancement is the action that owns Demucs');
 
 assert.match(subtitlesPy, /def external_code/, 'generated subtitle filenames must normalize QC to an external language code');
-assert.match(subtitlesPy, /return 'fr' if code in \{'qc', 'fr-ca', 'ca-fr'\}/, 'QC subtitle output must be written as FR');
+assert.match(subtitlesPy, /_FRENCH_ALIASES = \{'qc', 'fr-ca', 'ca-fr'\}/, 'QC aliases must be listed');
+assert.match(subtitlesPy, /def external_code[\s\S]*?return 'fr' if code in _FRENCH_ALIASES/, 'QC subtitle output must be written as FR');
 assert.match(translatePy, /external_code\(target_language\)/, 'translated subtitle sidecars must use the normalized external code');
 assert.match(livePython, /\.ai\.\{primary_lang\}\.srt/, 'AI live subtitles must write an additive sidecar');
 assert.doesNotMatch(idle, /currentTab === 'files' && window\.appSettings.*devMode/, 'idle previews must run for non-dev users');

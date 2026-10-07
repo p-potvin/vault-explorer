@@ -6,7 +6,6 @@ directory from being copied into the other repos as-is.
 """
 
 import os
-import re
 
 # `qc` is a user-facing label only. Every code written to a filename, a sidecar
 # or a backend request must be the ISO code.
@@ -26,48 +25,6 @@ def source_code(language):
     """Map an internal tag to the code the translation backend expects."""
     code = str(language or '').strip().lower()
     return 'fr' if code in _FRENCH_ALIASES else code
-
-
-# Language of a finished transcript. parakeet-tdt-0.6b-v3 picks the spoken
-# language itself but never reports it (NeMo-Speech.cpp only surfaces the
-# <lang> token that prompt-conditioned nemotron models emit), so the text it
-# wrote is the only evidence of its choice.
-#
-# High-frequency function words, with the ones shared across languages left
-# out (de, en, que, se, il, on, ...) so they cannot split the vote. Covers the
-# main languages parakeet-tdt-v3 transcribes; anything else keeps the caller's tag.
-_STOPWORDS = {
-    'en': "the and is are was were of to that it you this with for have not but what they be at",
-    'fr': "le la les des est et une qui pas dans pour sur avec ce cette mais nous vous ils c'est",
-    'es': "el los las del es y una por para con pero muy está como yo tú nosotros ellos",
-    'it': "gli della che è una non per con sono questo anche come io noi loro",
-    'pt': "os das dos é uma não em com mas muito está como eu você nós eles",
-    'de': "der die das und ist nicht ein eine ich wir sie mit auf für aber auch sich zu den",
-    'nl': "het een niet ik wij zij met op voor maar ook zijn dat van",
-    'pl': "w nie się na że jest to jak ale co tak już jestem jesteś",
-    'ru': "и в не на что я он она это как с по но мы вы они так же",
-    'uk': "і в не на що я він вона це як з по але ми ви вони так також",
-}
-_STOPWORD_SETS = {lang: set(words.split()) for lang, words in _STOPWORDS.items()}
-_WORD_RE = re.compile(r"[^\W\d_]+(?:'[^\W\d_]+)?", re.UNICODE)
-
-
-def detect_language(text, min_words=20, min_hits=8, margin=2.0):
-    """ISO code of the language *text* is written in, or None if unsure.
-
-    The winner needs *min_hits* stopword hits and *margin* times the runner-up,
-    so short or mixed transcripts keep the caller's tag instead of getting a
-    confident wrong one. Never returns ``qc``.
-    """
-    words = [w.lower() for w in _WORD_RE.findall(text or '')]
-    if len(words) < min_words:
-        return None
-    scores = sorted(((sum(1 for w in words if w in stop), lang)
-                     for lang, stop in _STOPWORD_SETS.items()), reverse=True)
-    (best, lang), (second, _) = scores[0], scores[1]
-    if best < min_hits or best < margin * second:
-        return None
-    return lang
 
 
 def format_timestamp(seconds):
