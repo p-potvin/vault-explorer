@@ -1,6 +1,6 @@
 {
   "name": "vault-explorer",
-  "version": "4.1.14",
+  "version": "4.1.15",
   "description": "Re-discover the joys of browsing your files on a christmas morning or a rainy tuesday at work.",
   "main": "main.js",
   "scripts": {
@@ -34,12 +34,9 @@
       "build/**",
       "python-scripts/**",
       "vault_explorer/**",
-      "tools/**",
       "scripts/**",
       "vaultwares-themes/**",
       "node_modules/**",
-      "!tools/models/*.nemo",
-      "!tools/models/parakeet-tdt-0.6b-v3/**",
       "!node_modules/electron/**",
       "!node_modules/electron-builder/**",
       "!node_modules/app-builder-lib/**",
@@ -48,17 +45,7 @@
       "!node_modules/@electron/rebuild/**",
       "!node_modules/dmg-builder/**"
     ],
-    "extraResources": [
-      {
-        "from": ".env",
-        "to": ".env",
-        "filter": [
-          ".env"
-        ]
-      }
-    ],
     "asarUnpack": [
-      "tools/**",
       "python-scripts/**",
       "vault_explorer/**"
     ],

@@ -394,9 +394,35 @@ function registerMediaIpc(ipcMain) {
 
     // ---------------------------------------------------------------------------
     // AI Image Enhancement — RealESRGAN super-resolution (ncnn-vulkan)
+    //
+    // The engine and its models are vault-commander's (cli/utils), the same ones
+    // `vw realesrgan-enhance` runs. Nothing AI is bundled with Vault Explorer.
     // ---------------------------------------------------------------------------
-    function resolveToolPath(...segments) {
-        return utils.resolveToolPath(...segments);
+    function findUpscaler() {
+        const cliDirs = [
+            process.env.VW_CLI,
+            path.join(__dirname, '..', '..', '..', 'vault-commander', 'cli'),
+            path.join(require('os').homedir(), 'Desktop', 'Github Repos', 'vault-commander', 'cli'),
+        ].filter(Boolean);
+        for (const cliDir of cliDirs) {
+            const exe = path.join(cliDir, 'utils', 'realesrgan-ncnn-vulkan.exe');
+            if (fs.existsSync(exe)) {
+                return { exe, modelsDir: path.join(cliDir, 'utils', 'models', 'upscalers') };
+            }
+        }
+        return null;
+    }
+
+    // ncnn loads a <name>.param + <name>.bin pair. The upscalers folder also
+    // holds .safetensors checkpoints (Nomos DAT, RealWebPhoto) that ncnn cannot
+    // read, so those are never picked.
+    function pickNcnnModel(modelsDir) {
+        let files = [];
+        try { files = fs.readdirSync(modelsDir); } catch (_) { return null; }
+        const pairs = files
+            .filter((f) => f.endsWith('.param') && files.includes(f.replace(/\.param$/, '.bin')))
+            .map((f) => f.replace(/\.param$/, ''));
+        return pairs.includes('realesrgan-x4plus') ? 'realesrgan-x4plus' : (pairs[0] || null);
     }
 
     ipcMain.handle('enhance-image-realesrgan', async (_event, filePath) => {
@@ -409,45 +435,32 @@ function registerMediaIpc(ipcMain) {
         const dir = path.dirname(filePath);
         const enhancedDir = path.join(dir, '.enhanced');
         const outputPath = path.join(enhancedDir, `${baseName}_realesrgan${ext}`);
-        const tempPath = outputPath + '.tmp';
+        // realesrgan-ncnn-vulkan picks the output format from the extension and
+        // rejects `.png.tmp` ("invalid outputpath extension type"), so the temp
+        // file keeps the real extension.
+        const tempPath = path.join(enhancedDir, `${baseName}_realesrgan.partial${ext}`);
 
         if (fs.existsSync(outputPath)) {
             cleanupTemp(tempPath);
             return { success: true, path: outputPath, skipped: true };
         }
 
+        const upscaler = findUpscaler();
+        if (!upscaler) {
+            return { success: false, error: 'Real-ESRGAN not found: clone vault-commander beside Vault Explorer, or set VW_CLI to its cli folder' };
+        }
+        const modelName = pickNcnnModel(upscaler.modelsDir);
+        if (!modelName) {
+            return { success: false, error: `No ncnn upscaler model (.param + .bin) in ${upscaler.modelsDir}` };
+        }
+        const toolPath = upscaler.exe;
+        const modelsDir = upscaler.modelsDir;
+        const toolsDir = path.dirname(toolPath);
+
         if (!fs.existsSync(enhancedDir)) {
             fs.mkdirSync(enhancedDir, { recursive: true });
         }
         cleanupTemp(tempPath);
-
-        const toolPath = resolveToolPath('realesrgan-ncnn-vulkan.exe');
-        if (!toolPath) {
-            return { success: false, error: 'RealESRGAN binary not found in tools/' };
-        }
-
-        const toolsDir = path.dirname(toolPath);
-        const modelsDir = path.join(toolsDir, 'models');
-        if (!fs.existsSync(path.join(modelsDir, 'realesrgan-x4plus.bin'))) {
-            return { success: false, error: 'RealESRGAN model not found at tools/models/realesrgan-x4plus.bin' };
-        }
-
-        // Check for any .safetensors or Nomos model in the same models directory
-        let modelName = 'realesrgan-x4plus';
-        try {
-            const files = fs.readdirSync(modelsDir);
-            const safetensorsFile = files.find(f => f.endsWith('.safetensors'));
-            const nomosFile = files.find(f => /Nomos/i.test(f) && f.endsWith('.bin'));
-            if (safetensorsFile) {
-                modelName = path.basename(safetensorsFile, '.safetensors');
-                console.log('[media.ipc:realesrgan] Found .safetensors model:', modelName);
-            } else if (nomosFile) {
-                modelName = path.basename(nomosFile, '.bin');
-                console.log('[media.ipc:realesrgan] Found Nomos model:', modelName);
-            }
-        } catch (e) {
-            console.warn('[media.ipc:realesrgan] Could not scan models directory:', e.message);
-        }
 
         try {
             await new Promise((resolve, reject) => {
