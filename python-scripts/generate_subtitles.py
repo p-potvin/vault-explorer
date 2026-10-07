@@ -9,7 +9,12 @@ encode of the file.
 
 Transcription goes through `vw better-subtitles` (via
 scripts/pwsh/Start-Subtitles.ps1) with the --separator chosen in Settings > AI
-(default rnnoise), so the cues match the ones the CLI produces. Projects that receive this file through sync-vw-media.ps1 have
+(default rnnoise), so the cues match the ones the CLI produces.
+
+--language is the language to translate *to*, not the spoken one: Parakeet
+identifies the spoken language by itself, and Riva translates the finished
+cues (`vw better-subtitles -TranslateTo`). The transcript is written as the
+default `<video>.srt` track, the translation as `<video>.<lang>.srt`. Projects that receive this file through sync-vw-media.ps1 have
 no vw CLI; they, and any vw failure, fall back to decoding a 16 kHz mono WAV and
 running vw_media.asr directly. VW_SUBTITLES_ENGINE=native forces the fallback.
 
@@ -17,7 +22,6 @@ running vw_media.asr directly. VW_SUBTITLES_ENGINE=native forces the fallback.
                                  [--output PATH] [--skip-existing]
 """
 
-import glob
 import os
 import shutil
 import subprocess
@@ -47,25 +51,32 @@ except ImportError:
 ACTION = "subtitles"
 
 
-def resolve_srt_targets(video_path, args, language):
-    """Where the SRT files for *language* should be written.
+def resolve_srt_targets(video_path, args, language=None):
+    """Where the SRT files go: the default track when *language* is None,
+    otherwise the `<video>.<language>.srt` track.
 
     Without ``--output`` we write beside the original and beside the enhanced
     copy (when one exists), so subtitles are found whichever version plays.
     """
+    base = os.path.splitext(os.path.basename(video_path))[0]
     if args.output:
         out = os.path.abspath(os.path.expanduser(args.output))
         if os.path.isdir(out) or args.output.endswith((os.sep, '/')):
-            base = os.path.splitext(os.path.basename(video_path))[0]
             os.makedirs(out, exist_ok=True)
-            return [os.path.join(out, f"{base}.{subtitles.external_code(language)}.srt")]
+            name = f"{base}.{subtitles.external_code(language)}.srt" if language else f"{base}.srt"
+            return [os.path.join(out, name)]
         os.makedirs(os.path.dirname(out), exist_ok=True)
         return [out]
 
     existing = state.load(video_path).get('enhancedPath')
     if not existing or not os.path.exists(existing):
         existing = None
-    return subtitles.sidecar_targets(video_path, existing, language, include_default=True)
+    if language:
+        return subtitles.sidecar_targets(video_path, existing, language, include_default=False)
+    bases = [os.path.splitext(video_path)[0]]
+    if existing and os.path.abspath(existing) != os.path.abspath(video_path):
+        bases.append(os.path.splitext(existing)[0])
+    return [f"{b}.srt" for b in bases]
 
 
 VW_ENGINE = "vw better-subtitles"
@@ -73,7 +84,8 @@ NATIVE_ENGINE = "vw_media.asr"
 
 # Start-BetterSubtitles.ps1 stage markers -> progress percent.
 _VW_STAGES = (("[ASR]", 30, "Transcribing (vw better-subtitles)..."),
-              ("[SRT]", 85, "Transcript ready"))
+              ("[SRT]", 80, "Transcript ready"),
+              ("[TRANS]", 84, "Translating (Riva)..."))
 
 
 def find_subtitles_delegator():
@@ -85,12 +97,14 @@ def find_subtitles_delegator():
 SEPARATORS = ("rnnoise", "mel_band_roformer", "bs_roformer", "htdemucs", "none")
 
 
-def transcribe_via_vw(video_path, language, work_dir, separator="rnnoise"):
-    """Run `vw better-subtitles -Separator <separator>` on *video_path*.
+def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise"):
+    """Run `vw better-subtitles -Separator <separator> [-TranslateTo <lang>]`.
 
-    Returns segment dicts, or None when the vw CLI is unavailable or produced
-    no SRT. Start-BetterSubtitles.ps1 reports per-file failures but still exits
-    0, so the SRT on disk is the only reliable success signal.
+    Returns ``(transcript, translation)`` segment lists (translation is None
+    when none was requested or Riva failed), or None when the vw CLI is
+    unavailable or produced no transcript. Start-BetterSubtitles.ps1 reports
+    per-file failures but still exits 0, so the SRTs on disk are the only
+    reliable success signal.
     """
     delegator = find_subtitles_delegator()
     shell = shutil.which("pwsh") or shutil.which("powershell")
@@ -99,12 +113,11 @@ def transcribe_via_vw(video_path, language, work_dir, separator="rnnoise"):
 
     cmd = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", delegator,
            "-Target", video_path, "-OutputDir", work_dir, "-Separator", separator]
+    if translate_to:
+        cmd += ["-TranslateTo", translate_to]
     model = os.environ.get("VW_ASR_MODEL")
     if model:
         cmd += ["-Model", model]
-        # Only the nemotron models take a language prompt.
-        if model.startswith("nemotron") and language:
-            cmd += ["-Language", language]
 
     tail = []
     try:
@@ -125,15 +138,32 @@ def transcribe_via_vw(video_path, language, work_dir, separator="rnnoise"):
         return None
     returncode = proc.returncode
 
-    produced = glob.glob(os.path.join(work_dir, "*.srt"))
-    if not produced:
+    stem = os.path.splitext(os.path.basename(video_path))[0]
+    transcript_srt = os.path.join(work_dir, f"{stem}.srt")
+    if not os.path.isfile(transcript_srt):
         log(ACTION, f"vw better-subtitles produced no SRT (exit {returncode}): "
                     + " | ".join(tail))
         return None
-    return subtitles.read_srt(produced[0])
+    translation = None
+    if translate_to:
+        translated_srt = os.path.join(work_dir, f"{stem}.{translate_to}.srt")
+        if os.path.isfile(translated_srt):
+            translation = subtitles.read_srt(translated_srt) or None
+            transcript = subtitles.read_srt(transcript_srt)
+            # Riva hands text back unchanged when the pair it was given is a
+            # no-op (e.g. -TranslateTo en with vw's default source of en on
+            # French audio). Writing that as <video>.en.srt would label the
+            # untranslated transcript as English.
+            if translation and [c["text"] for c in translation] == [c["text"] for c in transcript]:
+                log(ACTION, f"Riva returned the transcript unchanged for '{translate_to}'; "
+                            "not writing it as a translated track")
+                translation = None
+        else:
+            log(ACTION, f"Riva produced no '{translate_to}' track: " + " | ".join(tail))
+    return subtitles.read_srt(transcript_srt), translation
 
 
-def transcribe_native(video_path, language, duration, work_dir):
+def transcribe_native(video_path, duration, work_dir):
     wav_path = os.path.join(work_dir, "audio.wav")
     media.extract_audio(
         video_path, wav_path,
@@ -141,25 +171,29 @@ def transcribe_native(video_path, language, duration, work_dir):
         duration=duration)
     report_progress(22, "Loading speech recognition model...")
     return asr.transcribe(
-        wav_path, language=language,
-        status_callback=lambda msg: report_progress(26, msg))
+        wav_path, status_callback=lambda msg: report_progress(26, msg))
 
 
-def transcribe(video_path, language, duration, work_dir, separator="rnnoise"):
-    """Returns (segments, engine)."""
+def transcribe(video_path, translate_to, duration, work_dir, separator="rnnoise"):
+    """Returns (transcript, translation, engine)."""
     if os.environ.get("VW_SUBTITLES_ENGINE", "").lower() != "native":
         report_progress(10, f"Starting vw better-subtitles ({separator})...")
-        segments = transcribe_via_vw(video_path, language, work_dir, separator)
-        if segments is not None:
-            return segments, VW_ENGINE
+        result = transcribe_via_vw(video_path, translate_to, work_dir, separator)
+        if result is not None:
+            transcript, translation = result
+            return transcript, translation, VW_ENGINE
         report_progress(12, "vw better-subtitles unavailable, using built-in ASR...")
-    return transcribe_native(video_path, language, duration, work_dir), NATIVE_ENGINE
+    # The built-in path has no translator; it produces the transcript only.
+    return transcribe_native(video_path, duration, work_dir), None, NATIVE_ENGINE
 
 
 def process_one(video_path, args, _output_path):
     media.require_streams(video_path, need_video=False, need_audio=True)
 
-    language = subtitles.source_code(args.language)
+    # Translation target. `qc` is a UI label; Riva gets the ISO code.
+    translate_to = subtitles.source_code(args.language)
+    if translate_to in ("", "und", "original", "none"):
+        translate_to = None
     duration = media.get_video_duration(video_path)
 
     emit_status("STARTING", path=video_path)
@@ -173,38 +207,41 @@ def process_one(video_path, args, _output_path):
             with ModelRun(provider="local", runtime="nemo-speech",
                           model=os.environ.get("VW_ASR_MODEL") or asr.NEMO_SPEECH_MODEL,
                           task="audio-asr", project="vault-explorer") as run:
-                segments, engine = transcribe(video_path, language, duration, work_dir, args.separator)
+                segments, translation, engine = transcribe(
+                    video_path, translate_to, duration, work_dir, args.separator)
                 run.set(engine=engine, separator=args.separator)
                 if segments:
                     run.set(audio_seconds=duration, completion_chars=sum(len(s.get("text", "")) for s in segments))
         else:
-            segments, engine = transcribe(video_path, language, duration, work_dir, args.separator)
+            segments, translation, engine = transcribe(
+                video_path, translate_to, duration, work_dir, args.separator)
         log(ACTION, f"Transcribed with {engine}")
 
         if not segments:
             raise RuntimeError("No speech was recognised in this file")
 
-        # --language is what the user picked, not what was spoken: Parakeet
-        # transcribes whatever language it hears and ignores the tag. Label the
-        # track with the language of the text it actually produced.
-        detected = subtitles.detect_language(" ".join(s.get("text", "") for s in segments))
-        spoken = detected or language
-        if detected and detected != language:
-            log(ACTION, f"Requested '{language}' but transcript is '{detected}'; tagging as '{detected}'")
+        if translate_to and translation is None:
+            log(ACTION, f"No '{translate_to}' translation available; wrote the transcript only")
 
         report_progress(88, "Writing subtitle tracks...")
         written = []
-        for target in resolve_srt_targets(video_path, args, spoken):
-            subtitles.write_srt(target, segments)
-            written.append(target)
-            log(ACTION, f"Wrote {target}")
+        tracks = [(None, segments)]
+        if translation:
+            tracks.append((translate_to, translation))
+        if args.output and not (os.path.isdir(args.output) or args.output.endswith((os.sep, '/'))):
+            tracks = tracks[-1:]  # one explicit file: the best track
+        for lang, segs in tracks:
+            for target in resolve_srt_targets(video_path, args, lang):
+                subtitles.write_srt(target, segs)
+                written.append(target)
+                log(ACTION, f"Wrote {target}")
 
         report_progress(96, "Recording enhancement state...")
         state.mark(video_path, ACTION,
-                   languages=[subtitles.external_code(spoken)],
-                   params={"language": spoken, "requested_language": language,
-                           "detected": bool(detected), "segments": len(segments),
-                           "engine": engine, "separator": args.separator},
+                   languages=[subtitles.external_code(translate_to)] if translation else [],
+                   params={"translate_to": translate_to, "translated": bool(translation),
+                           "segments": len(segments), "engine": engine,
+                           "separator": args.separator},
                    outputs=written)
 
         report_progress(100, f"Subtitles generated ({len(segments)} cues)")
@@ -218,8 +255,8 @@ def main():
     parser = cli.build_parser(
         "Generate subtitles: transcribe speech to SRT sidecars", ACTION)
     parser.add_argument("--language", default="en",
-                        help="Fallback language tag, used only when the transcript's "
-                             "language cannot be detected (default: en)")
+                        help="Language to translate the subtitles to with Riva; the spoken "
+                             "language is identified by Parakeet (default: en)")
     parser.add_argument("--separator", default="rnnoise", choices=SEPARATORS,
                         help="Audio cleanup before transcription, passed to vw better-subtitles "
                              "-Separator (default: rnnoise)")
