@@ -12,10 +12,21 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
     const grid = el('favorites-grid');
     if (!grid) return;
     const settings = window.appSettings || {};
-    const favorites = Array.isArray(settings.favorites)
+    let favorites = Array.isArray(settings.favorites)
         ? settings.favorites.filter(pathValue => typeof pathValue === 'string' && pathValue.trim() && !pathValue.startsWith('virtual://'))
         : [];
     settings.favorites = favorites;
+
+    if (favorites.length && (!useCache || !Array.isArray(window.favoriteLocalItems))) {
+        const requested = favorites.slice();
+        const present = new Set(await window.electronAPI.filterExistingPaths(requested));
+        const gone = new Set(requested.filter(p => !present.has(p)).map(_normFavPath));
+        if (gone.size) {
+            favorites = (settings.favorites || []).filter(p => !gone.has(_normFavPath(p)));
+            settings.favorites = (settings.favorites || []).filter(p => !gone.has(_normFavPath(p)));
+            await window.electronAPI.saveSettings(settings);
+        }
+    }
 
     if (!favorites.length) {
         const t = window.translations[window.currentLang] || {};

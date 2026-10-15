@@ -41,7 +41,15 @@ function loadSettings() {
     return { folders: [], mutePreviews: false, singleInstance: false, globExclusions: DEFAULT_GLOB_EXCLUSIONS, globExclusionsSeeded: true };
 }
 
-async function saveSettings(settings) {
+let settingsWriteQueue = Promise.resolve();
+
+function saveSettings(settings) {
+    const run = settingsWriteQueue.then(() => writeSettings(settings));
+    settingsWriteQueue = run.catch(() => { });
+    return run;
+}
+
+async function writeSettings(settings) {
     const settingsPath = getSettingsPath();
     try {
         const dir = path.dirname(settingsPath);
@@ -53,8 +61,17 @@ async function saveSettings(settings) {
                 await fs.promises.copyFile(settingsPath, settingsPath + '.bak');
             } catch (_) { }
         }
-        await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
-        return true;
+        const json = JSON.stringify(settings, null, 2);
+        for (let attempt = 1; ; attempt++) {
+            try {
+                await fs.promises.writeFile(settingsPath, json, 'utf8');
+                return true;
+            } catch (e) {
+                // Windows locks the file while antivirus, indexers or sync clients hold it.
+                if (!['EBUSY', 'EPERM', 'EACCES'].includes(e.code) || attempt >= 10) throw e;
+                await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+            }
+        }
     } catch (e) {
         console.error('[saveSettings] Failed to save settings:', e);
         return false;

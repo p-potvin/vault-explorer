@@ -231,6 +231,7 @@ async function initApp() {
                 { path: 'C:\\MockVault\\Stunning View.jpg', name: 'Stunning View.jpg', type: 'image', thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80', hoverWebm: '', size: 2048576, mtime: Date.now() - 3600000, mtimeFormatted: '2026-05-18 11:00' }
             ],
             scanSpecificFiles: async (arr) => [],
+            filterExistingPaths: async (arr) => arr,
             getEverythingSize: async (dirPath) => 1073741824,
             getTrickplaySprites: async (folder) => [],
             getFileSize: async (p) => 1073741824,

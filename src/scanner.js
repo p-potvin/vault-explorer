@@ -253,6 +253,15 @@ function registerScannerHandlers(ipcMain) {
         const safe = Array.isArray(pathsArray) ? pathsArray.filter(file => typeof file === 'string' && file.trim()) : [];
         return safe.length ? _processFileNodes(safe, new Set(safe.map(file => file.toLowerCase())), null) : [];
     });
+
+    ipcMain.handle('filter-existing-paths', async (_event, pathsArray) => {
+        const safe = Array.isArray(pathsArray) ? pathsArray.filter(file => typeof file === 'string' && file.trim()) : [];
+        // A file is only treated as gone when its drive or share root is reachable;
+        // an unmounted volume must not erase its favorites.
+        const present = await Promise.all(safe.map(async (file) =>
+            (await exists(file)) || !(await exists(path.parse(file).root))));
+        return safe.filter((_, index) => present[index]);
+    });
 }
 
 module.exports = { findVideosAsync, _processFileNodes, globToRegex, registerScannerHandlers };

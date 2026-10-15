@@ -12,6 +12,23 @@ window.autoplayEnabled = (window.autoplayMode !== 'off');
 const PLAY_ICON_SVG = window.icons ? window.icons.play('', 'width:16px; height:16px; display:block;') : '';
 const PAUSE_ICON_SVG = window.icons ? window.icons.pause('', 'width:16px; height:16px; display:block;') : '';
 
+const VIDEO_VOLUME_BOOST = 2;
+let videoAudioCtx = null;
+
+function ensureVideoVolumeBoost(video) {
+    if (videoAudioCtx || !window.AudioContext) return;
+    try {
+        const ctx = new AudioContext();
+        const gain = ctx.createGain();
+        gain.gain.value = VIDEO_VOLUME_BOOST;
+        ctx.createMediaElementSource(video).connect(gain).connect(ctx.destination);
+        videoAudioCtx = ctx;
+        video.addEventListener('play', () => { if (ctx.state === 'suspended') ctx.resume(); });
+    } catch (e) {
+        console.warn('[player] volume boost unavailable:', e.message);
+    }
+}
+
 function getItemDirectory(itemPath) {
     if (typeof itemPath !== 'string') return '';
     const separator = Math.max(itemPath.lastIndexOf('\\'), itemPath.lastIndexOf('/'));
@@ -898,6 +915,7 @@ function initPlayer() {
         volSlider.value = 1.0;
     }
     updateVolumeIconUI(vp.volume);
+    ensureVideoVolumeBoost(vp);
 
     volSlider.addEventListener('input', (e) => {
         const v = parseFloat(e.target.value);
