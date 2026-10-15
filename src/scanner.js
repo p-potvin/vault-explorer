@@ -253,6 +253,12 @@ function registerScannerHandlers(ipcMain) {
         const safe = Array.isArray(pathsArray) ? pathsArray.filter(file => typeof file === 'string' && file.trim()) : [];
         return safe.length ? _processFileNodes(safe, new Set(safe.map(file => file.toLowerCase())), null) : [];
     });
+
+    ipcMain.handle('filter-existing-paths', async (_event, pathsArray) => {
+        const safe = Array.isArray(pathsArray) ? pathsArray.filter(file => typeof file === 'string' && file.trim()) : [];
+        const present = await Promise.all(safe.map(exists));
+        return safe.filter((_, index) => present[index]);
+    });
 }
 
 module.exports = { findVideosAsync, _processFileNodes, globToRegex, registerScannerHandlers };

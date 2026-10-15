@@ -225,7 +225,11 @@ window.initSettingsListeners = function initSettingsListeners() {
                 window.appSettings.aiSeparator = el('settings-ai-separator').value;
                 delete window.appSettings.aiSeparate;
             }
-            await window.electronAPI.saveSettings(window.appSettings);
+            const saved = await window.electronAPI.saveSettings(window.appSettings);
+            if (!saved) {
+                showToast(window.currentLang === 'fr' ? 'Impossible d’enregistrer : fichier de paramètres verrouillé' : 'Could not save: settings file is locked', 'error');
+                return;
+            }
             showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
             closeSettings();
 

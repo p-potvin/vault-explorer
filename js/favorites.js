@@ -12,10 +12,19 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
     const grid = el('favorites-grid');
     if (!grid) return;
     const settings = window.appSettings || {};
-    const favorites = Array.isArray(settings.favorites)
+    let favorites = Array.isArray(settings.favorites)
         ? settings.favorites.filter(pathValue => typeof pathValue === 'string' && pathValue.trim() && !pathValue.startsWith('virtual://'))
         : [];
     settings.favorites = favorites;
+
+    if (!useCache || !Array.isArray(window.favoriteLocalItems)) {
+        const existing = await window.electronAPI.filterExistingPaths(favorites);
+        if (existing.length !== favorites.length) {
+            favorites = existing;
+            settings.favorites = existing;
+            await window.electronAPI.saveSettings(settings);
+        }
+    }
 
     if (!favorites.length) {
         const t = window.translations[window.currentLang] || {};
