@@ -67,12 +67,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // | 'translation' to undo a single enhancement.
   revertEnhancements: (p, action) => ipcRenderer.invoke('revert-enhancements', { path: p, action }),
 
-  // Live streaming ASR subtitles (Parakeet)
-  warmLiveSubtitles: () => ipcRenderer.invoke('warm-live-subtitles'),
+  // AI subtitles (vw better-subtitles)
   startLiveSubtitles: (data) => ipcRenderer.invoke('start-live-subtitles', data),
   stopLiveSubtitles: () => ipcRenderer.invoke('stop-live-subtitles'),
-  onLiveSubtitleCue: (cb) => ipcRenderer.on('live-subtitle-cue', (_, data) => cb(data)),
-  offLiveSubtitleCue: () => ipcRenderer.removeAllListeners('live-subtitle-cue'),
   onLiveSubtitleStatus: (cb) => ipcRenderer.on('live-subtitle-status', (_, data) => cb(data)),
   offLiveSubtitleStatus: () => ipcRenderer.removeAllListeners('live-subtitle-status'),
 

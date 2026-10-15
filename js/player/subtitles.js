@@ -491,10 +491,9 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
     });
 }
 
-// ── Live streaming ASR subtitles (Parakeet) ─────────────────────────────────
-// Starts a background transcription that streams VTTCues onto the <video> in
-// real time while the file plays, and writes an .srt sidecar on the Python
-// side. Cues carry absolute timestamps so they stay in sync with currentTime.
+// ── AI subtitles (vw better-subtitles) ──────────────────────────────────────
+// Generates <video>.srt with the vw CLI, then selects it through the same path
+// as any loaded subtitle, so AI subtitles are styled and positioned identically.
 
 const _liveNormPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
 
@@ -515,16 +514,14 @@ function updateLiveSubButton(active) {
     if (span) span.textContent = active ? 'Stop Live Subtitles' : 'Live Subtitles (AI)';
 }
 
-function startLiveSubtitleSession(videoPath, itemName, langs, volumeBoost) {
+function startLiveSubtitleSession(videoPath, itemName) {
     const vp = el('video-player');
     if (!vp) return;
 
-    // Tear down any prior live track before starting a fresh take.
-    window.stopLiveSubtitles(true);
+    window.stopLiveSubtitles();
 
-    // AI subtitles are exclusive: unload any loaded SRT/VTT tracks so we never
-    // render two overlapping subtitle streams. The AI sidecar (.srt) it writes
-    // will overwrite the previous one for this file.
+    // AI subtitles are exclusive: unload loaded tracks now, and the generated
+    // sidecar replaces them when it is ready.
     const hadLoaded = vp.querySelectorAll('track').length > 0;
     vp.querySelectorAll('track').forEach(t => t.remove());
     for (let i = 0; i < vp.textTracks.length; i++) vp.textTracks[i].mode = 'disabled';
@@ -532,155 +529,66 @@ function startLiveSubtitleSession(videoPath, itemName, langs, volumeBoost) {
     if (hadLoaded) window.showToast('Replaced the loaded subtitles with AI subtitles.', 'info');
 
     ensureLiveSubtitleListeners();
-
-    const primaryLang = (langs && langs[0]) || 'en';
-    const startTime = Math.max(0, (vp.currentTime || 0) - 1.0);
-
-    // Use a real track element so the live track can be removed cleanly when
-    // switching videos or returning to a local sidecar.
-    const trackElement = document.createElement('track');
-    trackElement.kind = 'subtitles';
-    trackElement.label = `AI Live (${primaryLang.toUpperCase()})`;
-    trackElement.srclang = primaryLang;
-    const trackUrl = URL.createObjectURL(new Blob(['WEBVTT\\n\\n'], { type: 'text/vtt' }));
-    trackElement.src = trackUrl;
-    vp.appendChild(trackElement);
-    const track = trackElement.track;
-    track.mode = 'showing';
-
-    window._liveSubTrack = track;
-    window._liveSubTrackElement = trackElement;
-    window._liveSubTrackUrl = trackUrl;
-    window._liveSubVideoPath = videoPath;
     window._liveSubActive = true;
+    window._liveSubVideoPath = videoPath;
     window._selectedSubtitleIdx = -1;
 
-    // The picked primary language is the desired output language: transcribe in
-    // the spoken language (auto-detected) and translate finals to it. Same-lang
-    // is a near-passthrough.
-    const translateTo = primaryLang;
-
-    console.log('[live-subs] session start', { videoPath, primaryLang, translateTo, langs, volumeBoost, startTime: startTime.toFixed(2) });
-
     updateLiveSubButton(true);
-    window.showToast(`Live subtitles started for "${itemName}" (${primaryLang.toUpperCase()})…`, 'success');
+    window.showToast(`Generating AI subtitles for "${itemName}"…`, 'success');
 
-    window.electronAPI.startLiveSubtitles({
-        videoPath,
-        langs,
-        volumeBoost,
-        startTime,
-        translateTo,
-    }).then((res) => {
+    const separator = typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise';
+    window.electronAPI.startLiveSubtitles({ videoPath, separator }).then((res) => {
         if (!res || !res.success) {
-            window.showToast('Live subtitles failed to start: ' + ((res && res.error) || 'unknown'), 'error');
-            window.stopLiveSubtitles(true);
+            window.showToast('AI subtitles failed to start: ' + ((res && res.error) || 'unknown'), 'error');
+            window.stopLiveSubtitles();
         }
     }).catch((err) => {
-        window.showToast('Live subtitles failed to start: ' + err.message, 'error');
-        window.stopLiveSubtitles(true);
+        window.showToast('AI subtitles failed to start: ' + err.message, 'error');
+        window.stopLiveSubtitles();
     });
 }
 
-// Stops the Python process and (optionally) removes the in-memory live track.
-window.stopLiveSubtitles = function stopLiveSubtitles(clearTrack) {
-    if (window._liveSubActive || window._liveSubTrack) {
-        console.log('[live-subs] stop', { clearTrack: !!clearTrack, cues: window._liveSubTrack && window._liveSubTrack.cues ? window._liveSubTrack.cues.length : 0 });
+// Cancels a running generation. Loaded subtitle tracks are left alone.
+window.stopLiveSubtitles = function stopLiveSubtitles() {
+    if (window._liveSubActive) {
+        console.log('[live-subs] stop');
         try { window.electronAPI.stopLiveSubtitles(); } catch (e) { /* noop */ }
     }
     window._liveSubActive = false;
-
-    if (clearTrack && window._liveSubTrack) {
-        try {
-            window._liveSubTrack.mode = 'disabled';
-            // Drop cues so a stale track can't linger over the next video.
-            const cues = window._liveSubTrack.cues;
-            if (cues) {
-                for (let i = cues.length - 1; i >= 0; i--) {
-                    window._liveSubTrack.removeCue(cues[i]);
-                }
-            }
-        } catch (e) { /* noop */ }
-        if (window._liveSubTrackElement) window._liveSubTrackElement.remove();
-        if (window._liveSubTrackUrl) {
-            try { URL.revokeObjectURL(window._liveSubTrackUrl); } catch (_) { }
-        }
-        window._liveSubTrack = null;
-        window._liveSubTrackElement = null;
-        window._liveSubTrackUrl = null;
-        window._liveSubVideoPath = null;
-        window._livePartialCue = null;
-        window._lastLiveCue = null;
-    }
+    window._liveSubVideoPath = null;
     updateLiveSubButton(false);
 };
+
+// Reloads the sidecar list and selects the generated file by name.
+async function selectGeneratedSubtitle(videoPath, srtPath) {
+    await loadActiveSubtitles(videoPath);
+    const name = (srtPath.split(/[\\/]/).pop() || '').replace(/\.srt$/i, '').toLowerCase();
+    const idx = (window._allAvailableSubtitles || []).findIndex((sub) => {
+        const file = _liveNormPath(sub.path).split('/').pop();
+        return file === `${name}.srt` || file === `${name}.vtt`;
+    });
+    if (idx >= 0) selectSubtitleByIndex(idx);
+}
 
 let _liveListenersBound = false;
 function ensureLiveSubtitleListeners() {
     if (_liveListenersBound) return;
     _liveListenersBound = true;
 
-    window.electronAPI.onLiveSubtitleCue((cue) => {
-        if (!window._liveSubActive || !window._liveSubTrack) return;
-        if (_liveNormPath(cue.videoPath) !== _liveNormPath(window._liveSubVideoPath)) return;
-        if (cue.partial) return; // finals only
-        try {
-            const track = window._liveSubTrack;
-            const MIN_DISPLAY = 1.6;                       // keep short lines readable
-            const off = window._subtitleOffset || 0;       // user sync nudge (±0.25s)
-            const s = Math.max(0, cue.start + off);
-            const e = Math.max(s + MIN_DISPLAY, cue.end + off);
-
-            // Trim the previous cue so an extended line doesn't overlap the next.
-            if (window._lastLiveCue && window._lastLiveCue.endTime > s) {
-                window._lastLiveCue.endTime = Math.max(window._lastLiveCue.startTime + 0.1, s);
-            }
-            const vtt = new VTTCue(s, e, cue.text);
-            track.addCue(vtt);
-            window._lastLiveCue = vtt;
-
-            const vp = el('video-player');
-            console.log(`[live-subs] +FINAL [${s.toFixed(2)}-${e.toFixed(2)}] "${cue.text}" ` +
-                `(playhead=${vp ? vp.currentTime.toFixed(1) : '?'}s, offset=${off.toFixed(2)}s, cues=${track.cues ? track.cues.length : '?'})`);
-        } catch (e) {
-            console.warn('[live-subs] addCue failed', cue, e);
-        }
-    });
-
-    window.electronAPI.onLiveSubtitleStatus((s) => {
-        // Model-download / daemon-lifecycle events aren't tied to a video.
-        if (s.status === 'downloading') {
-            const pct = s.percent || 0;
-            const btn = el('btn-subtitles');
-            if (btn) btn.innerHTML = `<span style="color:var(--vault-gold);">DL ${pct}%</span>`;
-            if (pct === 0 || pct % 25 === 0) {
-                window.showToast(`Downloading AI subtitle model… ${pct}% (${s.receivedMB || 0}/${s.totalMB || 0} MB)`, 'info');
-            }
-            return;
-        }
-        if (s.status === 'downloaded') { window.showToast('Model downloaded — starting…', 'success'); return; }
-        if (s.status === 'download-failed') {
-            window.showToast('Model download failed: ' + (s.error || 'unknown'), 'error');
-            window.stopLiveSubtitles(true);
-            return;
-        }
-        if (s.status === 'loading' || s.status === 'ready' || s.status === 'error') {
-            console.log('[live-subs] daemon', s.status, s.message || '');
-            return;
-        }
-
-        // Session events must match the active video.
+    window.electronAPI.onLiveSubtitleStatus(async (s) => {
         if (_liveNormPath(s.videoPath) !== _liveNormPath(window._liveSubVideoPath)) return;
         console.log('[live-subs] status', s);
         if (s.status === 'started') { updateLiveSubButton(true); return; }
-        if (s.final) {
-            if (s.status === 'SUCCESS') {
-                window.showToast(`Live subtitles finished — ${s.cues || 0} cues written to sidecar.`, 'success');
-            } else if (s.status === 'FAILED') {
-                window.showToast('Live subtitles error: ' + (s.error || 'unknown'), 'error');
-            }
-            window._liveSubActive = false;
-            updateLiveSubButton(false);
+        if (!s.final) return;
+
+        window._liveSubActive = false;
+        window._liveSubVideoPath = null;
+        updateLiveSubButton(false);
+        if (s.status === 'SUCCESS') {
+            window.showToast(`AI subtitles ready — ${s.cues || 0} cues.`, 'success');
+            await selectGeneratedSubtitle(s.videoPath, s.srtPath);
+        } else if (s.status === 'FAILED') {
+            window.showToast('AI subtitles error: ' + (s.error || 'unknown'), 'error');
         }
     });
 }
@@ -812,7 +720,7 @@ function initSubtitleListeners() {
                 await window.electronAPI.saveSettings(window.appSettings);
             }
 
-            startLiveSubtitleSession(videoPath, itemName, langs, volumeBoost);
+            startLiveSubtitleSession(videoPath, itemName);
         });
     }
 
