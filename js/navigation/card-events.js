@@ -204,17 +204,24 @@ async function handleCardContextMenu(card, item, index) {
         const res = window.vf.addItems(folderId, selectedItems);
         if (res.added > 0) {
             window.showToast(`Added ${res.added} item(s) to "${folder.name}"`, 'success');
-            const keepPaths = new Set(selectedItems.map(si => si.path));
-            window.applyFilters();
-            window.selectedIndices.clear();
-            window.displayedItems.forEach((si, idx) => { if (keepPaths.has(si.path)) window.selectedIndices.add(idx); });
-            document.querySelectorAll('.file-card').forEach(c => {
-                const isSel = window.selectedIndices.has(parseInt(c.dataset.index));
-                c.classList.toggle('selected', isSel);
-                const cb = c.querySelector('.file-checkbox');
-                if (cb) cb.checked = isSel;
-            });
-            window.updateStatusBar();
+            const viewing = typeof window.getTargetFolder === 'function' ? window.getTargetFolder() : null;
+            if (viewing && viewing.id === folderId) {
+                const keepPaths = new Set(selectedItems.map(si => si.path));
+                window.applyFilters();
+                window.selectedIndices.clear();
+                window.displayedItems.forEach((si, idx) => { if (keepPaths.has(si.path)) window.selectedIndices.add(idx); });
+                document.querySelectorAll('.file-card').forEach(c => {
+                    const isSel = window.selectedIndices.has(parseInt(c.dataset.index));
+                    c.classList.toggle('selected', isSel);
+                    const cb = c.querySelector('.file-checkbox');
+                    if (cb) cb.checked = isSel;
+                });
+                window.updateStatusBar();
+            } else if (window.currentTab === 'music' && typeof window.renderAudio === 'function') {
+                window.renderAudio();
+            } else if (window.currentTab === 'photoalbums' && typeof window.renderAlbums === 'function') {
+                window.renderAlbums();
+            }
         } else if (res.rejected > 0) {
             const want = folder.type === 'album' ? 'images' : folder.type === 'playlist' ? 'audio files' : 'videos';
             window.showToast(`"${folder.name}" only accepts ${want}`, 'error');
