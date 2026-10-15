@@ -140,10 +140,10 @@ window.switchTab = function (tabName, options = {}) {
                 const otherTabFolders = [s.defaultFolderAudio, s.defaultFolderAlbums, s.defaultFolderDebrids].filter(Boolean);
                 const lp = s.lastPath && s.lastPath.realPath && !otherTabFolders.includes(s.lastPath.realPath)
                     ? s.lastPath : null;
-                if (s.defaultFolder) {
-                    window.loadDirectory('root/' + s.defaultFolder.split(/[\\/]/).pop(), s.defaultFolder, true);
-                } else if (lp) {
+                if (lp) {
                     window.loadDirectory(lp.navPath, lp.realPath, true, lp.folderId);
+                } else if (window.appSettings.defaultFolder) {
+                    window.loadDirectory('root/' + window.appSettings.defaultFolder.split(/[\\/]/).pop(), window.appSettings.defaultFolder, true);
                 } else {
                     window.loadDirectory('root', '', true);
                 }

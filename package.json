@@ -4,7 +4,7 @@
   "description": "Re-discover the joys of browsing your files on a christmas morning or a rainy tuesday at work.",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/start.js",
     "dist": "electron-builder",
     "test": "node tests/run_all_tests.js"
   },
