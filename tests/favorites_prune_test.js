@@ -12,7 +12,7 @@ const present = path.join(tempDir, 'present.mp4');
 const missing = path.join(tempDir, 'gone.mp4');
 fs.writeFileSync(present, 'x');
 
-async function runRender(favorites, { saveResult = true } = {}) {
+async function runRender(favorites, { saveResult = true, duringCheck = null } = {}) {
     const saved = [];
     const shown = [];
     const settings = { favorites: [...favorites] };
@@ -24,7 +24,10 @@ async function runRender(favorites, { saveResult = true } = {}) {
             translations: { en: {} },
             displayedItems: [],
             electronAPI: {
-                filterExistingPaths: async (paths) => paths.filter((p) => fs.existsSync(p)),
+                filterExistingPaths: async (paths) => {
+                    if (duringCheck) duringCheck(settings);
+                    return paths.filter((p) => fs.existsSync(p));
+                },
                 scanSpecificFiles: async (paths) => paths.map((p) => ({ name: path.basename(p), path: p, type: 'video' })),
                 saveSettings: async (value) => { saved.push(JSON.parse(JSON.stringify(value))); return saveResult; },
             },
@@ -52,6 +55,15 @@ async function runRender(favorites, { saveResult = true } = {}) {
     const allGone = await runRender([missing]);
     assert.deepEqual(allGone.settings.favorites, [], 'all-missing favorites are emptied');
     assert.equal(allGone.saved.length, 1, 'emptied favorites are persisted');
+
+    const racing = await runRender([present, missing], {
+        duringCheck: (settings) => settings.favorites.push(path.join(tempDir, 'starred-while-checking.mp4')),
+    });
+    assert.deepEqual(racing.settings.favorites, [present, path.join(tempDir, 'starred-while-checking.mp4')],
+        'a favorite starred during the existence check must survive the cleanup');
+
+    const none = await runRender([]);
+    assert.equal(none.saved.length, 0, 'an empty favorites list makes no existence check or save');
 
     console.log('Favorites prune: ok');
 })().catch((error) => {

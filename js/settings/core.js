@@ -169,12 +169,13 @@ window.initSettingsListeners = function initSettingsListeners() {
     const btnSave = el('settings-btn-save');
     if (btnSave) {
         btnSave.addEventListener('click', async () => {
+            const draft = { ...window.appSettings };
             const rawInput = document.getElementById('pill-tag-input-glob');
             if (rawInput && rawInput.value.trim()) { pillTagAdd(rawInput.value); rawInput.value = ''; }
 
             // Capture old structural values before updating window.appSettings
-            const oldGlobExclusions = JSON.stringify(window.appSettings.globExclusions || []);
-            const oldDefaultFolder = window.appSettings.defaultFolder || '';
+            const oldGlobExclusions = JSON.stringify(draft.globExclusions || []);
+            const oldDefaultFolder = draft.defaultFolder || '';
 
             const newGlobExclusions = pillTagGetValues();
             const newDefaultFolder = el('settings-default-folder').value.trim();
@@ -183,53 +184,54 @@ window.initSettingsListeners = function initSettingsListeners() {
                 JSON.stringify(newGlobExclusions) !== oldGlobExclusions ||
                 newDefaultFolder !== oldDefaultFolder;
 
-            window.appSettings.globExclusions = newGlobExclusions;
-            window.appSettings.defaultFolder = newDefaultFolder;
-            window.appSettings.defaultTheme = el('settings-default-theme').value;
+            draft.globExclusions = newGlobExclusions;
+            draft.defaultFolder = newDefaultFolder;
+            draft.defaultTheme = el('settings-default-theme').value;
             const chosenLang = el('settings-default-lang').value;
-            window.appSettings.defaultLang = chosenLang;
-            window.appSettings.lang = chosenLang;
+            draft.defaultLang = chosenLang;
+            draft.lang = chosenLang;
             if (typeof window.setLanguage === 'function') window.setLanguage(chosenLang);
-            window.appSettings.defaultSubLang = el('settings-default-sub-lang').value;
-            window.appSettings.playbackSort = el('settings-playback-sort').value;
+            draft.defaultSubLang = el('settings-default-sub-lang').value;
+            draft.playbackSort = el('settings-playback-sort').value;
 
             const subSize = el('settings-sub-font-size').value;
-            window.appSettings.subFontSize = subSize;
+            draft.subFontSize = subSize;
             document.documentElement.style.setProperty('--sub-font-size', subSize);
 
-            window.appSettings.rememberPosition = el('settings-remember-position').checked;
-            window.appSettings.mutePreviews = el('settings-mute-previews').checked;
-            window.appSettings.minimizeToTray = el('settings-minimize-to-tray').checked;
-            window.appSettings.singleInstance = el('settings-single-instance').checked;
-            if (el('settings-dev-mode')) window.appSettings.devMode = el('settings-dev-mode').checked;
+            draft.rememberPosition = el('settings-remember-position').checked;
+            draft.mutePreviews = el('settings-mute-previews').checked;
+            draft.minimizeToTray = el('settings-minimize-to-tray').checked;
+            draft.singleInstance = el('settings-single-instance').checked;
+            if (el('settings-dev-mode')) draft.devMode = el('settings-dev-mode').checked;
 
             if (el('settings-default-home-tab')) {
-                window.appSettings.defaultHomeTab = el('settings-default-home-tab').value;
+                draft.defaultHomeTab = el('settings-default-home-tab').value;
             }
             if (el('settings-default-folder-photoalbums')) {
-                window.appSettings.defaultFolderAlbums = el('settings-default-folder-photoalbums').value.trim() || undefined;
+                draft.defaultFolderAlbums = el('settings-default-folder-photoalbums').value.trim() || undefined;
             }
             if (el('settings-default-folder-music')) {
-                window.appSettings.defaultFolderAudio = el('settings-default-folder-music').value.trim() || undefined;
+                draft.defaultFolderAudio = el('settings-default-folder-music').value.trim() || undefined;
             }
             if (el('settings-default-folder-debrids')) {
-                window.appSettings.defaultFolderDebrids = el('settings-default-folder-debrids').value.trim() || undefined;
+                draft.defaultFolderDebrids = el('settings-default-folder-debrids').value.trim() || undefined;
             }
-            if (el('settings-vsr-algo')) window.appSettings.vsrAlgo = el('settings-vsr-algo').value;
-            if (el('settings-vsr-quality')) window.appSettings.vsrQuality = el('settings-vsr-quality').value;
-            if (el('settings-vsr-scale')) window.appSettings.vsrScale = el('settings-vsr-scale').value;
-            if (el('settings-vsr-codec')) window.appSettings.vsrCodec = el('settings-vsr-codec').value;
-            if (el('settings-vsr-bitrate')) window.appSettings.vsrBitrate = el('settings-vsr-bitrate').value;
-            if (el('settings-vsr-chroma')) window.appSettings.vsrChroma = el('settings-vsr-chroma').value;
+            if (el('settings-vsr-algo')) draft.vsrAlgo = el('settings-vsr-algo').value;
+            if (el('settings-vsr-quality')) draft.vsrQuality = el('settings-vsr-quality').value;
+            if (el('settings-vsr-scale')) draft.vsrScale = el('settings-vsr-scale').value;
+            if (el('settings-vsr-codec')) draft.vsrCodec = el('settings-vsr-codec').value;
+            if (el('settings-vsr-bitrate')) draft.vsrBitrate = el('settings-vsr-bitrate').value;
+            if (el('settings-vsr-chroma')) draft.vsrChroma = el('settings-vsr-chroma').value;
             if (el('settings-ai-separator')) {
-                window.appSettings.aiSeparator = el('settings-ai-separator').value;
-                delete window.appSettings.aiSeparate;
+                draft.aiSeparator = el('settings-ai-separator').value;
+                delete draft.aiSeparate;
             }
-            const saved = await window.electronAPI.saveSettings(window.appSettings);
+            const saved = await window.electronAPI.saveSettings(draft);
             if (!saved) {
                 showToast(window.currentLang === 'fr' ? 'Impossible d’enregistrer : fichier de paramètres verrouillé' : 'Could not save: settings file is locked', 'error');
                 return;
             }
+            window.appSettings = draft;
             showToast(window.currentLang === 'fr' ? 'Paramètres enregistrés' : 'Settings saved', 'success');
             closeSettings();
 

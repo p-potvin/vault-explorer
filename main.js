@@ -41,7 +41,15 @@ function loadSettings() {
     return { folders: [], mutePreviews: false, singleInstance: false, globExclusions: DEFAULT_GLOB_EXCLUSIONS, globExclusionsSeeded: true };
 }
 
-async function saveSettings(settings) {
+let settingsWriteQueue = Promise.resolve();
+
+function saveSettings(settings) {
+    const run = settingsWriteQueue.then(() => writeSettings(settings));
+    settingsWriteQueue = run.catch(() => { });
+    return run;
+}
+
+async function writeSettings(settings) {
     const settingsPath = getSettingsPath();
     try {
         const dir = path.dirname(settingsPath);

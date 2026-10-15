@@ -17,11 +17,13 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
         : [];
     settings.favorites = favorites;
 
-    if (!useCache || !Array.isArray(window.favoriteLocalItems)) {
-        const existing = await window.electronAPI.filterExistingPaths(favorites);
-        if (existing.length !== favorites.length) {
-            favorites = existing;
-            settings.favorites = existing;
+    if (favorites.length && (!useCache || !Array.isArray(window.favoriteLocalItems))) {
+        const requested = favorites.slice();
+        const present = new Set(await window.electronAPI.filterExistingPaths(requested));
+        const gone = new Set(requested.filter(p => !present.has(p)).map(_normFavPath));
+        if (gone.size) {
+            favorites = (settings.favorites || []).filter(p => !gone.has(_normFavPath(p)));
+            settings.favorites = (settings.favorites || []).filter(p => !gone.has(_normFavPath(p)));
             await window.electronAPI.saveSettings(settings);
         }
     }

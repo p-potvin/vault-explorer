@@ -561,6 +561,7 @@ window.stopLiveSubtitles = function stopLiveSubtitles() {
 
 // Reloads the sidecar list and selects the generated file by name.
 async function selectGeneratedSubtitle(videoPath, srtPath) {
+    if (_liveNormPath(window.currentPlayingItem && window.currentPlayingItem.path) !== _liveNormPath(videoPath)) return;
     await loadActiveSubtitles(videoPath);
     const name = (srtPath.split(/[\\/]/).pop() || '').replace(/\.srt$/i, '').toLowerCase();
     const idx = (window._allAvailableSubtitles || []).findIndex((sub) => {

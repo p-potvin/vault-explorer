@@ -38,17 +38,19 @@ function killTree(child) {
     }
 }
 
-// The input path travels in an environment variable, so spaces and quotes in
-// file names never reach PowerShell's parser.
+// Same delegator as Generate Subtitles: it resolves vw from VW_CLI or the sibling
+// checkout, and calls the command with named parameters so apostrophes in file
+// names are not reparsed.
+function subtitlesDelegator() {
+    return path.resolve(__dirname, '..', 'scripts', 'pwsh', 'Start-Subtitles.ps1');
+}
+
 function runVwBetterSubtitles(session, separator) {
     return new Promise((resolve) => {
         const child = spawn('pwsh.exe', [
-            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
-            '& vw better-subtitles -Input $env:VW_LIVE_INPUT -Separator $env:VW_LIVE_SEPARATOR',
-        ], {
-            windowsHide: true,
-            env: { ...process.env, VW_LIVE_INPUT: session.videoPath, VW_LIVE_SEPARATOR: separator },
-        });
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', subtitlesDelegator(),
+            '-Target', session.videoPath, '-Separator', separator,
+        ], { windowsHide: true });
         let tail = [];
         const onData = (d) => {
             for (const line of d.toString().split(/\r?\n/)) {
@@ -66,8 +68,8 @@ function runVwBetterSubtitles(session, separator) {
 
 async function runSession(session, separator) {
     const { videoPath } = session;
-    const startedAt = Date.now();
     const srtPath = path.join(path.dirname(videoPath), `${path.basename(videoPath, path.extname(videoPath))}.srt`);
+    const mtimeBefore = fs.existsSync(srtPath) ? fs.statSync(srtPath).mtimeMs : null;
 
     const { code, tail } = await runVwBetterSubtitles(session, separator);
     session.child = null;
@@ -76,17 +78,18 @@ async function runSession(session, separator) {
         return;
     }
 
-    // vw exits 0 even for some per-file failures, so the fresh SRT on disk is
-    // the success signal, as in the batch path.
-    const fresh = fs.existsSync(srtPath) && fs.statSync(srtPath).mtimeMs >= startedAt - 1000;
-    if (!fresh) {
+    // vw exits 0 even for some per-file failures, so an SRT that was written by
+    // this run is the success signal. A pre-existing sidecar only counts when
+    // its mtime changed, so an old file is never reported as new.
+    const written = fs.existsSync(srtPath) && fs.statSync(srtPath).mtimeMs !== mtimeBefore;
+    if (!written) {
         const error = tail.length ? tail[tail.length - 1] : `vw exited ${code}`;
         log('vw better-subtitles produced no SRT:', tail.join(' | '));
         forward('live-subtitle-status', { final: true, status: 'FAILED', videoPath, error });
         return;
     }
 
-    const cues = (fs.readFileSync(srtPath, 'utf8').match(/-->/g) || []).length;
+    const cues = fs.readFileSync(srtPath, 'utf8').split('\n').filter((line) => line.includes('-->')).length;
     const vttPath = convertSrtToVtt(srtPath);
     forward('live-subtitle-status', { final: true, status: 'SUCCESS', videoPath, srtPath, vttPath, cues });
 }
