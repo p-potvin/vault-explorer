@@ -134,7 +134,7 @@ let exitingSecondaryInstance = false;
 
 function getOpenTargetFromArgs(args, workingDirectory) {
     for (const arg of args) {
-        if (!arg || arg.startsWith('--')) continue;
+        if (!arg || arg === '.' || arg.startsWith('--')) continue;
         try {
             const resolvedPath = workingDirectory
                 ? path.resolve(workingDirectory, arg)
