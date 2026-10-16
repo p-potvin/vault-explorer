@@ -83,7 +83,7 @@ async function runSession(session, separator) {
     // its mtime changed, so an old file is never reported as new.
     const written = fs.existsSync(srtPath) && fs.statSync(srtPath).mtimeMs !== mtimeBefore;
     if (!written) {
-        const error = tail.length ? tail[tail.length - 1] : `vw exited ${code}`;
+        const error = tail.length ? tail.join(' | ') : `vw exited ${code}`;
         log('vw better-subtitles produced no SRT:', tail.join(' | '));
         forward('live-subtitle-status', { final: true, status: 'FAILED', videoPath, error });
         return;

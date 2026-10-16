@@ -19,9 +19,18 @@ function ensureVideoVolumeBoost(video) {
     if (videoAudioCtx || !window.AudioContext) return;
     try {
         const ctx = new AudioContext();
+        const source = ctx.createMediaElementSource(video);
+        const compressor = ctx.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-24, ctx.currentTime);
+        compressor.knee.setValueAtTime(30, ctx.currentTime);
+        compressor.ratio.setValueAtTime(4, ctx.currentTime);
+        compressor.attack.setValueAtTime(0.01, ctx.currentTime);
+        compressor.release.setValueAtTime(0.25, ctx.currentTime);
         const gain = ctx.createGain();
-        gain.gain.value = VIDEO_VOLUME_BOOST;
-        ctx.createMediaElementSource(video).connect(gain).connect(ctx.destination);
+        gain.gain.setValueAtTime(VIDEO_VOLUME_BOOST, ctx.currentTime);
+        source.connect(compressor);
+        compressor.connect(gain);
+        gain.connect(ctx.destination);
         videoAudioCtx = ctx;
         video.addEventListener('play', () => { if (ctx.state === 'suspended') ctx.resume(); });
     } catch (e) {
