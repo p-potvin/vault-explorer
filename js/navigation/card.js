@@ -7,6 +7,7 @@ function createCardElement(item, index) {
     card.tabIndex = 0;
     card.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (document.getElementById('video-modal')?.style.display === 'flex') return;
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             if (item.isStreaming) {

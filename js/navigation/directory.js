@@ -313,17 +313,22 @@ async function navigateTo(target, realPath) {
 window.invalidateRootCache = function () { window._rootItemsCache = null; };
 
 function initNavigationListeners() {
+    let scrollSaveTimer = null;
     el('main-area').addEventListener('scroll', () => {
         if (window.currentTab && window.currentTab !== 'files') {
             window.tabScrollPositions = window.tabScrollPositions || {};
             window.tabScrollPositions[window.currentTab] = el('main-area').scrollTop;
             return;
         }
+        if (!el('file-grid').childElementCount) return;
         window.scrollPositions[window.currentNavPath] = el('main-area').scrollTop;
         window.renderedCounts = window.renderedCounts || {};
         window.renderedCounts[window.currentNavPath] = window.currentlyRendered;
-        window.appSettings.scrollPositions = window.scrollPositions;
-        window.electronAPI.saveSettings(window.appSettings);
+        clearTimeout(scrollSaveTimer);
+        scrollSaveTimer = setTimeout(() => {
+            window.appSettings.scrollPositions = window.scrollPositions;
+            window.electronAPI.saveSettings(window.appSettings);
+        }, 500);
 
         if (el('main-area').scrollTop + el('main-area').clientHeight >= el('main-area').scrollHeight - 100) {
             if (window.currentlyRendered < window.displayedItems.length) window.renderMore();
