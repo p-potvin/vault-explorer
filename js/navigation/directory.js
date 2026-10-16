@@ -320,7 +320,7 @@ function initNavigationListeners() {
             window.tabScrollPositions[window.currentTab] = el('main-area').scrollTop;
             return;
         }
-        if (!el('file-grid').childElementCount) return;
+        if (!el('file-grid')?.childElementCount) return;
         window.scrollPositions[window.currentNavPath] = el('main-area').scrollTop;
         window.renderedCounts = window.renderedCounts || {};
         window.renderedCounts[window.currentNavPath] = window.currentlyRendered;
