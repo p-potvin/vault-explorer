@@ -1,5 +1,21 @@
 // card.js — createCardElement: builds a single file-card DOM node with thumbnail, star, checkbox, rename, drag, hover preview
 
+const imageThumbObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const { img, filePath } = entry.target._thumbJob;
+        imageThumbObserver.unobserve(entry.target);
+        window.electronAPI.ensureImageThumb(filePath).then((thumb) => {
+            if (thumb && img.isConnected) img.src = window.sanitizePath(thumb);
+        }).catch(() => { });
+    }
+}, { rootMargin: '200px' });
+
+window.observeImageThumb = function observeImageThumb(target, img, filePath) {
+    target._thumbJob = { img, filePath };
+    imageThumbObserver.observe(target);
+};
+
 function createCardElement(item, index) {
     const card = document.createElement('div');
     card.className = 'file-card';
@@ -376,6 +392,7 @@ function createCardElement(item, index) {
         window.handleCardContextMenu(card, item, index);
     });
 
+    if (item.type === 'image' && !item.thumbnail) window.observeImageThumb(card, card.querySelector('img.thumbnail'), item.path);
     return card;
 }
 

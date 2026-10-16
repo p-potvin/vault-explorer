@@ -10,6 +10,18 @@ if (process.env.VAULT_EXPLORER_E2E_USER_DATA) {
 // Platform HEVC/H.265 hardware video decoding support
 app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
 
+function readBuildInfo() {
+    try {
+        return require('./build-info.json');
+    } catch (_) {
+        return { version: app.getVersion(), commit: 'dev', branch: 'unknown' };
+    }
+}
+
+const buildInfo = readBuildInfo();
+const buildLabel = `Vault Explorer ${buildInfo.version} (${buildInfo.commit})`;
+console.log(`[build] ${buildLabel} on ${buildInfo.branch}`);
+
 function getSettingsPath() {
     return path.join(app.getPath('userData'), 'vault-settings.json');
 }
@@ -322,6 +334,7 @@ function createWindow() {
             webSecurity: true,
             autoplayPolicy: 'no-user-gesture-required'
         },
+        title: buildLabel,
         autoHideMenuBar: true,
         titleBarStyle: 'hidden',
         titleBarOverlay: { color: '#2f3241', symbolColor: '#B07CFF' }

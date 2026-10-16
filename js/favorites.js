@@ -101,9 +101,8 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
         const t = window.translations[window.currentLang] || {};
         grid.innerHTML = `<div class="empty-state"><h3>${t.noItemsFound || 'No Items Found'}</h3><p>${t.adjustFiltersFavorites || 'Adjust your search or filters.'}</p></div>`;
     } else {
-        const fragment = document.createDocumentFragment();
-        filtered.forEach((item, index) => fragment.appendChild(window.createCardElement(item, index)));
-        grid.appendChild(fragment);
+        window.currentlyRendered = 0;
+        window.renderMore();
     }
     if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
 };

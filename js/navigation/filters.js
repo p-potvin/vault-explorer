@@ -40,7 +40,8 @@ function renderMore() {
     nextBatch.forEach((item, i) => {
         fragment.appendChild(window.createCardElement(item, window.currentlyRendered + i));
     });
-    el('file-grid').appendChild(fragment);
+    const onFavorites = window.currentTab === 'files' && window.currentFilesSubtab === 'favorites';
+    el(onFavorites ? 'favorites-grid' : 'file-grid').appendChild(fragment);
     window.currentlyRendered += nextBatch.length;
     window.renderingMore = false;
 }

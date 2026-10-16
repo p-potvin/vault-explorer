@@ -162,7 +162,8 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 else if (globalWebm && await exists(globalWebm)) hoverWebm = globalWebm;
             } else if (type === 'image') {
                 const enhancedThumb = path.join(localThumbsDir, `${baseName}_enhanced.jpg`);
-                poster = await exists(enhancedThumb) ? enhancedThumb : filePath;
+                const generatedThumb = path.join(localThumbsDir, `${baseName}_thumb.jpg`);
+                poster = await exists(enhancedThumb) ? enhancedThumb : (await exists(generatedThumb) ? generatedThumb : null);
             }
 
             const stat = await fsPromises.stat(filePath);

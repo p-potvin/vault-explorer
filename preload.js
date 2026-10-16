@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeWatchHistory: (data) => ipcRenderer.invoke('watch-history:remove', data),
   clearWatchHistory: () => ipcRenderer.invoke('watch-history:clear'),
   enhanceImageThumbnails: (paths) => ipcRenderer.invoke('enhance-image-thumbnails', paths),
+  ensureImageThumb: (imagePath) => ipcRenderer.invoke('ensure-image-thumb', imagePath),
   enhanceImageRealESRGAN: (path) => ipcRenderer.invoke('enhance-image-realesrgan', path),
   enhanceImageMagick: (path, operation) => ipcRenderer.invoke('enhance-image-magick', { path, operation }),
   onImageEnhanced: (cb) => ipcRenderer.on('image-enhanced', (_, data) => cb(data)),

@@ -770,7 +770,59 @@ async function enhanceImageThumbnail(imagePath, sender) {
     }
 }
 
+const IMAGE_THUMB_CONCURRENCY = 3;
+const imageThumbQueue = [];
+const imageThumbInFlight = new Map();
+let imageThumbActive = 0;
+
+function imageThumbPath(imagePath) {
+    const base = path.basename(imagePath, path.extname(imagePath));
+    return path.join(path.dirname(imagePath), '.thumbs', `${base}_thumb.jpg`);
+}
+
+async function makeImageThumb(imagePath, outPath) {
+    const tempPath = outPath + '.tmp';
+    try {
+        fs.mkdirSync(path.dirname(outPath), { recursive: true });
+        utils.cleanupTemp(tempPath);
+        await utils.runLowPriorityProcess('magick', [`${imagePath}[0]`, '-auto-orient', '-thumbnail', '320x320>', '-quality', '80', `jpg:${tempPath}`]);
+        return utils.promoteTempFile(tempPath, outPath) ? outPath : null;
+    } catch (e) {
+        utils.cleanupTemp(tempPath);
+        console.warn(`[previews:thumb] magick failed for ${path.basename(imagePath)}: ${e.message}`);
+        return null;
+    }
+}
+
+function drainImageThumbQueue() {
+    while (imageThumbActive < IMAGE_THUMB_CONCURRENCY && imageThumbQueue.length) {
+        const job = imageThumbQueue.shift();
+        imageThumbActive++;
+        job().finally(() => {
+            imageThumbActive--;
+            drainImageThumbQueue();
+        });
+    }
+}
+
+function ensureImageThumb(imagePath) {
+    const outPath = imageThumbPath(imagePath);
+    if (fs.existsSync(outPath)) return Promise.resolve(outPath);
+    if (!imageThumbInFlight.has(imagePath)) {
+        const job = new Promise((resolve) => {
+            imageThumbQueue.push(() => makeImageThumb(imagePath, outPath).then(resolve));
+        }).finally(() => imageThumbInFlight.delete(imagePath));
+        imageThumbInFlight.set(imagePath, job);
+        drainImageThumbQueue();
+    }
+    return imageThumbInFlight.get(imagePath);
+}
+
 function registerImageEnhanceHandler(ipcMain) {
+    ipcMain.handle('ensure-image-thumb', async (_event, imagePath) => {
+        if (typeof imagePath !== 'string' || !imagePath) return null;
+        return ensureImageThumb(imagePath);
+    });
     ipcMain.handle('enhance-image-thumbnails', async (event, imagePaths) => {
         if (!Array.isArray(imagePaths) || imagePaths.length === 0) return false;
         const candidates = imagePaths.slice(0, 60); // cap batch size

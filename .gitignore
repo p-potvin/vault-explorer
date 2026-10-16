@@ -168,3 +168,5 @@ BENCHMARKS.md
 tests/.thumbs/
 tests/*.mp4*
 
+
+build-info.json

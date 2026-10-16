@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "node scripts/start.js",
+    "predist": "node scripts/bump-version.js",
     "dist": "electron-builder",
     "test": "node tests/run_all_tests.js"
   },
@@ -21,6 +22,7 @@
     "icon": "build/icon.ico",
     "files": [
       "main.js",
+      "build-info.json",
       "preload.js",
       "index.html",
       "index.css",

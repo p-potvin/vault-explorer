@@ -333,7 +333,7 @@
 
         for (let idx = startIndex; idx < endIndex; idx++) {
             const item = currentAlbumPhotos[idx];
-            const thumbSrc = item.thumbnail ? window.sanitizePath(item.thumbnail) : window.sanitizePath(item.path);
+            const thumbSrc = item.thumbnail ? window.sanitizePath(item.thumbnail) : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
             const div = document.createElement('div');
             div.className = 'photo-item';
@@ -354,6 +354,7 @@
             };
 
             div.appendChild(img);
+            if (!item.thumbnail) window.observeImageThumb(div, img, item.path);
 
             // Action overlay bar on hover
             const overlay = document.createElement('div');

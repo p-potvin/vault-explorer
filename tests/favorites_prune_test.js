@@ -32,6 +32,7 @@ async function runRender(favorites, { saveResult = true, duringCheck = null } = 
                 saveSettings: async (value) => { saved.push(JSON.parse(JSON.stringify(value))); return saveResult; },
             },
             createCardElement: () => ({}),
+            renderMore: () => {},
             showToast: (message, kind) => shown.push({ message, kind }),
         },
         document: { createDocumentFragment: () => ({ appendChild() {} }), querySelectorAll: () => [] },
