@@ -30,10 +30,12 @@ from __future__ import annotations
 import os
 
 # Extensions that make a file a "master" for sidecar purposes. Used only to
-# detect stem collisions, so it errs on the side of including things.
+# detect stem collisions. A literal copy of config.py's three sets, because this
+# file is copied verbatim into other repos; a test pins the two equal. No `.ts`:
+# on these drives it is TypeScript, not MPEG-TS.
 MEDIA_EXTENSIONS = frozenset({
     ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".avif", ".tiff",
-    ".mp4", ".mkv", ".webm", ".mov", ".m4v", ".avi", ".flv", ".wmv", ".ts",
+    ".mp4", ".mkv", ".webm", ".mov", ".m4v", ".avi", ".flv", ".wmv",
     ".mp3", ".wav", ".flac", ".m4a", ".aac", ".opus", ".ogg",
 })
 

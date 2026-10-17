@@ -29,7 +29,7 @@ const path = require('path');
  *  so it errs on the side of including things. */
 const MEDIA_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.avif', '.tiff',
-  '.mp4', '.mkv', '.webm', '.mov', '.m4v', '.avi', '.flv', '.wmv', '.ts',
+  '.mp4', '.mkv', '.webm', '.mov', '.m4v', '.avi', '.flv', '.wmv',
   '.mp3', '.wav', '.flac', '.m4a', '.aac', '.opus', '.ogg',
 ]);
 
