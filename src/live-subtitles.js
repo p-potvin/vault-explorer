@@ -45,12 +45,16 @@ function subtitlesDelegator() {
     return path.resolve(__dirname, '..', 'scripts', 'pwsh', 'Start-Subtitles.ps1');
 }
 
-function runVwBetterSubtitles(session, separator) {
+function runVwBetterSubtitles(session, separator, translateTo, translateFrom = 'en', translateEngine = 'hf') {
     return new Promise((resolve) => {
-        const child = spawn('pwsh.exe', [
+        const args = [
             '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', subtitlesDelegator(),
             '-Target', session.videoPath, '-Separator', separator,
-        ], { windowsHide: true });
+        ];
+        if (translateTo && translateTo !== 'none' && translateTo !== 'original') {
+            args.push('-TranslateTo', translateTo, '-TranslateFrom', translateFrom, '-TranslateEngine', translateEngine);
+        }
+        const child = spawn('pwsh.exe', args, { windowsHide: true });
         let tail = [];
         const onData = (d) => {
             for (const line of d.toString().split(/\r?\n/)) {
@@ -66,12 +70,19 @@ function runVwBetterSubtitles(session, separator) {
     });
 }
 
-async function runSession(session, separator) {
+async function runSession(session, separator, translateTo, translateFrom, translateEngine) {
     const { videoPath } = session;
-    const srtPath = path.join(path.dirname(videoPath), `${path.basename(videoPath, path.extname(videoPath))}.srt`);
+    const baseExt = path.extname(videoPath);
+    const baseStem = path.basename(videoPath, baseExt);
+    const dir = path.dirname(videoPath);
+    const srtPath = translateTo && translateTo !== 'none' && translateTo !== 'original'
+        ? path.join(dir, `${baseStem}.${translateTo}.srt`)
+        : path.join(dir, `${baseStem}.srt`);
+    const fallbackSrtPath = path.join(dir, `${baseStem}.srt`);
     const mtimeBefore = fs.existsSync(srtPath) ? fs.statSync(srtPath).mtimeMs : null;
+    const fallbackMtime = fs.existsSync(fallbackSrtPath) ? fs.statSync(fallbackSrtPath).mtimeMs : null;
 
-    const { code, tail } = await runVwBetterSubtitles(session, separator);
+    const { code, tail } = await runVwBetterSubtitles(session, separator, translateTo, translateFrom, translateEngine);
     session.child = null;
     if (session.cancelled) {
         forward('live-subtitle-status', { final: true, status: 'STOPPED', videoPath, cues: 0 });
@@ -79,9 +90,14 @@ async function runSession(session, separator) {
     }
 
     // vw exits 0 even for some per-file failures, so an SRT that was written by
-    // this run is the success signal. A pre-existing sidecar only counts when
-    // its mtime changed, so an old file is never reported as new.
-    const written = fs.existsSync(srtPath) && fs.statSync(srtPath).mtimeMs !== mtimeBefore;
+    // this run is the success signal. Check target translated srt, then fallback.
+    let targetSrt = srtPath;
+    let written = fs.existsSync(targetSrt) && fs.statSync(targetSrt).mtimeMs !== mtimeBefore;
+    if (!written && fs.existsSync(fallbackSrtPath) && fs.statSync(fallbackSrtPath).mtimeMs !== fallbackMtime) {
+        targetSrt = fallbackSrtPath;
+        written = true;
+    }
+
     if (!written) {
         const error = tail.length ? tail.join(' | ') : `vw exited ${code}`;
         log('vw better-subtitles produced no SRT:', tail.join(' | '));
@@ -89,19 +105,20 @@ async function runSession(session, separator) {
         return;
     }
 
-    const cues = fs.readFileSync(srtPath, 'utf8').split('\n').filter((line) => line.includes('-->')).length;
-    const vttPath = convertSrtToVtt(srtPath);
-    forward('live-subtitle-status', { final: true, status: 'SUCCESS', videoPath, srtPath, vttPath, cues });
+    const cues = fs.readFileSync(targetSrt, 'utf8').split('\n').filter((line) => line.includes('-->')).length;
+    const vttPath = convertSrtToVtt(targetSrt);
+    forward('live-subtitle-status', { final: true, status: 'SUCCESS', videoPath, srtPath: targetSrt, vttPath, cues });
 }
 
-function startSubtitlesPipeline({ videoPath, separator }) {
+function startSubtitlesPipeline({ videoPath, separator, translateTo, translateFrom = 'en', translateEngine = 'hf' }) {
     stopActive();
     const sep = SEPARATORS.has(separator) ? separator : DEFAULT_SEPARATOR;
     const session = { videoPath, cancelled: false, child: null };
     activeSession = session;
 
-    forward('live-subtitle-status', { status: 'started', videoPath, message: `vw better-subtitles -Separator ${sep}` });
-    runSession(session, sep)
+    const msg = translateTo ? `vw better-subtitles -Separator ${sep} -TranslateTo ${translateTo} -TranslateEngine ${translateEngine}` : `vw better-subtitles -Separator ${sep}`;
+    forward('live-subtitle-status', { status: 'started', videoPath, message: msg });
+    runSession(session, sep, translateTo, translateFrom, translateEngine)
         .catch((e) => {
             log('session failed:', e.message);
             forward('live-subtitle-status', { final: true, status: 'FAILED', videoPath, error: e.message });

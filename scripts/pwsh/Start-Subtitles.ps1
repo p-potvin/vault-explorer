@@ -47,6 +47,9 @@ param(
     [string]$Separator,
     [string]$Model,
     [string]$Language,
+    [ValidateSet("hf", "command-a", "translategemma", "riva", "google")]
+    [string]$TranslateEngine = "hf",
+    [string]$TranslateFrom = "en",
     [switch]$LowMemory,
     [string]$VwCli
 )
@@ -86,6 +89,8 @@ if ($NoSeparate)   { $forward.NoSeparate = $true }
 if ($Separator)    { $forward.Separator = $Separator }
 if ($Model)        { $forward.Model = $Model }
 if ($Language)     { $forward.Language = $Language }
+if ($TranslateEngine) { $forward.TranslateEngine = $TranslateEngine }
+if ($TranslateFrom)   { $forward.TranslateFrom = $TranslateFrom }
 if ($LowMemory)    { $forward.LowMemory = $true }
 
 & $command.ScriptPath @forward
