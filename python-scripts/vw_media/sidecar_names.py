@@ -21,8 +21,10 @@ Nothing here touches the filesystem except to check existence, and nothing here
 writes. Resolution order is deliberate: unambiguous names first, so that during
 the migration a half-renamed directory still resolves correctly.
 
-Developed in vault-commander/cli/utils/media_records/; copied verbatim into
-vault-explorer and ColONEL-KFC. Re-sync from here rather than editing a copy.
+Canonical copy: vault-raggae app/files/records/ (moved from vault-commander on
+Thu 22 Oct 2026); copied verbatim into vault-commander (image_tagger, meth),
+vault-explorer and ColONEL-KFC by vault-raggae tools/sync_client.py. Edit it
+there, never a copy.
 """
 
 from __future__ import annotations
