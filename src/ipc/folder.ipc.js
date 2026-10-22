@@ -101,6 +101,13 @@ function registerFolderIpc(ipcMain, mainWindow) {
         return filePaths[0];
     });
 
+    // A folder's size from the gateway's index only (null when it is down or the folder is not indexed): the
+    // status bar shows it instead of the sum of the scanned media, and never waits on a recursive walk.
+    ipcMain.handle('get-indexed-folder-size', async (_event, dirPath) => {
+        if (typeof dirPath !== 'string' || !dirPath) return null;
+        return await gatewayFolderSize(dirPath);
+    });
+
     // Smart Folder Sizes
     const folderSizeCache = new Map();
     ipcMain.handle('get-folder-size-background', async (_event, dirPath) => {

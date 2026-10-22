@@ -5,9 +5,30 @@ function displayFolderSize(bytes) {
         el('status-size').innerText = '';
         return;
     }
-    const label = window.translations[window.currentLang].folderSize || 'Folder Size (Everything):';
+    const label = window.translations[window.currentLang].folderSize || 'Folder Size:';
     const formatted = window.formatBytes(bytes);
     el('status-size').innerText = `${label} ${formatted}`;
+}
+
+// The real folder's size from vault-raggae's folder index (every file on disk, kept current from the journal),
+// cached per folder; the sum of the scanned media items is shown until it arrives, or when it is unavailable.
+const indexedFolderSizes = new Map();
+
+function folderTotal(realPath, items) {
+    const indexed = realPath ? indexedFolderSizes.get(realPath) : undefined;
+    return typeof indexed === 'number' ? indexed : items.reduce((sum, item) => sum + (item.size || 0), 0);
+}
+
+async function refreshIndexedFolderSize(realPath) {
+    if (!realPath || !window.electronAPI.getIndexedFolderSize) return;
+    try {
+        const bytes = await window.electronAPI.getIndexedFolderSize(realPath);
+        if (typeof bytes === 'number') indexedFolderSizes.set(realPath, bytes);
+        else indexedFolderSizes.delete(realPath);
+    } catch (_) {
+        indexedFolderSizes.delete(realPath);
+    }
+    if (window.currentRealPath === realPath && window.currentTab === 'files') updateStatusBar();
 }
 
 async function updateStatusBar() {
@@ -26,8 +47,7 @@ async function updateStatusBar() {
     }
 
     if (window.currentTab === 'files' && window.allItems && window.allItems.length > 0) {
-        const totalSize = window.allItems.reduce((sum, item) => sum + (item.size || 0), 0);
-        displayFolderSize(totalSize);
+        displayFolderSize(folderTotal(window.currentRealPath, window.allItems));
     } else if (window.currentTab === 'favorites' && window.displayedItems && window.displayedItems.length > 0) {
         const totalSize = window.displayedItems.reduce((sum, item) => sum + (item.size || 0), 0);
         displayFolderSize(totalSize);
@@ -159,8 +179,8 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                 el('loading').style.display = 'none';
 
                 if (freshItems && freshItems.length > 0) {
-                    const totalSize = freshItems.reduce((sum, item) => sum + (item.size || 0), 0);
-                    displayFolderSize(totalSize);
+                    displayFolderSize(folderTotal(realPath, freshItems));
+                    refreshIndexedFolderSize(realPath);
 
                     const videosToProbe = freshItems.filter(item => item.type === 'video' && !item.duration);
                     if (videosToProbe.length > 0) {

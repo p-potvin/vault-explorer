@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   renameFile: (oldPath, newName) => ipcRenderer.invoke('rename-file', oldPath, newName),
   deleteItem: (p) => ipcRenderer.invoke('delete-item', p),
   getFolderSizeBackground: (dirPath) => ipcRenderer.invoke('get-folder-size-background', dirPath),
+  getIndexedFolderSize: (dirPath) => ipcRenderer.invoke('get-indexed-folder-size', dirPath),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   getLaunchIntent: () => ipcRenderer.invoke('get-launch-intent'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
