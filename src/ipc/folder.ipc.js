@@ -8,8 +8,13 @@ const fsPromises = fs.promises;
 // Folder sizes come from vault-raggae's folder index (MFT + USN journal, every drive; owned by the gateway since
 // Thu 22 Oct 2026). The walk below is the fallback when the gateway is down or the folder is not indexed.
 const RAGGAE_URL = process.env.RAGGAE_URL || 'http://127.0.0.1:8750';
+// Circuit breaker: after a network error or timeout the gateway is skipped for a while, so a listing of many
+// folders falls back at once instead of waiting out the timeout per folder. A 404 (not indexed) does not trip it.
+const GATEWAY_COOLDOWN_MS = 30000;
+let gatewayOfflineUntil = 0;
 
 async function gatewayFolderSize(dir) {
+    if (Date.now() < gatewayOfflineUntil) return null;
     try {
         const res = await fetch(`${RAGGAE_URL}/v1/files/sizes?limit=0&path=${encodeURIComponent(dir)}`,
             { headers: { 'x-vw-project': 'vault-explorer' }, signal: AbortSignal.timeout(2000) });
@@ -17,6 +22,7 @@ async function gatewayFolderSize(dir) {
         const data = await res.json();
         return typeof data.bytes === 'number' ? data.bytes : null;
     } catch (e) {
+        gatewayOfflineUntil = Date.now() + GATEWAY_COOLDOWN_MS;
         return null;
     }
 }
