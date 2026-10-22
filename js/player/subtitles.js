@@ -504,8 +504,14 @@ function updateLiveSubButton(active) {
     if (active) {
         btn.classList.add('active');
         btn.innerHTML = `${svgIcon}<span style="color:var(--vault-gold);">● LIVE</span>`;
+    } else {
+        const vp = el('video-player');
+        const hasShowingTrack = vp && vp.textTracks && Array.from(vp.textTracks).some(t => t.mode === 'showing');
+        if (!hasShowingTrack || window._selectedSubtitleIdx < 0) {
+            btn.classList.remove('active');
+            btn.innerHTML = `${svgIcon}<span>CC</span>`;
+        }
     }
-    // When inactive we leave whatever selectSubtitleTrack last rendered.
 
     // Reflect the running state in the menu item label so a second click reads
     // as "Stop".
@@ -514,7 +520,7 @@ function updateLiveSubButton(active) {
     if (span) span.textContent = active ? 'Stop Live Subtitles' : 'Live Subtitles (AI)';
 }
 
-function startLiveSubtitleSession(videoPath, itemName) {
+function startLiveSubtitleSession(videoPath, itemName, options = {}) {
     const vp = el('video-player');
     if (!vp) return;
 
@@ -536,26 +542,44 @@ function startLiveSubtitleSession(videoPath, itemName) {
     updateLiveSubButton(true);
     window.showToast(`Generating AI subtitles for "${itemName}"…`, 'success');
 
-    const separator = typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise';
-    window.electronAPI.startLiveSubtitles({ videoPath, separator }).then((res) => {
+    const separator = options.separator || (typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise');
+    const translateTo = options.translateTo || null;
+    const translateFrom = options.translateFrom || null;
+    const translateEngine = options.translateEngine || 'hf';
+
+    window.electronAPI.startLiveSubtitles({
+        videoPath,
+        separator,
+        translateTo,
+        translateFrom,
+        translateEngine
+    }).then((res) => {
         if (!res || !res.success) {
-            window.showToast('AI subtitles failed to start: ' + ((res && res.error) || 'unknown'), 'error');
-            window.stopLiveSubtitles();
+            const err = (res && res.error) || 'unknown';
+            window.showToast('AI subtitles failed to start: ' + err, 'error');
+            window.stopLiveSubtitles(true);
+            selectSubtitleTrack(-1);
+            updateLiveSubButton(false);
         }
     }).catch((err) => {
         window.showToast('AI subtitles failed to start: ' + err.message, 'error');
-        window.stopLiveSubtitles();
+        window.stopLiveSubtitles(true);
+        selectSubtitleTrack(-1);
+        updateLiveSubButton(false);
     });
 }
 
-// Cancels a running generation. Loaded subtitle tracks are left alone.
-window.stopLiveSubtitles = function stopLiveSubtitles() {
+// Cancels a running generation. Loaded subtitle tracks are left alone unless unselect=true.
+window.stopLiveSubtitles = function stopLiveSubtitles(unselect = false) {
     if (window._liveSubActive) {
         console.log('[live-subs] stop');
         try { window.electronAPI.stopLiveSubtitles(); } catch (e) { /* noop */ }
     }
     window._liveSubActive = false;
     window._liveSubVideoPath = null;
+    if (unselect) {
+        selectSubtitleTrack(-1);
+    }
     updateLiveSubButton(false);
 };
 
@@ -584,12 +608,16 @@ function ensureLiveSubtitleListeners() {
 
         window._liveSubActive = false;
         window._liveSubVideoPath = null;
-        updateLiveSubButton(false);
         if (s.status === 'SUCCESS') {
+            updateLiveSubButton(false);
             window.showToast(`AI subtitles ready — ${s.cues || 0} cues.`, 'success');
             await selectGeneratedSubtitle(s.videoPath, s.srtPath);
-        } else if (s.status === 'FAILED') {
-            window.showToast('AI subtitles error: ' + (s.error || 'unknown'), 'error');
+        } else {
+            if (s.status === 'FAILED') {
+                window.showToast('AI subtitles error: ' + (s.error || 'unknown'), 'error');
+            }
+            selectSubtitleTrack(-1);
+            updateLiveSubButton(false);
         }
     });
 }
@@ -698,30 +726,18 @@ function initSubtitleListeners() {
                 return;
             }
 
-            const savedLangs = window.appSettings && Array.isArray(window.appSettings.preferredASRLangs)
-                ? window.appSettings.preferredASRLangs.filter(Boolean)
-                : [];
-            const shouldChooseLanguages = savedLangs.length === 0 || e.altKey || e.shiftKey;
-            let langs = savedLangs.length ? savedLangs : ['en'];
-            let volumeBoost = Number(window.appSettings && window.appSettings.asrVolumeBoost) || 1.5;
-
-            if (shouldChooseLanguages) {
-                // Anchor to the persistent CC button — optGen lives in the menu
-                // we just hid, and a hidden element reports a zero-size rect.
-                const asrAnchor = el('btn-subtitles') || optGen;
-                const asrConfig = await showAsrContextMenu(asrAnchor, langs);
-                const chosenLangs = Array.isArray(asrConfig) ? asrConfig : (asrConfig && asrConfig.langs);
-                if (!chosenLangs || chosenLangs.length === 0) return;
-                langs = chosenLangs;
-                volumeBoost = Array.isArray(asrConfig) ? volumeBoost : (asrConfig.volumeBoost || volumeBoost);
-
-                if (!window.appSettings) window.appSettings = {};
-                window.appSettings.preferredASRLangs = langs;
-                window.appSettings.asrVolumeBoost = volumeBoost;
-                await window.electronAPI.saveSettings(window.appSettings);
+            const asrAnchor = el('btn-subtitles') || optGen;
+            let subConfig = null;
+            if (typeof window.showAiSubtitlesSubmenu === 'function') {
+                subConfig = await window.showAiSubtitlesSubmenu(asrAnchor);
+            } else {
+                const sep = typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise';
+                subConfig = { separator: sep, translateTo: 'fr', translateFrom: 'en', translateEngine: 'hf' };
             }
 
-            startLiveSubtitleSession(videoPath, itemName);
+            if (!subConfig) return; // User cancelled
+
+            startLiveSubtitleSession(videoPath, itemName, subConfig);
         });
     }
 

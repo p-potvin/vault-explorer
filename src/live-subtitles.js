@@ -45,14 +45,18 @@ function subtitlesDelegator() {
     return path.resolve(__dirname, '..', 'scripts', 'pwsh', 'Start-Subtitles.ps1');
 }
 
-function runVwBetterSubtitles(session, separator, translateTo, translateFrom = 'en', translateEngine = 'hf') {
+function runVwBetterSubtitles(session, separator, translateTo, translateFrom, translateEngine = 'hf') {
     return new Promise((resolve) => {
         const args = [
             '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', subtitlesDelegator(),
             '-Target', session.videoPath, '-Separator', separator,
         ];
         if (translateTo && translateTo !== 'none' && translateTo !== 'original') {
-            args.push('-TranslateTo', translateTo, '-TranslateFrom', translateFrom, '-TranslateEngine', translateEngine);
+            args.push('-TranslateTo', translateTo);
+            if (translateFrom && translateFrom !== 'none' && translateFrom !== 'auto') {
+                args.push('-TranslateFrom', translateFrom);
+            }
+            args.push('-TranslateEngine', translateEngine || 'hf');
         }
         const child = spawn('pwsh.exe', args, { windowsHide: true });
         let tail = [];
@@ -110,15 +114,23 @@ async function runSession(session, separator, translateTo, translateFrom, transl
     forward('live-subtitle-status', { final: true, status: 'SUCCESS', videoPath, srtPath: targetSrt, vttPath, cues });
 }
 
-function startSubtitlesPipeline({ videoPath, separator, translateTo, translateFrom = 'en', translateEngine = 'hf' }) {
+function startSubtitlesPipeline({ videoPath, separator, translateTo, translateFrom, translateEngine = 'hf' }) {
     stopActive();
     const sep = SEPARATORS.has(separator) ? separator : DEFAULT_SEPARATOR;
+    const engine = translateEngine || 'hf';
     const session = { videoPath, cancelled: false, child: null };
     activeSession = session;
 
-    const msg = translateTo ? `vw better-subtitles -Separator ${sep} -TranslateTo ${translateTo} -TranslateEngine ${translateEngine}` : `vw better-subtitles -Separator ${sep}`;
+    let msg = `vw better-subtitles -Separator ${sep}`;
+    if (translateTo && translateTo !== 'none' && translateTo !== 'original') {
+        msg += ` -TranslateTo ${translateTo}`;
+        if (translateFrom && translateFrom !== 'none' && translateFrom !== 'auto') {
+            msg += ` -TranslateFrom ${translateFrom}`;
+        }
+        msg += ` -TranslateEngine ${engine}`;
+    }
     forward('live-subtitle-status', { status: 'started', videoPath, message: msg });
-    runSession(session, sep, translateTo, translateFrom, translateEngine)
+    runSession(session, sep, translateTo, translateFrom, engine)
         .catch((e) => {
             log('session failed:', e.message);
             forward('live-subtitle-status', { final: true, status: 'FAILED', videoPath, error: e.message });
@@ -142,7 +154,11 @@ function registerLiveSubtitlesHandlers(ipcMain) {
             return { success: false, error: 'AI subtitles require a local playback source.' };
         }
         lastSender = event.sender;
-        return { success: startSubtitlesPipeline(params) };
+        try {
+            return { success: startSubtitlesPipeline(params) };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
     });
 
     ipcMain.handle('stop-live-subtitles', async () => {

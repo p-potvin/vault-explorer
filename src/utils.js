@@ -4,36 +4,30 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// Helper to get system memory info on Windows
+// Helper to get system memory info on Windows using Get-CimInstance Win32_OperatingSystem
 function getSystemMemoryInfo() {
     if (process.platform !== 'win32') {
         return { total: 0, free: 0, usedPercent: 0 };
     }
 
     try {
-        // Use Windows WMI to get memory info
-        const result = child_process.execSync('wmic OS get FreePhysicalMemory,TotalVisibleMemorySize /Value', { encoding: 'utf8' });
-        const lines = result.trim().split('\n');
-        let freeMem = 0, totalMem = 0;
-
-        lines.forEach(line => {
-            if (line.includes('FreePhysicalMemory')) {
-                const match = line.match(/(\d+)/);
-                if (match) freeMem = parseInt(match[1]);
+        const result = child_process.execFileSync(
+            'powershell.exe',
+            ['-NoProfile', '-Command', '$m = Get-CimInstance Win32_OperatingSystem; "$($m.FreePhysicalMemory) $($m.TotalVisibleMemorySize)"'],
+            { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }
+        );
+        const parts = result.trim().split(/\s+/);
+        if (parts.length >= 2) {
+            const freeMem = parseInt(parts[0], 10);
+            const totalMem = parseInt(parts[1], 10);
+            if (totalMem > 0) {
+                const used = totalMem - freeMem;
+                const usedPercent = Math.round((used / totalMem) * 100);
+                return { total: totalMem, free: freeMem, usedPercent, used };
             }
-            if (line.includes('TotalVisibleMemorySize')) {
-                const match = line.match(/(\d+)/);
-                if (match) totalMem = parseInt(match[1]);
-            }
-        });
-
-        if (totalMem > 0) {
-            const used = totalMem - freeMem;
-            const usedPercent = Math.round((used / totalMem) * 100);
-            return { total: totalMem, free: freeMem, usedPercent, used };
         }
     } catch (e) {
-        console.warn('[memory] Could not get Windows memory info:', e.message);
+        console.warn('[memory] Could not get Windows memory info via Get-CimInstance:', e.message);
     }
 
     // Fallback: use Node.js os module (less accurate but works)

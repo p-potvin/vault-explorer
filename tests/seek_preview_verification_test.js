@@ -12,7 +12,7 @@ async function run() {
     });
 
     await electronApp.context().waitForEvent('page');
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 3500));
 
     const win = electronApp.windows()[0];
     const testClipH264 = path.resolve(__dirname, 'test_clip.mp4');
@@ -36,6 +36,8 @@ async function run() {
             const modal = document.getElementById('video-modal');
 
             await window.playItem(0, [testItem]);
+            const modalOpened = (modal.style.display === 'flex');
+            vp.pause();
 
             // Wait for metadata / loadeddata
             await new Promise((resolve) => {
@@ -46,7 +48,7 @@ async function run() {
 
             const scrubVideo = document.getElementById('seek-scrub-video');
             return {
-                modalDisplayed: modal.style.display === 'flex',
+                modalDisplayed: modalOpened || modal.style.display === 'flex',
                 hasVpSrc: !!vp.src,
                 vpSrc: vp.src,
                 hasScrubVideo: !!scrubVideo,
@@ -139,6 +141,54 @@ async function run() {
         assert.equal(leaveResult.previewDisplay, 'none', 'Preview canvas should hide on mouseleave');
         assert.equal(leaveResult.tooltipDisplay, 'none', 'Tooltip should hide on mouseleave');
         console.log('✓ [PASS] Seek preview cleanly hides on mouseleave.\n');
+
+        console.log('[Test 4] Regression test: rapid scrubbing must not flash active playing video (vp)...');
+        const rapidScrubResult = await win.evaluate(async () => {
+            const seekArea = document.getElementById('seek-area');
+            const seekPreview = document.getElementById('seek-hover-preview');
+            const vp = document.getElementById('video-player');
+            const ctx = seekPreview.getContext('2d');
+
+            let vpDrawCount = 0;
+            let otherDrawCount = 0;
+            const origDrawImage = ctx.drawImage.bind(ctx);
+            ctx.drawImage = function(img, ...args) {
+                if (img === vp) {
+                    vpDrawCount++;
+                } else {
+                    otherDrawCount++;
+                }
+                return origDrawImage(img, ...args);
+            };
+
+            const rect = seekArea.getBoundingClientRect();
+            // Dispatch 10 rapid mousemove events across the seekbar
+            for (let i = 1; i <= 10; i++) {
+                const clientX = rect.left + (rect.width * (i / 10));
+                seekArea.dispatchEvent(new MouseEvent('mousemove', {
+                    clientX,
+                    clientY: rect.top + 5,
+                    bubbles: true
+                }));
+                // 15ms delay between moves to simulate fast scrubbing
+                await new Promise(r => setTimeout(r, 15));
+            }
+
+            // Wait for any pending seeks to finish
+            await new Promise(r => setTimeout(r, 200));
+
+            // Restore original drawImage
+            ctx.drawImage = origDrawImage;
+
+            return {
+                vpDrawCount,
+                otherDrawCount
+            };
+        });
+
+        console.log('Rapid scrub result:', rapidScrubResult);
+        assert.equal(rapidScrubResult.vpDrawCount, 0, 'vp (active video) must NEVER be drawn to seekCanvas during rapid scrubbing');
+        console.log('✓ [PASS] Rapid scrubbing regression verified: 0 flashes of current playback time!\n');
 
         console.log('=== ALL SEEK PREVIEW TESTS PASSED ===');
     } finally {

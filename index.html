@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vault Explorer</title>
-  <!-- v4.1.16 -->
+  <!-- v4.1.21 -->
   <link href="themes.css" rel="stylesheet">
   <link href="index.css" rel="stylesheet">
   <script src="themes.js" defer></script>
@@ -25,6 +25,7 @@
   <script src="js/navigation/card-events.js" defer></script>
   <script src="js/navigation/card.js" defer></script>
   <script src="js/navigation/directory.js" defer></script>
+  <script src="js/player/subtitles-ai-menu.js" defer></script>
   <script src="js/player/subtitles.js" defer></script>
   <script src="js/player/upscale.js" defer></script>
   <script src="js/player/video-enhancer.js" defer></script>
@@ -63,32 +64,27 @@
       style="display: flex; gap: 4px; align-items: center; -webkit-app-region: no-drag; margin-left: 12px; margin-right: auto; height: 100%;">
       <button id="tab-files" class="top-tab active"
         style="background: var(--vault-accent); color: var(--vt-primary); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg
-          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5"/>
         </svg>Files</button>
       <button id="tab-music" class="top-tab"
         style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg
-          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;">
-          <path d="M9 18V5l12-2v13" />
-          <circle cx="6" cy="18" r="3" />
-          <circle cx="18" cy="16" r="3" />
+          <path d="M9 18 L9 13.45 M9 9.55 L9 5 L20 3 L20 16"/><path d="M6.24 15.51 A2.5 2.5 0 1 1 4.01 17.74"/><path d="M15 16 A2.5 2.5 0 1 0 20 16 A2.5 2.5 0 1 0 15 16"/>
         </svg>Music</button>
       <button id="tab-photoalbums" class="top-tab"
         style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg
-          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;">
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="12" r="3" />
+          <path d="M2 9.5 A1.5 1.5 0 0 1 3.5 8 L6.5 8 L8 5.5 L16 5.5 L17.5 8 L20.5 8 A1.5 1.5 0 0 1 22 9.5 L22 18.5 A1.5 1.5 0 0 1 20.5 20 L3.5 20 A1.5 1.5 0 0 1 2 18.5 L2 12.8"/><circle cx="12" cy="13.5" r="3.5"/>
         </svg>Photos</button>
       <button id="tab-debrids" class="top-tab"
         style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg
-          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;">
-          <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
-          <path d="M12 12v9"/>
-          <path d="m8 17 4 4 4-4"/>
+          <path d="M4 15 L4 20 L9.6 20 M14.4 20 L20 20 L20 15"/><path d="M12 3.5 L12 14.5"/><path d="M7.5 10 L12 14.5 L16.5 10"/>
         </svg>Debrids</button>
 
       <!-- class="top-tab" style="background: transparent; color: var(--vault-text); font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; border: 1px solid var(--vault-border); padding: 4.5px 10px; border-radius: 4px; cursor: pointer; opacity: 0.8; letter-spacing: 0.05em; transition: all 0.2s; display:inline-flex; align-items:center; justify-content:center; gap:4px; height: 24px; vertical-align: middle;"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>Others</button> -->
@@ -107,11 +103,9 @@
       <div style="position:relative;">
         <button id="settings-trigger" class="theme-trigger" aria-label="Open Settings">
           <span class="settings-led"></span>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round" style="margin-right:3px;">
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            <path d="M14.08 5.93 L14.07 5.42 L15.19 5.88 L16.88 4.2 L19.8 7.12 L18.12 8.81 L18.58 9.93 L20.96 9.93 L20.96 14.07 L18.58 14.07 L18.12 15.19 L19.8 16.88 L16.88 19.8 L15.19 18.12 L14.07 18.58 L14.07 20.96 L9.93 20.96 L9.93 18.58 L8.81 18.12 L7.12 19.8 L4.2 16.88 L5.88 15.19 L5.42 14.07 L3.04 14.07 L3.04 9.93 L5.42 9.93 L5.88 8.81 L4.2 7.12 L7.12 4.2 L8.81 5.88 L9.93 5.42 L9.93 3.04 L14.07 3.04 L14.07 2.53"/><path d="M9 12 A3 3 0 1 0 15 12 A3 3 0 1 0 9 12"/>
           </svg>
           <span id="settings-btn-text">Settings</span>
         </button>
@@ -120,14 +114,14 @@
   </div>
   <div class="toolbar" style="display:flex; gap:12px; align-items:center; padding:12px 24px;">
     <button id="btn-back" title="No folder selected" aria-label="Back"
-      style="width:32px; height:32px; padding:0; display:none; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;"
-      disabled>&#8592;</button>
+      style="width:32px; height:32px; padding:0; display:none; align-items:center; justify-content:center; flex-shrink:0;"
+      disabled><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12 L15.68 12 M10.88 12 L4 12"/><path d="M10 6 L4 12 L10 18"/></svg></button>
     <div class="settings-folder-input"
       style="position: relative; cursor: pointer; display: flex; align-items: center; flex-shrink: 0; max-width: 150px;">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round"
         style="position: absolute; left: 8px; color: var(--vault-slate); pointer-events: none;">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5"/>
       </svg>
       <div id="path-display" class="path-display"
         style="cursor:pointer; font-size: 11px; padding: 6px 8px 6px 28px; flex-shrink:0;"
@@ -140,7 +134,7 @@
       <span style="font-size:13px; font-weight:800; margin-top:-1px;">+</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
         stroke-linejoin="round" style="width:12px; height:12px;">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5"></path>
       </svg>
     </button>
 
@@ -149,8 +143,7 @@
       title="No folder selected" disabled>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="23 4 23 10 17 10"></polyline>
-        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
       </svg>
     </button>
 
@@ -160,8 +153,7 @@
         style="display:flex; align-items:center; justify-content:center; padding:0 8px; color:var(--vault-slate); border-right:1px solid var(--vault-border); height:100%;">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
           stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          <path d="M8.15 3.91 A7 7 0 1 1 3.91 8.15"/><path d="M15.6 15.6 L20.5 20.5"/>
         </svg>
       </div>
       <input type="text" id="search-box" class="search-box" placeholder="Search files... (Ctrl/Cmd+F)"
@@ -169,14 +161,14 @@
         style="flex:1; border:none !important; background:transparent !important; color:var(--vault-text); outline:none; font-size:13px; padding:0 30px 0 8px; height:100%; margin:0;">
       <button id="search-clear-btn"
         style="position:absolute; right:8px; background:transparent; border:none; color:var(--vault-slate); cursor:pointer; font-size:12px; display:none; align-items:center; justify-content:center; padding:0; width:16px; height:16px;"
-        title="Clear Search">✕</button>
+        title="Clear Search"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
     </div>
 
     <div
       style="display:inline-flex; align-items:center; background:var(--vault-card-bg); border:1px solid var(--vault-border); border-radius:4px; height:32px; padding:0 8px; gap:6px; flex-shrink:0;">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round" style="color:var(--vault-slate); flex-shrink:0;">
-        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        <path d="M14.7 4 L21 4 L14 12.5 L14 20 L10 18 L10 12.5 L3 4 L9.3 4"/>
       </svg>
       <select id="filter-type" aria-label="Filter files by type"
         style="height:100%; padding:0; border:none; background:transparent; color:var(--vault-text); outline:none; font-size:12px; cursor:pointer;">
@@ -203,10 +195,7 @@
         style="display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px;" title="Sort Options">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
-          <line x1="21" y1="10" x2="3" y2="10" />
-          <line x1="21" y1="6" x2="3" y2="6" />
-          <line x1="21" y1="14" x2="3" y2="14" />
-          <line x1="21" y1="18" x2="3" y2="18" />
+          <path d="M7 20 L7 16.8 M7 12 L7 4"/><path d="M3.5 7.5 L7 4 L10.5 7.5"/><path d="M17 4 L17 20"/><path d="M13.5 16.5 L17 20 L20.5 16.5"/>
         </svg>
         <span id="sort-btn-label">Date Modified</span> ▾
       </button>
@@ -275,7 +264,7 @@
       <div class="empty-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
           stroke-linejoin="round" aria-hidden="true">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5"></path>
         </svg>
         <h3>Your Vault is Empty</h3>
         <p>Click "Browse Vault" above to select a folder and start exploring.</p>
@@ -463,8 +452,8 @@
           style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--vault-border);">
           <button id="btn-back-to-albums"
             style="background: transparent; border: 1px solid var(--vault-border); color: var(--vault-text); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 18l-6-6 6-6" />
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 5 L9.34 10.66 M9.34 13.34 L15 19"/>
             </svg>
             Back to Albums
           </button>
@@ -493,8 +482,8 @@
           <div style="display:flex; align-items:center; gap:14px;">
             <button id="btn-back-to-debrids"
               style="background: transparent; border: 1px solid var(--vault-border); color: var(--vault-text); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M15 18l-6-6 6-6" />
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 5 L9.34 10.66 M9.34 13.34 L15 19"/>
               </svg>
               Back to Playlists
             </button>
@@ -524,7 +513,7 @@
   <div id="audio-bottom-bar"
     style="display:none; width: 100%; height: 50px; border-top: 1px solid var(--vault-border); background: var(--vault-console-surface, #13101c); align-items: center; padding: 0 20px; gap: 14px; flex-shrink: 0; z-index: 100; box-sizing: border-box; backdrop-filter: blur(12px);">
     <button id="audio-bar-close" title="Close Audio Player"
-      style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 13px; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s;">✕</button>
+      style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 13px; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
     
     <div id="audio-bar-track-info"
       style="display: flex; flex-direction: column; gap: 2px; min-width: 140px; max-width: 220px; overflow: hidden;">
@@ -551,15 +540,15 @@
         style="background: transparent; border: none; color: var(--vault-text); cursor: pointer; padding: 5px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s;">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="19 20 9 12 19 4 19 20" />
-          <line x1="5" y1="19" x2="5" y2="5" />
+          <path d="M20 9.75 L20 4.5 L9 12 L20 19.5 L20 14.25" />
+          <path d="M5 4.5 L5 19.5" />
         </svg>
       </button>
 
       <button id="audio-bar-play" title="Play / Pause (Space)"
         style="background: var(--vault-accent); border: none; color: var(--vt-primary, #0b0813); cursor: pointer; padding: 6px; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; box-shadow: 0 2px 8px rgba(176,124,255,0.35); transition: transform 0.15s, filter 0.15s;">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-          <polygon points="5 3 19 12 5 21 5 3" />
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5.5 9.45 L5.5 3.5 L20 12 L5.5 20.5 L5.5 14.55" />
         </svg>
       </button>
 
@@ -567,8 +556,8 @@
         style="background: transparent; border: none; color: var(--vault-text); cursor: pointer; padding: 5px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s;">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="5 4 15 12 5 20 5 4" />
-          <line x1="19" y1="5" x2="19" y2="19" />
+          <path d="M4 9.75 L4 4.5 L15 12 L4 19.5 L4 14.25" />
+          <path d="M19 4.5 L19 19.5" />
         </svg>
       </button>
 
@@ -603,9 +592,9 @@
         style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center;">
         <svg id="audio-bar-volume-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          <path d="M3 9.5 L7.5 9.5 L13 5 L13 19 L7.5 14.5 L3 14.5 Z" />
+          <path d="M16.5 9 A4 4 0 0 1 16.5 15" />
+          <path d="M19 6.5 A8 8 0 0 1 19 17.5" />
         </svg>
       </button>
       <input id="audio-bar-volume" type="range" min="0" max="1" step="0.01" value="0.8"
@@ -704,9 +693,7 @@
       style="font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--vault-signal-alert); margin-bottom: 12px; font-weight: bold; display: flex; align-items: center; gap: 8px;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
+        <path d="M18.18 14.22 L21.5 20 L2.5 20 L12 3.5 L15.32 9.27"/><path d="M12 9 L12 13.5"/><circle cx="12" cy="16.8" r="1.15" fill="currentColor" stroke="none"/>
       </svg>
       <span id="confirm-title">System Action Required</span>
     </div>
@@ -727,12 +714,12 @@
     aria-label="Settings Panel">
     <div class="settings-panel-header-bar">
       <div class="settings-panel-header-left">
-        <span class="settings-panel-cog" aria-hidden="true">⚙</span>
+        <span class="settings-panel-cog" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.08 5.93 L14.07 5.42 L15.19 5.88 L16.88 4.2 L19.8 7.12 L18.12 8.81 L18.58 9.93 L20.96 9.93 L20.96 14.07 L18.58 14.07 L18.12 15.19 L19.8 16.88 L16.88 19.8 L15.19 18.12 L14.07 18.58 L14.07 20.96 L9.93 20.96 L9.93 18.58 L8.81 18.12 L7.12 19.8 L4.2 16.88 L5.88 15.19 L5.42 14.07 L3.04 14.07 L3.04 9.93 L5.42 9.93 L5.88 8.81 L4.2 7.12 L7.12 4.2 L8.81 5.88 L9.93 5.42 L9.93 3.04 L14.07 3.04 L14.07 2.53"/><path d="M9 12 A3 3 0 1 0 15 12 A3 3 0 1 0 9 12"/></svg></span>
         <span class="settings-panel-header">Settings / Paramètres</span>
       </div>
       <div class="settings-panel-header-actions">
         <button id="settings-btn-save" type="button">Save</button>
-        <button id="settings-close" type="button" aria-label="Close Settings">✕</button>
+        <button id="settings-close" type="button" aria-label="Close Settings"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
       </div>
     </div>
     <div class="settings-section-tabs" role="tablist" aria-label="Settings sections">
@@ -763,7 +750,7 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round"
             style="position: absolute; left: 8px; color: var(--vault-slate); pointer-events: none;">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5" />
           </svg>
           <input type="text" id="settings-default-folder" class="search-box"
             style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6.5px 8px 6.5px 28px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px; cursor: pointer;"
@@ -904,7 +891,7 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round"
               style="position: absolute; left: 8px; color: var(--vault-slate); pointer-events: none;">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5" />
             </svg>
             <input type="text" id="settings-default-folder-photoalbums" class="search-box"
               style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px 8px 6px 28px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px; cursor: pointer;"
@@ -920,7 +907,7 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round"
               style="position: absolute; left: 8px; color: var(--vault-slate); pointer-events: none;">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5" />
             </svg>
             <input type="text" id="settings-default-folder-music" class="search-box"
               style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px 8px 6px 28px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px; cursor: pointer;"
@@ -936,7 +923,7 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round"
               style="position: absolute; left: 8px; color: var(--vault-slate); pointer-events: none;">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5" />
             </svg>
             <input type="text" id="settings-default-folder-debrids" class="search-box"
               style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px 8px 6px 28px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px; cursor: pointer;"
@@ -951,7 +938,7 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round"
               style="position: absolute; left: 8px; color: var(--vault-slate); pointer-events: none;">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5" />
             </svg>
             <input type="text" id="settings-default-folder-misc" class="search-box"
               style="flex: 1; background:var(--vt-primary); color:var(--vault-text); border:1px solid var(--vault-border); padding:6px 8px 6px 28px; font-family:var(--font-body); outline:none; border-radius:4px; font-size:12px; cursor: pointer;"
@@ -1086,7 +1073,7 @@
       </div>
       <div style="display:flex; align-items:center; gap:10px;">
         <span id="enh-gpu-badge" style="font-size:10px; font-weight:700; color:#fff; background:#10b981; padding:3px 8px; border-radius:4px; font-family:var(--font-mono, monospace);">NVIDIA RTX NVENC READY</span>
-        <button id="enh-modal-close" type="button" aria-label="Close Studio" style="background:transparent; border:none; color:var(--vault-text, #fff); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:4px;">✕</button>
+        <button id="enh-modal-close" type="button" aria-label="Close Studio" style="background:transparent; border:none; color:var(--vault-text, #fff); cursor:pointer; padding:4px 8px; border-radius:4px; display:inline-flex; align-items:center; justify-content:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
       </div>
     </div>
 
@@ -1374,7 +1361,7 @@
         <span>ASR Speech & Translation Benchmark</span>
       </div>
       <button id="btn-close-benchmark"
-        style="background: transparent; border: none; color: var(--vault-console-text-secondary); cursor: pointer; font-size: 16px; line-height: 1; user-select: none;">✕</button>
+        style="background: transparent; border: none; color: var(--vault-console-text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; user-select: none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
     </div>
 
     <!-- Toggle Hardware / Sim Mode -->
@@ -1606,19 +1593,19 @@
       <span class="player-title" id="player-title">—</span>
       <div class="player-corner-btns">
         <button class="player-corner-btn" id="minimize-modal" aria-label="Picture-in-Picture"
-          title="Picture-in-Picture">🗗</button>
-        <button class="player-corner-btn" id="close-modal" aria-label="Close" title="Close (Esc)">✕</button>
+          title="Picture-in-Picture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:block;"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="11" y="9" width="9" height="7" rx="1"/></svg></button>
+        <button class="player-corner-btn" id="close-modal" aria-label="Close" title="Close (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:block;"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
       </div>
     </div>
     <button id="pip-close-btn" aria-label="Close" title="Close"
-      style="display:none; position:absolute; top:6px; right:8px; z-index:203; background:rgba(0,0,0,0.5); border:none; color:#fff; border-radius:50%; width:20px; height:20px; font-size:12px; align-items:center; justify-content:center; cursor:pointer; padding:0; line-height:1;">✕</button>
+      style="display:none; position:absolute; top:6px; right:8px; z-index:203; background:rgba(0,0,0,0.5); border:none; color:#fff; border-radius:50%; width:20px; height:20px; font-size:12px; align-items:center; justify-content:center; cursor:pointer; padding:0; line-height:1;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px; height:11px; display:block;"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
     <div class="video-wrapper">
       <video id="video-player" autoplay></video>
       <!-- PiP Controls Hover Overlay -->
       <div id="pip-controls-overlay">
-        <button id="pip-btn-prev" class="pip-ctrl-btn" title="Previous">⏮</button>
-        <button id="pip-btn-play" class="pip-ctrl-btn" title="Play/Pause">⏯</button>
-        <button id="pip-btn-next" class="pip-ctrl-btn" title="Next">⏭</button>
+        <button id="pip-btn-prev" class="pip-ctrl-btn" title="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:block;"><path d="M20 9.75 L20 4.5 L9 12 L20 19.5 L20 14.25"/><path d="M5 4.5 L5 19.5"/></svg></button>
+        <button id="pip-btn-play" class="pip-ctrl-btn" title="Play/Pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:block;"><path d="M5.5 9.45 L5.5 3.5 L20 12 L5.5 20.5 L5.5 14.55"/></svg></button>
+        <button id="pip-btn-next" class="pip-ctrl-btn" title="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; display:block;"><path d="M4 9.75 L4 4.5 L15 12 L4 19.5 L4 14.25"/><path d="M19 4.5 L19 19.5"/></svg></button>
       </div>
       <div id="video-ended-overlay"
         style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(7, 8, 10, 0.95); z-index:100; align-items:center; justify-content:center; flex-direction:column; color:var(--console-text); font-family:var(--vault-font-mono), monospace;">
@@ -1653,30 +1640,27 @@
             <button id="btn-prev" class="ctrl-btn" title="Previous" aria-label="Previous">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round" style="width:16px; height:16px; display:block;">
-                <path d="M 18 5 L 7 12 L 18 19 Z" />
-                <line x1="4" y1="19" x2="4" y2="15" />
-                <line x1="4" y1="9" x2="4" y2="5" />
+                <path d="M20 9.75 L20 4.5 L9 12 L20 19.5 L20 14.25"/>
+                <path d="M5 4.5 L5 19.5"/>
               </svg>
             </button>
             <button id="btn-playpause" class="ctrl-btn" title="Play/Pause (Space)" aria-label="Play or Pause">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round" style="width:16px; height:16px; display:block;">
-                <rect x="6" y="4" width="4" height="16" />
-                <rect x="14" y="4" width="4" height="16" />
+                <path d="M5.5 9.6 L5.5 5.5 A1.5 1.5 0 0 1 7 4 L8.5 4 A1.5 1.5 0 0 1 10 5.5 L10 18.5 A1.5 1.5 0 0 1 8.5 20 L7 20 A1.5 1.5 0 0 1 5.5 18.5 L5.5 14.4"/><path d="M15.5 4 H17 A1.5 1.5 0 0 1 18.5 5.5 V18.5 A1.5 1.5 0 0 1 17 20 H15.5 A1.5 1.5 0 0 1 14 18.5 V5.5 A1.5 1.5 0 0 1 15.5 4 Z"/>
               </svg>
             </button>
             <button id="btn-next" class="ctrl-btn" title="Next" aria-label="Next">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round" style="width:16px; height:16px; display:block;">
-                <path d="M 6 5 L 17 12 L 6 19 Z" />
-                <line x1="20" y1="19" x2="20" y2="15" />
-                <line x1="20" y1="9" x2="20" y2="5" />
+                <path d="M4 9.75 L4 4.5 L15 12 L4 19.5 L4 14.25"/>
+                <path d="M19 4.5 L19 19.5"/>
               </svg>
             </button>
             <button id="btn-clip" class="ctrl-btn" title="Create Clip (C)" aria-label="Create Clip">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round" style="width:16px; height:16px; display:block;">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                <path d="M16.35 14.35 L19.5 10.5 L12.5 10.5 L13 2.5 L4.5 13.5 L11.5 13.5 L10.5 21.5 L13.65 17.65"/>
               </svg>
             </button>
             <div class="volume-container"
@@ -1685,9 +1669,9 @@
                 aria-label="Volume">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round" style="width:16px; height:16px; display:block;">
-                  <path d="M 7 11 L 7 9 L 11 9 L 15 5 L 15 19 L 11 15 L 7 15 L 7 13" />
-                  <path d="M 18 9 A 3 3 0 0 1 18 15" />
-                  <path d="M 21 7 A 6 6 0 0 1 21 17" />
+                  <path d="M3 9.5 L7.5 9.5 L13 5 L13 19 L7.5 14.5 L3 14.5 Z" />
+                  <path d="M16.5 9 A4 4 0 0 1 16.5 15" />
+                  <path d="M19 6.5 A8 8 0 0 1 19 17.5" />
                 </svg>
               </button>
               <div class="volume-slider-wrapper"
@@ -1780,11 +1764,7 @@
                 style="display:inline-flex; align-items:center; gap:6px;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round" style="width:14px; height:14px; display:block;">
-                  <path
-                    d="M 21 9 L 21 17 C 21 18.1 20.1 19 19 19 L 5 19 C 3.9 19 3 18.1 3 17 L 3 7 C 3 5.9 3.9 5 5 5 L 15 5" />
-                  <line x1="18" y1="5" x2="19" y2="5" />
-                  <path d="M 7 10 L 13 10" />
-                  <path d="M 7 14 L 17 14" />
+                  <path d="M14.85 5 L19.5 5 A2 2 0 0 1 21.5 7 L21.5 17 A2 2 0 0 1 19.5 19 L4.5 19 A2 2 0 0 1 2.5 17 L2.5 7 A2 2 0 0 1 4.5 5 L9.15 5"/><path d="M6 12.5 L10 12.5"/><path d="M12.5 12.5 L18 12.5"/><path d="M6 15.5 L14 15.5"/>
                 </svg>
                 <span id="subtitles-btn-text">CC</span> ▾
               </button>
@@ -1852,9 +1832,7 @@
               style="display:none; align-items:center; justify-content:center; gap:6px; padding:5px 10px; background:rgba(229,169,59,0.15); border:1px solid var(--vault-accent); color:var(--vault-accent); border-radius:4px; cursor:pointer;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round" style="width:14px; height:14px; display:block; flex-shrink:0;">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
+                <path d="M4 15 L4 20 L9.6 20 M14.4 20 L20 20 L20 15"/><path d="M12 3.5 L12 14.5"/><path d="M7.5 10 L12 14.5 L16.5 10"/>
               </svg>
               <span style="font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:0.04em;">SAVE</span>
             </button>
@@ -1969,7 +1947,7 @@
         <button id="photo-editor-save"
           style="background: var(--vault-accent); color: var(--vt-primary); border: none; padding: 6px 14px; border-radius: 4px; font-weight: 700; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; cursor: pointer; transition: all 0.2s;">Save</button>
         <button id="photo-editor-close" title="Close (Esc)"
-          style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; font-size: 18px; padding: 4px;">✕</button>
+          style="background: transparent; border: none; color: var(--vault-slate); cursor: pointer; padding: 4px; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L9.9 9.9 M14.1 14.1 L19 19"/><path d="M19 5 L5 19"/></svg></button>
       </div>
     </div>
     <!-- Main workspace -->

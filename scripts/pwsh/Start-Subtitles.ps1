@@ -49,7 +49,7 @@ param(
     [string]$Language,
     [ValidateSet("hf", "command-a", "translategemma", "riva", "google")]
     [string]$TranslateEngine = "hf",
-    [string]$TranslateFrom = "en",
+    [string]$TranslateFrom = "",
     [switch]$LowMemory,
     [string]$VwCli
 )

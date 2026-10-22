@@ -1,0 +1,826 @@
+{
+ "stroke": 2,
+ "viewBox": "0 0 24 24",
+ "icons": [
+  {
+   "name": "home",
+   "component": "IconHome",
+   "category": "navigation"
+  },
+  {
+   "name": "dashboard",
+   "component": "IconDashboard",
+   "category": "navigation"
+  },
+  {
+   "name": "menu",
+   "component": "IconMenu",
+   "category": "navigation"
+  },
+  {
+   "name": "search",
+   "component": "IconSearch",
+   "category": "navigation"
+  },
+  {
+   "name": "settings",
+   "component": "IconSettings",
+   "category": "navigation"
+  },
+  {
+   "name": "sliders",
+   "component": "IconSliders",
+   "category": "navigation"
+  },
+  {
+   "name": "bell",
+   "component": "IconBell",
+   "category": "navigation"
+  },
+  {
+   "name": "bell-off",
+   "component": "IconBellOff",
+   "category": "navigation"
+  },
+  {
+   "name": "user",
+   "component": "IconUser",
+   "category": "navigation"
+  },
+  {
+   "name": "user-plus",
+   "component": "IconUserPlus",
+   "category": "navigation"
+  },
+  {
+   "name": "users",
+   "component": "IconUsers",
+   "category": "navigation"
+  },
+  {
+   "name": "logout",
+   "component": "IconLogout",
+   "category": "navigation"
+  },
+  {
+   "name": "login",
+   "component": "IconLogin",
+   "category": "navigation"
+  },
+  {
+   "name": "chevron-left",
+   "component": "IconChevronLeft",
+   "category": "navigation"
+  },
+  {
+   "name": "chevron-right",
+   "component": "IconChevronRight",
+   "category": "navigation"
+  },
+  {
+   "name": "chevron-up",
+   "component": "IconChevronUp",
+   "category": "navigation"
+  },
+  {
+   "name": "chevron-down",
+   "component": "IconChevronDown",
+   "category": "navigation"
+  },
+  {
+   "name": "arrow-left",
+   "component": "IconArrowLeft",
+   "category": "navigation"
+  },
+  {
+   "name": "arrow-right",
+   "component": "IconArrowRight",
+   "category": "navigation"
+  },
+  {
+   "name": "arrow-up",
+   "component": "IconArrowUp",
+   "category": "navigation"
+  },
+  {
+   "name": "arrow-down",
+   "component": "IconArrowDown",
+   "category": "navigation"
+  },
+  {
+   "name": "close",
+   "component": "IconClose",
+   "category": "navigation"
+  },
+  {
+   "name": "check",
+   "component": "IconCheck",
+   "category": "navigation"
+  },
+  {
+   "name": "plus",
+   "component": "IconPlus",
+   "category": "navigation"
+  },
+  {
+   "name": "minus",
+   "component": "IconMinus",
+   "category": "navigation"
+  },
+  {
+   "name": "more-h",
+   "component": "IconMoreH",
+   "category": "navigation"
+  },
+  {
+   "name": "more-v",
+   "component": "IconMoreV",
+   "category": "navigation"
+  },
+  {
+   "name": "external-link",
+   "component": "IconExternalLink",
+   "category": "navigation"
+  },
+  {
+   "name": "sidebar",
+   "component": "IconSidebar",
+   "category": "navigation"
+  },
+  {
+   "name": "grid",
+   "component": "IconGrid",
+   "category": "navigation"
+  },
+  {
+   "name": "list",
+   "component": "IconList",
+   "category": "navigation"
+  },
+  {
+   "name": "columns",
+   "component": "IconColumns",
+   "category": "navigation"
+  },
+  {
+   "name": "table",
+   "component": "IconTable",
+   "category": "navigation"
+  },
+  {
+   "name": "minimize",
+   "component": "IconMinimize",
+   "category": "window"
+  },
+  {
+   "name": "maximize",
+   "component": "IconMaximize",
+   "category": "window"
+  },
+  {
+   "name": "restore",
+   "component": "IconRestore",
+   "category": "window"
+  },
+  {
+   "name": "grip",
+   "component": "IconGrip",
+   "category": "navigation"
+  },
+  {
+   "name": "edit",
+   "component": "IconEdit",
+   "category": "actions"
+  },
+  {
+   "name": "trash",
+   "component": "IconTrash",
+   "category": "actions"
+  },
+  {
+   "name": "copy",
+   "component": "IconCopy",
+   "category": "actions"
+  },
+  {
+   "name": "download",
+   "component": "IconDownload",
+   "category": "actions"
+  },
+  {
+   "name": "upload",
+   "component": "IconUpload",
+   "category": "actions"
+  },
+  {
+   "name": "save",
+   "component": "IconSave",
+   "category": "actions"
+  },
+  {
+   "name": "filter",
+   "component": "IconFilter",
+   "category": "actions"
+  },
+  {
+   "name": "refresh",
+   "component": "IconRefresh",
+   "category": "actions"
+  },
+  {
+   "name": "undo",
+   "component": "IconUndo",
+   "category": "actions"
+  },
+  {
+   "name": "redo",
+   "component": "IconRedo",
+   "category": "actions"
+  },
+  {
+   "name": "link",
+   "component": "IconLink",
+   "category": "actions"
+  },
+  {
+   "name": "share",
+   "component": "IconShare",
+   "category": "actions"
+  },
+  {
+   "name": "expand",
+   "component": "IconExpand",
+   "category": "actions"
+  },
+  {
+   "name": "compress",
+   "component": "IconCompress",
+   "category": "actions"
+  },
+  {
+   "name": "sort",
+   "component": "IconSort",
+   "category": "actions"
+  },
+  {
+   "name": "pin",
+   "component": "IconPin",
+   "category": "actions"
+  },
+  {
+   "name": "star",
+   "component": "IconStar",
+   "category": "actions"
+  },
+  {
+   "name": "heart",
+   "component": "IconHeart",
+   "category": "actions"
+  },
+  {
+   "name": "bookmark",
+   "component": "IconBookmark",
+   "category": "actions"
+  },
+  {
+   "name": "tag",
+   "component": "IconTag",
+   "category": "actions"
+  },
+  {
+   "name": "flag",
+   "component": "IconFlag",
+   "category": "actions"
+  },
+  {
+   "name": "zoom-in",
+   "component": "IconZoomIn",
+   "category": "actions"
+  },
+  {
+   "name": "zoom-out",
+   "component": "IconZoomOut",
+   "category": "actions"
+  },
+  {
+   "name": "history",
+   "component": "IconHistory",
+   "category": "actions"
+  },
+  {
+   "name": "check-circle",
+   "component": "IconCheckCircle",
+   "category": "actions"
+  },
+  {
+   "name": "x-circle",
+   "component": "IconXCircle",
+   "category": "actions"
+  },
+  {
+   "name": "plus-circle",
+   "component": "IconPlusCircle",
+   "category": "actions"
+  },
+  {
+   "name": "paperclip",
+   "component": "IconPaperclip",
+   "category": "actions"
+  },
+  {
+   "name": "cursor",
+   "component": "IconCursor",
+   "category": "actions"
+  },
+  {
+   "name": "sparkle",
+   "component": "IconSparkle",
+   "category": "actions"
+  },
+  {
+   "name": "wand",
+   "component": "IconWand",
+   "category": "actions"
+  },
+  {
+   "name": "activity",
+   "component": "IconActivity",
+   "category": "monitoring"
+  },
+  {
+   "name": "bar-chart",
+   "component": "IconBarChart",
+   "category": "monitoring"
+  },
+  {
+   "name": "pie-chart",
+   "component": "IconPieChart",
+   "category": "monitoring"
+  },
+  {
+   "name": "trend-up",
+   "component": "IconTrendUp",
+   "category": "monitoring"
+  },
+  {
+   "name": "trend-down",
+   "component": "IconTrendDown",
+   "category": "monitoring"
+  },
+  {
+   "name": "alert-triangle",
+   "component": "IconAlertTriangle",
+   "category": "monitoring"
+  },
+  {
+   "name": "alert-circle",
+   "component": "IconAlertCircle",
+   "category": "monitoring"
+  },
+  {
+   "name": "info",
+   "component": "IconInfo",
+   "category": "monitoring"
+  },
+  {
+   "name": "help",
+   "component": "IconHelp",
+   "category": "monitoring"
+  },
+  {
+   "name": "clock",
+   "component": "IconClock",
+   "category": "monitoring"
+  },
+  {
+   "name": "calendar",
+   "component": "IconCalendar",
+   "category": "monitoring"
+  },
+  {
+   "name": "hourglass",
+   "component": "IconHourglass",
+   "category": "monitoring"
+  },
+  {
+   "name": "zap",
+   "component": "IconZap",
+   "category": "monitoring"
+  },
+  {
+   "name": "target",
+   "component": "IconTarget",
+   "category": "monitoring"
+  },
+  {
+   "name": "loader",
+   "component": "IconLoader",
+   "category": "monitoring"
+  },
+  {
+   "name": "radar",
+   "component": "IconRadar",
+   "category": "monitoring"
+  },
+  {
+   "name": "shield",
+   "component": "IconShield",
+   "category": "security"
+  },
+  {
+   "name": "shield-check",
+   "component": "IconShieldCheck",
+   "category": "security"
+  },
+  {
+   "name": "shield-alert",
+   "component": "IconShieldAlert",
+   "category": "security"
+  },
+  {
+   "name": "lock",
+   "component": "IconLock",
+   "category": "security"
+  },
+  {
+   "name": "unlock",
+   "component": "IconUnlock",
+   "category": "security"
+  },
+  {
+   "name": "key",
+   "component": "IconKey",
+   "category": "security"
+  },
+  {
+   "name": "fingerprint",
+   "component": "IconFingerprint",
+   "category": "security"
+  },
+  {
+   "name": "eye",
+   "component": "IconEye",
+   "category": "security"
+  },
+  {
+   "name": "eye-off",
+   "component": "IconEyeOff",
+   "category": "security"
+  },
+  {
+   "name": "scan",
+   "component": "IconScan",
+   "category": "security"
+  },
+  {
+   "name": "firewall",
+   "component": "IconFirewall",
+   "category": "security"
+  },
+  {
+   "name": "bug",
+   "component": "IconBug",
+   "category": "security"
+  },
+  {
+   "name": "hash",
+   "component": "IconHash",
+   "category": "security"
+  },
+  {
+   "name": "server",
+   "component": "IconServer",
+   "category": "data"
+  },
+  {
+   "name": "database",
+   "component": "IconDatabase",
+   "category": "data"
+  },
+  {
+   "name": "cloud",
+   "component": "IconCloud",
+   "category": "data"
+  },
+  {
+   "name": "cloud-upload",
+   "component": "IconCloudUpload",
+   "category": "data"
+  },
+  {
+   "name": "cloud-download",
+   "component": "IconCloudDownload",
+   "category": "data"
+  },
+  {
+   "name": "globe",
+   "component": "IconGlobe",
+   "category": "data"
+  },
+  {
+   "name": "cpu",
+   "component": "IconCpu",
+   "category": "data"
+  },
+  {
+   "name": "hard-drive",
+   "component": "IconHardDrive",
+   "category": "data"
+  },
+  {
+   "name": "network",
+   "component": "IconNetwork",
+   "category": "data"
+  },
+  {
+   "name": "terminal",
+   "component": "IconTerminal",
+   "category": "data"
+  },
+  {
+   "name": "code",
+   "component": "IconCode",
+   "category": "data"
+  },
+  {
+   "name": "wifi",
+   "component": "IconWifi",
+   "category": "data"
+  },
+  {
+   "name": "router",
+   "component": "IconRouter",
+   "category": "data"
+  },
+  {
+   "name": "api",
+   "component": "IconApi",
+   "category": "data"
+  },
+  {
+   "name": "package",
+   "component": "IconPackage",
+   "category": "data"
+  },
+  {
+   "name": "git-branch",
+   "component": "IconGitBranch",
+   "category": "data"
+  },
+  {
+   "name": "git-commit",
+   "component": "IconGitCommit",
+   "category": "data"
+  },
+  {
+   "name": "git-merge",
+   "component": "IconGitMerge",
+   "category": "data"
+  },
+  {
+   "name": "bot",
+   "component": "IconBot",
+   "category": "data"
+  },
+  {
+   "name": "document",
+   "component": "IconDocument",
+   "category": "documents"
+  },
+  {
+   "name": "file-text",
+   "component": "IconFileText",
+   "category": "documents"
+  },
+  {
+   "name": "file-plus",
+   "component": "IconFilePlus",
+   "category": "documents"
+  },
+  {
+   "name": "file-code",
+   "component": "IconFileCode",
+   "category": "documents"
+  },
+  {
+   "name": "folder",
+   "component": "IconFolder",
+   "category": "documents"
+  },
+  {
+   "name": "folder-open",
+   "component": "IconFolderOpen",
+   "category": "documents"
+  },
+  {
+   "name": "folder-plus",
+   "component": "IconFolderPlus",
+   "category": "documents"
+  },
+  {
+   "name": "clipboard",
+   "component": "IconClipboard",
+   "category": "documents"
+  },
+  {
+   "name": "log",
+   "component": "IconLog",
+   "category": "documents"
+  },
+  {
+   "name": "archive",
+   "component": "IconArchive",
+   "category": "documents"
+  },
+  {
+   "name": "inbox",
+   "component": "IconInbox",
+   "category": "documents"
+  },
+  {
+   "name": "image",
+   "component": "IconImage",
+   "category": "documents"
+  },
+  {
+   "name": "play",
+   "component": "IconPlay",
+   "category": "media"
+  },
+  {
+   "name": "pause",
+   "component": "IconPause",
+   "category": "media"
+  },
+  {
+   "name": "stop",
+   "component": "IconStop",
+   "category": "media"
+  },
+  {
+   "name": "skip-forward",
+   "component": "IconSkipForward",
+   "category": "media"
+  },
+  {
+   "name": "skip-back",
+   "component": "IconSkipBack",
+   "category": "media"
+  },
+  {
+   "name": "fast-forward",
+   "component": "IconFastForward",
+   "category": "media"
+  },
+  {
+   "name": "rewind",
+   "component": "IconRewind",
+   "category": "media"
+  },
+  {
+   "name": "volume",
+   "component": "IconVolume",
+   "category": "media"
+  },
+  {
+   "name": "volume-low",
+   "component": "IconVolumeLow",
+   "category": "media"
+  },
+  {
+   "name": "volume-mute",
+   "component": "IconVolumeMute",
+   "category": "media"
+  },
+  {
+   "name": "fullscreen",
+   "component": "IconFullscreen",
+   "category": "media"
+  },
+  {
+   "name": "record",
+   "component": "IconRecord",
+   "category": "media"
+  },
+  {
+   "name": "camera",
+   "component": "IconCamera",
+   "category": "media"
+  },
+  {
+   "name": "cctv",
+   "component": "IconCctv",
+   "category": "media"
+  },
+  {
+   "name": "pip",
+   "component": "IconPip",
+   "category": "media"
+  },
+  {
+   "name": "subtitles",
+   "component": "IconSubtitles",
+   "category": "media"
+  },
+  {
+   "name": "mic",
+   "component": "IconMic",
+   "category": "media"
+  },
+  {
+   "name": "screen-share",
+   "component": "IconScreenShare",
+   "category": "media"
+  },
+  {
+   "name": "music",
+   "component": "IconMusic",
+   "category": "media"
+  },
+  {
+   "name": "video",
+   "component": "IconVideo",
+   "category": "media"
+  },
+  {
+   "name": "repeat",
+   "component": "IconRepeat",
+   "category": "media"
+  },
+  {
+   "name": "shuffle",
+   "component": "IconShuffle",
+   "category": "media"
+  },
+  {
+   "name": "power",
+   "component": "IconPower",
+   "category": "utility"
+  },
+  {
+   "name": "mail",
+   "component": "IconMail",
+   "category": "utility"
+  },
+  {
+   "name": "phone",
+   "component": "IconPhone",
+   "category": "utility"
+  },
+  {
+   "name": "send",
+   "component": "IconSend",
+   "category": "utility"
+  },
+  {
+   "name": "message",
+   "component": "IconMessage",
+   "category": "utility"
+  },
+  {
+   "name": "map",
+   "component": "IconMap",
+   "category": "utility"
+  },
+  {
+   "name": "layers",
+   "component": "IconLayers",
+   "category": "utility"
+  },
+  {
+   "name": "toggle",
+   "component": "IconToggle",
+   "category": "utility"
+  },
+  {
+   "name": "keyboard",
+   "component": "IconKeyboard",
+   "category": "utility"
+  },
+  {
+   "name": "monitor",
+   "component": "IconMonitor",
+   "category": "utility"
+  },
+  {
+   "name": "smartphone",
+   "component": "IconSmartphone",
+   "category": "utility"
+  },
+  {
+   "name": "plug",
+   "component": "IconPlug",
+   "category": "utility"
+  },
+  {
+   "name": "sun",
+   "component": "IconSun",
+   "category": "utility"
+  },
+  {
+   "name": "moon",
+   "component": "IconMoon",
+   "category": "utility"
+  }
+ ]
+}

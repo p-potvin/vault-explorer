@@ -42,8 +42,9 @@ async function run() {
     // 3. Verify Cog Icon alignment
     const cogInHeader = await win.locator('.settings-panel-header-left .settings-panel-cog').count();
     assert.equal(cogInHeader, 1, 'Cog icon must reside in .settings-panel-header-left');
+    const cogSvgCount = await win.locator('.settings-panel-cog svg').count();
     const cogText = await win.locator('.settings-panel-cog').innerText();
-    assert.equal(cogText.trim(), '⚙', 'Cog icon should be ⚙');
+    assert.ok(cogSvgCount === 1 || cogText.trim() === '⚙', 'Cog icon should be SVG or ⚙');
     console.log('[PASS] Cog icon aligned in header left');
 
     // 4. Verify Save button is visible across all 4 tabs

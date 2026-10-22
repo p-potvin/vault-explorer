@@ -196,13 +196,13 @@
         container.innerHTML = `
             <div class="empty-state" style="grid-column: 1 / -1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 48px 24px; text-align:center;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 52px; height: 52px; margin-bottom: 16px; color: var(--vault-accent, #E5A93B); opacity: 0.85;">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5"></path>
                     <polygon points="12 11 12 17 17 14 12 11" fill="currentColor" opacity="0.3"></polygon>
                 </svg>
                 <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 700; color: var(--vault-text); font-family: var(--font-sans);">${window.escapeHtml(heading)}</h3>
                 <p style="margin: 0 0 20px; font-size: 13px; color: var(--vault-slate); max-width: 440px; line-height: 1.5;">${window.escapeHtml(message)}</p>
                 <button id="debrids-btn-browse-folder" style="background: var(--vault-accent); color: var(--vt-primary, #0b0813); font-weight: 700; border: none; padding: 8px 20px; border-radius: 4px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-body); transition: all 0.2s;">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5"/></svg>
                     Choose Debrids Folder
                 </button>
             </div>

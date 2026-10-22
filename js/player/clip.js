@@ -805,7 +805,7 @@ function showClipEditingDialog(clipData) {
     `;
     
     const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '✕';
+    closeBtn.innerHTML = window.icons ? window.icons.close('width="14" height="14"') : '✕';
     closeBtn.style.cssText = `
         background: transparent;
         border: none;
@@ -1254,7 +1254,7 @@ function showClipExportDialog(clipData) {
     `;
     
     const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '✕';
+    closeBtn.innerHTML = window.icons ? window.icons.close('width="14" height="14"') : '✕';
     closeBtn.style.cssText = `
         background: transparent;
         border: none;
@@ -1605,7 +1605,7 @@ function showShareDialogUI(clipData, format, quality) {
     `;
     
     const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '✕';
+    closeBtn.innerHTML = window.icons ? window.icons.close('width="14" height="14"') : '✕';
     closeBtn.style.cssText = `
         background: transparent;
         border: none;
@@ -1831,15 +1831,15 @@ function showPublishDialogUI(clipData, format, quality) {
     `;
     headerTitle.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            <line x1="12" y1="11" x2="12" y2="17"/>
-            <line x1="9" y1="14" x2="15" y2="14"/>
+            <path d="M9.3 19.5 L3 19.5 L3 5 L9 5 L11 7.5 L21 7.5 L21 19.5 L14.7 19.5" /><path d="M12 10.5 L12 16.5"/><path d="M9 13.5 L15 13.5"/>
+
+
         </svg>
         Publish Clip
     `;
     
     const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '✕';
+    closeBtn.innerHTML = window.icons ? window.icons.close('width="14" height="14"') : '✕';
     closeBtn.style.cssText = `
         background: transparent;
         border: none;

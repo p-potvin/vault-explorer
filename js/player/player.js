@@ -311,6 +311,8 @@ let seekCanvas = null;
 let seekCtx = null;
 let seekDebounceTimer = null;
 let lastScrubSrc = '';
+let hasScrubFrame = false;
+let trickplaySeq = 0;
 
 function updateAutoplayUI() {
     const btn = el('btn-autoplay');
@@ -342,16 +344,15 @@ function updateAutoplayUI() {
 
 function updateVolumeIconUI(vol) {
     const btnVol = el('btn-volume-icon');
-    if (!btnVol) return;
-    let pathContent = '';
+    if (!btnVol || !window.icons) return;
+    const style = 'width:16px; height:16px; display:block;';
     if (vol === 0) {
-        pathContent = `<path d="M 7 11 L 7 9 L 11 9 L 15 5 L 15 19 L 11 15 L 7 15 L 7 13" /><line x1="18" y1="9" x2="22" y2="13" /><line x1="18" y1="13" x2="21" y2="10" />`;
+        btnVol.innerHTML = (window.icons['volume-mute'] || window.icons.volumeMute || window.icons.volume)('', style);
     } else if (vol < 0.5) {
-        pathContent = `<path d="M 7 11 L 7 9 L 11 9 L 15 5 L 15 19 L 11 15 L 7 15 L 7 13" /><path d="M 18 9 A 3 3 0 0 1 18 15" />`;
+        btnVol.innerHTML = (window.icons['volume-low'] || window.icons.volumeLow || window.icons.volume)('', style);
     } else {
-        pathContent = `<path d="M 7 11 L 7 9 L 11 9 L 15 5 L 15 19 L 11 15 L 7 15 L 7 13" /><path d="M 18 9 A 3 3 0 0 1 18 15" /><path d="M 21 7 A 6 6 0 0 1 21 17" />`;
+        btnVol.innerHTML = window.icons.volume('', style);
     }
-    btnVol.innerHTML = window.icons ? window.icons.volume('', 'width:16px; height:16px; display:block;', pathContent) : '';
 }
 
 async function playItem(idx, sourceItems = null) {
@@ -397,9 +398,11 @@ async function playItem(idx, sourceItems = null) {
     const newSrc = isStream ? (itm.streamUrl || itm.path) : window.sanitizePath(activePath);
     vp.src = newSrc;
     vp.muted = false;
+    if (!scrubVideo) initPlayer();
     if (scrubVideo && lastScrubSrc !== newSrc) {
         scrubVideo.src = newSrc;
         lastScrubSrc = newSrc;
+        hasScrubFrame = false;
     }
 
     // Toggle Stream vs Local enhancement controls
@@ -570,7 +573,10 @@ function saveAndSetVolume(vol) {
     localStorage.setItem('player-volume', safeVol);
 }
 
+let playerInitialized = false;
 function initPlayer() {
+    if (playerInitialized) return;
+    playerInitialized = true;
     vp = el('video-player');
 
     // Windows Taskbar Thumbnail Toolbar Action Handler
@@ -661,6 +667,7 @@ function initPlayer() {
                 const h = sourceEl.videoHeight || sourceEl.naturalHeight || sourceEl.height || 0;
                 if (w > 0 && h > 0) {
                     seekCtx.drawImage(sourceEl, 0, 0, seekCanvas.width, seekCanvas.height);
+                    hasScrubFrame = true;
                 }
             }
         } catch (_) {}
@@ -721,6 +728,11 @@ function initPlayer() {
     const pipPrev = el('pip-btn-prev');
     const pipPlay = el('pip-btn-play');
     const pipNext = el('pip-btn-next');
+    if (window.icons) {
+        if (pipPrev) pipPrev.innerHTML = window.icons.skipBack('', 'width:13px; height:13px; display:block;');
+        if (pipPlay) pipPlay.innerHTML = window.icons.play('', 'width:13px; height:13px; display:block;');
+        if (pipNext) pipNext.innerHTML = window.icons.skipForward('', 'width:13px; height:13px; display:block;');
+    }
     if (pipPrev) {
         pipPrev.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1169,7 +1181,7 @@ function initPlayer() {
     vp.addEventListener('play', () => {
         btnPlay.innerHTML = PAUSE_ICON_SVG;
         const pipPlayBtn = el('pip-btn-play');
-        if (pipPlayBtn) pipPlayBtn.textContent = '⏸';
+        if (pipPlayBtn) pipPlayBtn.innerHTML = window.icons ? window.icons.pause('', 'width:13px; height:13px; display:block;') : '⏸';
     });
     vp.addEventListener('playing', () => {
         if (Array.isArray(window.__launchPriorityTrace)) window.__launchPriorityTrace.push('playing');
@@ -1180,7 +1192,7 @@ function initPlayer() {
     vp.addEventListener('pause', () => {
         btnPlay.innerHTML = PLAY_ICON_SVG;
         const pipPlayBtn = el('pip-btn-play');
-        if (pipPlayBtn) pipPlayBtn.textContent = '▶';
+        if (pipPlayBtn) pipPlayBtn.innerHTML = window.icons ? window.icons.play('', 'width:13px; height:13px; display:block;') : '▶';
     });
 
     btnPlay.addEventListener('click', () => {
@@ -1508,9 +1520,11 @@ function initPlayer() {
 
         // Keep scrubVideo source synchronized with active video playback
         const activeSrc = vp.src || '';
+        if (!scrubVideo) initPlayer();
         if (scrubVideo && activeSrc && lastScrubSrc !== activeSrc) {
             scrubVideo.src = activeSrc;
             lastScrubSrc = activeSrc;
+            hasScrubFrame = false;
         }
 
         const tpFolder = vp.dataset.trickplay;
@@ -1520,9 +1534,13 @@ function initPlayer() {
             if (trickFrames.length > 0) {
                 usedTrickplay = true;
                 const idx = Math.min(Math.floor(percent * trickFrames.length), trickFrames.length - 1);
+                const seq = ++trickplaySeq;
                 const img = new Image();
                 img.onload = () => {
-                    if (seekCtx && seekCanvas) seekCtx.drawImage(img, 0, 0, seekCanvas.width, seekCanvas.height);
+                    if (seq === trickplaySeq && seekCtx && seekCanvas) {
+                        seekCtx.drawImage(img, 0, 0, seekCanvas.width, seekCanvas.height);
+                        hasScrubFrame = true;
+                    }
                 };
                 img.src = window.sanitizePath(trickFrames[idx]);
             }
@@ -1531,10 +1549,13 @@ function initPlayer() {
         if (!usedTrickplay && vp.duration && isFinite(vp.duration)) {
             const targetTime = percent * vp.duration;
 
-            // Instant non-black fallback: if scrubVideo hasn't rendered yet, draw active playing video frame
-            if (vp.readyState >= 2 && (!scrubVideo || scrubVideo.readyState < 2)) {
+            // Instant non-black fallback: only before scrubVideo has rendered any frame for this video
+            if (!hasScrubFrame && vp.readyState >= 2 && (!scrubVideo || scrubVideo.readyState < 1)) {
                 try {
-                    if (seekCtx && seekCanvas) seekCtx.drawImage(vp, 0, 0, seekCanvas.width, seekCanvas.height);
+                    if (seekCtx && seekCanvas) {
+                        seekCtx.drawImage(vp, 0, 0, seekCanvas.width, seekCanvas.height);
+                        hasScrubFrame = true;
+                    }
                 } catch (_) {}
             }
 
@@ -1552,7 +1573,10 @@ function initPlayer() {
             } else if (window.currentPlayingItem && window.currentPlayingItem.thumbnail) {
                 const thumbImg = new Image();
                 thumbImg.onload = () => {
-                    if (seekCtx && seekCanvas) seekCtx.drawImage(thumbImg, 0, 0, seekCanvas.width, seekCanvas.height);
+                    if (!hasScrubFrame && seekCtx && seekCanvas) {
+                        seekCtx.drawImage(thumbImg, 0, 0, seekCanvas.width, seekCanvas.height);
+                        hasScrubFrame = true;
+                    }
                 };
                 thumbImg.src = window.sanitizePath(window.currentPlayingItem.thumbnail);
             }
@@ -1740,6 +1764,7 @@ async function playStream(url, title) {
     if (lastScrubSrc !== url) {
         scrubVideo.src = url;
         lastScrubSrc = url;
+        hasScrubFrame = false;
     }
 
     const titleEl = el('player-title');
