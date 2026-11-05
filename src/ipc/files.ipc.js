@@ -6,6 +6,7 @@ const fs = require('fs');
 const fsPromises = fs.promises;
 const child_process = require('child_process');
 const { execFile } = child_process;
+const raggaeOps = require('../raggae-ops');
 
 function safeOpenFile(filePath) {
     if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
@@ -75,65 +76,100 @@ function registerFilesIpc(ipcMain, mainWindow) {
         }
     });
 
-    // Rename File
+    // Rename File: through vault-raggae's media ops (sidecar, thumbs, hover clip, subtitles follow; the media index
+    // row is updated), the explorer's own .trickplay / .nfo too. The local rename below is the fallback when
+    // vault-raggae is not on this PC. The extension is kept, as before.
     ipcMain.handle('rename-file', async (_e, oldPath, newName) => {
         if (typeof oldPath !== 'string' || typeof newName !== 'string' || !fs.existsSync(oldPath)) {
             return { success: false, error: 'Invalid input' };
         }
+        const dir = path.dirname(oldPath);
+        const oldExt = path.extname(oldPath);
+        const oldBase = path.basename(oldPath, oldExt);
+        const newBase = path.basename(newName, path.extname(newName));
+        if (!newBase || /[<>:"/\\|?*]/.test(newBase)) return { success: false, error: 'Invalid file name' };
+        if (newBase === oldBase) return { success: true, newPath: oldPath };
+        if (fs.statSync(oldPath).isFile()) {
+            try {
+                return await raggaeOps.rename(oldPath, newBase + oldExt);
+            } catch (err) {
+                if (!err.unavailable) return { success: false, error: err.message };
+                console.warn('[files.ipc:rename] vault-raggae unavailable, renaming locally:', err.message);
+            }
+        }
         try {
-            const dir = path.dirname(oldPath);
-            const oldExt = path.extname(oldPath);
-            const oldBase = path.basename(oldPath, oldExt);
-            const newBase = path.basename(newName, path.extname(newName));
-
-            const entries = fs.readdirSync(dir);
-            for (let entry of entries) {
-                if (entry === oldBase + oldExt) {
-                    fs.renameSync(path.join(dir, entry), path.join(dir, newBase + oldExt));
-                } else if (entry === oldBase + '.trickplay') {
-                    fs.renameSync(path.join(dir, entry), path.join(dir, newBase + '.trickplay'));
-                } else if (entry.startsWith(oldBase)) {
-                    const escapedOldBase = oldBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const replacePattern = new RegExp(`^${escapedOldBase}`);
-                    const newEntry = entry.replace(replacePattern, newBase);
-                    fs.renameSync(path.join(dir, entry), path.join(dir, newEntry));
+            const target = path.join(dir, newBase + oldExt);
+            if (fs.existsSync(target) && target.toLowerCase() !== oldPath.toLowerCase()) {
+                return { success: false, error: `"${newBase + oldExt}" already exists` };
+            }
+            const escapedOldBase = oldBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const replacePattern = new RegExp(`^${escapedOldBase}`);
+            for (const entry of fs.readdirSync(dir)) {
+                // the file itself and its companions (<stem>.srt, <stem>.trickplay, <stem>_enhanced...), never
+                // another file that merely starts with the same letters (renaming "v" left "vv.mp4" alone)
+                if (entry === oldBase + oldExt || entry.startsWith(oldBase + '.') || entry.startsWith(oldBase + '_')) {
+                    fs.renameSync(path.join(dir, entry), path.join(dir, entry.replace(replacePattern, newBase)));
                 }
             }
-            const targetNewPath = path.join(dir, newBase + oldExt);
-            return { success: true, newPath: targetNewPath };
+            return { success: true, newPath: target };
         } catch (err) {
             return { success: false, error: err.message };
         }
     });
 
-    // Delete Files
+    // Delete: always to the Recycle Bin (it was a permanent delete before Thu 05 Nov 2026). Through vault-raggae a
+    // file goes with its sidecar and companions; without it, the item alone via the shell.
+    async function recycleLocally(itemPath) {
+        try {
+            await shell.trashItem(path.normalize(itemPath));
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    }
+
     ipcMain.handle('delete-item', async (_event, itemPath) => {
         if (typeof itemPath !== 'string' || !fs.existsSync(itemPath)) {
             return { success: false, error: 'Path does not exist' };
         }
         try {
-            const stats = fs.lstatSync(itemPath);
-            if (stats.isSymbolicLink()) {
-                try { fs.unlinkSync(itemPath); } catch (err) { fs.rmdirSync(itemPath); }
-            } else if (stats.isDirectory()) {
-                fs.rmSync(itemPath, { recursive: true, force: true });
-            } else {
-                fs.unlinkSync(itemPath);
-            }
-            return { success: true };
-        } catch (e) {
-            return { success: false, error: e.message };
+            const [r] = await raggaeOps.recycle([itemPath]);
+            if (!r) return { success: false, error: 'no result' };
+            return r.ok ? { success: true, recycled: r.recycled } : { success: false, error: r.error };
+        } catch (err) {
+            if (!err.unavailable) return { success: false, error: err.message };
+            return await recycleLocally(itemPath);
         }
     });
 
-    // Paste Files
+    // Paste Files: files through vault-raggae's media ops (media-move / media-copy: what belongs to a file follows
+    // it, nothing is overwritten); folders, and everything when vault-raggae is not there, locally.
+    function pasteLocally(src, dest, mode) {
+        if (mode === 'copy') {
+            if (fs.statSync(src).isDirectory()) fs.cpSync(src, dest, { recursive: true, errorOnExist: true, force: false });
+            else fs.copyFileSync(src, dest, fs.constants.COPYFILE_EXCL);
+        } else if (mode === 'cut') {
+            try {
+                fs.renameSync(src, dest);
+            } catch (e) {
+                if (e.code !== 'EXDEV') throw e;
+                fs.cpSync(src, dest, { recursive: true, errorOnExist: true, force: false });
+                fs.rmSync(src, { recursive: true, force: true });
+            }
+        } else {
+            throw new Error(`unknown paste mode ${mode}`);
+        }
+    }
+
     ipcMain.handle('paste-files', async (_event, { paths, mode, destination }) => {
         if (!Array.isArray(paths) || !destination || !fs.existsSync(destination)) {
             return { success: false, error: 'Invalid input parameters' };
         }
         let count = 0;
         const errors = [];
+        const warnings = [];
         const pastedPaths = [];
+        const media = [];          // [{ src, dst }] for vault-raggae
         for (const src of paths) {
             if (!fs.existsSync(src)) {
                 errors.push(`${src} does not exist`);
@@ -141,27 +177,53 @@ function registerFilesIpc(ipcMain, mainWindow) {
             }
             let dest = path.join(destination, path.basename(src));
             if (src.toLowerCase() === dest.toLowerCase()) {
-                let baseName = path.basename(src, path.extname(src));
-                let ext = path.extname(src);
+                if (mode === 'cut') continue;                        // cut and pasted where it already is
+                const baseName = path.basename(src, path.extname(src));
+                const ext = path.extname(src);
                 let counter = 1;
                 while (fs.existsSync(dest)) {
                     dest = path.join(destination, baseName + ' - Copy (' + counter + ')' + ext);
                     counter++;
                 }
+            } else if (fs.existsSync(dest)) {
+                errors.push(`${path.basename(src)}: already exists in this folder, left alone`);
+                continue;
+            }
+            if (fs.statSync(src).isFile() && (mode === 'copy' || mode === 'cut')) {
+                media.push({ src, dst: dest });
+                continue;
             }
             try {
-                if (mode === 'copy') {
-                    fs.copyFileSync(src, dest);
-                } else if (mode === 'cut') {
-                    fs.renameSync(src, dest);
-                }
+                pasteLocally(src, dest, mode);
                 pastedPaths.push(dest);
                 count++;
             } catch (e) {
                 errors.push(`Failed to paste ${src}: ${e.message}`);
             }
         }
-        return { success: true, count, errors, pastedPaths };
+        if (media.length) {
+            let results = null;
+            try {
+                results = await raggaeOps.transfer(mode, media);
+            } catch (err) {
+                if (!err.unavailable) {
+                    media.forEach(m => errors.push(`Failed to paste ${m.src}: ${err.message}`));
+                    results = [];
+                }
+            }
+            if (results === null) {                                   // vault-raggae not on this PC
+                for (const { src, dst } of media) {
+                    try { pasteLocally(src, dst, mode); pastedPaths.push(dst); count++; }
+                    catch (e) { errors.push(`Failed to paste ${src}: ${e.message}`); }
+                }
+            } else {
+                for (const r of results) {
+                    if (r.ok) { pastedPaths.push(r.to); count++; if (r.warning) warnings.push(r.warning); }
+                    else errors.push(`Failed to paste ${r.from}: ${r.error}`);
+                }
+            }
+        }
+        return { success: true, count, errors, warnings, pastedPaths };
     });
 
     // Zip Selections

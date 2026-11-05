@@ -109,7 +109,43 @@ function registerMediaIpc(ipcMain) {
     });
 
     // Get File Properties
+    // What vault-raggae's media index knows about a file (its id, fingerprints, the scene or KFC identities it was
+    // matched to): GET /v1/media/by-path on the gateway. Shown in Properties, never written into the sidecar.
+    // null when the gateway is down (then skipped for 30 s) or the file is not indexed yet.
+    const RAGGAE_URL = process.env.RAGGAE_URL || 'http://127.0.0.1:8750';
+    let raggaeOfflineUntil = 0;
+    async function raggaeByPath(filePath) {
+        if (Date.now() < raggaeOfflineUntil) return null;
+        try {
+            const res = await fetch(`${RAGGAE_URL}/v1/media/by-path?path=${encodeURIComponent(filePath)}`,
+                { headers: { 'x-vw-project': 'vault-explorer' }, signal: AbortSignal.timeout(2000) });
+            if (!res.ok) return null;
+            const d = await res.json();
+            const names = v => (Array.isArray(v) ? v.map(x => (typeof x === 'string' ? x : x && x.name)).filter(Boolean) : []);
+            return {
+                vwId: d.vw_id || null,
+                fingerprints: d.fingerprints || {},
+                scene: d.scene ? {
+                    title: d.scene.title || null, date: d.scene.date || null, studio: d.scene.studio || null,
+                    performers: names(d.scene.performers), tags: names(d.scene.tags).slice(0, 12),
+                } : null,
+                identities: Array.isArray(d.identities) ? d.identities : [],
+            };
+        } catch (_) {
+            raggaeOfflineUntil = Date.now() + 30000;
+            return null;
+        }
+    }
+
     ipcMain.handle('get-file-properties', async (_event, filePath) => {
+        const out = await readFileProperties(filePath);
+        if (out && out.success && out.properties) {
+            out.properties = { ...out.properties, raggae: await raggaeByPath(filePath) };
+        }
+        return out;
+    });
+
+    async function readFileProperties(filePath) {
         if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
             return { success: false, error: 'File not found' };
         }
@@ -199,7 +235,7 @@ function registerMediaIpc(ipcMain) {
         } catch (e) {
             return { success: false, error: e.message };
         }
-    });
+    }
 
     // Streaming Upscale (Real-time AI upscaling with MediaSource)
     let upscaleStreamProcess = null;
