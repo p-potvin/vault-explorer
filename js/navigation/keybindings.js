@@ -338,7 +338,7 @@ window.initKeybindingsAndFolderListeners = function() {
                         : (window.currentLang === 'fr' ? 'Confirmer la suppression' : 'Confirm Bulk Deletion');
                     const confirmMsg = isVirtual
                         ? (window.currentLang === 'fr' ? `Retirer les éléments sélectionnés de ce dossier : ${names} ?` : `Remove selected item(s) from this folder: ${names}?`)
-                        : `Delete selected item(s): ${names}?`;
+                        : (window.currentLang === 'fr' ? `Envoyer à la corbeille : ${names} ?` : `Move to the Recycle Bin: ${names}?`);
                         
                     if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
                         (async () => {

@@ -48,6 +48,27 @@ async function showPropertiesDialog(item) {
         if (item.nfoMeta.plot) rows += `<div style="margin-top:4px;"><strong>NFO Plot:</strong> <span style="opacity:0.85;">${window.escapeHtml(item.nfoMeta.plot)}</span></div>`;
     }
 
+    const rg = stats.raggae;              // vault-raggae's media index (src/ipc/media.ipc.js raggaeByPath)
+    if (rg && (rg.vwId || rg.scene || (rg.identities && rg.identities.length))) {
+        const esc = window.escapeHtml;
+        rows += `<div style="height:1px; background:var(--vault-border); margin:8px 0;"></div>
+            <div style="color:var(--vault-accent); font-weight:700; margin-bottom:4px;">Media Index (vault-raggae)</div>`;
+        if (rg.vwId) rows += `<div><strong>ID:</strong> <span style="font-family:var(--font-mono, monospace);">${esc(rg.vwId)}</span></div>`;
+        for (const [type, value] of Object.entries(rg.fingerprints || {})) {
+            rows += `<div><strong>${esc(type)}:</strong> <span style="font-family:var(--font-mono, monospace);">${esc(String(value))}</span></div>`;
+        }
+        if (rg.scene) {
+            if (rg.scene.title) rows += `<div><strong>Scene:</strong> ${esc(rg.scene.title)}</div>`;
+            if (rg.scene.studio) rows += `<div><strong>Studio:</strong> ${esc(rg.scene.studio)}</div>`;
+            if (rg.scene.date) rows += `<div><strong>Released:</strong> ${esc(rg.scene.date)}</div>`;
+            if (rg.scene.performers.length) rows += `<div><strong>Performers:</strong> ${esc(rg.scene.performers.join(', '))}</div>`;
+            if (rg.scene.tags.length) rows += `<div><strong>Tags:</strong> <span style="opacity:0.85;">${esc(rg.scene.tags.join(', '))}</span></div>`;
+        }
+        if (rg.identities && rg.identities.length) {
+            rows += `<div><strong>Identities:</strong> ${esc(rg.identities.map(i => i.name + (i.exemplar ? ' ★' : '')).join(', '))}</div>`;
+        }
+    }
+
     details.innerHTML = rows;
     modal.style.display = 'flex';
 }

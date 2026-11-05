@@ -514,8 +514,8 @@ async function handleCardContextMenu(card, item, index) {
                 ? (window.currentLang === 'fr' ? `Retirer les ${targetItems.length} éléments sélectionnés de ce dossier ?` : `Remove the ${targetItems.length} selected item(s) from this folder?`)
                 : (window.currentLang === 'fr' ? `Retirer "${item.name}" de ce dossier ?` : `Remove "${item.name}" from this folder?`))
             : (targetItems.length > 1
-                ? `Are you sure you want to delete the ${targetItems.length} selected item(s)?`
-                : `Delete "${item.name}"?`);
+                ? (window.currentLang === 'fr' ? `Envoyer les ${targetItems.length} éléments sélectionnés à la corbeille (avec leurs fichiers liés) ?` : `Move the ${targetItems.length} selected item(s) to the Recycle Bin, with their sidecars and previews?`)
+                : (window.currentLang === 'fr' ? `Envoyer « ${item.name} » à la corbeille ?` : `Move "${item.name}" to the Recycle Bin?`));
 
         if (await window.showConfirmDialog(confirmMsg, confirmTitle)) {
             if (isVirtual) {
