@@ -206,11 +206,11 @@ function attachHoverWebmToCard(card, hoverWebmPath) {
         try { window.hoverAudioPreview.pause(); } catch (e) { }
         window.hoverAudioPreview = null;
       }
-      if (thumbCont.querySelector('video.trickplay')) return;
+      if (thumbCont.querySelector('video.hover-preview')) return;
       let v = document.createElement('video');
       v.src = sanitizePath(hoverWebmPath);
       const isMuted = window.appSettings && window.appSettings.mutePreviews === true;
-      v.autoplay = true; v.loop = true; v.muted = isMuted; v.volume = 0.5; v.className = 'trickplay';
+      v.autoplay = true; v.loop = true; v.muted = isMuted; v.volume = 0.5; v.className = 'hover-preview';
       v.style.display = 'block'; v.style.objectFit = 'cover';
       thumbCont.appendChild(v);
       mainImg.style.display = 'none';
@@ -218,14 +218,14 @@ function attachHoverWebmToCard(card, hoverWebmPath) {
   });
   card.addEventListener('mouseleave', () => {
     clearTimeout(wT);
-    const v = thumbCont.querySelector('video.trickplay');
+    const v = thumbCont.querySelector('video.hover-preview');
     if (v) { v.pause(); v.src = ""; v.remove(); }
     if (mainImg) mainImg.style.display = 'block';
   });
 }
 
 function killAllHoverVideos() {
-  document.querySelectorAll('#file-grid video.trickplay').forEach(v => {
+  document.querySelectorAll('#file-grid video.hover-preview').forEach(v => {
     try { v.pause(); v.src = ''; v.remove(); } catch (e) { }
   });
   if (window.hoverAudioPreview) {

@@ -102,7 +102,7 @@ function createCardElement(item, index) {
     } else {
         const thumbSrc = item.isStreaming ? item.thumbnail : (window.sanitizePath(item.thumbnail) || 'data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" fill="%23777" font-family="sans-serif" font-size="14" text-anchor="middle">NO THUMB</text></svg>');
         const durationStr = (item.duration && item.duration > 0) ? window.formatDuration(item.duration) : '';
-        thumbHtml = `<img class="thumbnail" loading="lazy" src='${thumbSrc}' alt="${window.escapeHtml(item.name)} thumbnail"><img class="trickplay" alt="">
+        thumbHtml = `<img class="thumbnail" loading="lazy" src='${thumbSrc}' alt="${window.escapeHtml(item.name)} thumbnail">
                   <div class="duration-badge" style="display: ${durationStr ? 'block' : 'none'};">${durationStr}</div>`;
     }
 
@@ -190,24 +190,6 @@ function createCardElement(item, index) {
     // WebM Hover Play Logic
     if (item.hoverWebm) {
         window.attachHoverWebmToCard(card, item.hoverWebm);
-    } else if (item.trickplayFolder) {
-        let hoverTimer; let tpIndex = 0; let frames = [];
-        const tpImg = card.querySelector('.trickplay');
-        const mainImg = card.querySelector('.thumbnail');
-
-        card.addEventListener('mouseenter', async () => {
-            if (frames.length === 0) frames = await window.electronAPI.getTrickplaySprites(item.trickplayFolder);
-            if (frames.length === 0) return;
-            tpImg.style.display = 'block'; mainImg.style.display = 'none'; tpIndex = 0;
-            tpImg.src = window.sanitizePath(frames[tpIndex]);
-            hoverTimer = setInterval(() => {
-                tpIndex = (tpIndex + 1) % frames.length;
-                tpImg.src = window.sanitizePath(frames[tpIndex]);
-            }, 400);
-        });
-        card.addEventListener('mouseleave', () => {
-            clearInterval(hoverTimer); tpImg.style.display = 'none'; mainImg.style.display = 'block';
-        });
     } else if (item.type === 'audio') {
         let hoverAudioTimer;
         card.addEventListener('mouseenter', () => {

@@ -138,10 +138,7 @@ function applyFilters() {
     let filteredItems = pool.filter(v => {
         if (isGlobOrThumbsExcluded(v)) return false;
         if (term) {
-            const hasName = v.name.toLowerCase().includes(term);
-            const hasNfoTitle = v.nfoMeta && v.nfoMeta.title && v.nfoMeta.title.toLowerCase().includes(term);
-            const hasNfoPlot = v.nfoMeta && v.nfoMeta.plot && v.nfoMeta.plot.toLowerCase().includes(term);
-            if (!hasName && !hasNfoTitle && !hasNfoPlot) return false;
+            if (!v.name.toLowerCase().includes(term)) return false;
         }
         if (v.type === 'fakeFolder') return true;
         if (filterAttr === 'video') return v.type === 'video' || v.type === 'encrypted';

@@ -233,7 +233,6 @@ async function initApp() {
             scanSpecificFiles: async (arr) => [],
             filterExistingPaths: async (arr) => arr,
             getEverythingSize: async (dirPath) => 1073741824,
-            getTrickplaySprites: async (folder) => [],
             getFileSize: async (p) => 1073741824,
             openFile: async (filePath) => console.log('Mock Open File:', filePath),
             showInFolder: async (filePath) => console.log('Mock Show In Folder:', filePath),

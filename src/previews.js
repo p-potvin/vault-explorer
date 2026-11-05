@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const sidecarNames = require('./sidecar-names');
+const sidecarRecord = require('./sidecar-record');
 const { BrowserWindow } = require('electron');
 const utils = require('./utils');
 const { isOfflineCloudFile } = require('./cloud-files');
@@ -97,12 +97,12 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
     // The http branch keeps its own rule: there is no local master to resolve
     // against, so the sidecar sits beside the thumbnail instead.
-    const metaPath = isHttp
-        ? (thumbPath ? thumbPath.replace(/\.[^.]+$/, '.meta.json') : null)
-        : sidecarNames.resolveSync(videoPath).path;
+    const metaPath = isHttp && thumbPath ? thumbPath.replace(/\.[^.]+$/, '.meta.json') : null;
 
     let meta = {};
-    if (metaPath && fs.existsSync(metaPath)) {
+    if (!isHttp) {
+        meta = sidecarRecord.read(videoPath).record;
+    } else if (metaPath && fs.existsSync(metaPath)) {
         try {
             meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
         } catch (e) { }
@@ -141,7 +141,9 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         meta.isValidSamplesChecked = validation.samplesChecked;
     }
     meta.duration = duration;
-    if (metaPath) {
+    if (!isHttp) {
+        sidecarRecord.update(videoPath, meta);                    // v2 record, this app's keys only
+    } else if (metaPath) {
         try {
             fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
         } catch (e) {
