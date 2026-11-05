@@ -93,7 +93,7 @@ function update(mediaPath, fields) {
     else record[k] = v;
   }
   envelope(record, mediaPath);
-  const tmp = `${file}.tmp_${process.pid}`;
+  const tmp = `\${file}.tmp_\${process.pid}_\${Math.random().toString(36).slice(2, 9)}`;
   try {
     fs.writeFileSync(tmp, JSON.stringify(record, null, 2), 'utf8');
     fs.renameSync(tmp, file);
