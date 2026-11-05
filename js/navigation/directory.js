@@ -422,10 +422,9 @@ function initNavigationListeners() {
             else {
                 const exist = window.allItems.find(i => i.path === item.path);
                 if (exist) {
-                    if (exist.thumbnail !== item.thumbnail || exist.hoverWebm !== item.hoverWebm || exist.trickplayFolder !== item.trickplayFolder) {
+                    if (exist.thumbnail !== item.thumbnail || exist.hoverWebm !== item.hoverWebm) {
                         exist.thumbnail = item.thumbnail;
                         exist.hoverWebm = item.hoverWebm;
-                        exist.trickplayFolder = item.trickplayFolder;
                         hasUpdates = true;
                     }
                 }

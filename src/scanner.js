@@ -9,7 +9,7 @@ const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv'
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif', '.avif', '.tiff', '.tif', '.svg', '.ico']);
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.aac', '.ogg', '.m4a', '.opus', '.wma', '.aiff', '.ape']);
 const SKIPPED_DIRECTORIES = new Set([
-    '.thumbs', '.enhanced', '.git', '.normalized', '.trickplay', 'node_modules', 'bower_components',
+    '.thumbs', '.enhanced', '.git', '.normalized', 'node_modules', 'bower_components',
     'jspm_packages', 'web_modules', '.venv', 'venv', 'env', 'virtualenv', '.conda', '.github',
     '.svn', '.hg', '.npm', '.yarn', '.pnpm-store', '.cache', '.sass-cache', '.eslintcache',
     '__pycache__', '.parcel-cache', '.next', '.nuxt', 'dist', 'build', 'out', 'target', 'tmp',
@@ -183,24 +183,6 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 }
             }
 
-            const trickplayPath = type === 'video' ? path.join(dir, `${baseName}.trickplay`) : null;
-            const nfoPath = type === 'video' ? path.join(dir, `${baseName}.nfo`) : null;
-            const nfoMeta = {};
-            if (nfoPath && await exists(nfoPath)) {
-                try {
-                    const nfo = await fsPromises.readFile(nfoPath, 'utf8');
-                    const readTag = tag => nfo.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'))?.[1]?.trim();
-                    const title = readTag('title');
-                    const year = readTag('year');
-                    const plot = readTag('plot');
-                    const rating = readTag('rating');
-                    if (title) nfoMeta.title = title;
-                    if (year) nfoMeta.year = Number.parseInt(year, 10);
-                    if (plot) nfoMeta.plot = plot;
-                    if (rating) nfoMeta.rating = Number.parseFloat(rating);
-                } catch (error) { console.warn('[scanner:nfo] Failed to parse:', error.message); }
-            }
-
             output.push({
                 name, path: filePath, type, poster, thumbnail: poster, hoverWebm,
                 size: stat.size, mtime: stat.mtimeMs, created: stat.birthtimeMs || stat.ctimeMs,
@@ -210,8 +192,6 @@ async function _processFileNodes(filesArray, allFilesSet, vaultRoot) {
                 channels: meta?.channels || null, sampleRate: meta?.sampleRate || null, bitrate: meta?.bitrate || null,
                 hasAudio: meta?.hasAudio ?? null, hasVideo: meta?.hasVideo ?? null,
                 enhancements: meta?.enhancements || null, enhancedPath,
-                trickplayFolder: trickplayPath && await exists(trickplayPath) ? trickplayPath : null,
-                nfoMeta: Object.keys(nfoMeta).length ? nfoMeta : null,
             });
         } catch (error) { console.error('[scanner:process] Skipping file:', filePath, error.message); }
     }

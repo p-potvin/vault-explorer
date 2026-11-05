@@ -447,7 +447,7 @@ body.tab-streaming-active #catalog-container {
   transform: scale(1.05);
 }
 
-.trickplay {
+.hover-preview {
   display: none;
   position: absolute;
   top: 0;
@@ -1742,53 +1742,6 @@ video::cue {
 .sort-option:hover,
 .sort-order-option:hover {
   background: var(--vault-hover) !important;
-}
-
-/* Movies/Series Tab Smaller Cards & Premium Netflix-Style Hover */
-.catalog-grid {
-  /* Larger min width pushes most viewports to 8 columns (was ~9-10 at 130px).
-     Bigger row-gap gives the hover popup breathing room. */
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
-  column-gap: 18px !important;
-  row-gap: 32px !important;
-  padding: 14px 0 !important;
-}
-
-.catalog-movie-card {
-  position: relative;
-  transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.45s ease, border-color 0.45s ease, background-color 0.45s ease !important;
-  padding: 0 !important;
-  display: block !important;
-  border-radius: 6px !important;
-  overflow: visible !important;
-}
-
-.catalog-movie-card:hover {
-  transform: scale(1.15) translateY(-8px) !important;
-  z-index: 50;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6) !important;
-  background-color: var(--vault-hover) !important;
-  border-color: var(--vault-accent) !important;
-}
-
-.catalog-movie-card .overview-text {
-  display: none;
-  opacity: 0;
-  overflow: hidden;
-  margin-top: 0;
-  transition: opacity 0.45s ease;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--vault-slate);
-}
-
-.catalog-movie-card:hover .overview-text {
-  display: -webkit-box;
-  opacity: 0.9;
-  margin-top: 8px;
-  line-clamp: 4;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
 }
 
 .settings-led {

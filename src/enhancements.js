@@ -13,7 +13,7 @@
  */
 
 const path = require('path');
-const sidecarNames = require('./sidecar-names');
+const sidecarRecord = require('./sidecar-record');
 const fs = require('fs');
 const readline = require('readline');
 const { spawn } = require('child_process');
@@ -47,32 +47,13 @@ function scriptPath(script) {
     return utils.resolveScriptPath(script);
 }
 
-/**
- * Where this video's sidecar is.
- *
- * Was `${videoPath}.meta.json`, unconditionally. Sidecars are being renamed to
- * the canonical `${videoPath}.json` across the library, so assuming the old
- * name means reading nothing once the rename has run. Resolves an existing
- * sidecar under any of the four historical names, and falls back to the
- * canonical one for a file that has none yet.
- */
-function sidecarPath(videoPath) {
-    return sidecarNames.resolveSync(videoPath).path;
-}
-
 function blankEnhancements() {
     return { audio: false, video: false, subtitles: [], translation: [] };
 }
 
 /** Read a sidecar, normalising its shape. Never throws. */
 function readSidecar(videoPath) {
-    let meta = {};
-    try {
-        meta = JSON.parse(fs.readFileSync(sidecarPath(videoPath), 'utf8'));
-    } catch (_) {
-        meta = {};
-    }
-    if (!meta || typeof meta !== 'object') meta = {};
+    const meta = sidecarRecord.read(videoPath).record;
 
     const source = (meta.enhancements && typeof meta.enhancements === 'object') ? meta.enhancements : {};
     const enhancements = blankEnhancements();
@@ -90,14 +71,10 @@ function readSidecar(videoPath) {
     return meta;
 }
 
+/** Saves this app's keys of `meta` (enhancements, enhancedPath …) in the v2 record; the rest of the sidecar,
+ *  as it is on disk now, is kept (src/sidecar-record.js). */
 function writeSidecar(videoPath, meta) {
-    try {
-        fs.writeFileSync(sidecarPath(videoPath), JSON.stringify(meta, null, 2), 'utf8');
-        return true;
-    } catch (err) {
-        console.error('[enhancements] Failed to write sidecar:', err.message);
-        return false;
-    }
+    return sidecarRecord.update(videoPath, meta) !== null;
 }
 
 /**

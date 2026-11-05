@@ -39,15 +39,6 @@ async function showPropertiesDialog(item) {
     if (stats.sampleRate) rows += `<div><strong>Sample Rate:</strong> ${stats.sampleRate} Hz</div>`;
     if (stats.bitrate) rows += `<div><strong>Bitrate:</strong> ${window.formatBytes(stats.bitrate)}/s</div>`;
 
-    if (item.nfoMeta) {
-        rows += `<div style="height:1px; background:var(--vault-border); margin:8px 0;"></div>
-            <div style="color:var(--vault-accent); font-weight:700; margin-bottom:4px;">NFO Metadata (Plex/Jellyfin/Kodi)</div>`;
-        if (item.nfoMeta.title) rows += `<div><strong>NFO Title:</strong> ${window.escapeHtml(item.nfoMeta.title)}</div>`;
-        if (item.nfoMeta.year) rows += `<div><strong>NFO Year:</strong> ${item.nfoMeta.year}</div>`;
-        if (item.nfoMeta.rating) rows += `<div><strong>NFO Rating:</strong> ★ ${item.nfoMeta.rating}</div>`;
-        if (item.nfoMeta.plot) rows += `<div style="margin-top:4px;"><strong>NFO Plot:</strong> <span style="opacity:0.85;">${window.escapeHtml(item.nfoMeta.plot)}</span></div>`;
-    }
-
     const rg = stats.raggae;              // vault-raggae's media index (src/ipc/media.ipc.js raggaeByPath)
     if (rg && (rg.vwId || rg.scene || (rg.identities && rg.identities.length))) {
         const esc = window.escapeHtml;

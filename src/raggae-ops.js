@@ -68,77 +68,32 @@ function run(args, stdin) {
     });
 }
 
-/** The explorer's own companions, which vault-raggae's COMPANION_RULES do not list: `<stem>.trickplay` (a folder
- *  of sprites) and `<stem>.nfo` beside the master. */
-function explorerExtras(master) {
-    const dir = path.dirname(master);
-    const stem = path.basename(master, path.extname(master));
-    return [`${stem}.trickplay`, `${stem}.nfo`]
-        .map(n => path.join(dir, n))
-        .filter(p => fs.existsSync(p));
-}
-
-/** Moves the explorer's extras of `from` beside `to` (renamed to its stem); conflicts are reported, not overwritten. */
-function moveExtras(extras, to) {
-    const errors = [];
-    const dir = path.dirname(to);
-    const stem = path.basename(to, path.extname(to));
-    for (const src of extras) {
-        const dst = path.join(dir, stem + path.extname(src));
-        if (src.toLowerCase() === dst.toLowerCase() && src === dst) continue;
-        if (fs.existsSync(dst) && src.toLowerCase() !== dst.toLowerCase()) {
-            errors.push(`target exists, left alone: ${dst}`);
-            continue;
-        }
-        try {
-            fs.renameSync(src, dst);
-        } catch (e) {
-            if (e.code === 'EXDEV') {
-                try { fs.cpSync(src, dst, { recursive: true }); fs.rmSync(src, { recursive: true, force: true }); }
-                catch (e2) { errors.push(`${src}: ${e2.message}`); }
-            } else {
-                errors.push(`${src}: ${e.message}`);
-            }
-        }
-    }
-    return errors;
-}
-
 /** Rename a file in its folder; resolves `{ success, newPath, followed, warnings, error }`. */
 async function rename(oldPath, newName) {
-    const extras = explorerExtras(oldPath);
     const r = await run(['rename', oldPath, newName]);
     if (r.error || !r.to) return { success: false, error: r.error || (r.errors || []).join('; ') || 'rename failed' };
-    const warnings = [...(r.errors || []), ...moveExtras(extras, r.to)];
-    return { success: true, newPath: r.to, followed: (r.stats && r.stats.companions_moved) || 0, warnings };
+    return { success: true, newPath: r.to, followed: (r.stats && r.stats.companions_moved) || 0, warnings: r.errors || [] };
 }
 
 /** Move or copy files (`pairs`: `[{ src, dst }]`, `dst` the full target path); one result per pair, as
  *  `{ ok, from, to, error, warning }`. Files only: folders are not media masters. */
 async function transfer(mode, pairs) {
     const op = mode === 'copy' ? 'copy' : 'move';
-    const items = pairs.map(({ src, dst }) => ({ op, src, dst }));
-    const extras = pairs.map(({ src }) => (op === 'move' ? explorerExtras(src) : []));
-    const out = await run(['batch'], items);
+    const out = await run(['batch'], pairs.map(({ src, dst }) => ({ op, src, dst })));
     return pairs.map(({ src }, i) => {
         const r = (out.results || [])[i] || { ok: false, error: 'no result' };
         // `to` set = the file itself moved / was copied; a companion left behind is a warning, not a failure
         const done = !!r.to;
         const res = { ok: done, from: src, to: r.to || null, error: done ? null : (r.error || 'failed') };
-        if (done) {
-            const errs = [...(r.errors || []), ...moveExtras(extras[i], r.to)];
-            if (errs.length) res.warning = errs.join('; ');
-        }
+        if (done && (r.errors || []).length) res.warning = r.errors.join('; ');
         return res;
     });
 }
 
 /** Send paths to the Recycle Bin with what belongs to each file; one result per path, as `{ ok, path, error }`. */
 async function recycle(itemPaths) {
-    const extras = itemPaths.flatMap(p => (fs.existsSync(p) && fs.statSync(p).isFile() ? explorerExtras(p) : []));
-    const out = await run(['delete', ...itemPaths, ...extras]);
-    return (out.results || []).slice(0, itemPaths.length)
-        .map(r => ({ ok: !!r.ok, path: r.path, recycled: r.recycled || [], error: r.error || null }));
+    const out = await run(['delete', ...itemPaths]);
+    return (out.results || []).map(r => ({ ok: !!r.ok, path: r.path, recycled: r.recycled || [], error: r.error || null }));
 }
 
-module.exports = { available, run, rename, transfer, recycle, explorerExtras, paths };
+module.exports = { available, run, rename, transfer, recycle, paths };

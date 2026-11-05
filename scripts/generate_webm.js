@@ -30,7 +30,7 @@ function findVideosSync(dir) {
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
-                if (entry.name !== '.thumbs' && entry.name !== '.git' && !entry.name.endsWith('.trickplay')) {
+                if (entry.name !== '.thumbs' && entry.name !== '.git') {
                     results.push(...findVideosSync(fullPath));
                 }
             } else {

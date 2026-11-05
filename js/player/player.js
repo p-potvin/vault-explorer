@@ -1,4 +1,4 @@
-// player.js — Custom HTML5 video player core initialization, PiP/countdown widgets, seek/trickplay canvas scrubbers, and history persistence.
+// player.js — Custom HTML5 video player core initialization, PiP/countdown widgets, seek canvas scrubbers, and history persistence.
 
 window.currentPlayingIndex = -1;
 window.currentPlayingItem = null;
@@ -302,7 +302,6 @@ let btnPlay = null;
 let btnPrev = null;
 let btnNext = null;
 let volSlider = null;
-let trickFrames = [];
 let navHoverPreview = null;
 
 // Hidden scrubber video + canvas for seek preview
@@ -312,7 +311,6 @@ let seekCtx = null;
 let seekDebounceTimer = null;
 let lastScrubSrc = '';
 let hasScrubFrame = false;
-let trickplaySeq = 0;
 
 function updateAutoplayUI() {
     const btn = el('btn-autoplay');
@@ -388,8 +386,6 @@ async function playItem(idx, sourceItems = null) {
     window.currentPlayingItem = itm;
     window.currentPlaybackItems = items;
     window.currentPlaybackFolder = getItemDirectory(itm.path);
-    trickFrames = [];
-    vp.dataset.trickplay = itm.trickplayFolder || '';
 
     const isStream = Boolean(itm.isStreaming || itm.isDebrid || (typeof itm.path === 'string' && (itm.path.startsWith('http://') || itm.path.startsWith('https://'))));
     itm.isStreaming = isStream;
@@ -613,7 +609,7 @@ function initPlayer() {
         vp.addEventListener('ended', () => notifyThumbarState(false));
     }
 
-    // Close / stop video, trailers, and livestream when app is minimized to tray
+    // Close / stop video and live subtitles when app is minimized to tray
     if (window.electronAPI && typeof window.electronAPI.onAppHidden === 'function') {
         window.electronAPI.onAppHidden(() => {
             console.log('[Player] App minimized to tray. Stopping active media players...');
@@ -621,11 +617,6 @@ function initPlayer() {
             const closeModalBtn = el('close-modal');
             if (closeModalBtn && el('video-modal').style.display === 'flex') {
                 closeModalBtn.click();
-            }
-            const trailerIframe = el('movie-trailer-iframe');
-            if (trailerIframe) {
-                if (trailerIframe.tagName === 'VIDEO') { trailerIframe.pause(); trailerIframe.src = ''; trailerIframe.load(); }
-                else { trailerIframe.src = ''; }
             }
             if (typeof window.stopLiveSubtitles === 'function') window.stopLiveSubtitles(true);
         });
@@ -1282,10 +1273,7 @@ function initPlayer() {
         updateAutoplayUI();
     }
 
-    // ── Stream Quality Picker (RD streams only) ──────────────
-    // The picker reads from window.currentTorrentList (set by triggerRDStream
-    // after ranking). Selecting an option re-starts the RD flow for the
-    // chosen torrent and seeks the new stream back to where we paused.
+    // ── Stream Quality Picker (debrid streams with alternative qualities) ──
     const qBtn = el('btn-quality');
     const qMenu = el('quality-menu');
     if (qBtn && qMenu) {
@@ -1348,63 +1336,7 @@ function initPlayer() {
             return;
         }
 
-        // 2. Support Torrent Media list qualities
-        const list = Array.isArray(window.currentTorrentList) ? window.currentTorrentList : [];
-        if (!list.length) { container.style.display = 'none'; return; }
-        container.style.display = 'inline-block';
-
-        // Group by quality label (4K/2160p/1080p/720p/...), keep the BEST-ranked
-        // representative per group (currentTorrentList is already ranked).
-        const buckets = new Map();
-        const rankOrder = { '2160p': 4, '4k': 4, 'uhd': 4, '1080p': 3, '720p': 2, '480p': 1 };
-        const labelOf = (t) => {
-            const text = `${t.quality || ''} ${t.type || ''} ${t.desc || ''}`.toLowerCase();
-            if (/\b(2160p?|4k|uhd)\b/.test(text)) return '2160p';
-            if (/\b1080p?\b/.test(text)) return '1080p';
-            if (/\b720p?\b/.test(text)) return '720p';
-            if (/\b480p?\b/.test(text)) return '480p';
-            return (t.quality || 'HD').toUpperCase();
-        };
-        list.forEach((t, idx) => {
-            const lbl = labelOf(t);
-            if (!buckets.has(lbl)) buckets.set(lbl, { label: lbl, torrent: t, idx });
-        });
-        const ordered = [...buckets.values()].sort((a, b) => (rankOrder[b.label] || 0) - (rankOrder[a.label] || 0));
-
-        const currentLabel = (window.activeStreamingMedia && window.activeStreamingMedia.quality)
-            ? labelOf({ quality: window.activeStreamingMedia.quality, type: '', desc: '' })
-            : null;
-
-        const txt = el('quality-btn-text');
-        if (txt) txt.innerText = currentLabel ? currentLabel.toUpperCase() : 'AUTO';
-
-        menu.innerHTML = '';
-        ordered.forEach(entry => {
-            const opt = document.createElement('div');
-            const isActive = currentLabel === entry.label;
-            opt.style.cssText = `padding:6px 12px; cursor:pointer; text-align:left; font-family:var(--font-mono); font-size:11px; transition:background 0.2s; color:${isActive ? 'var(--vault-accent)' : 'var(--vault-text)'}; font-weight:${isActive ? '700' : '500'};`;
-            const sizeStr = entry.torrent.size ? ` <span style="color:var(--vault-slate); font-weight:400; font-size:10px;">${entry.torrent.size}</span>` : '';
-            opt.innerHTML = `${entry.label.toUpperCase()}${sizeStr}`;
-            opt.addEventListener('mouseenter', () => { opt.style.background = 'rgba(245,185,41,0.08)'; });
-            opt.addEventListener('mouseleave', () => { opt.style.background = 'transparent'; });
-            opt.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                menu.style.display = 'none';
-                if (isActive) return;
-                // Save position; the new RD flow will re-open playStream which
-                // will pick up window._resumePosAfterSwitch on loadedmetadata.
-                const vpEl = el('video-player');
-                const at = vpEl ? vpEl.currentTime : 0;
-                window._resumePosAfterSwitch = at;
-                window.showToast(`Switching to ${entry.label.toUpperCase()}…`, 'info');
-                try { if (vpEl) vpEl.pause(); } catch (_) { }
-                const title = window.currentMovieTitle || (window.activeStreamingMedia && window.activeStreamingMedia.title) || '';
-                if (typeof window.startRDDebridFlow === 'function') {
-                    window.startRDDebridFlow(entry.torrent, title, entry.idx);
-                }
-            });
-            menu.appendChild(opt);
-        });
+        container.style.display = 'none';
     };
 
     // ── Playback Speed Dropdown (kept for code completeness; hidden in UI) ─
@@ -1527,26 +1459,7 @@ function initPlayer() {
             hasScrubFrame = false;
         }
 
-        const tpFolder = vp.dataset.trickplay;
-        let usedTrickplay = false;
-        if (tpFolder) {
-            if (trickFrames.length === 0) trickFrames = await window.electronAPI.getTrickplaySprites(tpFolder);
-            if (trickFrames.length > 0) {
-                usedTrickplay = true;
-                const idx = Math.min(Math.floor(percent * trickFrames.length), trickFrames.length - 1);
-                const seq = ++trickplaySeq;
-                const img = new Image();
-                img.onload = () => {
-                    if (seq === trickplaySeq && seekCtx && seekCanvas) {
-                        seekCtx.drawImage(img, 0, 0, seekCanvas.width, seekCanvas.height);
-                        hasScrubFrame = true;
-                    }
-                };
-                img.src = window.sanitizePath(trickFrames[idx]);
-            }
-        }
-
-        if (!usedTrickplay && vp.duration && isFinite(vp.duration)) {
+        if (vp.duration && isFinite(vp.duration)) {
             const targetTime = percent * vp.duration;
 
             // Instant non-black fallback: only before scrubVideo has rendered any frame for this video
@@ -1739,178 +1652,6 @@ function initPlayer() {
     }
 }
 
-async function playStream(url, title) {
-    if (window.autoplayTimer) {
-        clearInterval(window.autoplayTimer);
-        window.autoplayTimer = null;
-    }
-    const endedOverlay = el('video-ended-overlay');
-    if (endedOverlay) endedOverlay.style.display = 'none';
-
-    const prevBtn = el('btn-prev');
-    const nextBtn = el('btn-next');
-    if (prevBtn) prevBtn.style.display = 'none';
-    if (nextBtn) nextBtn.style.display = 'none';
-    const pipPrevBtn = el('pip-btn-prev');
-    const pipNextBtn = el('pip-btn-next');
-    if (pipPrevBtn) pipPrevBtn.style.display = 'none';
-    if (pipNextBtn) pipNextBtn.style.display = 'none';
-
-    window.currentPlayingIndex = -1;
-    trickFrames = [];
-    vp.dataset.trickplay = '';
-    vp.src = url;
-    vp.muted = false;
-    if (lastScrubSrc !== url) {
-        scrubVideo.src = url;
-        lastScrubSrc = url;
-        hasScrubFrame = false;
-    }
-
-    const titleEl = el('player-title');
-    if (titleEl) titleEl.textContent = `⚡ RD Stream: ${title}`;
-    const tbTitle = el('titlebar-video-title');
-    if (tbTitle) {
-        tbTitle.textContent = `·  RD Streaming: ${title}`;
-        tbTitle.style.display = 'inline-block';
-    }
-
-    if (window.activeStreamingMedia) {
-        window.activeStreamingMedia.streamUrl = url;
-        window.activeStreamingMedia.streamTitle = title;
-    }
-
-    // Fetch watch progress early
-    let prog = null;
-    if (window.activeStreamingMedia) {
-        try {
-            prog = await window.electronAPI.getWatchProgress({
-                mediaType: window.activeStreamingMedia.mediaType,
-                catalogId: window.activeStreamingMedia.catalogId,
-                title: window.activeStreamingMedia.title,
-                season: window.activeStreamingMedia.season,
-                episode: window.activeStreamingMedia.episode
-            });
-        } catch (e) {
-            console.error('[Player] Failed to fetch watch progress:', e);
-        }
-    }
-
-    vp.querySelectorAll('track').forEach(t => t.remove());
-    try {
-        const subs = await window.electronAPI.findSubtitles(url);
-        // Keep the complete local sidecar catalog available to the subtitle menu.
-        window._allAvailableSubtitles = subs || [];
-        let preferredSub = null;
-        let preferredTrackIdx = -1;
-
-        // Determine preferred language
-        const prefLang = (window.appSettings && window.appSettings.defaultSubLang) || 'original';
-
-        // If we have saved progress with subtitle info, use that
-        if (prog && prog.selectedSubtitleTrackIdx !== undefined) {
-            // Try to find the saved subtitle from the list
-            if (prog.selectedSubtitleLabel) {
-                preferredSub = subs.find(s => s.label === prog.selectedSubtitleLabel);
-            }
-            if (!preferredSub && prog.selectedSubtitleLang) {
-                preferredSub = subs.find(s => s.lang === prog.selectedSubtitleLang);
-            }
-            if (!preferredSub && prog.selectedSubtitleTrackIdx >= 0 && prog.selectedSubtitleTrackIdx < subs.length) {
-                preferredSub = subs[prog.selectedSubtitleTrackIdx];
-            }
-        }
-
-        // If no saved preference, find the best match for user's preferred language
-        if (!preferredSub && subs && subs.length > 0) {
-            if (prefLang === 'original') {
-                preferredSub = subs.find(s => s.label.toLowerCase() === 'original');
-            } else if (prefLang !== 'und') {
-                preferredSub = subs.find(s =>
-                    (s.lang && s.lang.toLowerCase().startsWith(prefLang.toLowerCase())) ||
-                    (s.label && s.label.toLowerCase().includes(`(${prefLang.toLowerCase()})`))
-                );
-            }
-            // If no match found, use the first available subtitle
-            if (!preferredSub) {
-                preferredSub = subs[0];
-            }
-        }
-
-        // Only load the preferred subtitle track (max 1)
-        if (preferredSub) {
-            const track = document.createElement('track');
-            track.kind = 'subtitles';
-            track.label = false ? preferredSub.label : (preferredSub.label === 'Original' ? 'original' : `Subtitles (${preferredSub.label})`);
-            track.srclang = preferredSub.lang;
-            if (false) {
-                track.dataset['remote-subtitle'] = 'true';
-                track.dataset.fileId = preferredSub.fileId;
-                track.dataset.lang = preferredSub.lang;
-                track.dataset.videoPath = url;
-                track.dataset.downloaded = "false";
-                track.src = "";
-            } else {
-                track.src = window.sanitizePath(preferredSub.path);
-            }
-            vp.appendChild(track);
-            preferredTrackIdx = 0; // Only one track, so index is 0
-
-            window.selectSubtitleTrack(preferredTrackIdx);
-            window.refreshSubtitlesList();
-
-            const t = window.translations[window.currentLang === 'fr' ? 'fr' : 'en'] || {};
-            window.showToast(false
-                ? (t.downloadingSubtitles || 'Downloading subtitles...')
-                : (t.subtitlesReady || 'Subtitles ready'), 'success');
-        } else {
-            window.refreshSubtitlesList();
-            window.selectSubtitleTrack(-1);
-        }
-    } catch (err) {
-        console.error("Auto subtitle loading error:", err);
-    }
-
-    // If the user just switched stream quality, restore their position from
-    // the in-memory marker (takes precedence over saved server progress
-    // because they were mid-watch when they switched). Also explicitly call
-    // play() after the seek — the upfront vp.play() may have been blocked
-    // because the new src wasn't ready yet, leaving the player paused.
-    if (typeof window._resumePosAfterSwitch === 'number' && window._resumePosAfterSwitch > 0) {
-        const resumeAt = window._resumePosAfterSwitch;
-        window._resumePosAfterSwitch = null;
-        const seekOnce = () => {
-            if (resumeAt < vp.duration - 5) vp.currentTime = resumeAt;
-            // Resume playback after seek (the initial vp.play() may have
-            // rejected on the still-loading src).
-            vp.play().catch(e => console.log('[Player] resume after quality switch:', e));
-            vp.removeEventListener('loadedmetadata', seekOnce);
-        };
-        vp.addEventListener('loadedmetadata', seekOnce);
-    } else if (prog && prog.positionSec > 0 && prog.durationSec > 0 && !prog.completed) {
-        // Restore stream playback progress from saved server-side watch progress.
-        const restoreOnce = () => {
-            if (prog.positionSec < vp.duration - 15) {
-                vp.currentTime = prog.positionSec;
-                window.showToast(`Resumed from ${window.formatDuration(prog.positionSec)}`, 'success');
-            }
-            vp.removeEventListener('loadedmetadata', restoreOnce);
-        };
-        vp.addEventListener('loadedmetadata', restoreOnce);
-    }
-
-    // Refresh the quality picker — visible whenever currentTorrentList exists.
-    if (typeof window.refreshQualityMenu === 'function') window.refreshQualityMenu();
-
-    el('video-modal').classList.remove('minimized');
-    btnPlay.innerHTML = PAUSE_ICON_SVG;
-    el('video-modal').style.display = 'flex';
-    el('video-modal').focus();
-
-    vp.play().catch(e => console.log("Stream playback start prevented or failed:", e));
-}
-
 // Bind globals
 window.playItem = playItem;
 window.initPlayer = initPlayer;
-window.playStream = playStream;

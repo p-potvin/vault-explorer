@@ -23,17 +23,6 @@ async function selectSubtitleTrack(trackIdx) {
     const vp = el('video-player');
     if (!vp) return;
 
-    if (window.activeStreamingMedia) {
-        window.activeStreamingMedia.selectedSubtitleTrackIdx = trackIdx;
-        if (trackIdx >= 0 && vp.textTracks[trackIdx]) {
-            window.activeStreamingMedia.selectedSubtitleLabel = vp.textTracks[trackIdx].label || '';
-            window.activeStreamingMedia.selectedSubtitleLang = vp.textTracks[trackIdx].language || '';
-        } else {
-            window.activeStreamingMedia.selectedSubtitleLabel = '';
-            window.activeStreamingMedia.selectedSubtitleLang = '';
-        }
-    }
-
     for (let i = 0; i < vp.textTracks.length; i++) {
         vp.textTracks[i].mode = 'disabled';
     }

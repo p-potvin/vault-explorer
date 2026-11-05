@@ -1,4 +1,4 @@
-// folder.ipc.js — handles virtual/local directory sizes, and asynchronous trickplay file parsing.
+// folder.ipc.js — handles virtual/local directory sizes.
 
 const { dialog } = require('electron');
 const path = require('path');
@@ -127,19 +127,6 @@ function registerFolderIpc(ipcMain, mainWindow) {
         const calculatedSize = await calculateDirectorySizeRecursive(dirPath);
         folderSizeCache.set(dirPath, { fileCount, size: calculatedSize });
         return calculatedSize;
-    });
-
-    // Trickplay Sprites
-    ipcMain.handle('get-trickplay-sprites', async (_event, folderPath) => {
-        if (typeof folderPath !== 'string' || !fs.existsSync(folderPath)) return [];
-        try {
-            const files = await fsPromises.readdir(folderPath);
-            let images = files.filter(f => f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png'));
-            images.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-            return images.map(img => path.join(folderPath, img));
-        } catch (e) {
-            return [];
-        }
     });
 }
 

@@ -77,7 +77,7 @@ function registerFilesIpc(ipcMain, mainWindow) {
     });
 
     // Rename File: through vault-raggae's media ops (sidecar, thumbs, hover clip, subtitles follow; the media index
-    // row is updated), the explorer's own .trickplay / .nfo too. The local rename below is the fallback when
+    // row is updated). The local rename below is the fallback when
     // vault-raggae is not on this PC. The extension is kept, as before.
     ipcMain.handle('rename-file', async (_e, oldPath, newName) => {
         if (typeof oldPath !== 'string' || typeof newName !== 'string' || !fs.existsSync(oldPath)) {
@@ -105,7 +105,7 @@ function registerFilesIpc(ipcMain, mainWindow) {
             const escapedOldBase = oldBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const replacePattern = new RegExp(`^${escapedOldBase}`);
             for (const entry of fs.readdirSync(dir)) {
-                // the file itself and its companions (<stem>.srt, <stem>.trickplay, <stem>_enhanced...), never
+                // the file itself and its companions (<stem>.srt, <stem>_enhanced...), never
                 // another file that merely starts with the same letters (renaming "v" left "vv.mp4" alone)
                 if (entry === oldBase + oldExt || entry.startsWith(oldBase + '.') || entry.startsWith(oldBase + '_')) {
                     fs.renameSync(path.join(dir, entry), path.join(dir, entry.replace(replacePattern, newBase)));

@@ -1,7 +1,7 @@
 // media.ipc.js — handles VSR upscaling subprocess wrappers, enhancements tracking, and ffprobe stream introspection.
 
 const path = require('path');
-const sidecarNames = require('../sidecar-names');
+const sidecarRecord = require('../sidecar-record');
 const fs = require('fs');
 const child_process = require('child_process');
 const utils = require('../utils');
@@ -149,22 +149,20 @@ function registerMediaIpc(ipcMain) {
         if (typeof filePath !== 'string' || !fs.existsSync(filePath)) {
             return { success: false, error: 'File not found' };
         }
-        const metaPath = sidecarNames.resolveSync(filePath).path;
         try {
             const stats = fs.statSync(filePath);
             const ext = path.extname(filePath).toLowerCase();
+            // what the file itself says: never stored (a sidecar's absolute path was wrong after any move)
+            const fromFile = {
+                name: path.basename(filePath), path: filePath, size: stats.size,
+                created: stats.birthtime, modified: stats.mtime, type: ext,
+            };
 
-            // 1. Check if sidecar metadata already exists
-            if (fs.existsSync(metaPath)) {
-                try {
-                    const cached = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                    // Refresh size and mod times
-                    cached.size = stats.size;
-                    cached.modified = stats.mtime;
-                    return { success: true, properties: cached };
-                } catch (cacheErr) {
-                    console.error('[media.ipc:properties] Cache read error, re-probing:', cacheErr.message);
-                }
+            // 1. The sidecar already holds the probe (a v2 record written by vault-raggae alone has only its
+            //    envelope: probe then)
+            const cached = sidecarRecord.read(filePath).record;
+            if (cached.hasVideo !== undefined || cached.duration) {
+                return { success: true, properties: { ...cached, ...fromFile } };
             }
 
             // 2. Fetch fresh properties
@@ -221,13 +219,8 @@ function registerMediaIpc(ipcMain) {
                         }
                     }
 
-                    // Save sidecar metadata
-                    try {
-                        fs.writeFileSync(metaPath, JSON.stringify(baseProps, null, 2), 'utf8');
-                        console.log('[media.ipc:properties] Saved sidecar metadata:', metaPath);
-                    } catch (saveErr) {
-                        console.error('[media.ipc:properties] Failed to save sidecar metadata:', saveErr.message);
-                    }
+                    // Save the probe in the v2 record (this app's keys only; the rest of the sidecar is kept)
+                    sidecarRecord.update(filePath, baseProps);
                 }
             }
 
