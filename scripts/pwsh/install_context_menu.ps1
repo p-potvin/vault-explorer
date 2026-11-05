@@ -1,27 +1,19 @@
 $ErrorActionPreference = "Stop"
 
 $RepoPath = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$NodeExe = (Get-Command node.exe -CommandType Application -ErrorAction Stop).Source
-$ElectronCli = "$RepoPath\node_modules\electron\cli.js"
+$UnpackedExe = Join-Path $RepoPath "dist\win-unpacked\vault-explorer.exe"
 
-$FileCommand = ""
-$FolderBgCommand = ""
-$FolderItemCommand = ""
+$FileCommand = "`"$UnpackedExe`" --prioritize-player `"%1`""
+$FolderBgCommand = "`"$UnpackedExe`" `"%V`""
+$FolderItemCommand = "`"$UnpackedExe`" `"%1`""
 
-if ((Test-Path $NodeExe) -and (Test-Path $ElectronCli)) {
-    # `npm run start` resolves `electron .` through Electron's cli.js with
-    # Node. Keep the registry command identical in shape so it uses this
-    # checkout's source rather than a possibly stale dist build.
-    $FileCommand = "`"$NodeExe`" `"$ElectronCli`" `"$RepoPath`" --prioritize-player `"%1`""
-    $FolderBgCommand = "`"$NodeExe`" `"$ElectronCli`" `"$RepoPath`" `"%V`""
-    $FolderItemCommand = "`"$NodeExe`" `"$ElectronCli`" `"$RepoPath`" `"%1`""
-    Write-Host "Using the Node + Electron CLI command from npm run start for context menus." -ForegroundColor Cyan
+if (Test-Path $UnpackedExe) {
+    Write-Host "Using latest win-unpacked executable for context menus: $UnpackedExe" -ForegroundColor Cyan
 } else {
-    Write-Host "Could not find Node or the local Electron CLI. Please install dependencies first." -ForegroundColor Red
-    exit 1
+    Write-Warning "Target executable not found at '$UnpackedExe'. Context menu will be registered, but please run 'npm run dist' to build it."
 }
 
-$IconPath = if (Test-Path "$RepoPath\build\icon.ico") { "$RepoPath\build\icon.ico" } else { $null }
+$IconPath = if (Test-Path $UnpackedExe) { $UnpackedExe } elseif (Test-Path "$RepoPath\build\icon.ico") { "$RepoPath\build\icon.ico" } else { $null }
 
 # 1. Video Files Context Menu
 $VideoFileRegPath = "HKCU:\Software\Classes\SystemFileAssociations\video\shell\VaultExplorer"

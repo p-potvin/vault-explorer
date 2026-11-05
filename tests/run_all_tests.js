@@ -23,7 +23,9 @@ const testSuites = [
     { name: 'Seek Preview & Frame Scrubbing E2E', script: 'tests/seek_preview_verification_test.js' },
     { name: 'NVEnc AI Video Studio & Subtitles -Separate E2E', script: 'tests/nvencc_studio_and_separate_test.js' },
     { name: 'Music & Photos Button-By-Button E2E Suite', script: 'tests/music_photos_buttons_e2e_test.js' },
-    { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' }
+    { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' },
+    { name: 'Context Menu Registry Command Regression', script: 'tests/context_menu_registry_command_test.js' },
+    { name: 'Dist Cleanup & Artifact Management', script: 'tests/cleanup_dist_test.js' }
 ];
 
 console.log('===============================================================');

@@ -14,33 +14,28 @@ assert.match(
 );
 assert.match(
     installer,
-    /\$NodeExe = \(Get-Command node\.exe -CommandType Application -ErrorAction Stop\)\.Source/,
-    'The registry installer must resolve the Node runtime used to execute Electron CLI.',
+    /\$UnpackedExe = Join-Path \$RepoPath "dist\\win-unpacked\\vault-explorer\.exe"/,
+    'The registry installer must resolve the unpacked executable in dist/win-unpacked.',
 );
 assert.match(
     installer,
-    /\$ElectronCli = "\$RepoPath\\node_modules\\electron\\cli\.js"/,
-    'The registry installer must target Electron CLI rather than electron.exe.',
+    /\$FileCommand = "`"\$UnpackedExe`" --prioritize-player `"%1`""/,
+    'Video entries must invoke the unpacked executable with --prioritize-player "%1".',
 );
 assert.match(
     installer,
-    /if \(\(Test-Path \$NodeExe\) -and \(Test-Path \$ElectronCli\)\) \{[\s\S]*?\$FileCommand = "`"\$NodeExe`" `"\$ElectronCli`" `"\$RepoPath`" --prioritize-player `"%1`""/,
-    'Video entries must pass --prioritize-player through Node and Electron CLI.',
+    /\$FolderBgCommand = "`"\$UnpackedExe`" `"%V`""/,
+    'Folder-background entries must invoke the unpacked executable with %V.',
 );
 assert.match(
     installer,
-    /\$FolderBgCommand = "`"\$NodeExe`" `"\$ElectronCli`" `"\$RepoPath`" `"%V`""/,
-    'Folder-background entries must launch Node with the local Electron CLI.',
-);
-assert.match(
-    installer,
-    /\$FolderItemCommand = "`"\$NodeExe`" `"\$ElectronCli`" `"\$RepoPath`" `"%1`""/,
-    'Directory entries must launch Node with the local Electron CLI.',
+    /\$FolderItemCommand = "`"\$UnpackedExe`" `"%1`""/,
+    'Directory entries must invoke the unpacked executable with "%1".',
 );
 assert.doesNotMatch(
     installer,
-    /electron\\dist\\electron\.exe/,
-    'The registry installer must not launch electron.exe directly.',
+    /electron\\cli\.js/,
+    'The registry installer must not use the Electron CLI anymore.',
 );
 
 console.log('Context-menu registry command regression checks passed.');

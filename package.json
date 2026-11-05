@@ -1,12 +1,13 @@
 {
   "name": "vault-explorer",
-  "version": "4.1.21",
+  "version": "4.1.23",
   "description": "Re-discover the joys of browsing your files on a christmas morning or a rainy tuesday at work.",
   "main": "main.js",
   "scripts": {
     "start": "node scripts/start.js",
     "predist": "node scripts/bump-version.js",
     "dist": "electron-builder",
+    "postdist": "node scripts/cleanup-dist.js",
     "test": "node tests/run_all_tests.js"
   },
   "keywords": [],
