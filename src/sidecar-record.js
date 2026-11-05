@@ -32,9 +32,9 @@ const OWNED_KEYS = new Set([
 /** Root keys of the old flat format that the v2 record derives from the file instead. */
 const DROPPED_KEYS = ['name', 'path', 'size', 'created', 'modified', 'type'];
 
-const VIDEO = new Set(['.mp4', '.mkv', '.webm', '.mov', '.m4v', '.avi', '.flv', '.wmv', '.mpg', '.mpeg', '.ts', '.m2ts']);
-const IMAGE = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.avif', '.tiff', '.tif', '.heic']);
-const AUDIO = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.opus', '.ogg', '.wma', '.aiff']);
+const VIDEO = new Set(['.mp4', '.mkv', '.webm', '.mov', '.m4v', '.avi', '.flv', '.wmv', '.mpg', '.mpeg', '.m2ts', '.3gp']);
+const IMAGE = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.avif', '.tiff', '.tif', '.heic', '.heif', '.svg', '.ico']);
+const AUDIO = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.opus', '.ogg', '.wma', '.aiff', '.ape']);
 
 function kindOf(mediaPath) {
   const ext = path.extname(mediaPath).toLowerCase();
