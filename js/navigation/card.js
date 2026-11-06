@@ -325,6 +325,8 @@ function createCardElement(item, index) {
                 }
             } else if (item.type === 'audio') {
                 if (window.electronAPI) window.electronAPI.openFile(item.path);
+            } else if (item.type === 'fakeFolder') {
+                window.navigateTo(item.id, window.currentRealPath);
             }
         });
     }
@@ -445,6 +447,9 @@ function showAddToFolderMenu(item, anchorEl) {
                 const res = window.vf.addItems(folder.id, [item]);
                 menu.remove();
                 if (res.added > 0) {
+                    if (window._vfItemCache && item && item.path) {
+                        window._vfItemCache.set((item.path || '').replace(/\\/g, '/').toLowerCase(), item);
+                    }
                     window.showToast(`${t.addedToFolder || 'Added to'} "${folder.name}"`, 'success');
                     window.applyFilters();
                 } else if (res.rejected > 0) {

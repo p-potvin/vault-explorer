@@ -75,6 +75,12 @@ window.initKeybindingsAndFolderListeners = function() {
             if (!res.ok) { window.showToast(res.error || 'Failed to create folder', 'error'); return; }
             folderDialog.style.display = 'none';
             inputFolderName.value = '';
+            if (window.currentFilesSubtab !== 'collections' && !window.currentFolderId && type === 'collection') {
+                window.currentFilesSubtab = 'collections';
+                document.querySelectorAll('.file-subtab-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.subtab === 'collections');
+                });
+            }
             window.applyFilters();
             btnNewFolder.focus();
         });
@@ -110,6 +116,9 @@ window.initKeybindingsAndFolderListeners = function() {
             if (!folder) { window.showToast('Folder not found', 'error'); return; }
             const res = window.vf.addItems(folderId, [window.itemToAssign]);
             if (res.added) {
+                if (window._vfItemCache && window.itemToAssign && window.itemToAssign.path) {
+                    window._vfItemCache.set((window.itemToAssign.path || '').replace(/\\/g, '/').toLowerCase(), window.itemToAssign);
+                }
                 window.showToast(window.currentLang === 'fr' ? 'Ajouté avec succès' : 'Successfully added to virtual folder', 'success');
             } else if (res.rejected) {
                 const want = folder.type === 'album' ? 'images' : folder.type === 'playlist' ? 'audio files' : 'videos';

@@ -1,5 +1,103 @@
 // directory.js — handles scanning, loading directory, managing breadcrumbs/back stacks, and directory selection/refresh listeners.
 
+window._vfItemCache = window._vfItemCache || new Map();
+
+window.hydrateVirtualFolderItems = async function(folderIdOrPaths) {
+    if (!folderIdOrPaths) return [];
+    let paths = [];
+    if (typeof folderIdOrPaths === 'string') {
+        if (window.vf && typeof window.vf.itemsOf === 'function') {
+            paths = window.vf.itemsOf(folderIdOrPaths) || [];
+        }
+    } else if (Array.isArray(folderIdOrPaths)) {
+        paths = folderIdOrPaths;
+    }
+    if (!paths.length) return [];
+
+    const norm = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+    const missing = [];
+    const allItemsMap = new Map();
+    if (Array.isArray(window.allItems)) {
+        for (const item of window.allItems) {
+            if (item && item.path) allItemsMap.set(norm(item.path), item);
+        }
+    }
+
+    for (const p of paths) {
+        if (!p || typeof p !== 'string') continue;
+        const n = norm(p);
+        if (allItemsMap.has(n)) {
+            window._vfItemCache.set(n, allItemsMap.get(n));
+        } else if (!window._vfItemCache.has(n)) {
+            missing.push(p);
+        }
+    }
+
+    if (missing.length > 0 && window.electronAPI && typeof window.electronAPI.scanSpecificFiles === 'function') {
+        const scannedMap = new Map();
+        try {
+            const scanned = await window.electronAPI.scanSpecificFiles(missing);
+            if (Array.isArray(scanned)) {
+                for (const item of scanned) {
+                    if (item && item.path) {
+                        const n = norm(item.path);
+                        scannedMap.set(n, item);
+                        window._vfItemCache.set(n, item);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[hydrateVirtualFolderItems] Failed scanning specific files:', err);
+        }
+
+        // Cache fallback placeholders for any missing files that were not returned by scanner
+        // (e.g. offline drives, deleted or moved files). This marks them as resolved so they
+        // are never continuously re-hydrated in a loop.
+        for (const p of missing) {
+            const n = norm(p);
+            if (!scannedMap.has(n) && !window._vfItemCache.has(n)) {
+                const ext = p.includes('.') ? ('.' + p.split('.').pop().toLowerCase()) : '';
+                const name = p.split(/[\\/]/).pop() || p;
+                window._vfItemCache.set(n, {
+                    path: p,
+                    name,
+                    ext,
+                    type: (['.mp4', '.mkv', '.webm', '.mov', '.avi'].includes(ext)) ? 'video'
+                        : (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) ? 'image'
+                        : (['.mp3', '.wav', '.flac', '.m4a', '.ogg'].includes(ext)) ? 'audio'
+                        : 'other',
+                    size: 0,
+                    duration: 0,
+                    thumbnail: null,
+                    poster: null,
+                    isMissing: true
+                });
+            }
+        }
+    }
+
+    return paths.map(p => {
+        const n = norm(p);
+        if (window._vfItemCache.has(n)) return window._vfItemCache.get(n);
+        if (allItemsMap.has(n)) return allItemsMap.get(n);
+        const ext = p.includes('.') ? ('.' + p.split('.').pop().toLowerCase()) : '';
+        const name = p.split(/[\\/]/).pop() || p;
+        return {
+            path: p,
+            name,
+            ext,
+            type: (['.mp4', '.mkv', '.webm', '.mov', '.avi'].includes(ext)) ? 'video'
+                : (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) ? 'image'
+                : (['.mp3', '.wav', '.flac', '.m4a', '.ogg'].includes(ext)) ? 'audio'
+                : 'other',
+            size: 0,
+            duration: 0,
+            thumbnail: null,
+            poster: null
+        };
+    });
+};
+
 function displayFolderSize(bytes) {
     if (!bytes) {
         el('status-size').innerText = '';
@@ -46,7 +144,10 @@ async function updateStatusBar() {
         el('status-selected').innerText = '';
     }
 
-    if (window.currentTab === 'files' && window.allItems && window.allItems.length > 0) {
+    if (window.currentFolderId && window.displayedItems && window.displayedItems.length > 0) {
+        const totalSize = window.displayedItems.reduce((sum, item) => sum + (item.size || 0), 0);
+        displayFolderSize(totalSize);
+    } else if (window.currentTab === 'files' && window.allItems && window.allItems.length > 0) {
         displayFolderSize(folderTotal(window.currentRealPath, window.allItems));
     } else if (window.currentTab === 'favorites' && window.displayedItems && window.displayedItems.length > 0) {
         const totalSize = window.displayedItems.reduce((sum, item) => sum + (item.size || 0), 0);
@@ -58,9 +159,21 @@ async function updateStatusBar() {
 
 function getDisplayPath(navPath) {
     if (!navPath) return '';
+    if (window.currentFolderId && window.vf) {
+        const chain = window.vf.breadcrumb(window.currentFolderId);
+        const folder = window.vf.get(window.currentFolderId);
+        const type = folder ? folder.type : 'collection';
+        const typeLabel = type === 'album' ? 'Albums'
+                        : type === 'playlist' ? 'Playlists'
+                        : 'Collections';
+        if (chain && chain.length > 0) {
+            return `${typeLabel} / ${chain.map(f => f.name).join(' / ')}`;
+        }
+    }
     const rootName = window.currentRealPath ? window.currentRealPath.split(/[\\/]/).pop() : 'Vault';
     return navPath.replace(/^root/, rootName);
 }
+window.getDisplayPath = getDisplayPath;
 
 function clearSearchBox() {
     const sb = el('search-box');
@@ -108,10 +221,22 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
     if (el('btn-new-folder')) { el('btn-new-folder').disabled = false; el('btn-new-folder').style.display = 'inline-flex'; }
     if (el('btn-new-folder')) el('btn-new-folder').title = "Create virtual folder";
     el('btn-refresh').disabled = !realPath;
-    el('btn-refresh').title = realPath ? "Refresh directory" : "No folder selected";
-    el('btn-back').disabled = true;
-    el('btn-back').style.display = 'none';
-    el('btn-back').title = "Already at root vault level";
+    if (newFolderId) {
+        if (el('btn-back')) {
+            el('btn-back').disabled = false;
+            el('btn-back').style.display = 'inline-flex';
+            el('btn-back').title = "Go back";
+        }
+        if (typeof window.hydrateVirtualFolderItems === 'function') {
+            await window.hydrateVirtualFolderItems(newFolderId);
+        }
+    } else {
+        if (el('btn-back')) {
+            el('btn-back').disabled = true;
+            el('btn-back').style.display = 'none';
+            el('btn-back').title = "Already at root vault level";
+        }
+    }
 
     clearSearchBox();
 
@@ -262,11 +387,22 @@ function _resolveTargetFolderId(arg) {
 
 async function navigateTo(target, realPath) {
     const folderId = _resolveTargetFolderId(target);
+    if (folderId !== null && folderId === window.currentFolderId && realPath === window.currentRealPath) {
+        return;
+    }
     window.currentFolderId = folderId;
     window.currentNavPath = folderId ? window.buildNavPath(folderId) : 'root';
     window.currentRealPath = realPath;
     if (el('path-display')) el('path-display').innerText = getDisplayPath(window.currentNavPath);
     clearSearchBox();
+
+    if (realPath && (!window.currentTab || window.currentTab === 'files')) {
+        window.appSettings = window.appSettings || {};
+        window.appSettings.lastPath = { navPath: window.currentNavPath, realPath, folderId: window.currentFolderId };
+        if (window.electronAPI && typeof window.electronAPI.saveSettings === 'function') {
+            window.electronAPI.saveSettings(window.appSettings);
+        }
+    }
 
     if (!folderId) {
         if (el('btn-back')) {
@@ -317,13 +453,24 @@ async function navigateTo(target, realPath) {
             el('btn-back').disabled = false;
         }
 
-        const targetFolder = window.vf.get(folderId);
+        const targetFolder = window.vf ? window.vf.get(folderId) : null;
         if (targetFolder) {
+            if (targetFolder.type === 'collection') {
+                window.currentFilesSubtab = 'collections';
+                document.querySelectorAll('.file-subtab-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.subtab === 'collections');
+                });
+            }
             // Keep the root vault items in memory so applyFilters isolates membership instantly
             if (window._rootItemsCache && window._rootItemsCache.length > 0) {
                 window.allItems = window._rootItemsCache;
             }
         }
+
+        if (typeof window.hydrateVirtualFolderItems === 'function') {
+            await window.hydrateVirtualFolderItems(folderId);
+        }
+
         if (el('loading')) el('loading').style.display = 'none';
         window.applyFilters();
     }

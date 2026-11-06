@@ -105,23 +105,47 @@ function applyFilters() {
     };
 
     let pool = [];
-    if (term) {
+    if (currentFolder) {
+        // Inside a virtual folder: sub-folders here + this folder's items.
+        const norm = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
+        const subFolders = vf ? vf.list({ parentId: currentFolder.id, type: currentFolder.type }).map(projectFolder) : [];
+        const allItemsMap = new Map();
+        if (Array.isArray(window.allItems)) {
+            for (const item of window.allItems) {
+                if (item && item.path) allItemsMap.set(norm(item.path), item);
+            }
+        }
+        const memberPaths = vf ? vf.itemsOf(currentFolder.id) : [];
+        const memberItems = memberPaths.map(p => {
+            const n = norm(p);
+            if (window._vfItemCache && window._vfItemCache.has(n)) return window._vfItemCache.get(n);
+            if (allItemsMap.has(n)) return allItemsMap.get(n);
+            const ext = p.includes('.') ? ('.' + p.split('.').pop().toLowerCase()) : '';
+            return {
+                path: p,
+                name: p.split(/[\\/]/).pop() || p,
+                ext,
+                type: (['.mp4', '.mkv', '.webm', '.mov', '.avi'].includes(ext)) ? 'video'
+                    : (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) ? 'image'
+                    : (['.mp3', '.wav', '.flac', '.m4a', '.ogg'].includes(ext)) ? 'audio'
+                    : 'other',
+                size: 0,
+                duration: 0,
+                thumbnail: null,
+                poster: null
+            };
+        }).filter(v => matchesCategoryType(v.type) && !isGlobOrThumbsExcluded(v));
+
+        pool = [...subFolders, ...memberItems];
+    } else if (term) {
         // Global search in Files tab: video vault files + collection virtual folders ONLY.
         const searchCategory = subtabType || 'collection';
         const allVaultFiles = (window._rootItemsCache || window.allItems || []).filter(v => matchesCategoryType(v.type) && !isGlobOrThumbsExcluded(v));
-        const allFakeFolders = vf.list({ type: searchCategory })
-            .map(projectFolder);
+        const allFakeFolders = vf ? vf.list({ type: searchCategory }).map(projectFolder) : [];
         pool = [...allFakeFolders, ...allVaultFiles];
-    } else if (currentFolder) {
-        // Inside a virtual folder: sub-folders here + this folder's items.
-        const norm = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-        const subFolders = vf.list({ parentId: currentFolder.id, type: currentFolder.type }).map(projectFolder);
-        const memberNormSet = new Set(vf.itemsOf(currentFolder.id).map(norm));
-        const memberItems = window.allItems.filter(v => memberNormSet.has(norm(v.path)) && matchesCategoryType(v.type) && !isGlobOrThumbsExcluded(v));
-        pool = [...subFolders, ...memberItems];
     } else if (subtabType) {
         // Category subtabs (Collections) show ONLY the user's collection folders.
-        pool = vf.list({ parentId: null, type: subtabType }).map(projectFolder);
+        pool = vf ? vf.list({ parentId: null, type: subtabType }).map(projectFolder) : [];
     } else {
         // 'All Files' subtab in Videos view: vault files ONLY.
         // Collections (virtual folders) belong strictly to the Collections subtab.

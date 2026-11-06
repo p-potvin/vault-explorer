@@ -25,6 +25,7 @@ const testSuites = [
     { name: 'Music & Photos Button-By-Button E2E Suite', script: 'tests/music_photos_buttons_e2e_test.js' },
     { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' },
     { name: 'Context Menu Registry Command Regression', script: 'tests/context_menu_registry_command_test.js' },
+    { name: 'Virtual Folders Hydration & Launch Intent Suite', script: 'tests/virtual_folders_hydration_and_launch_intent_test.js' },
     { name: 'Dist Cleanup & Artifact Management', script: 'tests/cleanup_dist_test.js' }
 ];
 

@@ -145,8 +145,9 @@ function openLaunchIntent(intent) {
         if (!targetFolder) return false;
         const folderName = targetFolder.split(/[\\/]/).filter(Boolean).pop() || 'root';
         console.log('[app] Opening folder from launch intent:', targetFolder);
+        window.vaultLoaded = true;
         if (typeof window.switchTab === 'function') {
-            window.switchTab('files');
+            window.switchTab('files', { deferFolderLoad: true });
         }
         if (typeof window.loadDirectory === 'function') {
             window.loadDirectory(`root/${folderName}`, targetFolder, false);
@@ -180,7 +181,8 @@ function openLaunchIntent(intent) {
     };
 
     if (!launch.prioritizePlayer) {
-        if (typeof window.switchTab === 'function') window.switchTab('files');
+        window.vaultLoaded = true;
+        if (typeof window.switchTab === 'function') window.switchTab('files', { deferFolderLoad: true });
         setTimeout(() => {
             if (!window.displayedItems) window.displayedItems = [];
             window.displayedItems.push(item);
