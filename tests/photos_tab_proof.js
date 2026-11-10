@@ -97,6 +97,8 @@ const ROOT = process.env.PHOTOS_PROOF_ROOT || 'I:\\FDrive\\gallery';
     await win.click('.pl-person');
     await win.waitForFunction(() => document.querySelectorAll('#pl-content .pl-tile').length > 0, null, { timeout: 30000 });
     await win.waitForTimeout(1200);
+    await win.hover('#pl-content .pl-tile');                          // its "Not this person" button shows
+    await win.waitForTimeout(300);
     await win.screenshot({ path: path.join(OUT, '7-person.png') });
     const person = await win.evaluate(() => ({ name: window.photosLibraryState.person.name, photos: window.photosLibraryState.items.length }));
     console.log('people:', JSON.stringify(people), 'person:', JSON.stringify(person));

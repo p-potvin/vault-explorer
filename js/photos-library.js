@@ -20,6 +20,8 @@
     const GALLERIES = [{ id: 'amd', label: 'Models' }, { id: 'gallery', label: 'Gallery' }, { id: 'celebrities', label: 'Celebrities' }];
     const IMG_SIZES = [96, 160, 240, 320, 480, 640, 960, 1280];
     const PHOTO_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'avif', 'tiff', 'tif']);
+    // a drawn cross: the ✕ character sits off center in most fonts
+    const CROSS = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
     const S = {
@@ -474,17 +476,17 @@
         }
         if (S.view === 'person' && it.crop_id) {
             const x = document.createElement('button');
-            x.className = 'pl-tile__x';
+            x.className = 'pl-tile__x pl-x';
             x.title = `Not ${S.person.name}`;
-            x.textContent = '✕';
+            x.innerHTML = CROSS;
             x.addEventListener('click', (e) => { e.stopPropagation(); notThisPerson(S.person, it.crop_id, i); });
             d.appendChild(x);
         }
         if (S.view === 'album') {
             const x = document.createElement('button');
-            x.className = 'pl-tile__x';
+            x.className = 'pl-tile__x pl-x';
             x.title = 'Remove from album';
-            x.textContent = '✕';
+            x.innerHTML = CROSS;
             x.addEventListener('click', (e) => { e.stopPropagation(); window.vf.removeItems(S.album.id, [it.path]); loadAlbum(); renderSide(); });
             d.appendChild(x);
         }
@@ -641,7 +643,7 @@
         if (!n) { bar.innerHTML = ''; return; }
         bar.innerHTML = `<span class="pl-selbar__n">${n} selected</span>` + ACTIONS.map(a =>
             `<button class="pl-btn${a.danger ? ' pl-btn--danger' : ''}" data-act="${a.id}" title="${esc(a.label)}${a.key ? ` (${a.key})` : ''}">${esc(a.label)}</button>`).join('') +
-            `<button class="pl-btn" data-act="clear" title="Clear selection (Esc)">✕</button>`;
+            `<button class="pl-btn pl-x" data-act="clear" title="Clear selection (Esc)">${CROSS}</button>`;
         bar.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', (e) => {
             if (b.dataset.act === 'clear') { S.sel.clear(); paintSelection(); return; }
             ACTIONS.find(a => a.id === b.dataset.act).run(e);
@@ -900,8 +902,11 @@
         .pl-live { position: absolute; top: 5px; right: 5px; font-size: 8.5px; font-weight: 700; letter-spacing: .08em; padding: 2px 5px; border-radius: 3px;
             background: rgba(0,0,0,.5); color: #fff; font-family: var(--font-mono); z-index: 2; }
         .pl-fav { position: absolute; bottom: 4px; left: 6px; color: var(--vault-gold, #F0B94B); font-size: 13px; text-shadow: 0 1px 3px #000; z-index: 2; }
-        .pl-tile__x { position: absolute; top: 4px; right: 4px; z-index: 3; width: 20px; height: 20px; border-radius: 50%; border: none; cursor: pointer;
-            background: rgba(0,0,0,.6); color: #fff; font-size: 10px; opacity: 0; transition: opacity 120ms; }
+        .pl-tile__x { position: absolute; top: 4px; right: 4px; z-index: 3; width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer;
+            background: rgba(0,0,0,.6); color: #fff; padding: 0; display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 120ms; }
+        .pl-x svg { display: block; }
+        .pl-btn.pl-x { display: inline-flex; align-items: center; justify-content: center; padding: 5px 8px; }
         .pl-tile:hover .pl-tile__x { opacity: 1; }
         .pl-empty { padding: 60px 0; text-align: center; color: var(--vault-slate); font-size: 13px; }
         .pl-periods { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--pl-size, 180px) * 1.4), 1fr)); gap: 16px; }
