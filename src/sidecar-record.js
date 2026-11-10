@@ -27,6 +27,7 @@ const OWNED_KEYS = new Set([
   'hasAudio', 'hasVideo',
   'isValid', 'isValidCheckedAt', 'isValidReason', 'isValidSampleTime', 'isValidSamplesChecked',
   'enhancements', 'enhancementDetails', 'enhancedPath',
+  'listening',            // the Music tab's plays / skips (src/ipc/music.ipc.js)
 ]);
 
 /** Root keys of the old flat format that the v2 record derives from the file instead. */

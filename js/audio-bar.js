@@ -26,8 +26,62 @@
             audioEl.style.display = 'none';
             audioEl.preload = 'metadata';
             document.body.appendChild(audioEl);
+            audioEl.addEventListener('timeupdate', checkPlayCounted);
+            audioEl.addEventListener('play', () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); });
         }
         return audioEl;
+    }
+
+    // ── Spectrum (the Music tab's visualizer) ───────────────────────────────
+    // Built on first use: once an element feeds a Web Audio graph it plays only through it, so the graph stays for
+    // the element's life (the video player does the same for its volume boost).
+    let audioCtx = null;
+    let analyser = null;
+    function getAnalyser() {
+        if (analyser) return analyser;
+        if (!window.AudioContext) return null;
+        try {
+            const a = getAudio();
+            audioCtx = new AudioContext();
+            const src = audioCtx.createMediaElementSource(a);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.78;
+            src.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            if (!a.paused) audioCtx.resume();
+        } catch (e) {
+            console.warn('[audio-bar] spectrum unavailable:', e.message);
+            analyser = null;
+        }
+        return analyser;
+    }
+
+    // ── Plays and skips (kept in the song's sidecar, src/ipc/music.ipc.js) ──
+    // A play counts once the song has played half its length or 4 minutes, whichever comes first (the usual
+    // scrobbling rule); leaving a song for another within its first 20 seconds counts a skip.
+    let countedFor = null;
+    function checkPlayCounted() {
+        const a = audioEl;
+        const item = currentPlaylist[currentIndex];
+        if (!a || !item || countedFor === item.path || !a.duration) return;
+        if (a.currentTime >= Math.min(a.duration / 2, 240)) {
+            countedFor = item.path;
+            recordListening(item, 'play');
+        }
+    }
+    function recordListening(item, kind) {
+        const api = window.electronAPI || {};
+        const call = kind === 'skip' ? api.musicRecordSkip : api.musicRecordPlay;
+        if (typeof call !== 'function') return;
+        Promise.resolve(call(item.path)).then((listening) => {
+            if (listening) window.dispatchEvent(new CustomEvent('vault-music-listening', { detail: { path: item.path, listening } }));
+        }).catch(() => {});
+    }
+    function noteSkip() {
+        const a = audioEl;
+        const item = currentPlaylist[currentIndex];
+        if (a && item && countedFor !== item.path && a.currentTime > 0 && a.currentTime < 20) recordListening(item, 'skip');
     }
 
     // ── Persistent state ────────────────────────────────────────────────────
@@ -90,16 +144,18 @@
     function updateTrackInfo(item) {
         const title = el('audio-bar-title');
         const artist = el('audio-bar-artist');
-        if (title) title.innerText = item.name ? item.name.replace(/\.[^.]+$/, '') : '--';
-        if (artist) artist.innerText = item.artist || item.folder || 'Unknown Artist';
+        const shown = window.musicTitleOf ? window.musicTitleOf(item) : (item.name || '').replace(/\.[^.]+$/, '');
+        if (title) title.innerText = shown || '--';
+        if (artist) artist.innerText = [item.artist || item.folder || 'Unknown Artist', item.album].filter(Boolean).join(' — ');
 
         // Update MediaSession API for OS integration
         if ('mediaSession' in navigator && item) {
             try {
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: item.name ? item.name.replace(/\.[^.]+$/, '') : 'Track',
+                    title: shown || 'Track',
                     artist: item.artist || item.folder || 'Vault Explorer',
-                    album: item.folder || 'Vault Music',
+                    album: item.album || item.folder || 'Vault Music',
+                    artwork: item.artFile ? [{ src: window.sanitizePath(item.artFile), sizes: '600x600', type: 'image/jpeg' }] : [],
                 });
             } catch (_) {}
         }
@@ -168,6 +224,7 @@
     // ── Playback Engine ─────────────────────────────────────────────────────
     function playTrack(index, startTime = 0) {
         if (!currentPlaylist.length) return;
+        countedFor = null;
         currentIndex = (index + currentPlaylist.length) % currentPlaylist.length;
         const item = currentPlaylist[currentIndex];
         const a = getAudio();
@@ -222,8 +279,9 @@
         }
     }
 
-    function nextTrack() {
+    function nextTrack(fromEnd) {
         if (!currentPlaylist.length) return;
+        if (fromEnd !== true) noteSkip();
         if (isShuffle) {
             shufflePos = (shufflePos + 1) % shuffledIndices.length;
             playTrack(shuffledIndices[shufflePos]);
@@ -454,6 +512,8 @@
         };
     };
 
+    window.getAudioAnalyser = getAnalyser;
+    window.getCurrentAudioItem = () => currentPlaylist[currentIndex] || null;
     window.toggleAudioPlay = togglePlay;
     window.nextAudioTrack = nextTrack;
     window.prevAudioTrack = prevTrack;
