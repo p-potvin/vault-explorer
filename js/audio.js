@@ -116,7 +116,8 @@
             await importOldPlayCounts();
             if (typeof api.musicTracks === 'function') {
                 const res = await api.musicTracks(folder);
-                ((res && res.items) || []).forEach(m => metaByPath.set(norm(m.path), m));
+                if (!res || !res.success) throw new Error('vault-raggae did not answer');
+                (res.items || []).forEach(m => metaByPath.set(norm(m.path), m));
             }
             if (typeof api.musicListening === 'function') {
                 const paths = items.map(i => i.path);
@@ -126,7 +127,10 @@
                 }
             }
         } catch (e) {
+            // forget the folder so the next render or folder switch asks again; false: no re-render (no retry loop)
             console.warn('[music] tags / plays unavailable:', e.message);
+            metaLoaded.delete(key);
+            return false;
         }
         return true;
     }

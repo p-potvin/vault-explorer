@@ -89,16 +89,18 @@ function songsUnder(root, max) {
         const box = await longRow.boundingBox();
         await win.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await win.waitForTimeout(1500);
-        const under = await win.evaluateHandle(([x, y]) => document.elementFromPoint(x, y).closest('.mt-cell--title'),
-            [box.x + box.width / 2, box.y + box.height / 2]);
+        const under = await win.evaluateHandle(([x, y]) => {
+            const hit = document.elementFromPoint(x, y);
+            return hit ? hit.closest('.mt-cell--title') : null;
+        }, [box.x + box.width / 2, box.y + box.height / 2]);
         // :hover can lag a synthetic pointer by a frame: nudge it and sample a few times
         let slid = null;
         for (let k = 0; k < 6 && !(slid && slid.transform !== 'none'); k++) {
             await win.mouse.move(box.x + box.width / 2 + (k % 2), box.y + box.height / 2);
             await win.waitForTimeout(400);
-            slid = await under.evaluate(c => ({ cls: c.firstElementChild.className,
+            slid = await under.evaluate(c => (c && c.firstElementChild ? { cls: c.firstElementChild.className,
                 shift: c.firstElementChild.style.getPropertyValue('--mt-shift'),
-                transform: getComputedStyle(c.firstElementChild).transform }));
+                transform: getComputedStyle(c.firstElementChild).transform } : null));
         }
         console.log('long title on hover:', JSON.stringify(slid));
         await win.screenshot({ path: path.join(OUT, '2-slide.png') });
