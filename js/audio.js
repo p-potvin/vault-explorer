@@ -50,8 +50,7 @@
     // Title without its track number, artist, album, track, year, genre, bitrate, picture. Read once per folder;
     // a song the gateway does not know shows its file name, cleaned the same way (cleanTitle).
     const metaByPath = new Map();
-    const metaLoaded = new Set();
-    let metaLoading = null;
+    const metaLoaded = new Set();      // folders asked for: added before the request, so a folder is asked once
 
     /** Same rule as vault-raggae's app/music/meta.py clean_title, for a file name: "05 05 X", "07. X", "19 X". */
     function cleanTitle(stem) {
@@ -110,9 +109,10 @@
         const api = window.electronAPI || {};
         const folder = commonFolder(items);
         const key = folder.toLowerCase() + '|' + items.length;
-        if (!items.length || metaLoaded.has(key) || metaLoading) return false;
+        // no global "loading" lock: it made a second folder wait for (and then skip) its own load (Gemini on #68)
+        if (!items.length || metaLoaded.has(key)) return false;
         metaLoaded.add(key);
-        metaLoading = (async () => {
+        try {
             await importOldPlayCounts();
             if (typeof api.musicTracks === 'function') {
                 const res = await api.musicTracks(folder);
@@ -125,8 +125,9 @@
                     Object.entries(got || {}).forEach(([p, l]) => listening.set(norm(p), l));
                 }
             }
-        })().catch(e => console.warn('[music] tags / plays unavailable:', e.message)).finally(() => { metaLoading = null; });
-        await metaLoading;
+        } catch (e) {
+            console.warn('[music] tags / plays unavailable:', e.message);
+        }
         return true;
     }
 
@@ -518,6 +519,8 @@
         }
     }
 
+    const NUMERIC_COLS = new Set(COLUMN_DEFS.filter(c => c.num).map(c => c.key));   // not a find() per comparison
+
     function sortValue(key, it) {
         switch (key) {
             case 'title': return musicTitleOf(it).toLowerCase();
@@ -526,7 +529,7 @@
             case 'mtime': return it.mtime || 0;
             default: {
                 const v = it[key];
-                if (v === undefined || v === null) return (COLUMN_DEFS.find(c => c.key === key) || {}).num ? -1 : '';
+                if (v === undefined || v === null) return NUMERIC_COLS.has(key) ? -1 : '';
                 return typeof v === 'string' ? v.toLowerCase() : v;
             }
         }
