@@ -60,7 +60,7 @@ function registerPhotosIpc(ipcMain) {
         const out = [];
         for (const root of Array.isArray(roots) ? roots : []) {
             try {
-                for (const d of fs.readdirSync(root, { withFileTypes: true })) {
+                for (const d of await fs.promises.readdir(root, { withFileTypes: true })) {     // not on the main thread's time
                     if (d.isDirectory() && !d.name.startsWith('.') && !d.name.startsWith('$')) {
                         out.push({ name: d.name, path: path.join(root, d.name) });
                     }

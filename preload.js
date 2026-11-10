@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   photosGet: (route, params) => ipcRenderer.invoke('photos-get', route, params),
   photosRequest: (gallery, identityId, body) => ipcRenderer.invoke('photos-request', gallery, identityId, body),
   photosFolders: (roots) => ipcRenderer.invoke('photos-folders', roots),
+  raggaeUrl: process.env.RAGGAE_URL || 'http://127.0.0.1:8750',
   getFolderSizeSmart: (dirPath, fileCount) => ipcRenderer.invoke('get-folder-size-smart', dirPath, fileCount),
   encryptFiles: (data) => ipcRenderer.invoke('encrypt-files', data),
   decryptFiles: (data) => ipcRenderer.invoke('decrypt-files', data),

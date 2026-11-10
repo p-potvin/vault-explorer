@@ -14,7 +14,7 @@
    ========================================================================== */
 
 (function () {
-    const GW = 'http://127.0.0.1:8750';
+    const GW = (window.electronAPI && window.electronAPI.raggaeUrl) || 'http://127.0.0.1:8750';   // RAGGAE_URL
     const PAGE = 300;
     const PEOPLE_PAGE = 120;
     const GALLERIES = [{ id: 'amd', label: 'Models' }, { id: 'gallery', label: 'Gallery' }, { id: 'celebrities', label: 'Celebrities' }];
@@ -39,7 +39,8 @@
 
     const api = () => window.electronAPI || {};
     const settings = () => (window.appSettings = window.appSettings || {});
-    const esc = (s) => (window.escapeHtml ? window.escapeHtml(String(s ?? '')) : String(s ?? ''));
+    const esc = (s) => (window.escapeHtml ? window.escapeHtml(String(s ?? '')) : String(s ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'));
     const baseName = (p) => (p || '').split(/[\\/]/).pop();
     const isPhoto = (p) => PHOTO_EXTS.has((p || '').split('.').pop().toLowerCase());
 
@@ -341,7 +342,11 @@
         const r = (S.view === 'folder' ? [S.folder] : roots()).map(x => x.toLowerCase().replace(/\//g, '\\'));
         const all = (window.allItems || []).filter(i => i && (i.type === 'image' || isPhoto(i.path)) &&
             (!r.length || r.some(x => (i.path || '').toLowerCase().startsWith(x))));
-        S.items = all.map(i => ({ ...i, taken: i.mtime ? new Date(i.mtime > 1e12 ? i.mtime : i.mtime * 1000).toISOString().slice(0, 19) : '', taken_from: 'file' }))
+        const fileDate = (mt) => {
+            const d = mt ? new Date(mt > 1e12 ? mt : mt * 1000) : null;
+            return d && !isNaN(d.getTime()) ? d.toISOString().slice(0, 19) : '';       // a bad mtime: undated
+        };
+        S.items = all.map(i => ({ ...i, taken: fileDate(i.mtime), taken_from: 'file' }))
             .sort((a, b) => (a.taken < b.taken ? 1 : -1));
         S.next = null;
         S.loading = false;
@@ -519,7 +524,7 @@
         return `${MONTHS[(+m || 1) - 1]} ${y}`;
     }
     function monthEnd(p) {
-        const [y, m] = p.split('-').map(Number);
+        const [y, m = 12] = p.split('-').map(Number);      // a year alone: its end
         const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
         return `${ny}-${String(nm).padStart(2, '0')}-01T00:00:00`;
     }
@@ -584,6 +589,13 @@
     function bindBoxSelect(scroll) {
         const box = document.getElementById('pl-box');
         let start = null, base = null;
+        // window listeners only while a box is being drawn (Gemini on #70)
+        const onUp = () => {
+            start = null;
+            box.style.display = 'none';
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
         scroll.addEventListener('mousedown', (e) => {
             if (e.button !== 0 || e.target.closest('.pl-tile, .pl-period, .pl-person, button, input')) return;
             const r = scroll.getBoundingClientRect();
@@ -591,8 +603,10 @@
             base = (e.ctrlKey || e.shiftKey) ? new Set(S.sel) : new Set();
             if (!e.ctrlKey && !e.shiftKey) { S.sel.clear(); paintSelection(); }
             e.preventDefault();
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
         });
-        window.addEventListener('mousemove', (e) => {
+        function onMove(e) {
             if (!start) return;
             const r = scroll.getBoundingClientRect();
             const cur = { x: e.clientX - r.left + scroll.scrollLeft, y: e.clientY - r.top + scroll.scrollTop };
@@ -605,8 +619,7 @@
                 if (tx1 < x2 && tx1 + tr.width > x1 && ty1 < y2 && ty1 + tr.height > y1) S.sel.add(+t.dataset.i);
             });
             paintSelection();
-        });
-        window.addEventListener('mouseup', () => { if (start) { start = null; box.style.display = 'none'; } });
+        }
     }
 
     // ── Actions ─────────────────────────────────────────────────────────────
@@ -668,7 +681,11 @@
             ? await window.showConfirmDialog(`Send ${items.length} photo${items.length > 1 ? 's' : ''} to the Recycle Bin?`, 'Delete')
             : confirm(`Send ${items.length} photo(s) to the Recycle Bin?`);
         if (!ok) return;
-        for (const it of items) await api().deleteItem(it.path);
+        // a few at a time: each one is a vault-raggae ops call (Gemini on #70 asked for parallel; unbounded would
+        // start hundreds of processes for a big selection)
+        for (let i = 0; i < items.length; i += 4) {
+            await Promise.all(items.slice(i, i + 4).map(it => api().deleteItem(it.path)));
+        }
         const gone = new Set(items.map(i => i.path));
         S.items = S.items.filter(i => !gone.has(i.path));
         S.sel.clear();
@@ -699,18 +716,21 @@
         m.className = 'pl-menu';
         m.style.left = `${Math.min(ev.clientX, window.innerWidth - 220)}px`;
         m.style.top = `${Math.min(ev.clientY, window.innerHeight - rows.length * 30 - 16)}px`;
+        // one close handler, removed whichever way the menu goes (a pick used to leave it on the document)
+        const close = (e2) => {
+            if (e2 && m.contains(e2.target)) return;
+            m.remove();
+            document.removeEventListener('mousedown', close);
+        };
         rows.forEach(([label, cb, danger]) => {
             const r = document.createElement('div');
             r.className = 'pl-menu__item' + (danger ? ' is-danger' : '');
             r.textContent = label;
-            r.addEventListener('click', () => { m.remove(); cb(); });
+            r.addEventListener('click', () => { close(); cb(); });
             m.appendChild(r);
         });
         document.body.appendChild(m);
-        setTimeout(() => {
-            const close = (e2) => { if (!m.contains(e2.target)) { m.remove(); document.removeEventListener('mousedown', close); } };
-            document.addEventListener('mousedown', close);
-        }, 0);
+        setTimeout(() => document.addEventListener('mousedown', close), 0);
     }
 
     function openViewer(i) {
