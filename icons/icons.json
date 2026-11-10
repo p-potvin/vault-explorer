@@ -821,6 +821,51 @@
    "name": "moon",
    "component": "IconMoon",
    "category": "utility"
+  },
+  {
+   "name": "crop",
+   "component": "IconCrop",
+   "category": "editing"
+  },
+  {
+   "name": "rotate-cw",
+   "component": "IconRotateCw",
+   "category": "editing"
+  },
+  {
+   "name": "rotate-ccw",
+   "component": "IconRotateCcw",
+   "category": "editing"
+  },
+  {
+   "name": "flip",
+   "component": "IconFlip",
+   "category": "editing"
+  },
+  {
+   "name": "type",
+   "component": "IconType",
+   "category": "editing"
+  },
+  {
+   "name": "brush",
+   "component": "IconBrush",
+   "category": "editing"
+  },
+  {
+   "name": "markup",
+   "component": "IconMarkup",
+   "category": "editing"
+  },
+  {
+   "name": "face-frame",
+   "component": "IconFaceFrame",
+   "category": "editing"
+  },
+  {
+   "name": "filmstrip",
+   "component": "IconFilmstrip",
+   "category": "editing"
   }
  ]
 }

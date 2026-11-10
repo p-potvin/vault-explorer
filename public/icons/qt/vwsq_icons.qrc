@@ -165,5 +165,14 @@
     <file alias="plug.svg">../svg/plug.svg</file>
     <file alias="sun.svg">../svg/sun.svg</file>
     <file alias="moon.svg">../svg/moon.svg</file>
+    <file alias="crop.svg">../svg/crop.svg</file>
+    <file alias="rotate-cw.svg">../svg/rotate-cw.svg</file>
+    <file alias="rotate-ccw.svg">../svg/rotate-ccw.svg</file>
+    <file alias="flip.svg">../svg/flip.svg</file>
+    <file alias="type.svg">../svg/type.svg</file>
+    <file alias="brush.svg">../svg/brush.svg</file>
+    <file alias="markup.svg">../svg/markup.svg</file>
+    <file alias="face-frame.svg">../svg/face-frame.svg</file>
+    <file alias="filmstrip.svg">../svg/filmstrip.svg</file>
   </qresource>
 </RCC>
