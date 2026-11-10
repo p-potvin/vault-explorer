@@ -506,7 +506,7 @@
             `<div class="pl-periods">${ps.map(p => `
             <div class="pl-period" data-period="${esc(p.period)}">
               ${coverHtml('period:' + p.period, p.cover, p.period, false)}
-              <div class="pl-period__label">${esc(periodLabel(p.period))}</div><div class="pl-period__count">${p.count.toLocaleString()} photos</div>
+              <div class="pl-period__label">${esc(periodLabel(p.period))}</div><div class="pl-period__count">${p.count.toLocaleString()} photo${p.count === 1 ? "" : "s"}</div>
             </div>`).join('')}</div>`;
         c.querySelectorAll('.pl-period').forEach(el => el.addEventListener('click', () => {
             const p = el.dataset.period;
@@ -907,7 +907,8 @@
         .pl-periods { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--pl-size, 180px) * 1.4), 1fr)); gap: 16px; }
         .pl-content--periods { --pl-size: 180px; }
         .pl-period { cursor: pointer; }
-        .pl-period .pl-cover { aspect-ratio: 1 / 1; border-radius: 8px; }
+        /* height: auto, or .pl-cover's height: 100% wins over the square and a tall picture runs over the label */
+        .pl-period .pl-cover { height: auto; aspect-ratio: 1 / 1; border-radius: 8px; }
         .pl-period:hover .pl-cover { filter: brightness(1.08); }
         .pl-period__label { font-size: 14px; font-weight: 600; color: var(--vault-text); margin-top: 8px; font-family: var(--font-sans); }
         .pl-period__count { font-size: 11px; color: var(--vault-slate); font-family: var(--font-mono); }
