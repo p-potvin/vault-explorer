@@ -27,7 +27,11 @@
             audioEl.preload = 'metadata';
             document.body.appendChild(audioEl);
             audioEl.addEventListener('timeupdate', checkPlayCounted);
-            audioEl.addEventListener('play', () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); });
+            audioEl.addEventListener('play', () => {
+                // Repeat One loops without playTrack(): a new pass from 0 is a new play (Gemini on #68)
+                if (audioEl.currentTime === 0) countedFor = null;
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            });
         }
         return audioEl;
     }

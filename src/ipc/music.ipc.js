@@ -71,10 +71,13 @@ function registerMusicIpc(ipcMain) {
 
     ipcMain.handle('music-listening', async (_e, paths) => {
         const out = {};
+        let n = 0;
         for (const p of Array.isArray(paths) ? paths : []) {
             if (typeof p !== 'string') continue;
             const l = listeningOf(p);
             if (l) out[p] = l;
+            // sidecar reads are synchronous: hand the main thread back every 50 (Gemini on #68)
+            if (++n % 50 === 0) await new Promise(resolve => setImmediate(resolve));
         }
         return out;
     });
