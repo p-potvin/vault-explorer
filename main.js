@@ -792,6 +792,7 @@ const { registerMediaIpc } = require('./src/ipc/media.ipc');
 const { registerCryptoIpc } = require('./src/ipc/crypto.ipc');
 const { registerSubtitlesIpc } = require('./src/ipc/subtitles.ipc');
 const { registerMusicIpc } = require('./src/ipc/music.ipc');
+const { registerPhotosIpc } = require('./src/ipc/photos.ipc');
 
 registerFilesIpc(ipcMain, mainWindow);
 registerFolderIpc(ipcMain, mainWindow);
@@ -800,6 +801,7 @@ registerMediaIpc(ipcMain);
 registerCryptoIpc(ipcMain);
 registerSubtitlesIpc(ipcMain, loadSettings);
 registerMusicIpc(ipcMain);
+registerPhotosIpc(ipcMain);
 
 // Register Modular Handlers
 previewHandlers.registerPreviewHandlers(ipcMain);
