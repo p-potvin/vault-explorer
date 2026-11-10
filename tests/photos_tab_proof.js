@@ -84,7 +84,13 @@ const ROOT = process.env.PHOTOS_PROOF_ROOT || 'I:\\FDrive\\gallery';
 
     // people
     await win.click('.pl-side__item[data-key="people"]');
-    await win.waitForFunction(() => document.querySelectorAll('.pl-person').length > 20, null, { timeout: 30000 });
+    await win.waitForFunction(() => document.querySelectorAll('.pl-person').length > 20, null, { timeout: 30000 })
+        .catch(async (e) => {
+            console.log('people state:', JSON.stringify(await win.evaluate(() => ({
+                view: window.photosLibraryState.view, loading: window.photosLibraryState.loading,
+                n: window.photosLibraryState.people.length, html: document.getElementById('pl-content').innerHTML.slice(0, 300) }))));
+            throw e;
+        });
     await win.waitForTimeout(1200);
     const people = await win.evaluate(() => ({ shown: document.querySelectorAll('.pl-person').length, total: window.photosLibraryState.peopleTotal }));
     await win.screenshot({ path: path.join(OUT, '6-people.png') });

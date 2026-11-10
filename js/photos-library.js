@@ -241,13 +241,14 @@
         S.sel.clear();
         S.focus = -1;
         S.anchor = -1;
-        if (view !== 'person') S.person = view === 'person' ? S.person : S.person;
+        renderSelBar();             // the selection belonged to the view being left
         renderSide();
         reload();
     }
 
     function reload() {
         S.gen++;
+        S.loading = false;          // a request still in flight belongs to the old view: its answer is dropped (gen)
         S.items = [];
         S.next = null;
         S.error = null;
@@ -313,9 +314,10 @@
             const before = S.next || S.before || undefined;
             res = r.length ? await get('/v1/photos/library', { roots: r.join(';'), all: showAll() ? 1 : '', before, limit: PAGE }) : { items: [] };
         }
-        if (gen !== S.gen) return;
+        // clear the flag first: a page answered after the view changed must not leave the next view waiting on it
         S.loading = false;
         progress(false);
+        if (gen !== S.gen) return;
         if (res === null) { offline(); return; }
         if (res.error) {
             S.error = res.status === 503 ? 'The photos\' dates are not read yet in vault-raggae (python -m app.photos exif --execute).' : `Could not load photos (${res.error}).`;
@@ -787,7 +789,10 @@
         const c = document.getElementById('albums-container');
         if (!c || c.style.display === 'none' || !S.built) return;
         if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
-        if (document.querySelector('#image-viewer-modal[style*="flex"], #photo-editor-modal[style*="flex"]')) return;
+        // the viewer / editor owns the keys while it is open (its hidden modal's style says "flex-direction": test the
+        // display itself, not the style text)
+        const open = (id) => { const m = document.getElementById(id); return m && getComputedStyle(m).display !== 'none'; };
+        if (open('image-viewer-modal') || open('photo-editor-modal')) return;
         const n = S.items.length;
         const k = e.key;
         const move = (to) => {
@@ -889,7 +894,9 @@
         .pl-crumb { margin: 4px 0 12px; display: inline-block; }
         .pl-cover { display: block; width: 100%; height: 100%; overflow: hidden; position: relative; background: var(--vault-console-raised); }
         .pl-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .pl-cover--collage { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+        .pl-cover--collage { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+        .pl-cover--collage img { min-height: 0; min-width: 0; }
+        .pl-period .pl-cover:not(.pl-cover--collage) img { position: absolute; inset: 0; }
         .pl-cover--abstract b { position: absolute; top: 8%; left: 8%; right: 8%; color: #fff; font-family: var(--font-sans); font-size: 15px; }
         .pl-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 12px; }
         .pl-person { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; min-width: 0; }
