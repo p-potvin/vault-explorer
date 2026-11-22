@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTheme: () => ipcRenderer.invoke('get-theme'),
   setTheme: (t) => ipcRenderer.invoke('set-theme', t),
   setWindowFullScreen: (on) => ipcRenderer.invoke('set-window-fullscreen', !!on),
-  scheduleIdlePreviews: (items) => ipcRenderer.invoke('schedule-idle-previews', items),
+  scheduleIdlePreviews: (items, options = {}) => ipcRenderer.invoke('schedule-idle-previews', items, options),
   generateIdlePreviewBatch: (items) => ipcRenderer.invoke('generate-idle-preview-batch', items),
   pasteFiles: (data) => ipcRenderer.invoke('paste-files', data),
   zipSelection: (data) => ipcRenderer.invoke('zip-selection', data),

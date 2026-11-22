@@ -18,10 +18,11 @@
     ];
 
     /**
-     * Shows the 2-step AI subtitles submenu anchored near `anchorEl`.
+     * Shows the 2-step AI subtitles submenu anchored near `anchorEl` (or centered when null).
      * Resolves with { separator, translateTo, translateFrom, translateEngine } or null if dismissed.
      */
-    function showAiSubtitlesSubmenu(anchorEl) {
+    function showAiSubtitlesSubmenu(anchorEl, options = {}) {
+        const modalTitle = (options && options.title) || 'Live Subtitles AI';
         return new Promise((resolve) => {
             const existing = document.getElementById('ai-subtitles-submenu');
             if (existing) existing.remove();
@@ -69,7 +70,15 @@
             `;
 
             function adjustPosition() {
-                if (!anchorEl) return;
+                if (!anchorEl) {
+                    menu.style.left = '50%';
+                    menu.style.top = '50%';
+                    menu.style.right = 'auto';
+                    menu.style.bottom = 'auto';
+                    menu.style.transform = 'translate(-50%, -50%)';
+                    return;
+                }
+                menu.style.transform = 'none';
                 const menuWidth = menu.offsetWidth || 270;
                 const menuHeight = menu.offsetHeight || 220;
                 const rect = anchorEl.getBoundingClientRect();
@@ -101,7 +110,7 @@
             }
 
             const onMouseDown = (e) => {
-                if (!menu.contains(e.target) && anchorEl && !anchorEl.contains(e.target)) {
+                if (!menu.contains(e.target) && (!anchorEl || !anchorEl.contains(e.target))) {
                     cleanup();
                     resolve(null);
                 }
@@ -127,7 +136,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; flex-shrink:0;">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
-                    <span>Live Subtitles AI</span>
+                    <span>${modalTitle}</span>
                 `;
 
                 const stepBadge = document.createElement('span');

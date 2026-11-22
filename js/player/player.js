@@ -182,16 +182,24 @@ async function handlePlayerContextMenu(action, menuItem) {
         });
     } else if (action === 'generate-subtitles-prompt') {
         if (!itemPath) { window.showToast('No video path available', 'error'); return; }
-        const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
-        const langs = await window.showLanguageModal('Generate Subtitles', true, defaultLangs);
-        if (langs && langs.length > 0) {
-            if (!window.appSettings) window.appSettings = {};
-            window.appSettings.preferredASRLangs = langs;
-            window.electronAPI.saveSettings(window.appSettings);
-            window.showToast(`Generating subtitles for ${menuItem.name || 'video'}: ${langs.join(', ').toUpperCase()}`, 'success');
+        let subConfig = null;
+        if (typeof window.showAiSubtitlesSubmenu === 'function') {
+            subConfig = await window.showAiSubtitlesSubmenu(null, { title: 'Generate Subtitles' });
+        } else {
+            const sep = typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise';
+            const defFrom = ((window.appSettings && (window.appSettings.translateFrom || (window.appSettings.preferredASRLangs && window.appSettings.preferredASRLangs[0]))) || 'en').slice(0, 2).toLowerCase();
+            const defTo = ((window.appSettings && (window.appSettings.translateTo || (window.appSettings.defaultSubLang && window.appSettings.defaultSubLang !== 'original' ? window.appSettings.defaultSubLang : 'fr'))) || 'fr').slice(0, 2).toLowerCase();
+            subConfig = { separator: sep, translateTo: defTo, translateFrom: defFrom, translateEngine: 'hf' };
+        }
+        if (subConfig) {
+            const transSummary = subConfig.translateTo ? ` → ${subConfig.translateTo.toUpperCase()}` : '';
+            window.showToast(`Generating subtitles for ${menuItem.name || 'video'} (${subConfig.separator}${transSummary})`, 'success');
             window.electronAPI.generateSubtitles(itemPath, itemFolder, {
-                language: langs[0],
-                separator: typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise',
+                separator: subConfig.separator,
+                translateTo: subConfig.translateTo,
+                translateFrom: subConfig.translateFrom,
+                translateEngine: subConfig.translateEngine || 'hf',
+                model: 'parakeet-tdt',
             }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');

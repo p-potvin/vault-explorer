@@ -99,7 +99,7 @@ def find_subtitles_delegator():
 SEPARATORS = ("rnnoise", "mel_band_roformer", "bs_roformer", "htdemucs", "none")
 
 
-def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", translate_engine="hf"):
+def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", translate_engine="hf", translate_from=None, model="parakeet-tdt"):
     """Run `vw better-subtitles -Separator <separator> [-TranslateTo <lang>]`.
 
     Returns ``(transcript, translation)`` segment lists (translation is None
@@ -115,14 +115,17 @@ def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", t
 
     cmd = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", delegator,
            "-Target", video_path, "-OutputDir", work_dir, "-Separator", separator]
+    effective_model = model or os.environ.get("VW_ASR_MODEL") or "parakeet-tdt"
+    if effective_model:
+        cmd += ["-Model", effective_model]
     if translate_to:
         cmd += ["-TranslateTo", translate_to]
+        if translate_from:
+            cmd += ["-TranslateFrom", translate_from]
         if translate_engine:
             cmd += ["-TranslateEngine", translate_engine]
-    model = os.environ.get("VW_ASR_MODEL")
-    if model:
-        cmd += ["-Model", model]
 
+    print(f"[vw better-subtitles] Running: {' '.join(cmd)}", flush=True)
     tail = []
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -131,6 +134,7 @@ def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", t
             line = line.rstrip()
             if not line:
                 continue
+            print(line, flush=True)
             tail = (tail + [line])[-5:]
             for marker, percent, label in _VW_STAGES:
                 if marker in line:
@@ -178,11 +182,11 @@ def transcribe_native(video_path, duration, work_dir):
         wav_path, status_callback=lambda msg: report_progress(26, msg))
 
 
-def transcribe(video_path, translate_to, duration, work_dir, separator="rnnoise", translate_engine="hf"):
+def transcribe(video_path, translate_to, duration, work_dir, separator="rnnoise", translate_engine="hf", translate_from=None, model="parakeet-tdt"):
     """Returns (transcript, translation, engine)."""
     if os.environ.get("VW_SUBTITLES_ENGINE", "").lower() != "native":
         report_progress(10, f"Starting vw better-subtitles ({separator})...")
-        result = transcribe_via_vw(video_path, translate_to, work_dir, separator, translate_engine)
+        result = transcribe_via_vw(video_path, translate_to, work_dir, separator, translate_engine, translate_from=translate_from, model=model)
         if result is not None:
             transcript, translation = result
             return transcript, translation, VW_ENGINE
@@ -198,10 +202,14 @@ def process_one(video_path, args, _output_path):
     translate_to = subtitles.source_code(args.language)
     if translate_to in ("", "und", "original", "none"):
         translate_to = None
-    # English subtitles skip translation when source is English
-    trans_target = None if translate_to == "en" else translate_to
+    translate_from = subtitles.source_code(getattr(args, "translate_from", "") or "")
+    if translate_from in ("", "und", "original", "none", "auto"):
+        translate_from = None
+    # Skip translation only when target is unset or matches the source language.
+    trans_target = None if (not translate_to or translate_to == (translate_from or "en")) else translate_to
     duration = media.get_video_duration(video_path)
     translate_engine = getattr(args, "translate_engine", None) or os.environ.get("VW_TRANSLATE_ENGINE", "hf")
+    model = getattr(args, "model", None) or os.environ.get("VW_ASR_MODEL") or "parakeet-tdt"
 
     emit_status("STARTING", path=video_path)
     report_progress(2, "Preparing transcription...")
@@ -212,16 +220,18 @@ def process_one(video_path, args, _output_path):
         if ModelRun:
             # model= is required; without it every run died here before transcribing.
             with ModelRun(provider="local", runtime="nemo-speech",
-                          model=os.environ.get("VW_ASR_MODEL") or asr.NEMO_SPEECH_MODEL,
+                          model=model or asr.NEMO_SPEECH_MODEL,
                           task="audio-asr", project="vault-explorer") as run:
                 segments, translation, engine = transcribe(
-                    video_path, trans_target, duration, work_dir, args.separator, translate_engine)
+                    video_path, trans_target, duration, work_dir, args.separator, translate_engine,
+                    translate_from=translate_from, model=model)
                 run.set(engine=engine, separator=args.separator)
                 if segments:
                     run.set(audio_seconds=duration, completion_chars=sum(len(s.get("text", "")) for s in segments))
         else:
             segments, translation, engine = transcribe(
-                video_path, trans_target, duration, work_dir, args.separator, translate_engine)
+                video_path, trans_target, duration, work_dir, args.separator, translate_engine,
+                translate_from=translate_from, model=model)
         log(ACTION, f"Transcribed with {engine}")
 
         if not segments:
@@ -271,6 +281,10 @@ def main():
     parser.add_argument("--separator", default="rnnoise", choices=SEPARATORS,
                         help="Audio cleanup before transcription, passed to vw better-subtitles "
                              "-Separator (default: rnnoise)")
+    parser.add_argument("--translate-from", default="",
+                        help="Source language code for translation (e.g. en, fr)")
+    parser.add_argument("--model", default=os.environ.get("VW_ASR_MODEL") or "parakeet-tdt",
+                        help="ASR model passed to vw better-subtitles -Model (default: parakeet-tdt)")
     parser.add_argument("--translate-engine", default=os.environ.get("VW_TRANSLATE_ENGINE", "hf"),
                         choices=["hf", "command-a", "translategemma", "riva", "google"],
                         help="Translation engine for subtitle translation (default: hf / command-a)")

@@ -286,9 +286,17 @@ async function initApp() {
     }
     if (window.appSettings.mutePreviews === undefined) window.appSettings.mutePreviews = false;
     if (!window.appSettings.lastPath) window.appSettings.lastPath = { navPath: 'root', realPath: '' };
-    if (!window.appSettings.scrollPositions) window.appSettings.scrollPositions = {};
 
-    window.scrollPositions = window.appSettings.scrollPositions;
+    // Folder scroll positions are session-only: discard any legacy persisted entries on startup.
+    if (window.appSettings && 'scrollPositions' in window.appSettings) {
+        delete window.appSettings.scrollPositions;
+    }
+    if (typeof window.resetSessionScrollPositions === 'function') {
+        window.resetSessionScrollPositions();
+    } else {
+        window.scrollPositions = {};
+        window.renderedCounts = {};
+    }
 
     const subSize = window.appSettings.subFontSize || '20px';
     document.documentElement.style.setProperty('--sub-font-size', subSize);

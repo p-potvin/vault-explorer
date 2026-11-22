@@ -116,7 +116,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
     // Audio is optional for a preview. Probe only stream metadata first; the
     // cached validity flag below is based on up to three video-only samples.
-    if (hasAudio === undefined || hasVideo === undefined) {
+    if (force || hasAudio === undefined || hasVideo === undefined) {
         const info = await utils.getVideoMetadata(videoPath);
         hasAudio = info.hasAudio;
         hasVideo = info.hasVideo;
@@ -128,7 +128,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         duration = await utils.getVideoDuration(videoPath);
     }
 
-    if (typeof isValid !== 'boolean' || !isValidCheckedAt) {
+    if (force || typeof isValid !== 'boolean' || !isValidCheckedAt) {
         const validation = hasVideo
             ? await utils.validateVideoSamples(videoPath, duration)
             : { isValid: false, reason: 'No video stream found', sampleTime: null };
@@ -153,7 +153,7 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
 
     console.log(`[main:preview] Input: ${videoPath} -> thumb: ${thumbPath}, webm: ${hoverWebmPath}, force=${force}`);
 
-    if (!isValid) {
+    if (!isValid && !(force && hasVideo)) {
         console.log(`[main:preview] Skipping invalid video: ${videoPath} (hasVideo=${hasVideo}, hasAudio=${hasAudio}, checkedAt=${isValidCheckedAt})`);
         if (finalSender && !finalSender.isDestroyed()) {
             finalSender.send('generate-webm-progress', {
@@ -172,6 +172,9 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
             status: 'Invalid'
         });
         return;
+    }
+    if (!isValid && force && hasVideo) {
+        console.warn(`[main:preview] Force retry: proceeding despite sample validation failure (${meta.isValidReason || 'unknown'}) for ${videoPath}`);
     }
 
     const bothExist = fs.existsSync(thumbPath) && fs.existsSync(hoverWebmPath);
@@ -426,6 +429,19 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
         const finalThumb = fs.existsSync(thumbPath) ? thumbPath : null;
         const finalWebm = fs.existsSync(hoverWebmPath) ? hoverWebmPath : null;
 
+        if (!isValid && (finalThumb || finalWebm)) {
+            meta.isValid = true;
+            meta.isValidReason = null;
+            meta.isValidCheckedAt = new Date().toISOString();
+            if (!isHttp) {
+                sidecarRecord.update(videoPath, meta);
+            } else if (metaPath) {
+                try {
+                    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+                } catch (_) { }
+            }
+        }
+
         if (finalSender && !finalSender.isDestroyed()) {
             finalSender.send('generate-webm-progress', {
                 videoPath,
@@ -500,13 +516,13 @@ async function generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, send
     }
 }
 
-function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath) {
+function schedulePreviewGeneration(videoPath, thumbPath, hoverWebmPath, force = false) {
     if (activeQueuePaths.has(videoPath)) return;
     activeQueuePaths.add(videoPath);
 
     backgroundFfmpegQueue.push(async () => {
         try {
-            await generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath);
+            await generateThumbAndPreview(videoPath, thumbPath, hoverWebmPath, null, force);
         } catch (e) {
             console.error(`Preview generation failed for ${videoPath}:`, e.message);
         } finally {
@@ -594,8 +610,9 @@ function registerPreviewHandlers(ipcMain) {
         }
     });
 
-    ipcMain.handle('schedule-idle-previews', (event, items) => {
+    ipcMain.handle('schedule-idle-previews', (event, items, options = {}) => {
         if (!items || items.length === 0) return false;
+        const force = Boolean(options && options.force);
 
         // Skip automatic preview scheduling for cloud-backed directories to prevent freezing and crashes
         const firstPath = (items[0] && items[0].path) ? items[0].path.toLowerCase() : '';
@@ -622,10 +639,10 @@ function registerPreviewHandlers(ipcMain) {
                     }
                     const thumbPath = path.join(thumbsDir, `${base}.jpg`);
                     const webmPath = path.join(thumbsDir, `${base}.webm`);
-                    if (!fs.existsSync(thumbPath) || !fs.existsSync(webmPath)) {
+                    if (force || !fs.existsSync(thumbPath) || !fs.existsSync(webmPath)) {
                         if (!activeQueuePaths.has(item.path)) {
                             added++;
-                            schedulePreviewGeneration(item.path, thumbPath, webmPath);
+                            schedulePreviewGeneration(item.path, thumbPath, webmPath, force);
                         }
                     }
                 }

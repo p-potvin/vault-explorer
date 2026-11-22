@@ -12,6 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { convertSrtToVtt } = require('./ipc/subtitles.ipc');
+const utils = require('./utils');
 
 const SEPARATORS = new Set(['rnnoise', 'mel_band_roformer', 'bs_roformer', 'htdemucs', 'none']);
 const DEFAULT_SEPARATOR = 'rnnoise';
@@ -42,14 +43,15 @@ function killTree(child) {
 // checkout, and calls the command with named parameters so apostrophes in file
 // names are not reparsed.
 function subtitlesDelegator() {
-    return path.resolve(__dirname, '..', 'scripts', 'pwsh', 'Start-Subtitles.ps1');
+    return utils.resolvePwshScriptPath('Start-Subtitles.ps1');
 }
 
-function runVwBetterSubtitles(session, separator, translateTo, translateFrom, translateEngine = 'hf') {
+function runVwBetterSubtitles(session, separator, translateTo, translateFrom, translateEngine = 'hf', model = 'parakeet-tdt') {
     return new Promise((resolve) => {
         const args = [
             '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', subtitlesDelegator(),
             '-Target', session.videoPath, '-Separator', separator,
+            '-Model', model || 'parakeet-tdt',
         ];
         if (translateTo && translateTo !== 'none' && translateTo !== 'original') {
             args.push('-TranslateTo', translateTo);
@@ -58,12 +60,16 @@ function runVwBetterSubtitles(session, separator, translateTo, translateFrom, tr
             }
             args.push('-TranslateEngine', translateEngine || 'hf');
         }
+        log('Spawning:', 'pwsh.exe', args.join(' '));
         const child = spawn('pwsh.exe', args, { windowsHide: true });
         let tail = [];
         const onData = (d) => {
             for (const line of d.toString().split(/\r?\n/)) {
                 const text = line.trim();
-                if (text) tail = [...tail, text].slice(-5);
+                if (text) {
+                    log(text);
+                    tail = [...tail, text].slice(-5);
+                }
             }
         };
         child.stdout.on('data', onData);
@@ -74,7 +80,7 @@ function runVwBetterSubtitles(session, separator, translateTo, translateFrom, tr
     });
 }
 
-async function runSession(session, separator, translateTo, translateFrom, translateEngine) {
+async function runSession(session, separator, translateTo, translateFrom, translateEngine, model = 'parakeet-tdt') {
     const { videoPath } = session;
     const baseExt = path.extname(videoPath);
     const baseStem = path.basename(videoPath, baseExt);
@@ -86,7 +92,7 @@ async function runSession(session, separator, translateTo, translateFrom, transl
     const mtimeBefore = fs.existsSync(srtPath) ? fs.statSync(srtPath).mtimeMs : null;
     const fallbackMtime = fs.existsSync(fallbackSrtPath) ? fs.statSync(fallbackSrtPath).mtimeMs : null;
 
-    const { code, tail } = await runVwBetterSubtitles(session, separator, translateTo, translateFrom, translateEngine);
+    const { code, tail } = await runVwBetterSubtitles(session, separator, translateTo, translateFrom, translateEngine, model);
     session.child = null;
     if (session.cancelled) {
         forward('live-subtitle-status', { final: true, status: 'STOPPED', videoPath, cues: 0 });
@@ -114,10 +120,11 @@ async function runSession(session, separator, translateTo, translateFrom, transl
     forward('live-subtitle-status', { final: true, status: 'SUCCESS', videoPath, srtPath: targetSrt, vttPath, cues });
 }
 
-function startSubtitlesPipeline({ videoPath, separator, translateTo, translateFrom, translateEngine = 'hf' }) {
+function startSubtitlesPipeline({ videoPath, separator, translateTo, translateFrom, translateEngine = 'hf', model = 'parakeet-tdt' }) {
     stopActive();
     const sep = SEPARATORS.has(separator) ? separator : DEFAULT_SEPARATOR;
     const engine = translateEngine || 'hf';
+    const effectiveModel = model || 'parakeet-tdt';
     const session = { videoPath, cancelled: false, child: null };
     activeSession = session;
 
@@ -130,7 +137,7 @@ function startSubtitlesPipeline({ videoPath, separator, translateTo, translateFr
         msg += ` -TranslateEngine ${engine}`;
     }
     forward('live-subtitle-status', { status: 'started', videoPath, message: msg });
-    runSession(session, sep, translateTo, translateFrom, engine)
+    runSession(session, sep, translateTo, translateFrom, engine, effectiveModel)
         .catch((e) => {
             log('session failed:', e.message);
             forward('live-subtitle-status', { final: true, status: 'FAILED', videoPath, error: e.message });
@@ -171,7 +178,7 @@ function shutdownLiveSubtitles() {
     stopActive();
 }
 
-module.exports = { registerLiveSubtitlesHandlers, shutdownLiveSubtitles };
+module.exports = { registerLiveSubtitlesHandlers, shutdownLiveSubtitles, subtitlesDelegator };
 
 // Drive one session from a terminal:  node src/live-subtitles.js "D:\Media\episode.mkv" [separator]
 if (require.main === module) {

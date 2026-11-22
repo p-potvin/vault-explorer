@@ -63,8 +63,6 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                 if (hasVideo) {
                     aiSubmenu.push(
                         { label: 'Enhance Audio for Selection 🪄', click: () => once('normalize-audio') },
-                        { label: 'Generate Subtitles for Selection', click: () => once('generate-subtitles-prompt') },
-                        { label: 'Translate Selection Video Tracks', click: () => once('translate-video-prompt') },
                         { label: 'Enhance Selection Videos 🪄', click: () => once('enhance-video-prompt') }
                     );
                     if (hasEnhanced) {
@@ -89,6 +87,7 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
 
                 if (hasVideo) {
                     templ.push({ label: 'Generate Previews', click: () => once('generate-webm') });
+                    templ.push({ label: 'Generate Subtitles', click: () => once('generate-subtitles-prompt') });
                 }
 
                 if (aiSubmenu.length > 0) {
@@ -127,8 +126,6 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                 if (item.type === 'video' || (item.type === 'encrypted' && !isEnc)) {
                     aiSubmenu.push(
                         { label: 'Enhance Audio 🪄', type: 'checkbox', checked: hasAudioEnh, click: () => once('normalize-audio') },
-                        { label: withLangs('Generate Subtitles', subLangs), type: 'checkbox', checked: subLangs.length > 0, click: () => once('generate-subtitles-prompt') },
-                        { label: withLangs('Translate this video', transLangs), type: 'checkbox', checked: transLangs.length > 0, click: () => once('translate-video-prompt') },
                         { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') },
                         { type: 'separator' },
                         { label: '✨ AI Video Studio (Experimental)…', click: () => once('open-video-studio') }
@@ -196,6 +193,7 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                         templ.push({ label: 'AI Enhancements 🪄', submenu: aiSubmenu });
                     }
                     if (item.type === 'video' || (item.type === 'encrypted' && !isEnc)) {
+                        templ.push({ label: 'Generate Subtitles', click: () => once('generate-subtitles-prompt') });
                         templ.push({ label: 'Generate Preview', click: () => once('generate-webm') });
                     }
                 }
@@ -260,8 +258,6 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                 if (isLocal) {
                     aiSubmenu.push(
                         { label: 'Enhance Audio 🪄', type: 'checkbox', checked: hasAudioEnh, click: () => once('normalize-audio') },
-                        { label: withLangs('Generate Subtitles', subLangs), type: 'checkbox', checked: subLangs.length > 0, click: () => once('generate-subtitles-prompt') },
-                        { label: withLangs('Translate this video', transLangs), type: 'checkbox', checked: transLangs.length > 0, click: () => once('translate-video-prompt') },
                         { label: 'Enhance Video 🪄', type: 'checkbox', checked: hasVideoEnh, click: () => once('enhance-video-prompt') },
                         { type: 'separator' },
                         { label: '✨ AI Video Studio (Experimental)…', click: () => once('open-video-studio') }
@@ -307,6 +303,7 @@ function registerSystemIpc(ipcMain, settingsPath, loadSettings, saveSettings) {
                 }
                 if (isLocal) {
                     templ.push(
+                        { label: 'Generate Subtitles', click: () => once('generate-subtitles-prompt') },
                         { label: 'Generate Preview', click: () => once('generate-webm') },
                         { type: 'separator' },
                         { label: 'Show in Windows Explorer', click: () => { shell.showItemInFolder(item.path); once('show'); } },

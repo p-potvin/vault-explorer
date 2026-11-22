@@ -8,6 +8,10 @@ window.switchTab = function (tabName, options = {}) {
     const { deferFolderLoad = false, preservePlayer = false } = options;
     if (tabName === 'vault') tabName = 'files';
 
+    if (typeof window.saveCurrentFolderScroll === 'function') {
+        window.saveCurrentFolderScroll();
+    }
+
     // Close the full-screen photo editor if open — otherwise the tab switch
     // happens invisibly behind it and looks like the tabs are dead.
     const peModal = el('photo-editor-modal');
@@ -178,6 +182,10 @@ window.switchTab = function (tabName, options = {}) {
 };
 
 window.switchFilesSubtab = function (subtab) {
+    if (typeof window.saveCurrentFolderScroll === 'function') {
+        window.saveCurrentFolderScroll();
+    }
+    window._renderedScrollKey = null;
     window.currentFilesSubtab = subtab;
 
     const pills = document.querySelectorAll('#sub-nav-files .sub-nav-pill');

@@ -55,6 +55,7 @@
   /* Typography: Tailscale-calm / Segoe UI & Inter font stack */
   --font-display: var(--font-sans);
   --font-body: var(--font-sans);
+  --titlebar-height: max(32px, env(titlebar-area-height, 32px));
 }
 
 /* Core Shell Primitives */
@@ -186,7 +187,7 @@ body {
 }
 
 .titlebar {
-  height: 32px;
+  height: var(--titlebar-height);
   -webkit-app-region: drag;
   background: var(--vault-acrylic);
   display: flex;
@@ -202,7 +203,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding-right: 140px;
+  padding-right: max(16px, calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100% - 140px)) + 16px));
 }
 
 * {
@@ -596,7 +597,7 @@ body.player-idle #video-modal * {
 #video-modal {
   display: none;
   position: fixed;
-  top: 31px;
+  top: calc(var(--titlebar-height) - 1px);
   left: 0;
   right: 0;
   bottom: 0;
@@ -671,7 +672,7 @@ body.player-idle #video-modal * {
 .video-wrapper {
   position: relative;
   width: 100vw;
-  height: calc(100vh - 31px);
+  height: calc(100vh - var(--titlebar-height) + 1px);
   overflow: hidden;
   background: transparent;
   display: flex;
@@ -943,6 +944,7 @@ body.titlebar-hovered #video-modal #player-topbar {
   font-size: 14px;
   width: 36px;
   height: 36px;
+  padding: 0;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -950,6 +952,10 @@ body.titlebar-hovered #video-modal #player-topbar {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.pip-ctrl-btn svg {
+  flex-shrink: 0;
 }
 
 .pip-ctrl-btn:hover {
@@ -1271,6 +1277,10 @@ body.titlebar-hovered #video-modal #player-topbar {
 }
 
 /* ── Theme Picker ────────────────────────────── */
+#titlebar-menus {
+  flex-shrink: 0;
+}
+
 .theme-trigger {
   margin-left: auto;
   -webkit-app-region: no-drag;
@@ -1283,6 +1293,8 @@ body.titlebar-hovered #video-modal #player-topbar {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: 10px;
   font-family: var(--font-body);
   text-transform: uppercase;

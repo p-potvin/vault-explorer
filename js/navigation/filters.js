@@ -6,7 +6,7 @@ window.selectedIndices = new Set();
 window.lastSelectedIndex = -1;
 window.PAGE_SIZE = 50;
 window.currentlyRendered = 0;
-window.scrollPositions = {};
+window.scrollPositions = window.scrollPositions || {};
 window.currentNavPath = '';     // display breadcrumb path ('root' or 'root/Name/Sub')
 window.currentRealPath = '';
 window.currentFolderId = null;  // source of truth: null at root, else a vf id
@@ -194,6 +194,13 @@ function applyFilters() {
         window.killAllHoverVideos();
     }
 
+    const scrollKey = typeof window.getFolderScrollKey === 'function'
+        ? window.getFolderScrollKey()
+        : (window.currentNavPath || 'root');
+    const renderToken = typeof window.beginFolderRender === 'function'
+        ? window.beginFolderRender()
+        : 0;
+
     if (window.displayedItems.length === 0) {
         const hasActiveFilters = term !== '' || filterAttr !== 'all';
         const ctaButton = hasActiveFilters
@@ -208,6 +215,9 @@ function applyFilters() {
            </div>`;
         window.selectedIndices.clear(); window.lastSelectedIndex = -1; window.currentlyRendered = 0;
         window.updateStatusBar();
+        if (typeof window.finishFolderScrollRestore === 'function') {
+            window.finishFolderScrollRestore(scrollKey, renderToken, { resetToTop: true, hasItems: false });
+        }
     } else {
         el('file-grid').innerHTML = '';
         window.selectedIndices.clear(); window.lastSelectedIndex = -1;
@@ -215,7 +225,11 @@ function applyFilters() {
         let countToRender = window.PAGE_SIZE;
 
         window.renderedCounts = window.renderedCounts || {};
-        const savedRendered = window.renderedCounts[window.currentNavPath];
+        const savedRendered = term === ''
+            ? (typeof window.getSavedRenderedCount === 'function'
+                ? window.getSavedRenderedCount(scrollKey)
+                : (window.renderedCounts[scrollKey] || 0))
+            : 0;
         if (savedRendered && savedRendered > window.PAGE_SIZE) {
             countToRender = savedRendered;
         }
@@ -230,12 +244,19 @@ function applyFilters() {
         nextBatch.forEach((item, i) => { el('file-grid').appendChild(window.createCardElement(item, i)); });
         window.currentlyRendered = nextBatch.length;
 
-        requestAnimationFrame(() => {
-            const savedScroll = (window.scrollPositions && window.scrollPositions[window.currentNavPath]) || 0;
-            if (el('main-area')) {
-                el('main-area').scrollTop = savedScroll;
-            }
-        });
+        if (typeof window.finishFolderScrollRestore === 'function') {
+            window.finishFolderScrollRestore(scrollKey, renderToken, {
+                resetToTop: term !== '',
+                hasItems: true,
+            });
+        } else {
+            requestAnimationFrame(() => {
+                const savedScroll = term === '' ? ((window.scrollPositions && window.scrollPositions[scrollKey]) || 0) : 0;
+                if (el('main-area')) {
+                    el('main-area').scrollTop = savedScroll;
+                }
+            });
+        }
     }
 
     // Re-render the active media tab if the user is on a non-Files tab

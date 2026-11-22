@@ -37,7 +37,64 @@
         people: [], peopleOffset: 0, peopleTotal: null, peopleQ: '', gallery: 'amd',
         person: null, album: null, folder: null,
         folders: null,
+        scrollPos: {}, renderedViewKey: null, pendingScroll: null, restoringScroll: false,
     };
+
+    function viewKey() {
+        if (S.view === 'folder') {
+            const norm = String(S.folder || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+            return `folder:${norm}:${S.zoom}`;
+        }
+        if (S.view === 'album') return `album:${(S.album && S.album.id) || ''}`;
+        if (S.view === 'person') return `person:${S.person ? `${S.person.gallery}:${S.person.id}` : ''}`;
+        if (S.view === 'people') return `people:${S.gallery}:${S.peopleQ}`;
+        return `library:${S.zoom}:${S.yearFilter || ''}:${S.before || ''}`;
+    }
+
+    function saveScroll() {
+        const scroll = document.getElementById('pl-scroll');
+        if (!scroll || S.restoringScroll || S.pendingScroll || !S.renderedViewKey || scroll.clientHeight === 0) return;
+        S.scrollPos[S.renderedViewKey] = {
+            top: scroll.scrollTop,
+            count: S.view === 'people' ? S.people.length : S.items.length,
+        };
+    }
+
+    function applyPendingScroll() {
+        const scroll = document.getElementById('pl-scroll');
+        const key = viewKey();
+        S.renderedViewKey = key;
+        if (!scroll || !S.pendingScroll || S.pendingScroll.key !== key) {
+            S.restoringScroll = false;
+            return;
+        }
+
+        S.restoringScroll = true;
+        scroll.scrollTop = S.pendingScroll.top;
+
+        if (scroll.scrollTop < S.pendingScroll.top - 4 && S.pendingScroll.attempts < 20) {
+            if (S.view === 'people' && S.peopleTotal !== null && S.people.length < S.peopleTotal && !S.loading) {
+                S.pendingScroll.attempts++;
+                loadPeople(false);
+                return;
+            }
+            if (['library', 'folder', 'person'].includes(S.view) && S.zoom !== 'years' && S.zoom !== 'months' && S.next && !S.loading) {
+                S.pendingScroll.attempts++;
+                loadMore();
+                return;
+            }
+        }
+
+        const target = S.pendingScroll.top;
+        const expectedKey = key;
+        S.pendingScroll = null;
+        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+        schedule(() => {
+            const area = document.getElementById('pl-scroll');
+            if (area && viewKey() === expectedKey) area.scrollTop = target;
+            schedule(() => { S.restoringScroll = false; });
+        });
+    }
 
     const api = () => window.electronAPI || {};
     const settings = () => (window.appSettings = window.appSettings || {});
@@ -109,6 +166,7 @@
         document.getElementById('pl-zoom').addEventListener('click', (e) => {
             const z = e.target.closest('[data-zoom]');
             if (!z) return;
+            saveScroll();
             S.zoom = z.dataset.zoom;
             S.yearFilter = null;
             S.before = null;
@@ -135,6 +193,7 @@
 
         const scroll = document.getElementById('pl-scroll');
         scroll.addEventListener('scroll', () => {
+            saveScroll();
             if (scroll.scrollTop + scroll.clientHeight < scroll.scrollHeight - 800) return;
             if (S.view === 'people') loadPeople(false);
             else if (['library', 'folder', 'person'].includes(S.view) && S.zoom !== 'years' && S.zoom !== 'months') loadMore();
@@ -180,6 +239,7 @@
                 S.view === 'folder' && S.folder === f.path)).join('') || `<div class="pl-side__empty">${roots().length ? 'No subfolders' : 'Choose a photo folder in Settings'}</div>`}`;
         side.querySelectorAll('.pl-side__item').forEach(d => {
             d.addEventListener('click', () => {
+                saveScroll();
                 const k = d.dataset.key;
                 if (k === 'library') { S.zoom = S.zoom || 'days'; show('library'); }
                 else if (k === 'people') show('people');
@@ -240,6 +300,7 @@
 
     // ── Views ───────────────────────────────────────────────────────────────
     function show(view) {
+        saveScroll();
         S.view = view;
         S.sel.clear();
         S.focus = -1;
@@ -256,8 +317,15 @@
         S.next = null;
         S.error = null;
         S.periods = null;
+        const key = viewKey();
+        S.renderedViewKey = null;
+        const saved = S.scrollPos[key];
+        S.pendingScroll = (saved && saved.top > 0)
+            ? { key, top: saved.top, count: saved.count || 0, attempts: 0 }
+            : null;
+        S.restoringScroll = !!S.pendingScroll;
         const scroll = document.getElementById('pl-scroll');
-        if (scroll) scroll.scrollTop = 0;
+        if (scroll && !S.pendingScroll) scroll.scrollTop = 0;
         chrome();
         if (S.view === 'people') { loadPeople(true); return; }
         if (S.view === 'album') { loadAlbum(); return; }
@@ -281,7 +349,7 @@
         sub.textContent = '';
         if (S.view === 'person') sub.innerHTML = `<button class="pl-link" id="pl-back-people">‹ People</button> <button class="pl-link" id="pl-rename">Rename…</button>`;
         const back = document.getElementById('pl-back-people');
-        if (back) back.onclick = () => show('people');
+        if (back) back.onclick = () => { saveScroll(); show('people'); };
         const ren = document.getElementById('pl-rename');
         if (ren) ren.onclick = renamePerson;
         note();
@@ -409,6 +477,11 @@
         if ((S.view === 'library' || S.view === 'folder') && (S.zoom === 'years' || S.zoom === 'months')) { renderPeriods(c); return; }
         if (!S.items.length) {
             c.innerHTML = S.loading ? skeleton() : `<div class="pl-empty">${S.view === 'album' ? 'This album is empty. Select photos and use “Add to album”.' : 'No photos here.'}</div>`;
+            if (!S.loading) {
+                S.pendingScroll = null;
+                S.restoringScroll = false;
+                S.renderedViewKey = viewKey();
+            }
             return;
         }
         // grouped by day (Days, person, folder) or one block (All Photos, album)
@@ -434,6 +507,7 @@
             section.lastElementChild.appendChild(tile(it, i));
         }
         paintSelection();
+        applyPendingScroll();
     }
 
     function skeleton() {
@@ -502,7 +576,13 @@
     function renderPeriods(c) {
         const ps = S.periods;
         if (!ps) { c.innerHTML = skeleton(); return; }
-        if (!ps.length) { c.innerHTML = '<div class="pl-empty">No photos here.</div>'; return; }
+        if (!ps.length) {
+            c.innerHTML = '<div class="pl-empty">No photos here.</div>';
+            S.pendingScroll = null;
+            S.restoringScroll = false;
+            S.renderedViewKey = viewKey();
+            return;
+        }
         c.className = 'pl-content pl-content--periods';
         c.innerHTML = (S.yearFilter ? `<button class="pl-link pl-crumb" id="pl-all-years">‹ All years</button>` : '') +
             `<div class="pl-periods">${ps.map(p => `
@@ -511,13 +591,15 @@
               <div class="pl-period__label">${esc(periodLabel(p.period))}</div><div class="pl-period__count">${p.count.toLocaleString()} photo${p.count === 1 ? "" : "s"}</div>
             </div>`).join('')}</div>`;
         c.querySelectorAll('.pl-period').forEach(el => el.addEventListener('click', () => {
+            saveScroll();
             const p = el.dataset.period;
             if (S.zoom === 'years') { S.zoom = 'months'; S.yearFilter = p; }
             else { S.zoom = 'days'; S.before = monthEnd(p) + '|'; }
             reload();
         }));
         const back = document.getElementById('pl-all-years');
-        if (back) back.onclick = () => { S.zoom = 'years'; S.yearFilter = null; reload(); };
+        if (back) back.onclick = () => { saveScroll(); S.zoom = 'years'; S.yearFilter = null; reload(); };
+        applyPendingScroll();
     }
 
     function periodLabel(p) {
@@ -543,12 +625,13 @@
             d.className = 'pl-person';
             d.innerHTML = `<span class="pl-person__face">${p.cover ? `<img src="${esc(thumb(p.cover, 160))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}</span>
                 <span class="pl-person__name" title="${esc(p.name)}">${esc(p.name)}</span><span class="pl-person__count">${(p.sample_count || 0).toLocaleString()}</span>`;
-            d.addEventListener('click', () => { S.person = { gallery: S.gallery, id: p.id, name: p.name }; show('person'); });
+            d.addEventListener('click', () => { saveScroll(); S.person = { gallery: S.gallery, id: p.id, name: p.name }; show('person'); });
             grid.appendChild(d);
         }
         if (!S.people.length && !S.loading) grid.innerHTML = '<div class="pl-empty">Nobody matches.</div>';
         const side = document.querySelector('.pl-side__item[data-key="people"] .pl-side__count');
         if (side && S.peopleTotal !== null) side.textContent = S.peopleTotal.toLocaleString();
+        applyPendingScroll();
     }
 
     // ── Selection ───────────────────────────────────────────────────────────
@@ -962,7 +1045,21 @@
         if (!root) return;
         renderSide();
         if (!S.items.length && !S.loading && S.view !== 'people') reload();
-        else chrome();
+        else {
+            chrome();
+            const key = viewKey();
+            const saved = S.scrollPos[key];
+            const scroll = document.getElementById('pl-scroll');
+            if (scroll && saved && saved.top > 0) {
+                S.restoringScroll = true;
+                const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+                schedule(() => {
+                    const area = document.getElementById('pl-scroll');
+                    if (area && viewKey() === key) area.scrollTop = saved.top;
+                    schedule(() => { S.restoringScroll = false; });
+                });
+            }
+        }
     }
 
     window.renderAlbums = render;

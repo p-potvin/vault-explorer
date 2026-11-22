@@ -191,6 +191,12 @@ function emitDirectoryLoaded(realPath, items) {
 async function loadDirectory(navPath, realPath, useCache = false, targetFolderId = undefined) {
     if (!realPath && navPath !== 'root') return;
 
+    if (typeof window.saveCurrentFolderScroll === 'function') {
+        window.saveCurrentFolderScroll();
+    }
+    window._renderedScrollKey = null;
+    const loadGen = (window._directoryLoadGen = (window._directoryLoadGen || 0) + 1);
+
     let newFolderId = null;
     if (targetFolderId !== undefined) {
         newFolderId = targetFolderId;
@@ -229,6 +235,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
         }
         if (typeof window.hydrateVirtualFolderItems === 'function') {
             await window.hydrateVirtualFolderItems(newFolderId);
+            if (loadGen !== window._directoryLoadGen) return;
         }
     } else {
         if (el('btn-back')) {
@@ -253,6 +260,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
         let loadedFromCache = false;
         try {
             const cachedItems = await window.electronAPI.getCachedDirectory(realPath);
+            if (loadGen !== window._directoryLoadGen) return;
             if (cachedItems && cachedItems.length > 0) {
                 window.allItems = cachedItems;
                 if (navPath === 'root' || navPath.startsWith('root')) window._rootItemsCache = cachedItems;
@@ -261,6 +269,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                 loadedFromCache = true;
             }
         } catch (cacheErr) {
+            if (loadGen !== window._directoryLoadGen) return;
             console.warn('[loadDirectory] Failed to retrieve cached directory:', cacheErr);
         }
 
@@ -279,7 +288,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
             // This prevents the UI from appearing to "refresh without warning"
             el('loading').style.display = 'flex';
             bypassTimeout = setTimeout(() => {
-                bypassBtn.style.display = 'inline-block';
+                if (loadGen === window._directoryLoadGen) bypassBtn.style.display = 'inline-block';
             }, 1500);
         } else {
             // If no bypass button, still show loading
@@ -290,6 +299,7 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
             try {
                 if (Array.isArray(window.__launchPriorityTrace)) window.__launchPriorityTrace.push('folder-scan');
                 const freshItems = await window.electronAPI.scanDirectory(realPath);
+                if (loadGen !== window._directoryLoadGen) return;
                 window.allItems = freshItems;
                 if (navPath === 'root' || navPath.startsWith('root')) window._rootItemsCache = freshItems;
                 window.applyFilters();
@@ -310,8 +320,10 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                     const videosToProbe = freshItems.filter(item => item.type === 'video' && !item.duration);
                     if (videosToProbe.length > 0) {
                         for (const item of videosToProbe) {
+                            if (loadGen !== window._directoryLoadGen) return;
                             try {
                                 const res = await window.electronAPI.getFileProperties(item.path);
+                                if (loadGen !== window._directoryLoadGen) return;
                                 if (res && res.success && res.properties) {
                                     item.duration = res.properties.duration || 0;
                                     item.width = res.properties.width || null;
@@ -342,12 +354,14 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                                 console.error('[loadDirectory] Background probe failed:', e);
                             }
                             await new Promise(r => setTimeout(r, 150));
+                            if (loadGen !== window._directoryLoadGen) return;
                         }
                     }
                 } else {
                     el('status-size').innerText = '';
                 }
             } catch (err) {
+                if (loadGen !== window._directoryLoadGen) return;
                 console.error('[loadDirectory] Background directory scan failed:', err);
                 if (!loadedFromCache) {
                     window.allItems = [];
@@ -355,8 +369,10 @@ async function loadDirectory(navPath, realPath, useCache = false, targetFolderId
                 }
             } finally {
                 if (bypassTimeout) clearTimeout(bypassTimeout);
-                if (bypassBtn) bypassBtn.style.display = 'none';
-                el('loading').style.display = 'none';
+                if (loadGen === window._directoryLoadGen) {
+                    if (bypassBtn) bypassBtn.style.display = 'none';
+                    el('loading').style.display = 'none';
+                }
             }
         })();
     } else {
@@ -390,6 +406,12 @@ async function navigateTo(target, realPath) {
     if (folderId !== null && folderId === window.currentFolderId && realPath === window.currentRealPath) {
         return;
     }
+    if (typeof window.saveCurrentFolderScroll === 'function') {
+        window.saveCurrentFolderScroll();
+    }
+    window._renderedScrollKey = null;
+    const navGen = (window._directoryLoadGen = (window._directoryLoadGen || 0) + 1);
+
     window.currentFolderId = folderId;
     window.currentNavPath = folderId ? window.buildNavPath(folderId) : 'root';
     window.currentRealPath = realPath;
@@ -421,6 +443,7 @@ async function navigateTo(target, realPath) {
         let loadedFromCache = false;
         try {
             const cachedItems = await window.electronAPI.getCachedDirectory(realPath);
+            if (navGen !== window._directoryLoadGen) return;
             if (cachedItems && cachedItems.length > 0) {
                 window.allItems = cachedItems;
                 window._rootItemsCache = cachedItems;
@@ -436,16 +459,18 @@ async function navigateTo(target, realPath) {
 
         try {
             const freshItems = await window.electronAPI.scanDirectory(realPath);
+            if (navGen !== window._directoryLoadGen) return;
             window.allItems = freshItems;
             window._rootItemsCache = freshItems;
             window.applyFilters();
         } catch (e) {
+            if (navGen !== window._directoryLoadGen) return;
             if (!loadedFromCache) {
                 window.allItems = [];
                 window.applyFilters();
             }
         } finally {
-            if (el('loading')) el('loading').style.display = 'none';
+            if (navGen === window._directoryLoadGen && el('loading')) el('loading').style.display = 'none';
         }
     } else {
         if (el('btn-back')) {
@@ -469,6 +494,7 @@ async function navigateTo(target, realPath) {
 
         if (typeof window.hydrateVirtualFolderItems === 'function') {
             await window.hydrateVirtualFolderItems(folderId);
+            if (navGen !== window._directoryLoadGen) return;
         }
 
         if (el('loading')) el('loading').style.display = 'none';
@@ -480,25 +506,28 @@ async function navigateTo(target, realPath) {
 window.invalidateRootCache = function () { window._rootItemsCache = null; };
 
 function initNavigationListeners() {
-    let scrollSaveTimer = null;
     el('main-area').addEventListener('scroll', () => {
+        if (window._isRestoringScroll) return;
+        const mainArea = el('main-area');
+        if (!mainArea) return;
         if (window.currentTab && window.currentTab !== 'files') {
             window.tabScrollPositions = window.tabScrollPositions || {};
-            window.tabScrollPositions[window.currentTab] = el('main-area').scrollTop;
+            window.tabScrollPositions[window.currentTab] = mainArea.scrollTop;
             return;
         }
-        if (!el('file-grid')?.childElementCount) return;
-        window.scrollPositions[window.currentNavPath] = el('main-area').scrollTop;
-        window.renderedCounts = window.renderedCounts || {};
-        window.renderedCounts[window.currentNavPath] = window.currentlyRendered;
-        clearTimeout(scrollSaveTimer);
-        scrollSaveTimer = setTimeout(() => {
-            window.appSettings.scrollPositions = window.scrollPositions;
-            window.electronAPI.saveSettings(window.appSettings);
-        }, 500);
+        const activeGrid = el(window.currentFilesSubtab === 'favorites' ? 'favorites-grid' : 'file-grid');
+        if (!activeGrid || !activeGrid.childElementCount) return;
+        if (typeof window.saveCurrentFolderScroll === 'function') {
+            window.saveCurrentFolderScroll();
+        }
 
-        if (el('main-area').scrollTop + el('main-area').clientHeight >= el('main-area').scrollHeight - 100) {
-            if (window.currentlyRendered < window.displayedItems.length) window.renderMore();
+        if (mainArea.scrollTop + mainArea.clientHeight >= mainArea.scrollHeight - 100) {
+            if (window.currentlyRendered < window.displayedItems.length) {
+                window.renderMore();
+                if (typeof window.saveCurrentFolderScroll === 'function') {
+                    window.saveCurrentFolderScroll();
+                }
+            }
         }
     });
 

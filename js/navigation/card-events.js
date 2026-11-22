@@ -142,13 +142,10 @@ async function updateSingleVideoCard(videoPath) {
 
 // Helper to save and restore scroll position during directory refresh
 function refreshDirectoryWithScrollPreservation() {
-    const mainArea = el('main-area');
-    const scrollTop = mainArea ? mainArea.scrollTop : 0;
+    if (typeof window.saveCurrentFolderScroll === 'function') {
+        window.saveCurrentFolderScroll();
+    }
     window.loadDirectory(window.currentNavPath, window.currentRealPath, false);
-    // Restore scroll position after the directory loads
-    setTimeout(() => {
-        if (mainArea) mainArea.scrollTop = scrollTop;
-    }, 100);
 }
 
 async function handleCardContextMenu(card, item, index) {
@@ -273,7 +270,7 @@ async function handleCardContextMenu(card, item, index) {
 
         if (isMulti) {
             window.showToast(`Queued ${targetVideos.length} previews for background generation`, 'success');
-            window.electronAPI.scheduleIdlePreviews(targetVideos);
+            window.electronAPI.scheduleIdlePreviews(targetVideos, { force: true });
         } else {
             console.log('[ctx-menu:generate-webm] Generating preview for:', item.path);
             window.electronAPI.generateWebm(item.path, window.currentRealPath).then(async res => {
@@ -375,26 +372,33 @@ async function handleCardContextMenu(card, item, index) {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }
 
-        const defaultLangs = (window.appSettings && window.appSettings.preferredASRLangs) || ['en'];
-        const langs = await window.showLanguageModal('Generate Subtitles', true, defaultLangs);
-        if (langs && langs.length > 0) {
-            if (!window.appSettings) window.appSettings = {};
-            window.appSettings.preferredASRLangs = langs;
-            window.electronAPI.saveSettings(window.appSettings);
-
-            window.showToast(`Generating subtitles for ${targetItems.length} video(s): ${langs.join(', ').toUpperCase()}`, 'success');
-            await runEnhancementBatch(targetItems, {
-                prefix: 'Subs',
-                initialLabel: 'Subs: Init...',
-                invoke: (target) => window.electronAPI.generateSubtitles(
-                    target.path, window.currentRealPath, {
-                        language: langs[0],
-                        separator: typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise',
-                    }),
-                successMsg: 'Subtitles generated successfully!',
-                failMsg: 'Subtitles failed',
-            });
+        let subConfig = null;
+        if (typeof window.showAiSubtitlesSubmenu === 'function') {
+            subConfig = await window.showAiSubtitlesSubmenu(null, { title: 'Generate Subtitles' });
+        } else {
+            const sep = typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise';
+            const defFrom = ((window.appSettings && (window.appSettings.translateFrom || (window.appSettings.preferredASRLangs && window.appSettings.preferredASRLangs[0]))) || 'en').slice(0, 2).toLowerCase();
+            const defTo = ((window.appSettings && (window.appSettings.translateTo || (window.appSettings.defaultSubLang && window.appSettings.defaultSubLang !== 'original' ? window.appSettings.defaultSubLang : 'fr'))) || 'fr').slice(0, 2).toLowerCase();
+            subConfig = { separator: sep, translateTo: defTo, translateFrom: defFrom, translateEngine: 'hf' };
         }
+        if (!subConfig) return;
+
+        const transSummary = subConfig.translateTo ? ` → ${subConfig.translateTo.toUpperCase()}` : '';
+        window.showToast(`Generating subtitles for ${targetItems.length} video(s) (${subConfig.separator}${transSummary})`, 'success');
+        await runEnhancementBatch(targetItems, {
+            prefix: 'Subs',
+            initialLabel: 'Subs: Init...',
+            invoke: (target) => window.electronAPI.generateSubtitles(
+                target.path, window.currentRealPath, {
+                    separator: subConfig.separator,
+                    translateTo: subConfig.translateTo,
+                    translateFrom: subConfig.translateFrom,
+                    translateEngine: subConfig.translateEngine || 'hf',
+                    model: 'parakeet-tdt',
+                }),
+            successMsg: 'Subtitles generated successfully!',
+            failMsg: 'Subtitles failed',
+        });
     } else if (action === 'translate-video-prompt') {
         const targetItems = isMulti ? selectedItems.filter(s => s.type === 'video') : [item];
         if (targetItems.length === 0) { window.showToast('No videos selected', 'error'); return; }

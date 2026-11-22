@@ -26,6 +26,8 @@ const testSuites = [
     { name: 'Refactor Smoke & DOM E2E Suite', script: 'tests/refactor_smoke_test.js' },
     { name: 'Context Menu Registry Command Regression', script: 'tests/context_menu_registry_command_test.js' },
     { name: 'Virtual Folders Hydration & Launch Intent Suite', script: 'tests/virtual_folders_hydration_and_launch_intent_test.js' },
+    { name: 'Packaged PowerShell, Titlebar Zoom & PiP Icons Regression', script: 'tests/packaged_pwsh_titlebar_pip_test.js' },
+    { name: 'Folder Scroll Memory (Session-Only) Regression', script: 'tests/folder_scroll_memory_test.js' },
     { name: 'Dist Cleanup & Artifact Management', script: 'tests/cleanup_dist_test.js' }
 ];
 

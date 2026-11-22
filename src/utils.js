@@ -377,22 +377,34 @@ class PriorityQueue {
     }
 }
 
-function resolveUnpackedPath(...segments) {
-    const fs = require('fs');
-    const path = require('path');
-    let baseDir = __dirname;
-    const isAsar = baseDir.includes('app.asar');
+function resolveUnpackedPathFrom(baseDir, resourcesPath, ...segments) {
+    const normalizedBase = String(baseDir || '');
+    const isAsar = /(?:^|[\\/])app\.asar(?:[\\/]|$)/i.test(normalizedBase);
     if (isAsar) {
-        if (process.resourcesPath) {
-            const candidate = path.join(process.resourcesPath, 'app.asar.unpacked', ...segments);
+        if (resourcesPath) {
+            const candidate = path.join(resourcesPath, 'app.asar.unpacked', ...segments);
             if (fs.existsSync(candidate)) return candidate;
         }
-        const candidate = path.join(baseDir, '..', ...segments).replace('app.asar', 'app.asar.unpacked');
+        const candidate = path.join(normalizedBase, '..', ...segments)
+            .replace(/(app\.asar)(?=[\\/]|$)/i, 'app.asar.unpacked');
         if (fs.existsSync(candidate)) return candidate;
+        // Never return an app.asar virtual path to an external OS process.
+        return resourcesPath
+            ? path.join(resourcesPath, 'app.asar.unpacked', ...segments)
+            : candidate;
     }
-    const devPath = path.join(baseDir, '..', ...segments);
-    if (fs.existsSync(devPath)) return devPath;
-    return devPath;
+    return path.join(normalizedBase, '..', ...segments);
+}
+
+function resolveUnpackedPath(...segments) {
+    return resolveUnpackedPathFrom(__dirname, process.resourcesPath, ...segments);
+}
+
+function resolvePwshScriptPath(scriptName) {
+    if (typeof scriptName === 'string' && path.isAbsolute(scriptName) && fs.existsSync(scriptName)) {
+        return scriptName;
+    }
+    return resolveUnpackedPath('scripts', 'pwsh', scriptName);
 }
 
 function resolveScriptPath(scriptName) {
@@ -618,8 +630,10 @@ module.exports = {
     validateVideoSamples,
     formatBytes,
     PriorityQueue,
+    resolveUnpackedPathFrom,
     resolveUnpackedPath,
     resolveScriptPath,
+    resolvePwshScriptPath,
     resolveToolsDir,
     resolveToolPath,
     getRobustPythonExe,

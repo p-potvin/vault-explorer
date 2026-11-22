@@ -29,10 +29,16 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
     }
 
     if (!favorites.length) {
+        if (window.currentTab && window.currentTab !== 'files') return;
+        if (window.currentFilesSubtab !== 'favorites') return;
+        const renderToken = typeof window.beginFolderRender === 'function' ? window.beginFolderRender() : 0;
         const t = window.translations[window.currentLang] || {};
         grid.innerHTML = `<div class="empty-state"><h3>${t.noFavoritesYet || 'No Favorites Yet'}</h3><p>${t.noFavoritesYetDesc || 'Click the star icon on any local file to save it here.'}</p></div>`;
         window.displayedItems = [];
         if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
+        if (typeof window.finishFolderScrollRestore === 'function') {
+            window.finishFolderScrollRestore('subtab:favorites', renderToken, { resetToTop: true, hasItems: false });
+        }
         return;
     }
 
@@ -95,16 +101,35 @@ window.renderFavorites = async function renderFavorites(useCache = false) {
         return descending ? -result : result;
     });
 
+    if (window.currentTab && window.currentTab !== 'files') return;
+    if (window.currentFilesSubtab !== 'favorites') return;
+
     window.displayedItems = filtered;
+    const renderToken = typeof window.beginFolderRender === 'function' ? window.beginFolderRender() : 0;
     grid.innerHTML = '';
     if (!filtered.length) {
         const t = window.translations[window.currentLang] || {};
         grid.innerHTML = `<div class="empty-state"><h3>${t.noItemsFound || 'No Items Found'}</h3><p>${t.adjustFiltersFavorites || 'Adjust your search or filters.'}</p></div>`;
     } else {
+        const pageSize = window.PAGE_SIZE || 50;
+        const savedRendered = (!term && typeof window.getSavedRenderedCount === 'function')
+            ? window.getSavedRenderedCount('subtab:favorites')
+            : 0;
+        const targetCount = Math.min(Math.max(pageSize, savedRendered), filtered.length);
         window.currentlyRendered = 0;
-        window.renderMore();
+        while (window.currentlyRendered < targetCount) {
+            const prevRendered = window.currentlyRendered;
+            window.renderMore();
+            if (window.currentlyRendered <= prevRendered) break;
+        }
     }
     if (typeof window.updateStatusBar === 'function') window.updateStatusBar();
+    if (typeof window.finishFolderScrollRestore === 'function') {
+        window.finishFolderScrollRestore('subtab:favorites', renderToken, {
+            resetToTop: !!term || filtered.length === 0,
+            hasItems: filtered.length > 0,
+        });
+    }
 };
 
 window.toggleFavorite = function toggleFavorite(filePath, btnEl, isSilent = false) {

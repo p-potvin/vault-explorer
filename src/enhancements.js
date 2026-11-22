@@ -168,8 +168,11 @@ function buildArgs(action, opts) {
             break;
         }
         case 'generate-subtitles':
-            args.push('--language', opts.language || 'en');
+            args.push('--language', opts.translateTo || opts.language || 'none');
             args.push('--separator', SUBTITLE_SEPARATORS.has(opts.separator) ? opts.separator : 'rnnoise');
+            if (opts.translateFrom) args.push('--translate-from', String(opts.translateFrom));
+            if (opts.translateEngine) args.push('--translate-engine', String(opts.translateEngine));
+            args.push('--model', String(opts.model || 'parakeet-tdt'));
             break;
         case 'translate-video':
             if (!opts.translateTo) throw new Error('translate-video requires a target language');
