@@ -172,7 +172,7 @@ function buildArgs(action, opts) {
             args.push('--separator', SUBTITLE_SEPARATORS.has(opts.separator) ? opts.separator : 'rnnoise');
             if (opts.translateFrom) args.push('--translate-from', String(opts.translateFrom));
             if (opts.translateEngine) args.push('--translate-engine', String(opts.translateEngine));
-            args.push('--model', String(opts.model || 'parakeet-tdt'));
+            if (opts.model) args.push('--model', String(opts.model));
             break;
         case 'translate-video':
             if (!opts.translateTo) throw new Error('translate-video requires a target language');
@@ -312,6 +312,14 @@ async function runNvenccAction(event, opts) {
  * toast, not an exception.
  */
 function runAction(event, action, opts) {
+    if (action === 'generate-subtitles') {
+        const { enqueueSubtitleJob } = require('./ai-subtitles');
+        return enqueueSubtitleJob(() => _runActionImmediate(event, action, opts));
+    }
+    return _runActionImmediate(event, action, opts);
+}
+
+function _runActionImmediate(event, action, opts) {
     const definition = ACTIONS[action];
     if (!definition) {
         return Promise.resolve({ success: false, error: `Unknown enhancement action: ${action}` });

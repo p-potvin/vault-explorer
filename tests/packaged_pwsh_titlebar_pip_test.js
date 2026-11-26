@@ -6,7 +6,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const utils = require('../src/utils');
-const liveSubtitles = require('../src/live-subtitles');
+const aiSubtitles = require('../src/ai-subtitles');
 
 const rootDir = path.resolve(__dirname, '..');
 

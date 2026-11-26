@@ -47,7 +47,7 @@ function attachEnhancementOverlay(videoPath, initialLabel) {
  * `invoke(item)` performs the IPC call for one item and resolves with the
  * handler's result.
  */
-async function runEnhancementBatch(targetItems, { prefix, initialLabel, invoke, successMsg, failMsg }) {
+async function runEnhancementBatch(targetItems, { prefix, initialLabel, invoke, successMsg, failMsg, sequential = false }) {
     const overlays = new Map();
     for (const target of targetItems) {
         const overlay = attachEnhancementOverlay(target.path, initialLabel);
@@ -65,24 +65,31 @@ async function runEnhancementBatch(targetItems, { prefix, initialLabel, invoke, 
     window.electronAPI.onNormalizeProgress(onProgress);
 
     let succeeded = 0;
-    try {
-        await Promise.all(targetItems.map(async (target) => {
-            let res;
-            try {
-                res = await invoke(target);
-            } catch (err) {
-                res = { success: false, error: err && err.message };
-            }
-            const overlay = overlays.get(normCardPath(target.path));
-            if (overlay) overlay.remove();
+    const runOne = async (target) => {
+        let res;
+        try {
+            res = await invoke(target);
+        } catch (err) {
+            res = { success: false, error: err && err.message };
+        }
+        const overlay = overlays.get(normCardPath(target.path));
+        if (overlay) overlay.remove();
 
-            if (res && (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS')) {
-                succeeded++;
-                window.showToast(`${target.name}: ${successMsg}`, 'success');
-            } else {
-                window.showToast(`${target.name}: ${failMsg}: ${(res && res.error) || 'Unknown error'}`, 'error');
+        if (res && (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS')) {
+            succeeded++;
+            window.showToast(`${target.name}: ${successMsg}`, 'success');
+        } else {
+            window.showToast(`${target.name}: ${failMsg}: ${(res && res.error) || 'Unknown error'}`, 'error');
+        }
+    };
+    try {
+        if (sequential) {
+            for (const target of targetItems) {
+                await runOne(target);
             }
-        }));
+        } else {
+            await Promise.all(targetItems.map(runOne));
+        }
     } finally {
         window.electronAPI.offNormalizeProgress();
     }
@@ -384,17 +391,19 @@ async function handleCardContextMenu(card, item, index) {
         if (!subConfig) return;
 
         const transSummary = subConfig.translateTo ? ` → ${subConfig.translateTo.toUpperCase()}` : '';
-        window.showToast(`Generating subtitles for ${targetItems.length} video(s) (${subConfig.separator}${transSummary})`, 'success');
+        const modelLabel = subConfig.model || 'parakeet-tdt';
+        window.showToast(`Generating subtitles for ${targetItems.length} video(s) (${modelLabel}, ${subConfig.separator}${transSummary})`, 'success');
         await runEnhancementBatch(targetItems, {
             prefix: 'Subs',
             initialLabel: 'Subs: Init...',
+            sequential: true,
             invoke: (target) => window.electronAPI.generateSubtitles(
                 target.path, window.currentRealPath, {
+                    model: subConfig.model,
                     separator: subConfig.separator,
                     translateTo: subConfig.translateTo,
                     translateFrom: subConfig.translateFrom,
                     translateEngine: subConfig.translateEngine || 'hf',
-                    model: 'parakeet-tdt',
                 }),
             successMsg: 'Subtitles generated successfully!',
             failMsg: 'Subtitles failed',

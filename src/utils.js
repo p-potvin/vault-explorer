@@ -528,11 +528,13 @@ function getPythonEnv(extraEnv = {}) {
     ].filter(Boolean);
     env.PYTHONPATH = pyPaths.join(path.delimiter);
 
-    // Build robust PATH including tools and ffmpeg
+    // Build robust PATH including tools and ffmpeg (preserve Windows `Path` key if present)
+    const existingPath = env.PATH || env.Path || '';
+    delete env.Path;
     const paths = [
         toolsDir,
         ffmpegDir,
-        env.PATH
+        existingPath
     ].filter(Boolean);
     env.PATH = paths.join(path.delimiter);
 

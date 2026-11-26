@@ -480,138 +480,7 @@ function showAsrContextMenu(anchorEl, defaultLangs) {
     });
 }
 
-// ── AI subtitles (vw better-subtitles) ──────────────────────────────────────
-// Generates <video>.srt with the vw CLI, then selects it through the same path
-// as any loaded subtitle, so AI subtitles are styled and positioned identically.
-
-const _liveNormPath = (p) => (p || '').replace(/\\/g, '/').toLowerCase();
-
-function updateLiveSubButton(active) {
-    const btn = el('btn-subtitles');
-    if (!btn) return;
-    const svgIcon = window.icons ? window.icons.subtitles('', 'width:14px; height:14px; display:block; flex-shrink:0;') : '';
-    if (active) {
-        btn.classList.add('active');
-        btn.innerHTML = `${svgIcon}<span style="color:var(--vault-gold);">● LIVE</span>`;
-    } else {
-        const vp = el('video-player');
-        const hasShowingTrack = vp && vp.textTracks && Array.from(vp.textTracks).some(t => t.mode === 'showing');
-        if (!hasShowingTrack || window._selectedSubtitleIdx < 0) {
-            btn.classList.remove('active');
-            btn.innerHTML = `${svgIcon}<span>CC</span>`;
-        }
-    }
-
-    // Reflect the running state in the menu item label so a second click reads
-    // as "Stop".
-    const optGen = el('opt-generate-subtitle');
-    const span = optGen && optGen.querySelector('span');
-    if (span) span.textContent = active ? 'Stop Live Subtitles' : 'Live Subtitles (AI)';
-}
-
-function startLiveSubtitleSession(videoPath, itemName, options = {}) {
-    const vp = el('video-player');
-    if (!vp) return;
-
-    window.stopLiveSubtitles();
-
-    // AI subtitles are exclusive: unload loaded tracks now, and the generated
-    // sidecar replaces them when it is ready.
-    const hadLoaded = vp.querySelectorAll('track').length > 0;
-    vp.querySelectorAll('track').forEach(t => t.remove());
-    for (let i = 0; i < vp.textTracks.length; i++) vp.textTracks[i].mode = 'disabled';
-    if (window.refreshSubtitlesList) window.refreshSubtitlesList();
-    if (hadLoaded) window.showToast('Replaced the loaded subtitles with AI subtitles.', 'info');
-
-    ensureLiveSubtitleListeners();
-    window._liveSubActive = true;
-    window._liveSubVideoPath = videoPath;
-    window._selectedSubtitleIdx = -1;
-
-    updateLiveSubButton(true);
-    window.showToast(`Generating AI subtitles for "${itemName}"…`, 'success');
-
-    const separator = options.separator || (typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise');
-    const translateTo = options.translateTo || null;
-    const translateFrom = options.translateFrom || null;
-    const translateEngine = options.translateEngine || 'hf';
-
-    window.electronAPI.startLiveSubtitles({
-        videoPath,
-        separator,
-        translateTo,
-        translateFrom,
-        translateEngine
-    }).then((res) => {
-        if (!res || !res.success) {
-            const err = (res && res.error) || 'unknown';
-            window.showToast('AI subtitles failed to start: ' + err, 'error');
-            window.stopLiveSubtitles(true);
-            selectSubtitleTrack(-1);
-            updateLiveSubButton(false);
-        }
-    }).catch((err) => {
-        window.showToast('AI subtitles failed to start: ' + err.message, 'error');
-        window.stopLiveSubtitles(true);
-        selectSubtitleTrack(-1);
-        updateLiveSubButton(false);
-    });
-}
-
-// Cancels a running generation. Loaded subtitle tracks are left alone unless unselect=true.
-window.stopLiveSubtitles = function stopLiveSubtitles(unselect = false) {
-    if (window._liveSubActive) {
-        console.log('[live-subs] stop');
-        try { window.electronAPI.stopLiveSubtitles(); } catch (e) { /* noop */ }
-    }
-    window._liveSubActive = false;
-    window._liveSubVideoPath = null;
-    if (unselect) {
-        selectSubtitleTrack(-1);
-    }
-    updateLiveSubButton(false);
-};
-
-// Reloads the sidecar list and selects the generated file by name.
-async function selectGeneratedSubtitle(videoPath, srtPath) {
-    if (_liveNormPath(window.currentPlayingItem && window.currentPlayingItem.path) !== _liveNormPath(videoPath)) return;
-    await loadActiveSubtitles(videoPath);
-    const name = (srtPath.split(/[\\/]/).pop() || '').replace(/\.srt$/i, '').toLowerCase();
-    const idx = (window._allAvailableSubtitles || []).findIndex((sub) => {
-        const file = _liveNormPath(sub.path).split('/').pop();
-        return file === `${name}.srt` || file === `${name}.vtt`;
-    });
-    if (idx >= 0) selectSubtitleByIndex(idx);
-}
-
-let _liveListenersBound = false;
-function ensureLiveSubtitleListeners() {
-    if (_liveListenersBound) return;
-    _liveListenersBound = true;
-
-    window.electronAPI.onLiveSubtitleStatus(async (s) => {
-        if (_liveNormPath(s.videoPath) !== _liveNormPath(window._liveSubVideoPath)) return;
-        console.log('[live-subs] status', s);
-        if (s.status === 'started') { updateLiveSubButton(true); return; }
-        if (!s.final) return;
-
-        window._liveSubActive = false;
-        window._liveSubVideoPath = null;
-        if (s.status === 'SUCCESS') {
-            updateLiveSubButton(false);
-            window.showToast(`AI subtitles ready — ${s.cues || 0} cues.`, 'success');
-            await selectGeneratedSubtitle(s.videoPath, s.srtPath);
-        } else {
-            if (s.status === 'FAILED') {
-                window.showToast('AI subtitles error: ' + (s.error || 'unknown'), 'error');
-            }
-            selectSubtitleTrack(-1);
-            updateLiveSubButton(false);
-        }
-    });
-}
-
-window.startLiveSubtitleSession = startLiveSubtitleSession;
+// AI subtitle menu & session controls live in js/player/ai-subtitles.js.
 
 // ── Subtitle sync offset (±0.25s) ───────────────────────────────────────────
 // Shifts every cue on the active subtitle track(s) — live or loaded SRT — by a
@@ -693,10 +562,9 @@ function initSubtitleListeners() {
             e.stopPropagation();
             el('subtitles-menu').style.display = 'none';
 
-            // Toggle: a second click while a session is running stops it.
-            if (window._liveSubActive) {
-                window.stopLiveSubtitles(true);
-                window.showToast('Live subtitles stopped.', 'info');
+            if (window._aiSubActive || window._liveSubActive) {
+                if (typeof window.stopAiSubtitles === 'function') window.stopAiSubtitles(true);
+                window.showToast('AI subtitles stopped.', 'info');
                 return;
             }
 
@@ -711,22 +579,24 @@ function initSubtitleListeners() {
             }
 
             if (!videoPath || videoPath.startsWith('http://') || videoPath.startsWith('https://')) {
-                window.showToast('Live subtitles require a local playback source.', 'error');
+                window.showToast('AI subtitles require a local playback source.', 'error');
                 return;
             }
 
             const asrAnchor = el('btn-subtitles') || optGen;
             let subConfig = null;
             if (typeof window.showAiSubtitlesSubmenu === 'function') {
-                subConfig = await window.showAiSubtitlesSubmenu(asrAnchor);
+                subConfig = await window.showAiSubtitlesSubmenu(asrAnchor, { title: 'AI Subtitles' });
             } else {
-                const sep = typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'rnnoise';
+                const sep = typeof window.getSubtitleSeparator === 'function' ? window.getSubtitleSeparator() : 'none';
                 subConfig = { separator: sep, translateTo: 'fr', translateFrom: 'en', translateEngine: 'hf' };
             }
 
-            if (!subConfig) return; // User cancelled
+            if (!subConfig) return;
 
-            startLiveSubtitleSession(videoPath, itemName, subConfig);
+            if (typeof window.startAiSubtitlesSession === 'function') {
+                window.startAiSubtitlesSession(videoPath, itemName, subConfig);
+            }
         });
     }
 

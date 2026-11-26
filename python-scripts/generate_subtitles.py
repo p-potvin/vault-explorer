@@ -99,7 +99,7 @@ def find_subtitles_delegator():
 SEPARATORS = ("rnnoise", "mel_band_roformer", "bs_roformer", "htdemucs", "none")
 
 
-def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", translate_engine="hf", translate_from=None, model="parakeet-tdt"):
+def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", translate_engine="hf", translate_from=None, model=""):
     """Run `vw better-subtitles -Separator <separator> [-TranslateTo <lang>]`.
 
     Returns ``(transcript, translation)`` segment lists (translation is None
@@ -110,12 +110,21 @@ def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", t
     """
     delegator = find_subtitles_delegator()
     shell = shutil.which("pwsh") or shutil.which("powershell")
+    if not shell and os.name == "nt":
+        for cand in (
+            r"C:\Program Files\PowerShell\7\pwsh.exe",
+            os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+        ):
+            if os.path.isfile(cand):
+                shell = cand
+                break
     if not delegator or not shell:
+        log(ACTION, f"vw better-subtitles skipped: delegator={delegator!r}, shell={shell!r}")
         return None
 
     cmd = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", delegator,
            "-Target", video_path, "-OutputDir", work_dir, "-Separator", separator]
-    effective_model = model or os.environ.get("VW_ASR_MODEL") or "parakeet-tdt"
+    effective_model = model or os.environ.get("VW_ASR_MODEL") or ""
     if effective_model:
         cmd += ["-Model", effective_model]
     if translate_to:
@@ -182,7 +191,7 @@ def transcribe_native(video_path, duration, work_dir):
         wav_path, status_callback=lambda msg: report_progress(26, msg))
 
 
-def transcribe(video_path, translate_to, duration, work_dir, separator="rnnoise", translate_engine="hf", translate_from=None, model="parakeet-tdt"):
+def transcribe(video_path, translate_to, duration, work_dir, separator="rnnoise", translate_engine="hf", translate_from=None, model=""):
     """Returns (transcript, translation, engine)."""
     if os.environ.get("VW_SUBTITLES_ENGINE", "").lower() != "native":
         report_progress(10, f"Starting vw better-subtitles ({separator})...")
@@ -205,11 +214,11 @@ def process_one(video_path, args, _output_path):
     translate_from = subtitles.source_code(getattr(args, "translate_from", "") or "")
     if translate_from in ("", "und", "original", "none", "auto"):
         translate_from = None
-    # Skip translation only when target is unset or matches the source language.
-    trans_target = None if (not translate_to or translate_to == (translate_from or "en")) else translate_to
+    # Skip translation only when target is unset or explicitly matches the source language.
+    trans_target = None if (not translate_to or (translate_from and translate_to == translate_from)) else translate_to
     duration = media.get_video_duration(video_path)
     translate_engine = getattr(args, "translate_engine", None) or os.environ.get("VW_TRANSLATE_ENGINE", "hf")
-    model = getattr(args, "model", None) or os.environ.get("VW_ASR_MODEL") or "parakeet-tdt"
+    model = getattr(args, "model", None) or os.environ.get("VW_ASR_MODEL") or ""
 
     emit_status("STARTING", path=video_path)
     report_progress(2, "Preparing transcription...")
@@ -239,8 +248,6 @@ def process_one(video_path, args, _output_path):
 
         if trans_target and translation is None:
             log(ACTION, f"No '{trans_target}' translation available; wrote the transcript only")
-        if translate_to == "en":
-            translation = segments
 
         report_progress(88, "Writing subtitle tracks...")
         written = []
@@ -283,11 +290,11 @@ def main():
                              "-Separator (default: rnnoise)")
     parser.add_argument("--translate-from", default="",
                         help="Source language code for translation (e.g. en, fr)")
-    parser.add_argument("--model", default=os.environ.get("VW_ASR_MODEL") or "parakeet-tdt",
-                        help="ASR model passed to vw better-subtitles -Model (default: parakeet-tdt)")
+    parser.add_argument("--model", default=os.environ.get("VW_ASR_MODEL") or "",
+                        help="Optional ASR model override passed to vw better-subtitles -Model")
     parser.add_argument("--translate-engine", default=os.environ.get("VW_TRANSLATE_ENGINE", "hf"),
-                        choices=["hf", "command-a", "translategemma", "riva", "google"],
-                        help="Translation engine for subtitle translation (default: hf / command-a)")
+                        choices=["hf", "command-a", "riva", "google"],
+                        help="Translation engine for subtitle translation (default: hf / gpt-oss-120b)")
     args = parser.parse_args()
     try:
         return cli.run(args, ACTION, process_one, needs_output=False)
