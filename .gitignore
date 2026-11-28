@@ -165,6 +165,6 @@ logs/
 .omx/
 .vscode/
 BENCHMARKS.md
-tests/.thumbs/
+**/.thumbs/
 tests/*.mp4*
 

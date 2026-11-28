@@ -79,7 +79,7 @@ function startSubtitlesPipeline({ videoPath, langs, volumeBoost, startTime, tran
         '-File', scriptPath,
         '-TargetDir', videoPath,
         '-Langs', langStr,
-        '-NoSeparate', // Fast mode for live subtitles
+        //'-NoSeparate', // Fast mode for live subtitles
         '-VolumeBoost', String(boost)
     ];
 
