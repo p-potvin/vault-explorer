@@ -43,7 +43,7 @@ function verifyPackagedPwshResolution() {
         'Unpacked baseDir must never produce app.asar.unpacked.unpacked'
     );
 
-    const delegator = liveSubtitles.subtitlesDelegator();
+    const delegator = aiSubtitles.subtitlesDelegator();
     assert.ok(fs.existsSync(delegator), `Start-Subtitles.ps1 must exist on disk: ${delegator}`);
     assert.ok(
         delegator.endsWith(path.join('scripts', 'pwsh', 'Start-Subtitles.ps1')),

@@ -313,13 +313,25 @@ async function runNvenccAction(event, opts) {
  */
 function runAction(event, action, opts) {
     if (action === 'generate-subtitles') {
-        const { enqueueSubtitleJob } = require('./ai-subtitles');
-        return enqueueSubtitleJob(() => _runActionImmediate(event, action, opts));
+        // One queue for every AI subtitles request, and a session the CC menu's Stop (stop-live-subtitles) and app
+        // shutdown can reach: a stopped job ends its process and reports STOPPED instead of writing subtitles.
+        const { enqueueSubtitleJob, beginSession, endSession } = require('./ai-subtitles');
+        const session = beginSession(opts && opts.videoPath);
+        return enqueueSubtitleJob(async () => {
+            try {
+                if (session.stopped) {
+                    return { success: false, status: 'STOPPED', action };
+                }
+                return await _runActionImmediate(event, action, opts, session);
+            } finally {
+                endSession(session);
+            }
+        });
     }
     return _runActionImmediate(event, action, opts);
 }
 
-function _runActionImmediate(event, action, opts) {
+function _runActionImmediate(event, action, opts, session = null) {
     const definition = ACTIONS[action];
     if (!definition) {
         return Promise.resolve({ success: false, error: `Unknown enhancement action: ${action}` });
@@ -351,6 +363,7 @@ function _runActionImmediate(event, action, opts) {
     return new Promise((resolve) => {
         const env = utils.getPythonEnv({ PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: 'python' });
         const proc = spawn(pythonExe, ['-u', script, ...args], { env, windowsHide: true });
+        if (session) session.proc = proc;
 
         let log = '';
         let errorLog = '';
@@ -403,6 +416,10 @@ function _runActionImmediate(event, action, opts) {
 
         proc.on('close', (code) => {
             console.log(`[enhancements:${action}] Finished with code ${code}`);
+            if (session && session.stopped) {
+                resolve({ success: false, status: 'STOPPED', action });
+                return;
+            }
             if (status === 'SUCCESS') {
                 resolve({
                     success: true, status: 'SUCCESS', action, path: resultPath,

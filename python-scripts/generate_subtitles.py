@@ -74,11 +74,17 @@ def resolve_srt_targets(video_path, args, language=None):
     if not existing or not os.path.exists(existing):
         existing = None
     if language:
-        return subtitles.sidecar_targets(video_path, existing, language, include_default=False)
-    bases = [os.path.splitext(video_path)[0]]
-    if existing and os.path.abspath(existing) != os.path.abspath(video_path):
-        bases.append(os.path.splitext(existing)[0])
-    return [f"{b}.srt" for b in bases]
+        targets = subtitles.sidecar_targets(video_path, existing, language, include_default=False)
+    else:
+        bases = [os.path.splitext(video_path)[0]]
+        if existing and os.path.abspath(existing) != os.path.abspath(video_path):
+            bases.append(os.path.splitext(existing)[0])
+        targets = [f"{b}.srt" for b in bases]
+    # The original's tracks are (re)generated; beside the enhanced copy, a subtitle already there is kept (it may
+    # hold edits) and only a missing one is written.
+    own = os.path.splitext(os.path.abspath(video_path))[0]
+    return [t for t in targets
+            if os.path.abspath(t).startswith(own + ".") or not os.path.exists(t)]
 
 
 VW_ENGINE = "vw better-subtitles"
@@ -180,15 +186,27 @@ def transcribe_via_vw(video_path, translate_to, work_dir, separator="rnnoise", t
     return subtitles.read_srt(transcript_srt), translation
 
 
-def transcribe_native(video_path, duration, work_dir):
+def transcribe_native(video_path, duration, work_dir, model=""):
     wav_path = os.path.join(work_dir, "audio.wav")
     media.extract_audio(
         video_path, wav_path,
         on_progress=ScaledProgress(14, 20, "Extracting audio"),
         duration=duration)
     report_progress(22, "Loading speech recognition model...")
-    return asr.transcribe(
-        wav_path, status_callback=lambda msg: report_progress(26, msg))
+    # the built-in recognizer reads its nemo-speech model from VW_ASR_MODEL: the picker's choice goes there for
+    # this call only
+    previous = os.environ.get("VW_ASR_MODEL")
+    if model:
+        os.environ["VW_ASR_MODEL"] = model
+    try:
+        return asr.transcribe(
+            wav_path, status_callback=lambda msg: report_progress(26, msg))
+    finally:
+        if model:
+            if previous is None:
+                os.environ.pop("VW_ASR_MODEL", None)
+            else:
+                os.environ["VW_ASR_MODEL"] = previous
 
 
 def transcribe(video_path, translate_to, duration, work_dir, separator="rnnoise", translate_engine="hf", translate_from=None, model=""):
@@ -201,7 +219,7 @@ def transcribe(video_path, translate_to, duration, work_dir, separator="rnnoise"
             return transcript, translation, VW_ENGINE
         report_progress(12, "vw better-subtitles unavailable, using built-in ASR...")
     # The built-in path has no translator; it produces the transcript only.
-    return transcribe_native(video_path, duration, work_dir), None, NATIVE_ENGINE
+    return transcribe_native(video_path, duration, work_dir, model), None, NATIVE_ENGINE
 
 
 def process_one(video_path, args, _output_path):
@@ -251,15 +269,18 @@ def process_one(video_path, args, _output_path):
 
         report_progress(88, "Writing subtitle tracks...")
         written = []
+        best = None          # the track the player selects: the translation when one was made
         tracks = [(None, segments)]
         if translation:
             tracks.append((translate_to, translation))
         if args.output and not (os.path.isdir(args.output) or args.output.endswith((os.sep, '/'))):
             tracks = tracks[-1:]  # one explicit file: the best track
         for lang, segs in tracks:
-            for target in resolve_srt_targets(video_path, args, lang):
+            for i, target in enumerate(resolve_srt_targets(video_path, args, lang)):
                 subtitles.write_srt(target, segs)
                 written.append(target)
+                if i == 0:
+                    best = target
                 log(ACTION, f"Wrote {target}")
 
         report_progress(96, "Recording enhancement state...")
@@ -273,7 +294,7 @@ def process_one(video_path, args, _output_path):
                    outputs=written)
 
         report_progress(100, f"Subtitles generated ({len(segments)} cues)")
-        emit_status("SUCCESS", path=written[0] if written else video_path,
+        emit_status("SUCCESS", path=best or (written[0] if written else video_path),
                     segments=len(segments))
     finally:
         enhanced.discard_temp(work_dir)

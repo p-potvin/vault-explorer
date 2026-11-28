@@ -484,6 +484,8 @@
         const translateFrom = options.translateFrom || null;
         const translateEngine = options.translateEngine || 'hf';
         const itemFolder = window.currentRealPath || '';
+        // this run's token: Stop or a newer run changes it, and this run's late result is then ignored
+        const token = (window._aiSubToken = (window._aiSubToken || 0) + 1);
 
         window.electronAPI.generateSubtitles(videoPath, itemFolder, {
             model,
@@ -492,6 +494,11 @@
             translateFrom,
             translateEngine
         }).then(async (res) => {
+            if (token !== window._aiSubToken) return;            // stopped, or replaced by a newer run
+            if (res && res.status === 'STOPPED') {
+                stopAiSubtitles(false);
+                return;
+            }
             window._aiSubActive = false;
             window._liveSubActive = false;
             window._aiSubVideoPath = null;
@@ -507,6 +514,7 @@
                 if (typeof window.selectSubtitleTrack === 'function') window.selectSubtitleTrack(-1);
             }
         }).catch((err) => {
+            if (token !== window._aiSubToken) return;
             window._aiSubActive = false;
             window._liveSubActive = false;
             window._aiSubVideoPath = null;
@@ -518,6 +526,7 @@
     }
 
     function stopAiSubtitles(unselect = false) {
+        window._aiSubToken = (window._aiSubToken || 0) + 1;     // the running job's result no longer applies
         if (window._aiSubActive) {
             try { window.electronAPI.stopLiveSubtitles(); } catch (_) { /* noop */ }
         }

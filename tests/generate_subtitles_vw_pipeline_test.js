@@ -55,24 +55,29 @@ gs.media.get_video_duration = lambda *a: 1.0
 folder = tempfile.mkdtemp()
 video = os.path.join(folder, "Don't.mkv")
 open(video, "wb").close()
-args = types.SimpleNamespace(language=os.environ["PROBE_LANGUAGE"], separator=os.environ["PROBE_SEPARATOR"], output=None)
+args = types.SimpleNamespace(language=os.environ["PROBE_LANGUAGE"], separator=os.environ["PROBE_SEPARATOR"], output=None,
+                             translate_from=os.environ.get("PROBE_FROM", ""))
+emitted = {}
+_emit = gs.emit_status
+gs.emit_status = lambda status, **kw: (emitted.update(status=status, **kw), _emit(status, **kw))
 gs.process_one(video, args, None)
 files = sorted(f for f in os.listdir(folder) if f.endswith(".srt"))
 tracks = {f: open(os.path.join(folder, f), encoding="utf-8").read().split("\n")[2] for f in files}
 sidecar = gs.state.load(video)
 gs.shutil.rmtree(folder, ignore_errors=True)
 print(json.dumps({"engine": calls.get("set", {}).get("engine"), "cmd": calls.get("cmd"), "tracks": tracks,
+                  "emitted": os.path.basename(emitted.get("path") or ""),
                   "languages": (sidecar.get("enhancements") or {}).get("subtitles")}))
 `;
 
-function runProbe({ writeSrt = true, translate = true, separator = 'rnnoise', language = 'en', osError = false, passthrough = false } = {}) {
+function runProbe({ writeSrt = true, translate = true, separator = 'rnnoise', language = 'en', osError = false, passthrough = false, from = '' } = {}) {
     const result = spawnSync(utils.getRobustPythonExe(), ['-c', probe], {
         cwd: rootDir, encoding: 'utf8',
         env: {
             ...process.env, VW_SUBTITLES_ENGINE: '',
             PROBE_WRITE_SRT: writeSrt ? '1' : '0', PROBE_TRANSLATE: translate ? '1' : '0',
             PROBE_SEPARATOR: separator, PROBE_LANGUAGE: language, PROBE_OSERROR: osError ? '1' : '0',
-            PROBE_PASSTHROUGH: passthrough ? '1' : '0',
+            PROBE_PASSTHROUGH: passthrough ? '1' : '0', PROBE_FROM: from,
         },
     });
     assert.equal(result.status, 0, `probe failed:\n${result.stderr}`);
@@ -89,6 +94,7 @@ assert.ok(!qc.cmd.includes('-TranslateFrom'), 'Parakeet identifies the spoken la
 assert.deepEqual(qc.tracks, { "Don't.srt": 'bonjour', "Don't.fr.srt": 'hello' },
     'Transcript is the default track, the translation is the language track');
 assert.deepEqual(qc.languages, ['fr']);
+assert.equal(qc.emitted, "Don't.fr.srt", 'the translated track is the one reported, so the player selects it');
 
 // Separator setting and argv shape.
 assert.equal(argAfter(qc.cmd, '-Separator'), 'rnnoise', 'default separator');
@@ -105,7 +111,8 @@ assert.deepEqual(esToEn.tracks, { "Don't.srt": 'bonjour', "Don't.en.srt": 'hello
 assert.deepEqual(esToEn.languages, ['en']);
 
 // Explicit same-language en -> en skips translation (transcript only).
-const enSame = runProbe({ language: 'en', translate: false });
+const enSame = runProbe({ language: 'en', from: 'en', translate: true });   // the mock would translate if asked
+assert.ok(!enSame.cmd.includes('-TranslateTo'), 'en -> en must not ask for a translation');
 assert.deepEqual(enSame.tracks, { "Don't.srt": 'bonjour' });
 assert.deepEqual(enSame.languages, []);
 

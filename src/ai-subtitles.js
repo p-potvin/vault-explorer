@@ -17,7 +17,8 @@ const LOG_TAG = '[ai-subtitles]';
 const log = (...args) => console.log(LOG_TAG, ...args);
 
 let jobQueue = Promise.resolve();
-let activeSession = null;
+let activeSession = null;      // the latest registered session: the one Stop ends
+const sessions = new Set();    // every queued or running session: shutdown ends them all
 
 /**
  * Enqueue a subtitle generation task so concurrent requests execute sequentially.
@@ -51,9 +52,41 @@ function countCues(srtPath) {
 }
 
 function stopActiveSession() {
-    if (!activeSession) return false;
-    activeSession.stopped = true;
-    const proc = activeSession.proc;
+    const session = activeSession;
+    if (!session) return false;
+    stopSession(session);
+    endSession(session);
+    return true;
+}
+
+/**
+ * A new AI subtitles session for `videoPath`, made the active one (a previous one is stopped): Stop and app shutdown
+ * reach its process through it. The player's generate-subtitles jobs (src/enhancements.js) register here too, so
+ * the CC menu's Stop ends the job it started.
+ */
+function beginSession(videoPath, { exclusive = false } = {}) {
+    // exclusive (the legacy start-live-subtitles call): the previous session stops. Queued generate-subtitles jobs
+    // are not exclusive: the queue exists to run several videos one after another, so registering one never stops
+    // another; Stop ends the latest one (the player's), shutdown ends them all.
+    if (exclusive) stopActiveSession();
+    const session = { videoPath, stopped: false, proc: null };
+    sessions.add(session);
+    activeSession = session;
+    return session;
+}
+
+/** The job of `session` ended: forget it. */
+function endSession(session) {
+    sessions.delete(session);
+    if (activeSession === session) {
+        activeSession = [...sessions].pop() || null;
+    }
+}
+
+function stopSession(session) {
+    if (!session) return false;
+    session.stopped = true;
+    const proc = session.proc;
     if (proc && !proc.killed) {
         try {
             utils.killProcessTree(proc.pid);
@@ -61,11 +94,10 @@ function stopActiveSession() {
             try { proc.kill(); } catch (_) {}
         }
     }
-    activeSession = null;
     return true;
 }
 
-function runSubtitlesDirect({ videoPath, separator, translateTo, translateFrom, translateEngine = 'hf', model }) {
+function runSubtitlesDirect({ videoPath, separator, translateTo, translateFrom, translateEngine = 'hf', model, session = null }) {
     const args = [
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', subtitlesDelegator(),
         '-Target', videoPath,
@@ -85,7 +117,7 @@ function runSubtitlesDirect({ videoPath, separator, translateTo, translateFrom, 
     return new Promise((resolve) => {
         const tail = [];
         const proc = spawn('powershell.exe', args, { windowsHide: true });
-        if (activeSession) activeSession.proc = proc;
+        if (session) session.proc = proc;
 
         const collect = (chunk) => {
             for (const line of chunk.toString().split(/\r?\n/)) {
@@ -108,9 +140,7 @@ function registerAiSubtitlesHandlers(ipcMain) {
         if (!videoPath || videoPath.startsWith('http://') || videoPath.startsWith('https://')) {
             return { success: false, error: 'AI subtitles require a local playback source.' };
         }
-        stopActiveSession();
-        const session = { videoPath, stopped: false, proc: null };
-        activeSession = session;
+        const session = beginSession(videoPath, { exclusive: true });
 
         forwardStatus('live-subtitle-status', { status: 'started', videoPath, message: 'Queued AI subtitles' });
         enqueueSubtitleJob(async () => {
@@ -119,9 +149,9 @@ function registerAiSubtitlesHandlers(ipcMain) {
                 return;
             }
             const { code, tail } = await runSubtitlesDirect({
-                videoPath, separator, translateTo, translateFrom, translateEngine, model,
+                videoPath, separator, translateTo, translateFrom, translateEngine, model, session,
             });
-            if (activeSession === session) activeSession = null;
+            endSession(session);
             if (session.stopped) {
                 forwardStatus('live-subtitle-status', { final: true, status: 'STOPPED', videoPath, cues: 0 });
                 return;
@@ -157,10 +187,15 @@ function registerAiSubtitlesHandlers(ipcMain) {
 }
 
 function shutdownAiSubtitles() {
-    stopActiveSession();
+    for (const session of [...sessions]) {
+        stopSession(session);
+        endSession(session);
+    }
 }
 
 module.exports = {
+    beginSession,
+    endSession,
     enqueueSubtitleJob,
     registerAiSubtitlesHandlers,
     shutdownAiSubtitles,
