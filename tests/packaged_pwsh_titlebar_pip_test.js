@@ -6,7 +6,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const utils = require('../src/utils');
-const liveSubtitles = require('../src/live-subtitles');
+const aiSubtitles = require('../src/ai-subtitles');
 
 const rootDir = path.resolve(__dirname, '..');
 
@@ -43,7 +43,7 @@ function verifyPackagedPwshResolution() {
         'Unpacked baseDir must never produce app.asar.unpacked.unpacked'
     );
 
-    const delegator = liveSubtitles.subtitlesDelegator();
+    const delegator = aiSubtitles.subtitlesDelegator();
     assert.ok(fs.existsSync(delegator), `Start-Subtitles.ps1 must exist on disk: ${delegator}`);
     assert.ok(
         delegator.endsWith(path.join('scripts', 'pwsh', 'Start-Subtitles.ps1')),

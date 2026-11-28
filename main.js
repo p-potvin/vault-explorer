@@ -134,7 +134,7 @@ const cryptoHandlers = require('./src/crypto');
 const previewHandlers = require('./src/previews');
 const normalizationHandlers = require('./src/normalization');
 const scannerHandlers = require('./src/scanner');
-const liveSubtitlesHandlers = require('./src/live-subtitles');
+const aiSubtitlesHandlers = require('./src/ai-subtitles');
 const watchHistoryHandlers = require('./src/watch-history');
 
 
@@ -261,7 +261,7 @@ function performFullAppCleanup() {
     console.log('[main:cleanup] Full app cleanup requested');
     // Old code called killNodeProcesses() which nuked EVERY node.exe on the
     // machine — removed. killAllActiveSubprocesses kills our tracked trees.
-    try { liveSubtitlesHandlers.shutdownLiveSubtitles(); } catch (e) { /* noop */ }
+    try { aiSubtitlesHandlers.shutdownAiSubtitles(); } catch (e) { /* noop */ }
     utils.killAllActiveSubprocesses();
     killAllOwnProcesses(true);
 }
@@ -808,7 +808,7 @@ previewHandlers.registerPreviewHandlers(ipcMain);
 previewHandlers.registerImageEnhanceHandler(ipcMain);
 normalizationHandlers.registerNormalizationHandlers(ipcMain);
 scannerHandlers.registerScannerHandlers(ipcMain);
-liveSubtitlesHandlers.registerLiveSubtitlesHandlers(ipcMain);
+aiSubtitlesHandlers.registerAiSubtitlesHandlers(ipcMain);
 watchHistoryHandlers.registerWatchHistoryHandlers(ipcMain, app);
 
 // Register Clip Handler

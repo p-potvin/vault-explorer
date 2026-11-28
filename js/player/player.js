@@ -193,13 +193,14 @@ async function handlePlayerContextMenu(action, menuItem) {
         }
         if (subConfig) {
             const transSummary = subConfig.translateTo ? ` → ${subConfig.translateTo.toUpperCase()}` : '';
-            window.showToast(`Generating subtitles for ${menuItem.name || 'video'} (${subConfig.separator}${transSummary})`, 'success');
+            const modelLabel = subConfig.model || 'parakeet-tdt';
+            window.showToast(`Generating subtitles for ${menuItem.name || 'video'} (${modelLabel}, ${subConfig.separator}${transSummary})`, 'success');
             window.electronAPI.generateSubtitles(itemPath, itemFolder, {
+                model: subConfig.model,
                 separator: subConfig.separator,
                 translateTo: subConfig.translateTo,
                 translateFrom: subConfig.translateFrom,
                 translateEngine: subConfig.translateEngine || 'hf',
-                model: 'parakeet-tdt',
             }).then(res => {
                 if (res.success || res.status === 'SUCCESS' || res.status === 'EXISTS') {
                     window.showToast(`${menuItem.name || 'Video'}: Subtitles generated`, 'success');

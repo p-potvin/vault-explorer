@@ -79,7 +79,7 @@ async function runE2E() {
     console.log(`Recognized ${taskResult.body.words.length} words. First 3 words:`, taskResult.body.words.slice(0, 3));
 
     // 4. Live Subtitles Engine & Sidecar Generation
-    console.log('\n[Step 4] Testing live-subtitles.js cue extraction and sidecar output...');
+    console.log('\n[Step 4] Testing ai-subtitles.js (standalone) cue extraction and sidecar output...');
     const testClip = path.resolve(__dirname, '..', '..', 'vault-cacophony', 'samples', 'ItJustDoesntMatter.wav');
     const expectedSrt = path.resolve(__dirname, '..', '..', 'vault-cacophony', 'samples', 'ItJustDoesntMatter.srt');
     const expectedVtt = path.resolve(__dirname, '..', '..', 'vault-cacophony', 'samples', '.subtitles', 'ItJustDoesntMatter.vtt');
@@ -89,7 +89,7 @@ async function runE2E() {
     try { if (fs.existsSync(expectedVtt)) fs.unlinkSync(expectedVtt); } catch (_) {}
 
     const { spawn } = require('child_process');
-    const liveProc = spawn('node', ['src/live-subtitles.js', testClip], {
+    const liveProc = spawn('node', ['src/ai-subtitles.js', testClip], {
         cwd: path.resolve(__dirname, '..')
     });
 
@@ -99,7 +99,7 @@ async function runE2E() {
 
     const exitCode = await new Promise((resolve) => liveProc.on('close', resolve));
     console.log('Live Subtitle run output:\n' + liveOutput);
-    assert.equal(exitCode, 0, 'live-subtitles.js must exit 0');
+    assert.equal(exitCode, 0, 'ai-subtitles.js must exit 0');
     assert.match(liveOutput, /SUCCESS: \d+ cues/, 'Output must report SUCCESS with cue count');
 
     // Read back and verify sidecars on disk
